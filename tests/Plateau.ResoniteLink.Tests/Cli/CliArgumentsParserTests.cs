@@ -29,10 +29,52 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("tokyo23ku", result.Options.Request.Dataset);
         Assert.Equal("53394525", result.Options.Request.MeshCode);
         Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
+        Assert.Equal(PlateauPackageCatalog.CliDefaultPackageNames, result.Options.Request.PackageNames);
         Assert.Equal(
             Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
             result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseParsesRequestedPackages()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--packages",
+                " tran,waterbody,tran,brid ",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(["tran", "wtr", "brid"], result.Options!.Request.PackageNames);
+    }
+
+    [Fact]
+    public void ParseRejectsUnsupportedPackageName()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--packages",
+                "bldg,unknown",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Equal(
+            "Unsupported package name(s): unknown. Supported packages: area, bldg, brid, cons, dem, fld, frn, gen, htd, ifld, lsld, luse, rfld, rwy, squr, tnm, tran, trk, tun, ubld, unf, urf, veg, wtr, wwy.",
+            result.Error);
     }
 
     [Fact]

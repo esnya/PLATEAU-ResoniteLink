@@ -21,12 +21,13 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset tokyo23ku \
   --mesh-code 53394525 \
+  --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。任意の `--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。現行の importer は公式 PLATEAU の `udx/<package>/` prefix 群にまたがるローカル CityGML を読み、deterministic な submesh / material 順序を保ちつつ、詳細モデルの `ParameterizedTexture` appearance も live-ready な mesh / material payload に反映し、live build 全体をメモリ保持せず city object 単位で下流へ流します。
+`--resonitelink-port` または `--resonitelink-url` は必須です。任意の `--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。任意の `--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。現行の importer は公式 PLATEAU の `udx/<package>/` prefix 群にまたがるローカル CityGML を読み、deterministic な submesh / material 順序を保ちつつ、詳細モデルの `ParameterizedTexture` appearance も live-ready な mesh / material payload に反映し、live build 全体をメモリ保持せず city object 単位で下流へ流します。
 
 既定の CKAN catalog flow を使って、公式 PLATEAU CityGML ZIP をオンライン取得しつつ Resonite に取り込む例:
 

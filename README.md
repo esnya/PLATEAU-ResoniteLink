@@ -21,12 +21,13 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset tokyo23ku \
   --mesh-code 53394525 \
+  --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. The optional `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. The option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`. The current importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects without holding the full live build in memory.
+`--resonitelink-port` or `--resonitelink-url` is required. The optional `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. The optional `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. The option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`. The current importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects without holding the full live build in memory.
 
 Import an official PLATEAU CityGML ZIP online through the default CKAN catalog flow:
 

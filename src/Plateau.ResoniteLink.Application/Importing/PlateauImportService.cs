@@ -28,6 +28,9 @@ public sealed class PlateauImportService(
             Dataset = request.Dataset.Trim(),
             MeshCode = request.MeshCode.Trim(),
             LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
+            PackageNames = request.PackageNames is null
+                ? null
+                : PlateauPackageCatalog.NormalizeRequestedPackageNames(request.PackageNames),
         };
 
         PlateauImportRequest resolvedRequest =

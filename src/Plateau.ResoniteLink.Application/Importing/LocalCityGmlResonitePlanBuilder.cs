@@ -16,11 +16,13 @@ public static class LocalCityGmlResonitePlanBuilder
     public const string DefaultDemTerrainTextureUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
     public const int DefaultDemTerrainTextureZoomLevel = 18;
     public const int DefaultDemTerrainTextureMaxSize = 4096;
+    public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-1.0, -1.0);
     private static readonly Regex MeshCodeTokenRegex = new(
         @"(?<!\d)(\d{8}|\d{6})(?!\d)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly ResoniteColor DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
+    private static readonly ResoniteColor DefaultRoadMarkingColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";
     private static readonly XNamespace Core = "http://www.opengis.net/citygml/2.0";
     private static readonly XNamespace Gml = "http://www.opengis.net/gml";
@@ -763,9 +765,11 @@ public static class LocalCityGmlResonitePlanBuilder
         List<ResoniteMeshSubmesh> submeshes = [];
         List<ResoniteMaterialBinding> materials = [];
 
-        MaterializedSurface[] materializedSurfaces = cityObject.Surfaces
-            .Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface))
-            .ToArray();
+        List<MaterializedSurface> materializedSurfaces =
+        [
+            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface)),
+            .. CreateGeneratedRoadMarkingSurfaces(cityObject, cityObjectOrigin, cityObjectCartesian),
+        ];
 
         IReadOnlyList<IGrouping<string, MaterializedSurface>> materialGroups = materializedSurfaces
             .GroupBy(
@@ -883,6 +887,170 @@ public static class LocalCityGmlResonitePlanBuilder
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
         return new MaterializedSurface(surface, resolvedMaterial, depthOffset);
+    }
+
+    private static IEnumerable<MaterializedSurface> CreateGeneratedRoadMarkingSurfaces(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!string.Equals(cityObject.PackageName, "tran", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        foreach (ParsedSurface surface in cityObject.Surfaces)
+        {
+            if (surface.TexturePath is not null)
+            {
+                continue;
+            }
+
+            ParsedSurface? markingSurface = TryCreateGeneratedRoadMarkingSurface(
+                surface,
+                cityObjectOrigin,
+                cityObjectCartesian);
+            if (markingSurface is null)
+            {
+                continue;
+            }
+
+            yield return new MaterializedSurface(
+                markingSurface,
+                new DefaultMaterialCatalog.ResolvedMaterial(
+                    ResoniteMaterialType.VertexColor,
+                    TexturePath: null,
+                    ResoniteTextureSourceKind.Bundled,
+                    ResoniteMaterialProjection.Uv,
+                    Family: null,
+                    TextureScale: null),
+                DefaultTerrainAlignedMaterialDepthOffset);
+        }
+    }
+
+    private static ParsedSurface? TryCreateGeneratedRoadMarkingSurface(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        if (vertices.Length != 4 || surface.InteriorRings.Length != 0)
+        {
+            return null;
+        }
+
+        ResoniteFloat3[] positions = vertices
+            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        ResoniteFloat3? normal = ComputePolygonNormal(positions);
+        if (normal is null || Math.Abs(normal.Y) < 0.8)
+        {
+            return null;
+        }
+
+        EdgePair edgePair = SelectPrimaryRoadEdgePair(vertices, positions);
+        if (edgePair.Length < 1.0 || edgePair.Width < 0.3)
+        {
+            return null;
+        }
+
+        double markingWidth = Math.Min(DefaultGeneratedRoadMarkingWidthMeters, edgePair.Width * 0.5);
+        double insetDistance = Math.Max((edgePair.Width - markingWidth) * 0.5, 0.0);
+        if (insetDistance <= 1e-6)
+        {
+            return null;
+        }
+
+        GeodeticPoint[] side0 = MoveTowardNearest(edgePair.Side0, edgePair.Side1, insetDistance, cityObjectOrigin, cityObjectCartesian);
+        GeodeticPoint[] side1 = MoveTowardNearest(edgePair.Side1, edgePair.Side0, insetDistance, cityObjectOrigin, cityObjectCartesian);
+        if (side0.Length != 2 || side1.Length != 2)
+        {
+            return null;
+        }
+
+        return new ParsedSurface(
+            $"{surface.PolygonId}_generated_marking",
+            surface.Semantic,
+            new ParsedRing(
+                $"{surface.ExteriorRing.RingId}_generated_marking",
+                [side0[0], side0[1], side1[1], side1[0]],
+                UVs: null),
+            [],
+            DefaultRoadMarkingColor,
+            TexturePath: null);
+    }
+
+    private static EdgePair SelectPrimaryRoadEdgePair(
+        GeodeticPoint[] vertices,
+        ResoniteFloat3[] positions)
+    {
+        double edge01 = Distance(positions[0], positions[1]);
+        double edge12 = Distance(positions[1], positions[2]);
+        double edge23 = Distance(positions[2], positions[3]);
+        double edge30 = Distance(positions[3], positions[0]);
+
+        double pair01Length = (edge01 + edge23) * 0.5;
+        double pair12Length = (edge12 + edge30) * 0.5;
+
+        return pair01Length >= pair12Length
+            ? new EdgePair(
+                [vertices[0], vertices[1]],
+                [vertices[3], vertices[2]],
+                pair01Length,
+                (Distance(positions[0], positions[3]) + Distance(positions[1], positions[2])) * 0.5)
+            : new EdgePair(
+                [vertices[1], vertices[2]],
+                [vertices[0], vertices[3]],
+                pair12Length,
+                (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5);
+    }
+
+    // Adapted from PLATEAU-SDK-for-Unity Runtime/RoadAdjust/RnmModelAdjuster.cs (MIT).
+    private static GeodeticPoint[] MoveTowardNearest(
+        IReadOnlyList<GeodeticPoint> sourceWay,
+        IReadOnlyList<GeodeticPoint> targetWay,
+        double distance,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        int skipFirst = 0,
+        int skipLast = 0)
+    {
+        if (sourceWay.Count == 0 || targetWay.Count == 0 || distance <= 0.0)
+        {
+            return sourceWay.ToArray();
+        }
+
+        ResoniteFloat3[] targetPositions = targetWay
+            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        GeodeticPoint[] moved = sourceWay.ToArray();
+
+        for (int index = skipFirst; index < sourceWay.Count - skipLast; index++)
+        {
+            ResoniteFloat3 sourcePosition = CreateResonitePosition(sourceWay[index], cityObjectOrigin, cityObjectCartesian);
+            int nearestIndex = 0;
+            double nearestDistanceSquared = double.PositiveInfinity;
+            for (int targetIndex = 0; targetIndex < targetPositions.Length; targetIndex++)
+            {
+                double distanceSquared = DistanceSquared(sourcePosition, targetPositions[targetIndex]);
+                if (distanceSquared < nearestDistanceSquared)
+                {
+                    nearestDistanceSquared = distanceSquared;
+                    nearestIndex = targetIndex;
+                }
+            }
+
+            double nearestDistance = Math.Sqrt(nearestDistanceSquared);
+            if (nearestDistance <= 1e-8)
+            {
+                continue;
+            }
+
+            double moveRatio = Math.Min(distance, nearestDistance) / nearestDistance;
+            moved[index] = Lerp(sourceWay[index], targetWay[nearestIndex], moveRatio);
+        }
+
+        return moved;
     }
 
     private static void TriangulateSurface(
@@ -1388,6 +1556,19 @@ public static class LocalCityGmlResonitePlanBuilder
         return Math.Sqrt(Dot(vector, vector));
     }
 
+    private static double Distance(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return Math.Sqrt(DistanceSquared(left, right));
+    }
+
+    private static double DistanceSquared(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        double deltaX = left.X - right.X;
+        double deltaY = left.Y - right.Y;
+        double deltaZ = left.Z - right.Z;
+        return (deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ);
+    }
+
     private static ResoniteFloat3 Normalize(ResoniteFloat3 vector)
     {
         double magnitude = Magnitude(vector);
@@ -1572,6 +1753,14 @@ public static class LocalCityGmlResonitePlanBuilder
         return Math.Abs(left.Latitude - right.Latitude) < 1e-8
             && Math.Abs(left.Longitude - right.Longitude) < 1e-8
             && Math.Abs(left.Altitude - right.Altitude) < 1e-8;
+    }
+
+    private static GeodeticPoint Lerp(GeodeticPoint source, GeodeticPoint target, double ratio)
+    {
+        return new GeodeticPoint(
+            source.Latitude + ((target.Latitude - source.Latitude) * ratio),
+            source.Longitude + ((target.Longitude - source.Longitude) * ratio),
+            source.Altitude + ((target.Altitude - source.Altitude) * ratio));
     }
 
     private static bool AreSameUV(ResoniteFloat2 left, ResoniteFloat2 right)
@@ -1880,6 +2069,12 @@ public static class LocalCityGmlResonitePlanBuilder
         string RingId,
         GeodeticPoint[] Vertices,
         IReadOnlyList<ResoniteFloat2>? UVs);
+
+    private sealed record EdgePair(
+        GeodeticPoint[] Side0,
+        GeodeticPoint[] Side1,
+        double Length,
+        double Width);
 
     private sealed record ParsedSurface(
         string PolygonId,

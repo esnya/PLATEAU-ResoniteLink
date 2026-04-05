@@ -14,6 +14,7 @@ public static class CliArgumentsParser
         Options:
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code to construct in Resonite.
+          --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
           --source <value>       Optional. local or remote. Default: local.
           --local-source-path <path>
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
@@ -45,6 +46,7 @@ public static class CliArgumentsParser
         Uri? resoniteLinkUri = null;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
+        IReadOnlyList<string> packageNames = PlateauPackageCatalog.CliDefaultPackageNames;
 
         try
         {
@@ -63,6 +65,17 @@ public static class CliArgumentsParser
                     case "--mesh-code":
                         meshCode = ReadValue(args, ref index, token);
                         break;
+                    case "--packages":
+                        {
+                            string packageValue = ReadValue(args, ref index, token);
+                            if (!TryParsePackageNames(packageValue, out string[]? parsedPackageNames, out string? packageError))
+                            {
+                                return CliParseResult.Failure(packageError!);
+                            }
+
+                            packageNames = parsedPackageNames!;
+                            break;
+                        }
                     case "--tile":
                         return CliParseResult.Failure(
                             "The --tile option has been replaced. Use --mesh-code.");
@@ -154,7 +167,8 @@ public static class CliArgumentsParser
             MeshCode: meshCode ?? string.Empty,
             SourceKind: sourceKind,
             LocalSourcePath: localSourcePath,
-            ServerUri: serverUri);
+            ServerUri: serverUri,
+            PackageNames: packageNames);
 
         if (resoniteLinkUri is null)
         {
@@ -174,6 +188,39 @@ public static class CliArgumentsParser
 
         index++;
         return args[index];
+    }
+
+    private static bool TryParsePackageNames(
+        string csvValue,
+        out string[]? packageNames,
+        out string? error)
+    {
+        packageNames = null;
+        error = null;
+
+        string[] parsedValues = csvValue
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (parsedValues.Length == 0)
+        {
+            error = "The --packages option requires at least one package name.";
+            return false;
+        }
+
+        string[] unsupportedPackageNames = parsedValues
+            .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (unsupportedPackageNames.Length > 0)
+        {
+            error =
+                $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.";
+            return false;
+        }
+
+        packageNames = PlateauPackageCatalog.NormalizeRequestedPackageNames(parsedValues);
+        return true;
     }
 
     internal static string GetCurrentOsDirectoryName()

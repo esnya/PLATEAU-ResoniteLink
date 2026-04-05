@@ -20,6 +20,28 @@ public static class PlateauImportRequestValidator
             errors.Add("The mesh code value is required.");
         }
 
+        if (request.PackageNames is not null)
+        {
+            if (request.PackageNames.Count == 0)
+            {
+                errors.Add("At least one package name is required when packages are specified.");
+            }
+            else
+            {
+                string[] unsupportedPackageNames = request.PackageNames
+                    .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(packageName => packageName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                if (unsupportedPackageNames.Length > 0)
+                {
+                    errors.Add(
+                        $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+                }
+            }
+        }
+
         switch (request.SourceKind)
         {
             case DatasetSourceKind.Local:

@@ -5,4 +5,5 @@ public sealed record PlateauImportRequest(
     string MeshCode,
     DatasetSourceKind SourceKind,
     string? LocalSourcePath,
-    Uri? ServerUri);
+    Uri? ServerUri,
+    IReadOnlyList<string>? PackageNames = null);

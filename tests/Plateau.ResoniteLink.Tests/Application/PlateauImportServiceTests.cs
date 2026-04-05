@@ -347,10 +347,36 @@ public sealed class PlateauImportServiceTests
         CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
 
         ResoniteConstructionCityObject road = Assert.Single(scene.CityObjects);
-        ResoniteMaterialBinding material = Assert.Single(road.Materials);
+        Assert.Equal(2, road.Materials.Count);
         Assert.Equal("tran", road.PackageName);
-        Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
-        Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+
+        ResoniteMaterialBinding roadMaterial = Assert.Single(
+            road.Materials,
+            static material => material.MaterialType == ResoniteMaterialType.Standard);
+        Assert.Equal(ResoniteTextureSourceKind.Bundled, roadMaterial.TextureSourceKind);
+        Assert.Equal(ResoniteMaterialProjection.Triplanar, roadMaterial.Projection);
+
+        ResoniteMaterialBinding markingMaterial = Assert.Single(
+            road.Materials,
+            static material => material.MaterialType == ResoniteMaterialType.VertexColor);
+        Assert.Null(markingMaterial.TexturePath);
+        Assert.Equal(ResoniteMaterialProjection.Uv, markingMaterial.Projection);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, markingMaterial.DepthOffset);
+        Assert.Equal(1.0, markingMaterial.BaseColor.R, 6);
+        Assert.Equal(1.0, markingMaterial.BaseColor.G, 6);
+        Assert.Equal(1.0, markingMaterial.BaseColor.B, 6);
+
+        int markingSubmeshIndex = Assert.Single(markingMaterial.SubmeshIndices);
+        ResoniteMeshSubmesh markingSubmesh = Assert.Single(
+            road.Mesh.Submeshes,
+            submesh => submesh.Index == markingSubmeshIndex);
+        Assert.All(
+            markingSubmesh.TriangleVertexIndices,
+            index =>
+            {
+                Assert.NotNull(road.Mesh.Vertices[index].Color);
+                Assert.Equal(1.0, road.Mesh.Vertices[index].Color!.R, 6);
+            });
     }
 
     [Fact]
