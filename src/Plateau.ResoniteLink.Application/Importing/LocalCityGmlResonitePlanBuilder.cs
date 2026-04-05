@@ -14,6 +14,7 @@ public static class LocalCityGmlResonitePlanBuilder
     public const string DefaultDemTerrainTexturePath = "terrain://dem/gsi-seamlessphoto";
     public const string DefaultDemTerrainTextureUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
     public const int DefaultDemTerrainTextureZoomLevel = 18;
+    public const int DefaultDemTerrainTextureMaxSize = 4096;
     private static readonly ResoniteColor DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";
     private static readonly XNamespace Core = "http://www.opengis.net/citygml/2.0";
@@ -109,19 +110,7 @@ public static class LocalCityGmlResonitePlanBuilder
         }
 
         TerrainTextureOverlay[] terrainTextureOverlays = referenceSystem.IsGeographic && demBounds is not null
-            ?
-            [
-                new TerrainTextureOverlay(
-                    TexturePath: DefaultDemTerrainTexturePath,
-                    PackageName: "dem",
-                    UrlTemplate: DefaultDemTerrainTextureUrlTemplate,
-                    ZoomLevel: DefaultDemTerrainTextureZoomLevel,
-                    GeographicBounds: new GeographicRectangle(
-                        MinLatitude: demBounds.Value.minLatitude,
-                        MaxLatitude: demBounds.Value.maxLatitude,
-                        MinLongitude: demBounds.Value.minLongitude,
-                        MaxLongitude: demBounds.Value.maxLongitude)),
-            ]
+            ? CreateDemTerrainTextureOverlays(demBounds.Value)
             : [];
 
         GeodeticPoint globalOriginPoint = CreateGlobalOrigin(globalBounds.Value);
@@ -216,7 +205,7 @@ public static class LocalCityGmlResonitePlanBuilder
             displayName = objectId;
         }
 
-        IReadOnlyList<ParsedSurface> surfaces = SelectPreferredLodSurfaceElements(cityObjectElement)
+        ParsedSurface[] surfaces = SelectPreferredLodSurfaceElements(cityObjectElement)
             .Select(surfaceElement => ParseSurface(surfaceElement, appearanceLibrary))
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
@@ -224,7 +213,7 @@ public static class LocalCityGmlResonitePlanBuilder
             .OrderBy(static surface => surface.PolygonId, StringComparer.Ordinal)
             .ToArray();
 
-        if (surfaces.Count == 0)
+        if (surfaces.Length == 0)
         {
             return null;
         }
@@ -239,6 +228,61 @@ public static class LocalCityGmlResonitePlanBuilder
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
         return new ParsedCityObject(slotKey, displayName!, packageName, surfaces, coordinateReferenceSystem);
+    }
+
+    private static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) demBounds)
+    {
+        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.minLongitude, DefaultDemTerrainTextureZoomLevel);
+        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.maxLongitude, DefaultDemTerrainTextureZoomLevel);
+        double topPixel = WebMercatorTileMath.LatitudeToPixelY(demBounds.maxLatitude, DefaultDemTerrainTextureZoomLevel);
+        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(demBounds.minLatitude, DefaultDemTerrainTextureZoomLevel);
+
+        List<TerrainTextureOverlay> overlays = [];
+        int row = 0;
+        for (double currentTop = topPixel; currentTop < bottomPixel - 1e-6; currentTop += DefaultDemTerrainTextureMaxSize, row++)
+        {
+            double currentBottom = Math.Min(currentTop + DefaultDemTerrainTextureMaxSize, bottomPixel);
+            int column = 0;
+            for (double currentLeft = leftPixel; currentLeft < rightPixel - 1e-6; currentLeft += DefaultDemTerrainTextureMaxSize, column++)
+            {
+                double currentRight = Math.Min(currentLeft + DefaultDemTerrainTextureMaxSize, rightPixel);
+                overlays.Add(CreateDemTerrainTextureOverlay(row, column, currentLeft, currentRight, currentTop, currentBottom));
+            }
+        }
+
+        if (overlays.Count == 0)
+        {
+            overlays.Add(CreateDemTerrainTextureOverlay(row: 0, column: 0, leftPixel, rightPixel, topPixel, bottomPixel));
+        }
+
+        return overlays.Count == 1
+            ?
+            [
+                overlays[0] with { TexturePath = DefaultDemTerrainTexturePath },
+            ]
+            : overlays.ToArray();
+    }
+
+    private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
+        int row,
+        int column,
+        double leftPixel,
+        double rightPixel,
+        double topPixel,
+        double bottomPixel)
+    {
+        return new TerrainTextureOverlay(
+            TexturePath: $"{DefaultDemTerrainTexturePath}/{row:D2}-{column:D2}",
+            PackageName: "dem",
+            UrlTemplate: DefaultDemTerrainTextureUrlTemplate,
+            ZoomLevel: DefaultDemTerrainTextureZoomLevel,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: WebMercatorTileMath.PixelYToLatitude(bottomPixel, DefaultDemTerrainTextureZoomLevel),
+                MaxLatitude: WebMercatorTileMath.PixelYToLatitude(topPixel, DefaultDemTerrainTextureZoomLevel),
+                MinLongitude: WebMercatorTileMath.PixelXToLongitude(leftPixel, DefaultDemTerrainTextureZoomLevel),
+                MaxLongitude: WebMercatorTileMath.PixelXToLongitude(rightPixel, DefaultDemTerrainTextureZoomLevel)),
+            MaxTextureSize: DefaultDemTerrainTextureMaxSize);
     }
 
     private static XElement[] SelectPreferredLodSurfaceElements(XElement cityObjectElement)
@@ -643,7 +687,7 @@ public static class LocalCityGmlResonitePlanBuilder
         LocalCartesian? cityObjectCartesian,
         ParsedSurface surface)
     {
-        if (string.Equals(surface.TexturePath, DefaultDemTerrainTexturePath, StringComparison.Ordinal))
+        if (IsGeneratedDemTexturePath(surface.TexturePath))
         {
             return new MaterializedSurface(
                 surface,
@@ -679,7 +723,7 @@ public static class LocalCityGmlResonitePlanBuilder
         List<int> indices)
     {
         bool useGeneratedDemUv = string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(surface.TexturePath, DefaultDemTerrainTexturePath, StringComparison.Ordinal)
+            && IsGeneratedDemTexturePath(surface.TexturePath)
             && demTerrainTextureOverlay is not null;
         List<TessellatedRing> tessellatedRings = CreateTessellatedRings(
             surface,
@@ -836,6 +880,12 @@ public static class LocalCityGmlResonitePlanBuilder
         return new ResoniteFloat2(
             Math.Clamp((pointX - west) / width, 0.0, 1.0),
             Math.Clamp((south - pointY) / height, 0.0, 1.0));
+    }
+
+    private static bool IsGeneratedDemTexturePath(string? texturePath)
+    {
+        return !string.IsNullOrWhiteSpace(texturePath)
+            && texturePath.StartsWith(DefaultDemTerrainTexturePath, StringComparison.Ordinal);
     }
 
     private static (ResoniteFloat3 Origin, ResoniteFloat3 BasisX, ResoniteFloat3 BasisY) CreateSurfacePlane(
@@ -1158,8 +1208,10 @@ public static class LocalCityGmlResonitePlanBuilder
         GeodeticPoint globalOriginPoint)
         : IResoniteConstructionSource
     {
-        private readonly TerrainTextureOverlay? demTerrainTextureOverlay = metadata.SourceDataset.TerrainTextureOverlays
-            .FirstOrDefault(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase));
+        private readonly TerrainTextureOverlay[] demTerrainTextureOverlays = metadata.SourceDataset.TerrainTextureOverlays
+            .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
+            .ToArray();
 
         public ResoniteConstructionMetadata Metadata { get; } = metadata;
 
@@ -1183,7 +1235,7 @@ public static class LocalCityGmlResonitePlanBuilder
                     requestedMeshArea,
                     globalOriginPoint,
                     globalCartesian,
-                    demTerrainTextureOverlay))
+                    demTerrainTextureOverlays))
                 {
                     yield return cityObject;
                 }
@@ -1220,7 +1272,7 @@ public static class LocalCityGmlResonitePlanBuilder
                     requestedMeshArea,
                     globalOriginPoint,
                     globalCartesian,
-                    demTerrainTextureOverlay))
+                    demTerrainTextureOverlays))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     yield return cityObject;
@@ -1236,30 +1288,133 @@ public static class LocalCityGmlResonitePlanBuilder
         MeshCodeArea? requestedMeshArea,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
-        TerrainTextureOverlay? demTerrainTextureOverlay)
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
     {
         ParsedCityObject[] parsedCityObjects = ParseCityObjects(document, sourceFile, datasetRoot, requestedMeshArea);
 
         foreach (ParsedCityObject parsedCityObject in parsedCityObjects)
         {
-            ResoniteConstructionCityObject cityObject = MaterializeCityObject(
-                parsedCityObject,
-                globalOriginPoint,
-                globalCartesian,
-                demTerrainTextureOverlay);
-
-            if (cityObject.Mesh.Submeshes.Count > 0)
+            foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
+                         parsedCityObject,
+                         demTerrainTextureOverlays))
             {
-                yield return cityObject;
+                ResoniteConstructionCityObject cityObject = MaterializeCityObject(
+                    splitCityObject.CityObject,
+                    globalOriginPoint,
+                    globalCartesian,
+                    splitCityObject.Overlay);
+
+                if (cityObject.Mesh.Submeshes.Count > 0)
+                {
+                    yield return cityObject;
+                }
             }
         }
+    }
+
+    private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
+        ParsedCityObject parsedCityObject,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        if (!string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            || demTerrainTextureOverlays.Count == 0)
+        {
+            yield return (parsedCityObject, null);
+            yield break;
+        }
+
+        IReadOnlyList<IGrouping<string, ParsedSurface>> groups = parsedCityObject.Surfaces
+            .Where(static surface => IsGeneratedDemTexturePath(surface.TexturePath))
+            .Select(surface =>
+            {
+                TerrainTextureOverlay overlay = SelectDemTerrainTextureOverlay(surface, demTerrainTextureOverlays);
+                return surface with { TexturePath = overlay.TexturePath };
+            })
+            .GroupBy(static surface => surface.TexturePath!, StringComparer.Ordinal)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .ToArray();
+
+        if (groups.Count == 0)
+        {
+            yield return (parsedCityObject, null);
+            yield break;
+        }
+
+        if (groups.Count == 1 && groups[0].Count() == parsedCityObject.Surfaces.Length)
+        {
+            yield return (
+                parsedCityObject with
+                {
+                    Surfaces = groups[0].ToArray(),
+                },
+                FindOverlay(groups[0].Key, demTerrainTextureOverlays));
+            yield break;
+        }
+
+        for (int index = 0; index < groups.Count; index++)
+        {
+            IGrouping<string, ParsedSurface> group = groups[index];
+            yield return (
+                parsedCityObject with
+                {
+                    SlotKey = $"{parsedCityObject.SlotKey}_dem_{index:D2}",
+                    DisplayName = groups.Count > 1 ? $"{parsedCityObject.DisplayName} ({index + 1})" : parsedCityObject.DisplayName,
+                    Surfaces = group.ToArray(),
+                },
+                FindOverlay(group.Key, demTerrainTextureOverlays));
+        }
+    }
+
+    private static TerrainTextureOverlay FindOverlay(
+        string texturePath,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        return demTerrainTextureOverlays.First(overlay => string.Equals(overlay.TexturePath, texturePath, StringComparison.Ordinal));
+    }
+
+    private static TerrainTextureOverlay SelectDemTerrainTextureOverlay(
+        ParsedSurface surface,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        double minLatitude = surface.Vertices.Min(static point => point.Latitude);
+        double maxLatitude = surface.Vertices.Max(static point => point.Latitude);
+        double minLongitude = surface.Vertices.Min(static point => point.Longitude);
+        double maxLongitude = surface.Vertices.Max(static point => point.Longitude);
+
+        TerrainTextureOverlay? containingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
+            minLatitude >= overlay.GeographicBounds.MinLatitude
+            && maxLatitude <= overlay.GeographicBounds.MaxLatitude
+            && minLongitude >= overlay.GeographicBounds.MinLongitude
+            && maxLongitude <= overlay.GeographicBounds.MaxLongitude);
+        if (containingOverlay is not null)
+        {
+            return containingOverlay;
+        }
+
+        double centerLatitude = (minLatitude + maxLatitude) / 2.0;
+        double centerLongitude = (minLongitude + maxLongitude) / 2.0;
+        TerrainTextureOverlay? centerOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
+            centerLatitude >= overlay.GeographicBounds.MinLatitude
+            && centerLatitude <= overlay.GeographicBounds.MaxLatitude
+            && centerLongitude >= overlay.GeographicBounds.MinLongitude
+            && centerLongitude <= overlay.GeographicBounds.MaxLongitude);
+        if (centerOverlay is not null)
+        {
+            return centerOverlay;
+        }
+
+        return demTerrainTextureOverlays.First(overlay =>
+            maxLatitude >= overlay.GeographicBounds.MinLatitude
+            && minLatitude <= overlay.GeographicBounds.MaxLatitude
+            && maxLongitude >= overlay.GeographicBounds.MinLongitude
+            && minLongitude <= overlay.GeographicBounds.MaxLongitude);
     }
 
     private sealed record ParsedCityObject(
         string SlotKey,
         string DisplayName,
         string PackageName,
-        IReadOnlyList<ParsedSurface> Surfaces,
+        ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem);
 
     private sealed record SourceFileDescriptor(

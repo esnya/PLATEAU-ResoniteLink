@@ -7,6 +7,7 @@ public static class WebMercatorTileMath
     public const int TileSizePixels = 256;
     public const double MaxLatitude = 85.05112878;
     private const double DegreesToRadians = Math.PI / 180.0;
+    private const double RadiansToDegrees = 180.0 / Math.PI;
 
     public static double LongitudeToNormalizedX(double longitude)
     {
@@ -28,6 +29,27 @@ public static class WebMercatorTileMath
     public static double LatitudeToPixelY(double latitude, int zoomLevel)
     {
         return LatitudeToNormalizedY(latitude) * GetWorldSizePixels(zoomLevel);
+    }
+
+    public static double NormalizedXToLongitude(double normalizedX)
+    {
+        return (normalizedX * 360.0) - 180.0;
+    }
+
+    public static double NormalizedYToLatitude(double normalizedY)
+    {
+        double mercator = Math.PI * (1.0 - (2.0 * normalizedY));
+        return Math.Atan(Math.Sinh(mercator)) * RadiansToDegrees;
+    }
+
+    public static double PixelXToLongitude(double pixelX, int zoomLevel)
+    {
+        return NormalizedXToLongitude(pixelX / GetWorldSizePixels(zoomLevel));
+    }
+
+    public static double PixelYToLatitude(double pixelY, int zoomLevel)
+    {
+        return NormalizedYToLatitude(pixelY / GetWorldSizePixels(zoomLevel));
     }
 
     public static string FormatTileUrl(string urlTemplate, int zoomLevel, int tileX, int tileY)

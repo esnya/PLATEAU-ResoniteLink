@@ -29,7 +29,8 @@ public sealed class TerrainTextureAssetGeneratorTests
                 MinLatitude: 0.0,
                 MaxLatitude: WebMercatorTileMath.MaxLatitude,
                 MinLongitude: -180.0,
-                MaxLongitude: 180.0));
+                MaxLongitude: 180.0),
+            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
 
         string firstPath = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
@@ -48,6 +49,36 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.InRange(image.Height, 256, 257);
         AssertColor(image[128, 128], 255, 0, 0);
         AssertColor(image[384, 128], 0, 255, 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncResizesWhenCroppedTextureExceedsMaxTextureSize()
+    {
+        using TemporaryDirectory outputRoot = new();
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient);
+
+        TerrainTextureOverlay terrainTextureOverlay = new(
+            TexturePath: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 1,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: 256);
+
+        string texturePath = await generator.EnsureTextureAsync(
+            terrainTextureOverlay,
+            outputRoot.Path,
+            CancellationToken.None);
+
+        using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(texturePath);
+        Assert.Equal(256, image.Width);
+        Assert.InRange(image.Height, 127, 128);
     }
 
     private static void AssertColor(Rgba32 color, byte expectedR, byte expectedG, byte expectedB)

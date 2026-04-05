@@ -5,4 +5,5 @@ public sealed record TerrainTextureOverlay(
     string PackageName,
     string UrlTemplate,
     int ZoomLevel,
-    GeographicRectangle GeographicBounds);
+    GeographicRectangle GeographicBounds,
+    int MaxTextureSize);

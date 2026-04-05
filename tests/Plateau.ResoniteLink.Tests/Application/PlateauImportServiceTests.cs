@@ -122,6 +122,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, demTerrainTexture.TexturePath);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, demTerrainTexture.UrlTemplate);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, demTerrainTexture.ZoomLevel);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, demTerrainTexture.MaxTextureSize);
         Assert.All(relief.Mesh.Vertices, static vertex =>
         {
             Assert.InRange(vertex.UV0.X, 0.0, 1.0);
@@ -204,6 +205,46 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(
             plan.CityObjects,
             static cityObject => cityObject.PackageName == "dem" && cityObject.DisplayName == "Parent Tile Relief");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncSplitsDemTerrainIntoMultipleTextureBoundedChunks()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeWideDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        TerrainTextureOverlay[] overlays = result.Metadata.SourceDataset.TerrainTextureOverlays
+            .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.Ordinal))
+            .ToArray();
+        Assert.True(overlays.Length > 1);
+        Assert.All(overlays, static overlay => Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize));
+
+        ResoniteConstructionCityObject[] reliefChunks = plan.CityObjects
+            .Where(static cityObject => cityObject.PackageName == "dem")
+            .ToArray();
+        Assert.True(reliefChunks.Length > 1);
+        Assert.All(reliefChunks, static chunk =>
+        {
+            string texturePath = Assert.Single(chunk.Materials).TexturePath!;
+            Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, texturePath, StringComparison.Ordinal);
+            Assert.All(chunk.Mesh.Vertices, static vertex =>
+            {
+                Assert.InRange(vertex.UV0.X, 0.0, 1.0);
+                Assert.InRange(vertex.UV0.Y, 0.0, 1.0);
+            });
+        });
     }
 
     [Fact]
@@ -763,6 +804,58 @@ public sealed class PlateauImportServiceTests
 
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_luse_53394525_complex.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeWideDemFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3" srsName="EPSG:4326">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0400 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-wide">
+                  <gml:name>Wide Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-wide-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-dem-west">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-west">
+                                  <gml:posList>35.0000 139.0000 0 35.0100 139.0000 5 35.0100 139.0180 10 35.0000 139.0000 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-dem-east">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-east">
+                                  <gml:posList>35.0000 139.0220 0 35.0100 139.0220 8 35.0100 139.0400 12 35.0000 139.0220 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_wide.gml"),
             xml);
     }
 

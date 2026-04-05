@@ -97,8 +97,26 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             cropRight - cropLeft,
             cropBottom - cropTop)));
 
-        await croppedImage.SaveAsPngAsync(texturePath, cancellationToken);
+        using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
+        await outputImage.SaveAsPngAsync(texturePath, cancellationToken);
         return texturePath;
+    }
+
+    private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
+
+        if (image.Width <= maxTextureSize && image.Height <= maxTextureSize)
+        {
+            return image.Clone();
+        }
+
+        return image.Clone(context => context.Resize(new ResizeOptions
+        {
+            Mode = ResizeMode.Max,
+            Size = new Size(maxTextureSize, maxTextureSize),
+            Sampler = KnownResamplers.Lanczos3,
+        }));
     }
 
     private async Task<Image<Rgba32>> DownloadTileAsync(
@@ -133,7 +151,8 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             terrainTextureOverlay.GeographicBounds.MinLatitude,
             terrainTextureOverlay.GeographicBounds.MaxLatitude,
             terrainTextureOverlay.GeographicBounds.MinLongitude,
-            terrainTextureOverlay.GeographicBounds.MaxLongitude);
+            terrainTextureOverlay.GeographicBounds.MaxLongitude,
+            terrainTextureOverlay.MaxTextureSize);
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
         string suffix = Convert.ToHexString(hash[..8]).ToLowerInvariant();
         return $"{terrainTextureOverlay.PackageName}-z{terrainTextureOverlay.ZoomLevel}-{suffix}.png";
