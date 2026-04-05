@@ -36,6 +36,10 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(
             "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
             result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal("PLATEAU Open Data Terms", result.Metadata.Attribution.DatasetLicense.LicenseName);
+        Assert.Equal("https://www.mlit.go.jp/plateau/site-policy/", result.Metadata.Attribution.DatasetLicense.LicenseUrl);
+        Assert.Contains("provide source attribution", result.Metadata.Attribution.DatasetLicense.CreditText, StringComparison.Ordinal);
+        Assert.Empty(result.Metadata.Attribution.MaterialLicenses);
         Assert.Equal(2, plan.CityObjects.Count);
         ResoniteConstructionCityObject buildingOne = Assert.Single(
             plan.CityObjects,

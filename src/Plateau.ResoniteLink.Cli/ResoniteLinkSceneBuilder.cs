@@ -20,6 +20,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private string? materialsSlotId;
     private string? meshCodeMeshesSlotId;
     private Dictionary<string, string>? textureComponentIds;
+    private ResoniteLicenseManager? licenseManager;
 
     public ResoniteLinkSceneBuilder(Uri endpoint)
         : this(endpoint, static () => new ResoniteLinkClient())
@@ -53,6 +54,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assets");
+        string datasetLicenseComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
+            "license");
         texturesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assetgroup",
@@ -72,6 +76,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         client = clientFactory();
         textureComponentIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        licenseManager = new ResoniteLicenseManager(metadata.Attribution);
         await client.ConnectAsync(endpoint, cancellationToken);
 
         await EnsureSlotAsync(
@@ -81,6 +86,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             $"PLATEAU {metadata.Request.Dataset}",
             new ResoniteFloat3(0.0, 1.5, 0.0),
             cancellationToken);
+        await licenseManager.EnsureDatasetLicenseAsync(client, datasetSlotId, datasetLicenseComponentId, cancellationToken);
 
         await client.AddSlotAsync(
             new AddSlot
@@ -126,6 +132,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
         ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(licenseManager is null, this);
         ObjectDisposedException.ThrowIf(buildNonce is null, this);
 
         await ImportTexturesAsync(
@@ -166,6 +173,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         materialsSlotId = null;
         meshCodeMeshesSlotId = null;
         textureComponentIds = null;
+        licenseManager = null;
         return ValueTask.CompletedTask;
     }
 

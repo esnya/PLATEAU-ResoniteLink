@@ -100,6 +100,7 @@ public static class LocalCityGmlResonitePlanBuilder
         }
 
         GeodeticPoint globalOriginPoint = CreateGlobalOrigin(globalBounds.Value);
+        ResoniteAttribution attribution = PlateauResoniteAttributionFactory.Create(request);
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
             WorldName: $"PLATEAU {request.Dataset} {request.MeshCode}",
@@ -111,6 +112,7 @@ public static class LocalCityGmlResonitePlanBuilder
                     .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                     .ToArray(),
                 SourceFiles: relativeSourceFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray()),
+            Attribution: attribution,
             LocalOrigin: new ResoniteLocalOrigin(
                 Latitude: globalOriginPoint.Latitude,
                 Longitude: globalOriginPoint.Longitude,

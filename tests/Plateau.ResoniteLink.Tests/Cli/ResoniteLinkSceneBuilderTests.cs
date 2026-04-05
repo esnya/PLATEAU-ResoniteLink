@@ -46,6 +46,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal));
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
+        Assert.Contains(fakeClient.AddedComponents, static request =>
+            string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Assets"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Textures"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Meshes"));
@@ -71,6 +73,17 @@ public sealed class ResoniteLinkSceneBuilderTests
         Component staticTexture = staticTextureRequest.Data;
         Field_Uri textureUrl = Assert.IsType<Field_Uri>(staticTexture.Members["URL"]);
         Assert.Equal("resdb:///texture/0", textureUrl.Value.ToString());
+
+        Component license = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Field_bool requireCredit = Assert.IsType<Field_bool>(license.Members["RequireCredit"]);
+        Assert.True(requireCredit.Value);
+        Field_string creditString = Assert.IsType<Field_string>(license.Members["CreditString"]);
+        Assert.Contains(plan.Attribution.DatasetLicense.LicenseName, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(plan.Attribution.DatasetLicense.LicenseUrl, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(plan.Attribution.DatasetLicense.CreditText, creditString.Value, StringComparison.Ordinal);
 
         Assert.Contains(
             fakeClient.AddedComponents,
@@ -319,6 +332,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 plan.WorldName,
                 plan.Request,
                 plan.SourceDataset,
+                plan.Attribution,
                 plan.LocalOrigin);
 
             await builder.BeginAsync(metadata, "artifacts/resonite");
