@@ -14,12 +14,13 @@ public static class CliArgumentsParser
         Options:
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code to construct in Resonite.
-          --source <value>       Optional. local or server. Default: local.
-          --input <path>         Required when --source local is used. Treat as the PLATEAU dataset root.
-          --server-url <url>     Optional. Absolute URL for a server-backed dataset source.
-          --output-root <path>   Optional. Output directory. Default: artifacts/<os>/resonite.
-          --resonitelink-port    Optional. Connect to ws://localhost:<port>/ and build live in Resonite.
-          --resonitelink-url     Optional. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
+          --source <value>       Optional. local or remote. Default: local.
+          --local-source-path <path>
+                               Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
+          --server-url <url>     Optional. Absolute URL for a remote dataset source. Mirrors the Unity SDK ServerUrl naming.
+          --work-root <path>     Optional. Working directory for live-generated assets and remote download cache. Default: runtime/<os>/resonite.
+          --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
+          --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           -h, --help             Show this help text.
         """;
 
@@ -39,8 +40,8 @@ public static class CliArgumentsParser
 
         string? dataset = null;
         string? meshCode = null;
-        string? input = null;
-        string outputRoot = Path.Combine("artifacts", GetCurrentOsDirectoryName(), "resonite");
+        string? localSourcePath = null;
+        string workRoot = Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite");
         Uri? resoniteLinkUri = null;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
@@ -65,11 +66,11 @@ public static class CliArgumentsParser
                     case "--tile":
                         return CliParseResult.Failure(
                             "The --tile option has been replaced. Use --mesh-code.");
-                    case "--input":
-                        input = ReadValue(args, ref index, token);
+                    case "--local-source-path":
+                        localSourcePath = ReadValue(args, ref index, token);
                         break;
-                    case "--output-root":
-                        outputRoot = ReadValue(args, ref index, token);
+                    case "--work-root":
+                        workRoot = ReadValue(args, ref index, token);
                         break;
                     case "--resonitelink-port":
                         {
@@ -122,7 +123,7 @@ public static class CliArgumentsParser
                             if (!Enum.TryParse<DatasetSourceKind>(sourceValue, ignoreCase: true, out sourceKind))
                             {
                                 return CliParseResult.Failure(
-                                    $"Unsupported source '{sourceValue}'. Use 'local' or 'server'.");
+                                    $"Unsupported source '{sourceValue}'. Use 'local' or 'remote'.");
                             }
 
                             break;
@@ -152,10 +153,16 @@ public static class CliArgumentsParser
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
             SourceKind: sourceKind,
-            InputPath: input,
+            LocalSourcePath: localSourcePath,
             ServerUri: serverUri);
 
-        return CliParseResult.Success(new BuildCommandOptions(request, outputRoot, resoniteLinkUri));
+        if (resoniteLinkUri is null)
+        {
+            return CliParseResult.Failure(
+                "Specify either --resonitelink-port or --resonitelink-url.");
+        }
+
+        return CliParseResult.Success(new BuildCommandOptions(request, workRoot, resoniteLinkUri));
     }
 
     private static string ReadValue(string[] args, ref int index, string optionName)

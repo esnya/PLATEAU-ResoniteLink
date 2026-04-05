@@ -4,5 +4,5 @@ namespace Plateau.ResoniteLink.Cli;
 
 public sealed record BuildCommandOptions(
     PlateauImportRequest Request,
-    string OutputRoot,
+    string WorkRoot,
     Uri? ResoniteLinkUri);

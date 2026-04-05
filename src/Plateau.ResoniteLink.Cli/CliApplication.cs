@@ -64,15 +64,15 @@ public sealed class CliApplication
 
             ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
                 parseResult.Options!.Request,
-                parseResult.Options.OutputRoot,
+                parseResult.Options.WorkRoot,
                 cancellationToken);
 
-            await standardOutput.WriteLineAsync("Resonite construction plan generated.");
+            await standardOutput.WriteLineAsync("Resonite import completed.");
             await standardOutput.WriteLineAsync($"World: {result.Metadata.WorldName}");
 
             foreach (string destination in result.Destinations)
             {
-                await standardOutput.WriteLineAsync($"Destination: {destination}");
+                await standardOutput.WriteLineAsync($"Resonite location: {destination}");
             }
 
             return 0;
@@ -94,20 +94,9 @@ public sealed class CliApplication
         Justification = "PlateauImportService owns the scene builder lifetime and disposes it after each execution.")]
     private static PlateauImportService CreateImportService(BuildCommandOptions options)
     {
-        List<IResoniteSceneBuilder> builders =
-        [
-            new JsonArtifactResoniteSceneBuilder(),
-        ];
-
-        if (options.ResoniteLinkUri is not null)
-        {
-            builders.Add(new ResoniteLinkSceneBuilder(options.ResoniteLinkUri));
-        }
-
-        IResoniteSceneBuilder builder = builders.Count == 1
-            ? builders[0]
-            : new CompositeResoniteSceneBuilder(builders);
-
-        return new PlateauImportService(builder);
+        return new PlateauImportService(
+            new ResoniteLinkSceneBuilder(
+                options.ResoniteLinkUri!,
+                static message => Console.Out.WriteLine(message)));
     }
 }

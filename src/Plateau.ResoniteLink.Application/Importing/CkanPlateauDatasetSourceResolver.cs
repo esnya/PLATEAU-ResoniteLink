@@ -55,11 +55,11 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
     public async Task<PlateauImportRequest> ResolveAsync(
         PlateauImportRequest request,
-        string outputRoot,
+        string workRoot,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
         if (request.SourceKind == DatasetSourceKind.Local)
         {
@@ -71,8 +71,9 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             : await DiscoverArchiveUriAsync(request, cancellationToken);
 
         string cacheRoot = Path.GetFullPath(Path.Combine(
-            outputRoot,
-            "server-cache",
+            workRoot,
+            "cache",
+            "remote",
             CreateSafePathSegment(request.Dataset),
             CreateSafePathSegment(request.MeshCode)));
 
@@ -115,7 +116,7 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         return request with
         {
             SourceKind = DatasetSourceKind.Local,
-            InputPath = ResolveDatasetRoot(extractRoot),
+            LocalSourcePath = PlateauDatasetPathResolver.ResolveDatasetRoot(extractRoot),
         };
     }
 
@@ -318,31 +319,9 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
     }
 
-    private static string ResolveDatasetRoot(string extractRoot)
-    {
-        if (Directory.Exists(Path.Combine(extractRoot, "udx")))
-        {
-            return extractRoot;
-        }
-
-        string? candidate = Directory
-            .EnumerateDirectories(extractRoot, "*", SearchOption.AllDirectories)
-            .Where(path => Directory.Exists(Path.Combine(path, "udx")))
-            .OrderBy(path => NormalizePath(Path.GetRelativePath(extractRoot, path)).Count(static character => character == '/'))
-            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
-
-        return candidate ?? extractRoot;
-    }
-
     private static string GetExtractionMarkerContents(Uri archiveUri)
     {
         return $"v3{Environment.NewLine}{archiveUri}";
-    }
-
-    private static string NormalizePath(string path)
-    {
-        return path.Replace('\\', '/');
     }
 
     private static bool IsPlateauPackageName(string value)

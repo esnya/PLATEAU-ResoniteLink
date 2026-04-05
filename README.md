@@ -1,6 +1,6 @@
 # Plateau.ResoniteLink
 
-Plateau.ResoniteLink is a .NET 10 project for bringing [PLATEAU](https://www.mlit.go.jp/plateau/) datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). It produces deterministic Resonite construction data and streams city objects sequentially so imported content can begin appearing in Resonite as it is processed.
+Plateau.ResoniteLink is a .NET 10 project for bringing [PLATEAU](https://www.mlit.go.jp/plateau/) datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). It streams CityGML-derived city objects directly into Resonite so imported content can begin appearing as it is processed.
 
 Import behavior and terminology are guided by [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/).
 
@@ -14,7 +14,7 @@ Restore dependencies:
 dotnet restore Plateau.ResoniteLink.sln
 ```
 
-Generate a construction plan from a local dataset root:
+Import a local dataset root into a running ResoniteLink listener:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
@@ -22,24 +22,26 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --dataset tokyo23ku \
   --mesh-code 53394525 \
   --source local \
-  --input /path/to/plateau
+  --local-source-path /path/to/plateau \
+  --resonitelink-port <port>
 ```
 
-The CLI writes a Resonite construction plan JSON under `artifacts/<os>/resonite/<dataset>/<mesh-code>/`.
-By default, build outputs and CLI artifacts are separated per host OS. On Linux/WSL, the default artifact root is `artifacts/linux/resonite/`; on Windows, it is `artifacts/windows/resonite/`.
-The current v1 importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects to artifact/live adapters without holding the full live build in memory.
+`--resonitelink-port` or `--resonitelink-url` is required. The optional `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. The option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`. The current importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects without holding the full live build in memory.
 
-Fetch an official PLATEAU CityGML ZIP online through the default CKAN catalog flow:
+Import an official PLATEAU CityGML ZIP online through the default CKAN catalog flow:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset tokyo23ku \
   --mesh-code 533944 \
-  --source server
+  --source remote \
+  --resonitelink-port <port>
 ```
 
-`--source server` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP resource, downloads it into `artifacts/<os>/resonite/server-cache/`, extracts it, and then runs the same deterministic local importer on the extracted dataset root. `--server-url` can override the catalog base URI or point directly to a ZIP archive URL.
+`--source remote` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP resource, downloads it into `runtime/<os>/resonite/cache/remote/`, extracts it, and then runs the same local importer on the extracted local source path. `--server-url` can override the catalog base URI or point directly to a ZIP archive URL.
+
+To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either the extracted dataset root or an ancestor directory under `runtime/<os>/resonite/cache/remote/`. The importer resolves the nearest descendant that contains `udx/`, so a path such as `runtime/<os>/resonite/cache/remote/tokyo23ku/533944/` is valid even when the extracted dataset root is nested one level below it.
 
 Build live into Resonite through ResoniteLink from Windows:
 
@@ -48,11 +50,11 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset tokyo23ku \
   --mesh-code 533944 \
-  --source server \
+  --source remote \
   --resonitelink-port <port>
 ```
 
-The live path connects to `ws://localhost:<port>/`, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then adds `StaticMesh`, `StaticTexture2D`, `MeshRenderer`, `PBS_Metallic`, and `MeshCollider` components. City objects are sent sequentially so large mesh-code imports do not require a full in-memory batch before live output. JSON artifact output is kept as a local record.
+The live path connects to `ws://localhost:<port>/`, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then adds `StaticMesh`, `StaticTexture2D`, `MeshRenderer`, `PBS_Metallic`, and `MeshCollider` components. City objects are sent sequentially so large mesh-code imports do not require a full in-memory batch before visible live output.
 
 The current live adapter uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures, because the current ResoniteLink runtime returns a usable mesh asset URL on the raw-data path.
 

@@ -6,7 +6,7 @@ public interface IResoniteSceneBuilder : IAsyncDisposable
 {
     Task BeginAsync(
         ResoniteConstructionMetadata metadata,
-        string outputRoot,
+        string workRoot,
         CancellationToken cancellationToken = default);
 
     Task ProcessCityObjectAsync(

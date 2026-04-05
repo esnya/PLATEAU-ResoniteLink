@@ -17,8 +17,10 @@ public sealed class CliArgumentsParserTests
                 "53394525",
                 "--source",
                 "local",
-                "--input",
+                "--local-source-path",
                 "/data/plateau",
+                "--resonitelink-port",
+                "12345",
             ]);
 
         Assert.Null(result.Error);
@@ -28,9 +30,9 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("53394525", result.Options.Request.MeshCode);
         Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
         Assert.Equal(
-            Path.Combine("artifacts", GetCurrentOsDirectoryName(), "resonite"),
-            result.Options.OutputRoot);
-        Assert.Null(result.Options.ResoniteLinkUri);
+            Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
+            result.Options.WorkRoot);
+        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
     }
 
     [Fact]
@@ -43,6 +45,8 @@ public sealed class CliArgumentsParserTests
                 "tokyo23ku",
                 "--mesh-code",
                 "53394525",
+                "--resonitelink-port",
+                "12345",
                 "--unexpected",
                 "value",
             ]);
@@ -52,7 +56,7 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseParsesServerCommand()
+    public void ParseParsesRemoteCommand()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -62,16 +66,19 @@ public sealed class CliArgumentsParserTests
                 "--mesh-code",
                 "53394525",
                 "--source",
-                "server",
+                "remote",
                 "--server-url",
                 "https://example.invalid/plateau",
+                "--resonitelink-url",
+                "ws://localhost:12345/",
             ]);
 
         Assert.Null(result.Error);
-        Assert.Equal(DatasetSourceKind.Server, result.Options!.Request.SourceKind);
+        Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.SourceKind);
         Assert.Equal(
             new Uri("https://example.invalid/plateau"),
             result.Options.Request.ServerUri);
+        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
     }
 
     [Fact]
@@ -86,7 +93,7 @@ public sealed class CliArgumentsParserTests
                 "53394525",
                 "--source",
                 "local",
-                "--input",
+                "--local-source-path",
                 "/data/plateau",
                 "--resonitelink-port",
                 "12345",
@@ -108,7 +115,7 @@ public sealed class CliArgumentsParserTests
                 "53394525",
                 "--source",
                 "local",
-                "--input",
+                "--local-source-path",
                 "/data/plateau",
                 "--resonitelink-port",
                 "12345",
@@ -134,6 +141,25 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("The --tile option has been replaced. Use --mesh-code.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsMissingResoniteLinkEndpoint()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "local",
+                "--local-source-path",
+                "/data/plateau",
+            ]);
+
+        Assert.Equal("Specify either --resonitelink-port or --resonitelink-url.", result.Error);
     }
 
     private static string GetCurrentOsDirectoryName()

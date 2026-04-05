@@ -18,12 +18,12 @@ public sealed class ResoniteLinkSceneBuilderTests
     public async Task BuildAsyncImportsAssetsAndBuildsLiveComponents()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+        CapturedResoniteScene scene = LoadScene(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                InputPath: fixturePath,
+                LocalSourcePath: fixturePath,
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
@@ -31,11 +31,11 @@ public sealed class ResoniteLinkSceneBuilderTests
             new Uri("ws://localhost:12345/"),
             () => fakeClient);
 
-        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, plan);
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
         Assert.Single(destinations);
         Assert.Equal(2, fakeClient.ImportedTexturePaths.Count);
-        Assert.Equal(plan.CityObjects.Count, fakeClient.ImportedMeshes.Count);
+        Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
         Assert.Contains(fakeClient.AddedComponents, static request =>
@@ -53,7 +53,9 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Meshes"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Materials"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("53394525"));
-        Assert.True(fakeClient.AssetSlotIds.ContainsKey("Building One Assets"));
+        Assert.DoesNotContain(
+            fakeClient.AddedSlots,
+            request => string.Equals(request.Data.Name?.Value, "Building One Assets", StringComparison.Ordinal));
 
         IReadOnlyList<Component> staticMeshes = fakeClient.AddedComponents
             .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal))
@@ -114,18 +116,25 @@ public sealed class ResoniteLinkSceneBuilderTests
         Field_bool requireCredit = Assert.IsType<Field_bool>(license.Members["RequireCredit"]);
         Assert.True(requireCredit.Value);
         Field_string creditString = Assert.IsType<Field_string>(license.Members["CreditString"]);
-        Assert.Contains(plan.Attribution.DatasetLicense.LicenseName, creditString.Value, StringComparison.Ordinal);
-        Assert.Contains(plan.Attribution.DatasetLicense.LicenseUrl, creditString.Value, StringComparison.Ordinal);
-        Assert.Contains(plan.Attribution.DatasetLicense.CreditText, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(scene.Metadata.Attribution.DatasetLicense.LicenseName, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(scene.Metadata.Attribution.DatasetLicense.LicenseUrl, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(scene.Metadata.Attribution.DatasetLicense.CreditText, creditString.Value, StringComparison.Ordinal);
 
+        AddComponent[] meshAssetRequests = fakeClient.AddedComponents
+            .Where(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal)
+                && string.Equals(
+                    fakeClient.SlotsById[request.ContainerSlotId].Parent.TargetID,
+                    fakeClient.AssetSlotIds["53394525"],
+                    StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(meshAssetRequests);
         Assert.Contains(
-            fakeClient.AddedComponents,
-            request =>
-                string.Equals(request.ContainerSlotId, fakeClient.AssetSlotIds["Building One Assets"], StringComparison.Ordinal)
-                && string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
-        Assert.Equal(
-            fakeClient.BuildingSlotIds["Building One"],
-            fakeClient.SlotsById[fakeClient.AssetSlotIds["Building One Assets"]].Parent.TargetID);
+            meshAssetRequests,
+            request => string.Equals(
+                fakeClient.SlotsById[request.ContainerSlotId].Name?.Value,
+                "Mesh Building One",
+                StringComparison.Ordinal));
 
         AddComponent[] materialRequests = fakeClient.AddedComponents
             .Where(request =>
@@ -160,12 +169,12 @@ public sealed class ResoniteLinkSceneBuilderTests
     public async Task BuildAsyncUsesTriplanarMaterialForBundledRoadFallback()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+        CapturedResoniteScene scene = LoadScene(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                InputPath: fixturePath,
+                LocalSourcePath: fixturePath,
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
@@ -173,7 +182,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             new Uri("ws://localhost:12345/"),
             () => fakeClient);
 
-        await RunBuilderAsync(builder, plan);
+        await RunBuilderAsync(builder, scene);
 
         Component[] triplanarMaterials = fakeClient.AddedComponents
             .Where(static request =>
@@ -193,22 +202,94 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncAppliesMaterialDepthOffsetForTerrainAlignedOverlays()
+    {
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU tokyo23ku 53394525",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["tran"],
+                    SourceFiles: ["udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "terrain_road",
+                    DisplayName: "Terrain Road",
+                    PackageName: "tran",
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: new ResoniteImportedMesh(
+                        Vertices:
+                        [
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                        ],
+                        Submeshes:
+                        [
+                            new ResoniteMeshSubmesh(0, "terrain-road-material", [0, 1, 2]),
+                        ]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "terrain-road-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Triplanar,
+                            DepthOffset: LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component material = Assert.Single(
+            fakeClient.AddedComponents.Where(static request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic", StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Field_float offsetFactor = Assert.IsType<Field_float>(material.Members["OffsetFactor"]);
+        Field_float offsetUnits = Assert.IsType<Field_float>(material.Members["OffsetUnits"]);
+        Assert.Equal((float)LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset.Factor, offsetFactor.Value);
+        Assert.Equal((float)LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset.Units, offsetUnits.Value);
+    }
+
+    [Fact]
     public async Task BuildAsyncUsesUniqueEntityIdsAcrossRuns()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+        CapturedResoniteScene scene = LoadScene(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                InputPath: fixturePath,
+                LocalSourcePath: fixturePath,
                 ServerUri: null));
 
         using FakeResoniteLinkClient firstClient = new();
         using FakeResoniteLinkClient secondClient = new();
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), plan);
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), plan);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), scene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), scene);
 
         HashSet<string> firstEntityIds = firstClient.AddedSlots
             .Select(static request => request.Data.ID)
@@ -228,12 +309,12 @@ public sealed class ResoniteLinkSceneBuilderTests
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+        CapturedResoniteScene scene = LoadScene(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                InputPath: fixturePath,
+                LocalSourcePath: fixturePath,
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
@@ -243,7 +324,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             () => fakeClient,
             terrainTextureAssetGenerator);
 
-        await RunBuilderAsync(builder, plan);
+        await RunBuilderAsync(builder, scene);
 
         TerrainTextureOverlay requestedOverlay = Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, requestedOverlay.TexturePath);
@@ -258,23 +339,23 @@ public sealed class ResoniteLinkSceneBuilderTests
     public async Task BuildAsyncReusesSharedAssetsWithinSession()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+        CapturedResoniteScene scene = LoadScene(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                InputPath: fixturePath,
+                LocalSourcePath: fixturePath,
                 ServerUri: null));
 
         FakeResoniteLinkSession session = new();
         using FakeResoniteLinkClient firstClient = new(session);
         using FakeResoniteLinkClient secondClient = new(session);
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), plan);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), scene);
         int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), plan);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), scene);
 
         Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
         Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
@@ -284,28 +365,21 @@ public sealed class ResoniteLinkSceneBuilderTests
     public async Task ProcessCityObjectAsyncQueuesWorkBeforeLiveMeshImportCompletes()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+        CapturedResoniteScene scene = LoadScene(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                InputPath: fixturePath,
+                LocalSourcePath: fixturePath,
                 ServerUri: null));
-        ResoniteConstructionMetadata metadata = new(
-            plan.SchemaVersion,
-            plan.WorldName,
-            plan.Request,
-            plan.SourceDataset,
-            plan.Attribution,
-            plan.LocalOrigin);
 
         using BlockingResoniteLinkClient blockingClient = new();
         await using ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
             () => blockingClient);
 
-        await builder.BeginAsync(metadata, "artifacts/resonite");
-        await builder.ProcessCityObjectAsync(plan.CityObjects[0]);
+        await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+        await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
 
         Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
         Assert.False(completionTask.IsCompleted);
@@ -440,13 +514,13 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public async Task<string> EnsureTextureAsync(
             TerrainTextureOverlay terrainTextureOverlay,
-            string outputRoot,
+            string workRoot,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             RequestedOverlays.Add(terrainTextureOverlay);
 
-            string textureDirectory = Path.Combine(outputRoot, "terrain-textures");
+            string textureDirectory = Path.Combine(workRoot, "terrain-textures");
             Directory.CreateDirectory(textureDirectory);
             string texturePath = Path.Combine(textureDirectory, "dem-overlay.png");
             if (!File.Exists(texturePath))
@@ -550,20 +624,12 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private static async Task<IReadOnlyList<string>> RunBuilderAsync(
         ResoniteLinkSceneBuilder builder,
-        ResoniteConstructionPlan plan)
+        CapturedResoniteScene scene)
     {
         try
         {
-            ResoniteConstructionMetadata metadata = new(
-                plan.SchemaVersion,
-                plan.WorldName,
-                plan.Request,
-                plan.SourceDataset,
-                plan.Attribution,
-                plan.LocalOrigin);
-
-            await builder.BeginAsync(metadata, "artifacts/resonite");
-            foreach (ResoniteConstructionCityObject cityObject in plan.CityObjects)
+            await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+            foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects)
             {
                 await builder.ProcessCityObjectAsync(cityObject);
             }
@@ -575,4 +641,14 @@ public sealed class ResoniteLinkSceneBuilderTests
             await builder.DisposeAsync();
         }
     }
+
+    private static CapturedResoniteScene LoadScene(PlateauImportRequest request)
+    {
+        IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
+        return new CapturedResoniteScene(source.Metadata, source.ReadCityObjects().ToArray());
+    }
+
+    private sealed record CapturedResoniteScene(
+        ResoniteConstructionMetadata Metadata,
+        IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
 }

@@ -15,7 +15,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     [Fact]
     public async Task EnsureTextureAsyncStitchesTilesAndCachesOutput()
     {
-        using TemporaryDirectory outputRoot = new();
+        using TemporaryDirectory workRoot = new();
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient);
@@ -34,11 +34,11 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         string firstPath = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
-            outputRoot.Path,
+            workRoot.Path,
             CancellationToken.None);
         string secondPath = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
-            outputRoot.Path,
+            workRoot.Path,
             CancellationToken.None);
 
         Assert.Equal(firstPath, secondPath);
@@ -54,7 +54,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     [Fact]
     public async Task EnsureTextureAsyncResizesWhenCroppedTextureExceedsMaxTextureSize()
     {
-        using TemporaryDirectory outputRoot = new();
+        using TemporaryDirectory workRoot = new();
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient);
@@ -73,7 +73,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         string texturePath = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
-            outputRoot.Path,
+            workRoot.Path,
             CancellationToken.None);
 
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(texturePath);

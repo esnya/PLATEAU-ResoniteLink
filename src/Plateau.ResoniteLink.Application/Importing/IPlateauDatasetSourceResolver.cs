@@ -6,6 +6,6 @@ public interface IPlateauDatasetSourceResolver
 {
     Task<PlateauImportRequest> ResolveAsync(
         PlateauImportRequest request,
-        string outputRoot,
+        string workRoot,
         CancellationToken cancellationToken = default);
 }

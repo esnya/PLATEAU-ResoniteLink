@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
+using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
@@ -12,17 +13,17 @@ namespace Plateau.ResoniteLink.Tests.Cli;
 public sealed class CliApplicationTests
 {
     [Fact]
-    public async Task RunAsyncWritesArtifactForValidBuildCommand()
+    public async Task RunAsyncWritesLiveCompletionForValidBuildCommand()
     {
-        using TemporaryDirectory tempDirectory = new();
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubSceneBuilder sceneBuilder = new();
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            new PlateauImportService(new JsonArtifactResoniteSceneBuilder()));
+            new PlateauImportService(sceneBuilder));
 
         int exitCode = await application.RunAsync(
             [
@@ -33,22 +34,47 @@ public sealed class CliApplicationTests
                 "53394525",
                 "--source",
                 "local",
-                "--input",
+                "--local-source-path",
                 fixturePath,
-                "--output-root",
-                tempDirectory.Path,
+                "--resonitelink-port",
+                "12345",
             ]);
 
-        string artifactPath = Path.Combine(
-            tempDirectory.Path,
-            "tokyo23ku",
-            "53394525",
-            "resonite-construction-plan.json");
-
         Assert.Equal(0, exitCode);
-        Assert.True(File.Exists(artifactPath));
-        Assert.Contains("Resonite construction plan generated.", standardOutput.ToString());
-        Assert.Contains($"Destination: {artifactPath}", standardOutput.ToString());
+        Assert.Equal(2, sceneBuilder.CityObjects.Count);
+        Assert.Contains("Resonite import completed.", standardOutput.ToString());
+        Assert.Contains("Resonite location: stub://resonite/location", standardOutput.ToString());
         Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    private sealed class StubSceneBuilder : IResoniteSceneBuilder
+    {
+        public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+
+        public Task BeginAsync(
+            ResoniteConstructionMetadata metadata,
+            string workRoot,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ProcessCityObjectAsync(
+            ResoniteConstructionCityObject cityObject,
+            CancellationToken cancellationToken = default)
+        {
+            CityObjects.Add(cityObject);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<string>>(["stub://resonite/location"]);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
     }
 }

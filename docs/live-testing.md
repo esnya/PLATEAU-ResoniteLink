@@ -19,7 +19,7 @@ Use this workflow only for machine-level checks against a running ResoniteLink l
 Example from WSL:
 
 ```bash
-cmd.exe /c "cd /d C:\path\to\repo && dotnet.exe run --project src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --mesh-code <mesh-code> --source local --input <windows-dataset-root> --resonitelink-port <port>"
+cmd.exe /c "cd /d C:\path\to\repo && dotnet.exe run --project src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --mesh-code <mesh-code> --source local --local-source-path <windows-dataset-root> --resonitelink-port <port>"
 ```
 
 ## Windows Run
@@ -31,12 +31,12 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   build `
   --dataset <dataset> `
   --mesh-code <mesh-code> `
-  --source <local-or-server> `
+  --source <local-or-remote> `
   --resonitelink-port <port>
 ```
 
-If `--source local` is used, also pass `--input <dataset-root>`.
-If `--source server` is used, the CLI downloads an official PLATEAU CityGML ZIP through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it.
+If `--source local` is used, also pass `--local-source-path <dataset-root>`. The value follows the Unity SDK `LocalSourcePath` naming and may point at either the extracted dataset root or an ancestor directory that contains one nested extracted dataset root with `udx/`.
+If `--source remote` is used, the CLI downloads an official PLATEAU CityGML ZIP through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it. The extracted result is cached under `runtime/<os>/resonite/cache/remote/` and can later be reused through `--source local --local-source-path ...`.
 
 For long-running sends, prefer a small Windows PowerShell wrapper over an inline `cmd.exe /c dotnet ...` command. In this environment, a wrapper that uses `Start-Process -Wait -PassThru` plus redirected stdout/stderr is easier to observe and less likely to get stuck on WSL interop details.
 
@@ -51,7 +51,7 @@ $process = Start-Process `
     '--dataset', '<dataset>',
     '--mesh-code', '<mesh-code>',
     '--source', 'local',
-    '--input', 'C:\path\to\dataset-root',
+    '--local-source-path', 'C:\path\to\dataset-root',
     '--resonitelink-port', '<port>'
   ) `
   -Wait `
@@ -65,7 +65,6 @@ $process.ExitCode
 Practical notes:
 
 - Keep the actual send on Windows and keep the dataset path in Windows form such as `C:\...`.
-- For heavy mesh codes, JSON artifact generation can finish long before the live send completes.
 - Some long sends do not flush meaningful stdout until process exit, so treat the redirected logs and final exit code as the primary signal.
 
 This path uses official ResoniteLink asset import messages:
@@ -73,7 +72,7 @@ This path uses official ResoniteLink asset import messages:
 - `ImportMesh(ImportMeshRawData)`
 - `ImportTexture(ImportTexture2DFile)`
 
-The command writes a JSON artifact locally and then builds live Resonite slots and components that reference the imported asset URLs.
+The command sends mesh and texture assets directly through ResoniteLink and then builds live Resonite slots and components that reference the imported asset URLs.
 
 ## Done Signal
 

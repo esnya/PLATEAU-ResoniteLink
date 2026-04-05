@@ -13,7 +13,7 @@ internal interface ITerrainTextureAssetGenerator
 {
     Task<string> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
-        string outputRoot,
+        string workRoot,
         CancellationToken cancellationToken);
 }
 
@@ -24,13 +24,13 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
 
     public async Task<string> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
-        string outputRoot,
+        string workRoot,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        string textureDirectory = Path.Combine(Path.GetFullPath(outputRoot), "terrain-textures");
+        string textureDirectory = Path.Combine(Path.GetFullPath(workRoot), "terrain-textures");
         Directory.CreateDirectory(textureDirectory);
 
         string texturePath = Path.Combine(textureDirectory, CreateFileName(terrainTextureOverlay));

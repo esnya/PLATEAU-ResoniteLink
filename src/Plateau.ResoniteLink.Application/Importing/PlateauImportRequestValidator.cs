@@ -23,19 +23,19 @@ public static class PlateauImportRequestValidator
         switch (request.SourceKind)
         {
             case DatasetSourceKind.Local:
-                if (string.IsNullOrWhiteSpace(request.InputPath))
+                if (string.IsNullOrWhiteSpace(request.LocalSourcePath))
                 {
-                    errors.Add("The --input value is required when --source local is used.");
+                    errors.Add("The --local-source-path value is required when --source local is used.");
                     break;
                 }
 
-                if (!Directory.Exists(request.InputPath))
+                if (!Directory.Exists(request.LocalSourcePath))
                 {
-                    errors.Add($"The local dataset root '{request.InputPath}' does not exist.");
+                    errors.Add($"The local source path '{request.LocalSourcePath}' does not exist.");
                 }
 
                 break;
-            case DatasetSourceKind.Server:
+            case DatasetSourceKind.Remote:
                 if (request.ServerUri is not null && !request.ServerUri.IsAbsoluteUri)
                 {
                     errors.Add("The --server-url value must be an absolute URI.");

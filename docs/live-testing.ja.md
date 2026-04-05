@@ -19,7 +19,7 @@
 WSL からの例:
 
 ```bash
-cmd.exe /c "cd /d C:\path\to\repo && dotnet.exe run --project src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --mesh-code <mesh-code> --source local --input <windows-dataset-root> --resonitelink-port <port>"
+cmd.exe /c "cd /d C:\path\to\repo && dotnet.exe run --project src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --mesh-code <mesh-code> --source local --local-source-path <windows-dataset-root> --resonitelink-port <port>"
 ```
 
 ## Windows 実行
@@ -31,12 +31,12 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   build `
   --dataset <dataset> `
   --mesh-code <mesh-code> `
-  --source <local-or-server> `
+  --source <local-or-remote> `
   --resonitelink-port <port>
 ```
 
-`--source local` を使う場合は、追加で `--input <dataset-root>` を渡す。
-`--source server` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP を取得する。
+`--source local` を使う場合は、追加で `--local-source-path <dataset-root>` を渡す。この値は Unity SDK の `LocalSourcePath` 命名に合わせており、展開済み dataset root そのものでも、`udx/` を含む dataset root を 1 つ内包する上位 directory でもよい。
+`--source remote` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP を取得する。展開結果は `runtime/<os>/resonite/cache/remote/` に cache され、あとから `--source local --local-source-path ...` で再利用できる。
 
 長時間の送信では、インラインの `cmd.exe /c dotnet ...` よりも、小さな Windows PowerShell ラッパーを使う方が安定する。この環境では、`Start-Process -Wait -PassThru` と stdout/stderr の redirect を使う形の方が、WSL interop 由来の詰まりを切り分けやすい。
 
@@ -51,7 +51,7 @@ $process = Start-Process `
     '--dataset', '<dataset>',
     '--mesh-code', '<mesh-code>',
     '--source', 'local',
-    '--input', 'C:\path\to\dataset-root',
+    '--local-source-path', 'C:\path\to\dataset-root',
     '--resonitelink-port', '<port>'
   ) `
   -Wait `
@@ -65,7 +65,6 @@ $process.ExitCode
 運用上の注意:
 
 - 実送信は Windows 上で行い、dataset path も `C:\...` 形式で渡す。
-- 大きい mesh code では、JSON artifact の生成が終わっても live 送信はその後しばらく継続する。
 - 長時間の送信では、process 終了まで stdout に有意な内容が出ないことがある。redirect した log と最終 exit code を主な判定材料にする。
 
 この経路では、公式の ResoniteLink asset import message を使う。
@@ -73,7 +72,7 @@ $process.ExitCode
 - `ImportMesh(ImportMeshRawData)`
 - `ImportTexture(ImportTexture2DFile)`
 
-コマンドはローカルに JSON artifact を残しつつ、import した asset URL を参照する Resonite の slot / component を live 構築する。
+コマンドは mesh / texture asset を ResoniteLink 経由で直接送信し、import した asset URL を参照する Resonite の slot / component を live 構築する。
 
 ## Done 条件
 

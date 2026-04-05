@@ -12,10 +12,10 @@ public sealed class PlateauImportService(
 
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
-        string outputRoot,
+        string workRoot,
         CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
         IReadOnlyList<string> validationErrors = PlateauImportRequestValidator.Validate(request);
         if (validationErrors.Count > 0)
@@ -27,17 +27,17 @@ public sealed class PlateauImportService(
         {
             Dataset = request.Dataset.Trim(),
             MeshCode = request.MeshCode.Trim(),
-            InputPath = string.IsNullOrWhiteSpace(request.InputPath) ? null : request.InputPath.Trim(),
+            LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
         };
 
         PlateauImportRequest resolvedRequest =
-            await datasetSourceResolver.ResolveAsync(normalizedRequest, outputRoot, cancellationToken);
+            await datasetSourceResolver.ResolveAsync(normalizedRequest, workRoot, cancellationToken);
 
         IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(resolvedRequest);
 
         try
         {
-            await sceneBuilder.BeginAsync(source.Metadata, outputRoot, cancellationToken);
+            await sceneBuilder.BeginAsync(source.Metadata, workRoot, cancellationToken);
             bool processedAnyCityObject = false;
 
             await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync(cancellationToken))
