@@ -6,4 +6,5 @@ public sealed record ResoniteMaterialBinding(
     string? TexturePath,
     ResoniteTextureSourceKind TextureSourceKind,
     ResoniteMaterialProjection Projection,
+    ResoniteMaterialDepthOffset? DepthOffset,
     IReadOnlyList<int> SubmeshIndices);
