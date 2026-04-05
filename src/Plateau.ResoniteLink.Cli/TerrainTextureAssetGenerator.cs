@@ -1,0 +1,141 @@
+using System.Security.Cryptography;
+using System.Text;
+
+using Plateau.ResoniteLink.Domain.Importing;
+
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+
+namespace Plateau.ResoniteLink.Cli;
+
+internal interface ITerrainTextureAssetGenerator
+{
+    Task<string> EnsureTextureAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        string outputRoot,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
+{
+    private const double PixelEpsilon = 1e-6;
+    private readonly HttpClient httpClient = httpClient ?? new HttpClient();
+
+    public async Task<string> EnsureTextureAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        string outputRoot,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
+        ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
+
+        string textureDirectory = Path.Combine(Path.GetFullPath(outputRoot), "terrain-textures");
+        Directory.CreateDirectory(textureDirectory);
+
+        string texturePath = Path.Combine(textureDirectory, CreateFileName(terrainTextureOverlay));
+        if (File.Exists(texturePath))
+        {
+            return texturePath;
+        }
+
+        GeographicRectangle bounds = terrainTextureOverlay.GeographicBounds;
+        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MinLongitude, terrainTextureOverlay.ZoomLevel);
+        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MaxLongitude, terrainTextureOverlay.ZoomLevel);
+        double topPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MaxLatitude, terrainTextureOverlay.ZoomLevel);
+        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MinLatitude, terrainTextureOverlay.ZoomLevel);
+
+        if (rightPixel - leftPixel <= PixelEpsilon || bottomPixel - topPixel <= PixelEpsilon)
+        {
+            throw new InvalidOperationException(
+                $"Terrain texture overlay '{terrainTextureOverlay.TexturePath}' has degenerate geographic bounds.");
+        }
+
+        int minTileX = (int)Math.Floor(leftPixel / WebMercatorTileMath.TileSizePixels);
+        int maxTileX = (int)Math.Floor((rightPixel - PixelEpsilon) / WebMercatorTileMath.TileSizePixels);
+        int minTileY = (int)Math.Floor(topPixel / WebMercatorTileMath.TileSizePixels);
+        int maxTileY = (int)Math.Floor((bottomPixel - PixelEpsilon) / WebMercatorTileMath.TileSizePixels);
+
+        using Image<Rgba32> stitchedImage = new(
+            (maxTileX - minTileX + 1) * WebMercatorTileMath.TileSizePixels,
+            (maxTileY - minTileY + 1) * WebMercatorTileMath.TileSizePixels);
+
+        for (int tileY = minTileY; tileY <= maxTileY; tileY++)
+        {
+            for (int tileX = minTileX; tileX <= maxTileX; tileX++)
+            {
+                using Image<Rgba32> tileImage = await DownloadTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
+                stitchedImage.Mutate(context => context.DrawImage(
+                    tileImage,
+                    new Point(
+                        (tileX - minTileX) * WebMercatorTileMath.TileSizePixels,
+                        (tileY - minTileY) * WebMercatorTileMath.TileSizePixels),
+                    1.0f));
+            }
+        }
+
+        int cropLeft = Math.Clamp(
+            (int)Math.Floor(leftPixel - (minTileX * WebMercatorTileMath.TileSizePixels)),
+            0,
+            stitchedImage.Width - 1);
+        int cropTop = Math.Clamp(
+            (int)Math.Floor(topPixel - (minTileY * WebMercatorTileMath.TileSizePixels)),
+            0,
+            stitchedImage.Height - 1);
+        int cropRight = Math.Clamp(
+            (int)Math.Ceiling((rightPixel - (minTileX * WebMercatorTileMath.TileSizePixels)) - PixelEpsilon),
+            cropLeft + 1,
+            stitchedImage.Width);
+        int cropBottom = Math.Clamp(
+            (int)Math.Ceiling((bottomPixel - (minTileY * WebMercatorTileMath.TileSizePixels)) - PixelEpsilon),
+            cropTop + 1,
+            stitchedImage.Height);
+
+        using Image<Rgba32> croppedImage = stitchedImage.Clone(context => context.Crop(new Rectangle(
+            cropLeft,
+            cropTop,
+            cropRight - cropLeft,
+            cropBottom - cropTop)));
+
+        await croppedImage.SaveAsPngAsync(texturePath, cancellationToken);
+        return texturePath;
+    }
+
+    private async Task<Image<Rgba32>> DownloadTileAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        int tileX,
+        int tileY,
+        CancellationToken cancellationToken)
+    {
+        string tileUrl = WebMercatorTileMath.FormatTileUrl(
+            terrainTextureOverlay.UrlTemplate,
+            terrainTextureOverlay.ZoomLevel,
+            tileX,
+            tileY);
+        using HttpResponseMessage response = await httpClient.GetAsync(
+            tileUrl,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await Image.LoadAsync<Rgba32>(responseStream, cancellationToken);
+    }
+
+    private static string CreateFileName(TerrainTextureOverlay terrainTextureOverlay)
+    {
+        string fingerprint = string.Join(
+            "|",
+            terrainTextureOverlay.TexturePath,
+            terrainTextureOverlay.PackageName,
+            terrainTextureOverlay.UrlTemplate,
+            terrainTextureOverlay.ZoomLevel,
+            terrainTextureOverlay.GeographicBounds.MinLatitude,
+            terrainTextureOverlay.GeographicBounds.MaxLatitude,
+            terrainTextureOverlay.GeographicBounds.MinLongitude,
+            terrainTextureOverlay.GeographicBounds.MaxLongitude);
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
+        string suffix = Convert.ToHexString(hash[..8]).ToLowerInvariant();
+        return $"{terrainTextureOverlay.PackageName}-z{terrainTextureOverlay.ZoomLevel}-{suffix}.png";
+    }
+}

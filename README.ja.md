@@ -50,7 +50,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-ライブ経路は `ws://localhost:<port>/` に接続し、公式の ResoniteLink import message で mesh / texture asset を送信し、dataset / mesh-code slot を作成した上で `StaticMesh`、`StaticTexture2D`、`MeshRenderer`、`PBS_Metallic`、`MeshCollider` を構築します。city object は逐次送信するため、大きい mesh code でも live 出力前に全件バッチを保持しません。JSON アーティファクト出力も同時に残します。
+ライブ経路は `ws://localhost:<port>/` に接続し、公式の ResoniteLink import message で mesh / texture asset を送信し、dataset / mesh-code slot を作成した上で、PLATEAU の帰属表記を持つ dataset-level の `License` コンポーネントを付与し、その後 `StaticMesh`、`StaticTexture2D`、`MeshRenderer`、`PBS_Metallic`、`MeshCollider` を構築します。city object は逐次送信するため、大きい mesh code でも live 出力前に全件バッチを保持しません。JSON アーティファクト出力も同時に残します。
 
 現行の live adapter は、mesh には `ImportMesh(ImportMeshRawData)`、texture には `ImportTexture(ImportTexture2DFile)` を使います。現在の ResoniteLink runtime では raw-data 経路の方が利用可能な mesh asset URL を返すためです。
 

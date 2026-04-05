@@ -11,6 +11,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
+    private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
+    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = new(0.35, 0.35);
     private IResoniteLinkClient? client;
     private ResoniteConstructionMetadata? metadata;
     private string? buildNonce;
@@ -20,16 +22,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private string? materialsSlotId;
     private string? meshCodeMeshesSlotId;
     private Dictionary<string, string>? textureComponentIds;
+    private ResoniteLicenseManager? licenseManager;
+    private string? generatedAssetsRoot;
 
     public ResoniteLinkSceneBuilder(Uri endpoint)
-        : this(endpoint, static () => new ResoniteLinkClient())
+        : this(endpoint, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator())
     {
     }
 
-    internal ResoniteLinkSceneBuilder(Uri endpoint, Func<IResoniteLinkClient> clientFactory)
+    internal ResoniteLinkSceneBuilder(
+        Uri endpoint,
+        Func<IResoniteLinkClient> clientFactory,
+        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null)
     {
         this.endpoint = endpoint;
         this.clientFactory = clientFactory;
+        this.terrainTextureAssetGenerator = terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator();
     }
 
     public async Task BeginAsync(
@@ -41,6 +49,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
 
         this.metadata = metadata;
+        generatedAssetsRoot = Path.Combine(Path.GetFullPath(outputRoot), ".generated-assets");
         buildNonce = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
@@ -53,6 +62,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assets");
+        string datasetLicenseComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
+            "license");
         texturesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assetgroup",
@@ -72,6 +84,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         client = clientFactory();
         textureComponentIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        licenseManager = new ResoniteLicenseManager(metadata.Attribution);
         await client.ConnectAsync(endpoint, cancellationToken);
 
         await EnsureSlotAsync(
@@ -81,6 +94,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             $"PLATEAU {metadata.Request.Dataset}",
             new ResoniteFloat3(0.0, 1.5, 0.0),
             cancellationToken);
+        await licenseManager.EnsureDatasetLicenseAsync(client, datasetSlotId, datasetLicenseComponentId, cancellationToken);
 
         await client.AddSlotAsync(
             new AddSlot
@@ -94,7 +108,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     },
                     Name = new Field_string
                     {
-                        Value = $"Mesh Code {metadata.Request.MeshCode}",
+                        Value = metadata.Request.MeshCode,
                     },
                 },
             },
@@ -108,7 +122,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             client,
             meshCodeMeshesSlotId,
             meshesSlotId,
-            $"Mesh Code {metadata.Request.MeshCode}",
+            metadata.Request.MeshCode,
             null,
             cancellationToken);
     }
@@ -126,15 +140,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
         ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(licenseManager is null, this);
+        ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
         ObjectDisposedException.ThrowIf(buildNonce is null, this);
 
-        await ImportTexturesAsync(
-            client,
-            metadata,
-            cityObject,
-            texturesSlotId,
-            textureComponentIds,
-            cancellationToken);
+        await ImportTexturesAsync(cityObject, cancellationToken);
 
         await BuildCityObjectAsync(
             client,
@@ -166,30 +176,39 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         materialsSlotId = null;
         meshCodeMeshesSlotId = null;
         textureComponentIds = null;
+        licenseManager = null;
+        generatedAssetsRoot = null;
         return ValueTask.CompletedTask;
     }
 
-    private static async Task ImportTexturesAsync(
-        IResoniteLinkClient client,
-        ResoniteConstructionMetadata metadata,
+    private async Task ImportTexturesAsync(
         ResoniteConstructionCityObject cityObject,
-        string texturesSlotId,
-        Dictionary<string, string> textureComponentIds,
         CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(client is null, this);
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
+        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
+
         string datasetRoot = Path.GetFullPath(metadata.Request.InputPath!);
-        string[] texturePaths = cityObject.Materials
-            .Select(static material => material.TexturePath)
-            .Where(static texturePath => !string.IsNullOrWhiteSpace(texturePath))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(static texturePath => texturePath, StringComparer.OrdinalIgnoreCase)
-            .Cast<string>()
+        (string TexturePath, ResoniteTextureSourceKind TextureSourceKind)[] texturePaths = cityObject.Materials
+            .Where(static material => !string.IsNullOrWhiteSpace(material.TexturePath))
+            .Select(static material => (TexturePath: material.TexturePath!, TextureSourceKind: material.TextureSourceKind))
+            .Distinct()
+            .OrderBy(static texture => texture.TextureSourceKind)
+            .ThenBy(static texture => texture.TexturePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        foreach (string texturePath in texturePaths)
+        foreach ((string texturePath, ResoniteTextureSourceKind textureSourceKind) in texturePaths)
         {
-            string absoluteTexturePath = Path.GetFullPath(Path.Combine(datasetRoot, texturePath));
-            string textureKey = CreatePathKey(texturePath);
+            string absoluteTexturePath = await ResolveTextureImportPathAsync(
+                datasetRoot,
+                texturePath,
+                textureSourceKind,
+                cancellationToken);
+            string textureCacheKey = CreateTextureCacheKey(texturePath, textureSourceKind);
+            string textureKey = CreatePathKey(textureCacheKey);
             string textureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
                 metadata.Request.Dataset,
                 "texture",
@@ -216,8 +235,35 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 () => client.ImportTextureAsync(absoluteTexturePath, cancellationToken),
                 cancellationToken);
 
-            textureComponentIds[texturePath] = textureComponentId;
+            textureComponentIds[textureCacheKey] = textureComponentId;
         }
+    }
+
+    private async Task<string> ResolveTextureImportPathAsync(
+        string datasetRoot,
+        string texturePath,
+        ResoniteTextureSourceKind textureSourceKind,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
+
+        TerrainTextureOverlay? terrainTextureOverlay = metadata.SourceDataset.TerrainTextureOverlays
+            .FirstOrDefault(overlay => string.Equals(overlay.TexturePath, texturePath, StringComparison.Ordinal));
+        if (terrainTextureOverlay is not null)
+        {
+            return await terrainTextureAssetGenerator.EnsureTextureAsync(
+                terrainTextureOverlay,
+                generatedAssetsRoot,
+                cancellationToken);
+        }
+
+        return textureSourceKind switch
+        {
+            ResoniteTextureSourceKind.Dataset => Path.GetFullPath(Path.Combine(datasetRoot, texturePath)),
+            ResoniteTextureSourceKind.Bundled => BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
+            _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
+        };
     }
 
     private static async Task BuildCityObjectAsync(
@@ -280,7 +326,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await EnsureSlotAsync(
             client,
             cityObjectAssetsSlotId,
-            meshCodeMeshesSlotId,
+            cityObjectSlotId,
             $"{cityObject.DisplayName} Assets",
             null,
             cancellationToken);
@@ -307,27 +353,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 "materialslot",
                 material.MaterialKey);
 
-            Dictionary<string, Member> materialMembers = new(StringComparer.Ordinal)
+            Dictionary<string, Member> materialMembers = CreateMaterialMembers(material);
+            string materialComponentType = material.Projection switch
             {
-                ["AlbedoColor"] = new Field_colorX
-                {
-                    Value = new colorX
-                    {
-                        r = (float)material.BaseColor.R,
-                        g = (float)material.BaseColor.G,
-                        b = (float)material.BaseColor.B,
-                        a = (float)material.BaseColor.A,
-                        Profile = "sRGB",
-                    },
-                },
-                ["Smoothness"] = new Field_float
-                {
-                    Value = 0.0f,
-                },
+                ResoniteMaterialProjection.Uv => "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                ResoniteMaterialProjection.Triplanar => "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic",
+                _ => throw new InvalidOperationException($"Unsupported material projection '{material.Projection}'."),
             };
 
+            string textureCacheKey = CreateTextureCacheKey(material.TexturePath, material.TextureSourceKind);
             if (material.TexturePath is not null
-                && textureComponentIds.TryGetValue(material.TexturePath, out string? textureComponentId))
+                && textureComponentIds.TryGetValue(textureCacheKey, out string? textureComponentId))
             {
                 materialMembers["AlbedoTexture"] = new Reference
                 {
@@ -346,7 +382,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 client,
                 materialSlotId,
                 materialId,
-                "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                materialComponentType,
                 materialMembers,
                 cancellationToken);
 
@@ -469,6 +505,69 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         return request;
+    }
+
+    private static string CreateTextureCacheKey(string? texturePath, ResoniteTextureSourceKind textureSourceKind)
+    {
+        return texturePath is null
+            ? string.Empty
+            : string.Create(CultureInfo.InvariantCulture, $"{textureSourceKind}:{texturePath}");
+    }
+
+    private static Dictionary<string, Member> CreateMaterialMembers(ResoniteMaterialBinding material)
+    {
+        Dictionary<string, Member> materialMembers = new(StringComparer.Ordinal)
+        {
+            ["AlbedoColor"] = new Field_colorX
+            {
+                Value = new colorX
+                {
+                    r = (float)material.BaseColor.R,
+                    g = (float)material.BaseColor.G,
+                    b = (float)material.BaseColor.B,
+                    a = (float)material.BaseColor.A,
+                    Profile = "sRGB",
+                },
+            },
+            ["Smoothness"] = new Field_float
+            {
+                Value = 0.0f,
+            },
+        };
+
+        if (material.Projection == ResoniteMaterialProjection.Triplanar)
+        {
+            materialMembers["Metallic"] = new Field_float
+            {
+                Value = 0.0f,
+            };
+            materialMembers["TextureScale"] = new Field_float2
+            {
+                Value = new float2
+                {
+                    x = (float)DefaultTriplanarTextureScale.X,
+                    y = (float)DefaultTriplanarTextureScale.Y,
+                },
+            };
+            materialMembers["TextureOffset"] = new Field_float2
+            {
+                Value = new float2
+                {
+                    x = 0.0f,
+                    y = 0.0f,
+                },
+            };
+            materialMembers["TriplanarBlendPower"] = new Field_float
+            {
+                Value = 8.0f,
+            };
+            materialMembers["ObjectSpace"] = new Field_bool
+            {
+                Value = true,
+            };
+        }
+
+        return materialMembers;
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)

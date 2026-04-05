@@ -34,7 +34,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, plan);
 
         Assert.Single(destinations);
-        Assert.Single(fakeClient.ImportedTexturePaths);
+        Assert.Equal(2, fakeClient.ImportedTexturePaths.Count);
         Assert.Equal(plan.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
@@ -46,11 +46,13 @@ public sealed class ResoniteLinkSceneBuilderTests
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal));
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
+        Assert.Contains(fakeClient.AddedComponents, static request =>
+            string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Assets"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Textures"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Meshes"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Materials"));
-        Assert.True(fakeClient.AssetSlotIds.ContainsKey("Mesh Code 53394525"));
+        Assert.True(fakeClient.AssetSlotIds.ContainsKey("53394525"));
         Assert.True(fakeClient.AssetSlotIds.ContainsKey("Building One Assets"));
 
         IReadOnlyList<Component> staticMeshes = fakeClient.AddedComponents
@@ -63,20 +65,67 @@ public sealed class ResoniteLinkSceneBuilderTests
             Assert.StartsWith("resdb:///mesh/", url.Value.ToString(), StringComparison.Ordinal);
         });
 
-        AddComponent staticTextureRequest = Assert.Single(
-            fakeClient.AddedComponents,
-            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
-        Slot textureAssetSlot = fakeClient.SlotsById[staticTextureRequest.ContainerSlotId];
+        AddComponent[] staticTextureRequests = fakeClient.AddedComponents
+            .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, staticTextureRequests.Length);
+
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            path => string.Equals(
+                path,
+                Path.GetFullPath(Path.Combine(fixturePath, "udx/bldg/53394525/appearance/roof.png")),
+                StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            path => BundledDefaultMaterialFamilies.FacadeVariants.Any(variant =>
+                path.EndsWith(variant.Replace('/', Path.DirectorySeparatorChar), StringComparison.Ordinal)));
+
+        AddComponent datasetTextureRequest = Assert.Single(
+            staticTextureRequests,
+            request =>
+            {
+                Field_Uri candidateUrl = Assert.IsType<Field_Uri>(request.Data.Members["URL"]);
+                return string.Equals(candidateUrl.Value.ToString(), "resdb:///texture/0", StringComparison.Ordinal);
+            });
+        Slot textureAssetSlot = fakeClient.SlotsById[datasetTextureRequest.ContainerSlotId];
         Assert.Equal(fakeClient.AssetSlotIds["Textures"], textureAssetSlot.Parent.TargetID);
-        Component staticTexture = staticTextureRequest.Data;
-        Field_Uri textureUrl = Assert.IsType<Field_Uri>(staticTexture.Members["URL"]);
-        Assert.Equal("resdb:///texture/0", textureUrl.Value.ToString());
+        Component datasetTexture = datasetTextureRequest.Data;
+        Field_Uri datasetTextureUrl = Assert.IsType<Field_Uri>(datasetTexture.Members["URL"]);
+        Assert.Equal("resdb:///texture/0", datasetTextureUrl.Value.ToString());
+
+        AddComponent bundledTextureRequest = Assert.Single(
+            staticTextureRequests,
+            request =>
+            {
+                Field_Uri candidateUrl = Assert.IsType<Field_Uri>(request.Data.Members["URL"]);
+                return string.Equals(candidateUrl.Value.ToString(), "resdb:///texture/1", StringComparison.Ordinal);
+            });
+        Slot bundledTextureAssetSlot = fakeClient.SlotsById[bundledTextureRequest.ContainerSlotId];
+        Assert.Equal(fakeClient.AssetSlotIds["Textures"], bundledTextureAssetSlot.Parent.TargetID);
+        Component bundledTexture = bundledTextureRequest.Data;
+        Field_Uri bundledTextureUrl = Assert.IsType<Field_Uri>(bundledTexture.Members["URL"]);
+        Assert.Equal("resdb:///texture/1", bundledTextureUrl.Value.ToString());
+
+        Component license = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Field_bool requireCredit = Assert.IsType<Field_bool>(license.Members["RequireCredit"]);
+        Assert.True(requireCredit.Value);
+        Field_string creditString = Assert.IsType<Field_string>(license.Members["CreditString"]);
+        Assert.Contains(plan.Attribution.DatasetLicense.LicenseName, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(plan.Attribution.DatasetLicense.LicenseUrl, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(plan.Attribution.DatasetLicense.CreditText, creditString.Value, StringComparison.Ordinal);
 
         Assert.Contains(
             fakeClient.AddedComponents,
             request =>
                 string.Equals(request.ContainerSlotId, fakeClient.AssetSlotIds["Building One Assets"], StringComparison.Ordinal)
                 && string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
+        Assert.Equal(
+            fakeClient.BuildingSlotIds["Building One"],
+            fakeClient.SlotsById[fakeClient.AssetSlotIds["Building One Assets"]].Parent.TargetID);
 
         AddComponent[] materialRequests = fakeClient.AddedComponents
             .Where(request =>
@@ -105,6 +154,42 @@ public sealed class ResoniteLinkSceneBuilderTests
                 .Select(static request => request.Data));
         Field_bool characterCollider = Assert.IsType<Field_bool>(collider.Members["CharacterCollider"]);
         Assert.True(characterCollider.Value);
+    }
+
+    [Fact]
+    public async Task BuildAsyncUsesTriplanarMaterialForBundledRoadFallback()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: fixturePath,
+                ServerUri: null));
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, plan);
+
+        Component[] triplanarMaterials = fakeClient.AddedComponents
+            .Where(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic", StringComparison.Ordinal))
+            .Select(static request => request.Data)
+            .ToArray();
+        Assert.NotEmpty(triplanarMaterials);
+        Assert.All(
+            triplanarMaterials,
+            static triplanarMaterial =>
+            {
+                Assert.IsType<Field_float2>(triplanarMaterial.Members["TextureScale"]);
+                Assert.IsType<Field_float2>(triplanarMaterial.Members["TextureOffset"]);
+                Assert.IsType<Field_float>(triplanarMaterial.Members["TriplanarBlendPower"]);
+                Assert.IsType<Field_bool>(triplanarMaterial.Members["ObjectSpace"]);
+            });
     }
 
     [Fact]
@@ -137,6 +222,36 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.DoesNotContain(
             secondClient.AddedComponents.Select(static request => request.Data.ID).Where(static id => IsRunScopedEntityId(id)),
             firstEntityIds.Contains);
+    }
+
+    [Fact]
+    public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: fixturePath,
+                ServerUri: null));
+
+        using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => fakeClient,
+            terrainTextureAssetGenerator);
+
+        await RunBuilderAsync(builder, plan);
+
+        TerrainTextureOverlay requestedOverlay = Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, requestedOverlay.TexturePath);
+
+        string builtInTexturePath = Assert.Single(
+            fakeClient.ImportedTexturePaths,
+            static path => string.Equals(Path.GetFileName(path), "dem-overlay.png", StringComparison.OrdinalIgnoreCase));
+        Assert.True(File.Exists(builtInTexturePath));
     }
 
     [Fact]
@@ -224,7 +339,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     || string.Equals(slotName, "Textures", StringComparison.Ordinal)
                     || string.Equals(slotName, "Meshes", StringComparison.Ordinal)
                     || string.Equals(slotName, "Materials", StringComparison.Ordinal)
-                    || slotName.StartsWith("Mesh Code ", StringComparison.Ordinal)
+                    || slotName.All(char.IsAsciiDigit)
                     || slotName.StartsWith("Material ", StringComparison.Ordinal)
                     || slotName.EndsWith(" Assets", StringComparison.Ordinal))
                 {
@@ -280,6 +395,33 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
     }
 
+    private sealed class StubTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
+    {
+        private static readonly byte[] TextureBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAGklEQVR42mP8z8DQwMDA8J+BkYGBgQEADzYCAjUX0xMAAAAASUVORK5CYII=");
+
+        public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
+
+        public async Task<string> EnsureTextureAsync(
+            TerrainTextureOverlay terrainTextureOverlay,
+            string outputRoot,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RequestedOverlays.Add(terrainTextureOverlay);
+
+            string textureDirectory = Path.Combine(outputRoot, "terrain-textures");
+            Directory.CreateDirectory(textureDirectory);
+            string texturePath = Path.Combine(textureDirectory, "dem-overlay.png");
+            if (!File.Exists(texturePath))
+            {
+                await File.WriteAllBytesAsync(texturePath, TextureBytes, cancellationToken);
+            }
+
+            return texturePath;
+        }
+    }
+
     private sealed class FakeResoniteLinkSession
     {
         public List<AddComponent> AddedComponents { get; } = [];
@@ -319,6 +461,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 plan.WorldName,
                 plan.Request,
                 plan.SourceDataset,
+                plan.Attribution,
                 plan.LocalOrigin);
 
             await builder.BeginAsync(metadata, "artifacts/resonite");

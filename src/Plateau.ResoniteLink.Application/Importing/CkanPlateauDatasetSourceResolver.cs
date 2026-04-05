@@ -115,7 +115,7 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         return request with
         {
             SourceKind = DatasetSourceKind.Local,
-            InputPath = extractRoot,
+            InputPath = ResolveDatasetRoot(extractRoot),
         };
     }
 
@@ -318,9 +318,31 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
     }
 
+    private static string ResolveDatasetRoot(string extractRoot)
+    {
+        if (Directory.Exists(Path.Combine(extractRoot, "udx")))
+        {
+            return extractRoot;
+        }
+
+        string? candidate = Directory
+            .EnumerateDirectories(extractRoot, "*", SearchOption.AllDirectories)
+            .Where(path => Directory.Exists(Path.Combine(path, "udx")))
+            .OrderBy(path => NormalizePath(Path.GetRelativePath(extractRoot, path)).Count(static character => character == '/'))
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        return candidate ?? extractRoot;
+    }
+
     private static string GetExtractionMarkerContents(Uri archiveUri)
     {
         return $"v3{Environment.NewLine}{archiveUri}";
+    }
+
+    private static string NormalizePath(string path)
+    {
+        return path.Replace('\\', '/');
     }
 
     private static bool IsPlateauPackageName(string value)

@@ -133,6 +133,51 @@ public sealed class CkanPlateauDatasetSourceResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncUsesNestedDatasetRootWhenArchiveWrapsContentsInTopLevelDirectory()
+    {
+        byte[] zipBytes = CreateZipArchive(
+            ("13100_tokyo23-ku_2022_citygml_1_2_op/udx/bldg/53394611_bldg_6697_2_op.gml", "<CityModel />"));
+
+        using TemporaryDirectory outputRoot = new();
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            if (request.RequestUri is not null
+                && string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/wrapped.zip", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(zipBytes),
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        using HttpClient httpClient = new(handler);
+
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+
+        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394611",
+                SourceKind: DatasetSourceKind.Server,
+                InputPath: null,
+                ServerUri: new Uri("https://example.test/wrapped.zip", UriKind.Absolute)),
+            outputRoot.Path);
+
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.NotNull(resolvedRequest.InputPath);
+        Assert.Equal(
+            Path.Combine(outputRoot.Path, "server-cache", "tokyo23ku", "53394611", "wrapped", "13100_tokyo23-ku_2022_citygml_1_2_op"),
+            resolvedRequest.InputPath);
+        Assert.True(File.Exists(Path.Combine(
+            resolvedRequest.InputPath,
+            "udx",
+            "bldg",
+            "53394611_bldg_6697_2_op.gml")));
+    }
+
+    [Fact]
     public async Task ResolveAsyncExtractsOfficialPlateauPackageArchivesUnderUdx()
     {
         byte[] zipBytes = CreateZipArchive(

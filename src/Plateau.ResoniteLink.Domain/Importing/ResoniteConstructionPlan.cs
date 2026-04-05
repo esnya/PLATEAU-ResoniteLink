@@ -5,5 +5,6 @@ public sealed record ResoniteConstructionPlan(
     string WorldName,
     PlateauImportRequest Request,
     PlateauSourceDataset SourceDataset,
+    ResoniteAttribution Attribution,
     ResoniteLocalOrigin LocalOrigin,
     IReadOnlyList<ResoniteConstructionCityObject> CityObjects);

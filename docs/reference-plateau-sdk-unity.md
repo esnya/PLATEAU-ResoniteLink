@@ -7,6 +7,7 @@ This project treats `PLATEAU-SDK-for-UNITY` as the reference implementation for 
 - Make dataset selection explicit.
 - Keep the spatial selection surface explicit and represent it as PLATEAU `mesh-code`.
 - Follow official PLATEAU package naming under `udx/<package>/` so Unity-side package coverage carries over without importer-specific aliases.
+- Match Unity-side `dem` terrain texturing by stitching aerial or map tiles into a shared Web Mercator overlay and assigning DEM UVs against that geographic overlay instead of a repeating fallback texture.
 - Preserve room for both local datasets and server-backed datasets in the input model.
 - Stabilize the import contract and processing boundaries before building a GUI.
 - Prefer large-data handling that can stream tiles or city objects incrementally instead of assuming one full in-memory batch.

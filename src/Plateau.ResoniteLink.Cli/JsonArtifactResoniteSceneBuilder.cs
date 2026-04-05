@@ -55,6 +55,8 @@ public sealed class JsonArtifactResoniteSceneBuilder : IResoniteSceneBuilder
         JsonSerializer.Serialize(jsonWriter, metadata.Request, JsonOptions);
         jsonWriter.WritePropertyName("sourceDataset");
         JsonSerializer.Serialize(jsonWriter, metadata.SourceDataset, JsonOptions);
+        jsonWriter.WritePropertyName("attribution");
+        JsonSerializer.Serialize(jsonWriter, metadata.Attribution, JsonOptions);
         jsonWriter.WritePropertyName("localOrigin");
         JsonSerializer.Serialize(jsonWriter, metadata.LocalOrigin, JsonOptions);
         jsonWriter.WritePropertyName("cityObjects");

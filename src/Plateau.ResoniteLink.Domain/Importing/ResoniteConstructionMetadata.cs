@@ -5,6 +5,7 @@ public sealed record ResoniteConstructionMetadata(
     string WorldName,
     PlateauImportRequest Request,
     PlateauSourceDataset SourceDataset,
+    ResoniteAttribution Attribution,
     ResoniteLocalOrigin LocalOrigin)
 {
     public ResoniteConstructionPlan ToPlan(IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
@@ -16,6 +17,7 @@ public sealed record ResoniteConstructionMetadata(
             WorldName,
             Request,
             SourceDataset,
+            Attribution,
             LocalOrigin,
             cityObjects);
     }

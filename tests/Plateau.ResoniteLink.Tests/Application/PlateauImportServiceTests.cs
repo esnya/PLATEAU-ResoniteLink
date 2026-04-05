@@ -36,6 +36,10 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(
             "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
             result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal("PLATEAU Open Data Terms", result.Metadata.Attribution.DatasetLicense.LicenseName);
+        Assert.Equal("https://www.mlit.go.jp/plateau/site-policy/", result.Metadata.Attribution.DatasetLicense.LicenseUrl);
+        Assert.Contains("provide source attribution", result.Metadata.Attribution.DatasetLicense.CreditText, StringComparison.Ordinal);
+        Assert.Empty(result.Metadata.Attribution.MaterialLicenses);
         Assert.Equal(2, plan.CityObjects.Count);
         ResoniteConstructionCityObject buildingOne = Assert.Single(
             plan.CityObjects,
@@ -45,6 +49,12 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(
             buildingOne.Materials,
             static material => material.TexturePath == "udx/bldg/53394525/appearance/roof.png");
+        Assert.Contains(
+            buildingOne.Materials,
+            static material =>
+                BundledDefaultMaterialFamilies.FacadeVariants.Contains(material.TexturePath!)
+                && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+                && material.Projection == ResoniteMaterialProjection.Uv);
         Assert.Equal("stub://artifact", Assert.Single(result.Destinations));
     }
 
@@ -83,19 +93,45 @@ public sealed class PlateauImportServiceTests
         Assert.Equal("tran", road.PackageName);
         ResoniteMaterialBinding texturedMaterial = Assert.Single(
             road.Materials,
-            static material => material.TexturePath is not null);
+            static material => material.TextureSourceKind == ResoniteTextureSourceKind.Dataset);
         Assert.Equal("udx/tran/53394525/appearance/road.png", texturedMaterial.TexturePath);
+        Assert.Equal(ResoniteMaterialProjection.Uv, texturedMaterial.Projection);
 
         ResoniteConstructionCityObject landUse = Assert.Single(
             plan.CityObjects,
             static cityObject => cityObject.DisplayName == "Land Use One");
         Assert.Equal("luse", landUse.PackageName);
+        Assert.All(
+            landUse.Materials,
+            static material =>
+            {
+                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
+                Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+            });
 
         ResoniteConstructionCityObject relief = Assert.Single(
             plan.CityObjects,
             static cityObject => cityObject.DisplayName == "Relief One");
         Assert.Equal("dem", relief.PackageName);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, Assert.Single(relief.Materials).TexturePath);
+        Assert.Equal(ResoniteTextureSourceKind.Bundled, Assert.Single(relief.Materials).TextureSourceKind);
+        Assert.Equal(ResoniteMaterialProjection.Uv, Assert.Single(relief.Materials).Projection);
+        TerrainTextureOverlay demTerrainTexture = Assert.Single(result.Metadata.SourceDataset.TerrainTextureOverlays);
+        Assert.Equal("dem", demTerrainTexture.PackageName);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, demTerrainTexture.TexturePath);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, demTerrainTexture.UrlTemplate);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, demTerrainTexture.ZoomLevel);
+        Assert.All(relief.Mesh.Vertices, static vertex =>
+        {
+            Assert.InRange(vertex.UV0.X, 0.0, 1.0);
+            Assert.InRange(vertex.UV0.Y, 0.0, 1.0);
+        });
+        Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 0.0) && Approximately(vertex.UV0.Y, 0.0));
+        Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 0.0) && Approximately(vertex.UV0.Y, 1.0));
+        Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 1.0) && Approximately(vertex.UV0.Y, 0.500002));
         Assert.Single(relief.Mesh.Submeshes);
+        Assert.Equal("dem", sceneBuilder.CityObjects[0].PackageName);
     }
 
     [Fact]
@@ -364,7 +400,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncFallsBackToColorWhenTextureFileIsMissing()
+    public async Task ExecuteAsyncFallsBackToBundledDefaultTextureWhenTextureFileIsMissing()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
         PlateauImportService service = new(sceneBuilder);
@@ -382,10 +418,132 @@ public sealed class PlateauImportServiceTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(plan.CityObjects);
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
-        Assert.Null(material.TexturePath);
+        Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
+        Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+        Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
         Assert.Equal(0.52, material.BaseColor.R, 6);
         Assert.Equal(0.62, material.BaseColor.G, 6);
         Assert.Equal(0.72, material.BaseColor.B, 6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncAssignsBundledDefaultTexturesByPackageCategory()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimePackageFixture(datasetRoot.Path, "bldg", "http://www.opengis.net/citygml/building/2.0", "Building", "Building One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "tran", "http://www.opengis.net/citygml/transportation/2.0", "Road", "Road One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "area", "urn:plateau:test:area", "Area", "Area One");
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject building = Assert.Single(plan.CityObjects, static cityObject => cityObject.DisplayName == "Building One");
+        Assert.All(
+            building.Materials,
+            static material =>
+            {
+                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
+                Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+            });
+
+        ResoniteConstructionCityObject road = Assert.Single(plan.CityObjects, static cityObject => cityObject.DisplayName == "Road One");
+        Assert.All(
+            road.Materials,
+            static material =>
+            {
+                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoadVariants);
+                Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+            });
+
+        ResoniteConstructionCityObject area = Assert.Single(plan.CityObjects, static cityObject => cityObject.DisplayName == "Area One");
+        Assert.All(
+            area.Materials,
+            static material =>
+            {
+                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
+                Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+            });
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesUvForUntexturedBuildingFacadesAndTriplanarForRoofs()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeUntexturedBuildingFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject building = Assert.Single(plan.CityObjects);
+        Assert.Contains(
+            building.Materials,
+            static material =>
+                BundledDefaultMaterialFamilies.FacadeVariants.Contains(material.TexturePath!)
+                && material.Projection == ResoniteMaterialProjection.Uv);
+        Assert.Contains(
+            building.Materials,
+            static material =>
+                BundledDefaultMaterialFamilies.RoofVariants.Contains(material.TexturePath!)
+                && material.Projection == ResoniteMaterialProjection.Triplanar);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncSelectsBundledVariantDeterministicallyWithinFamily()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeUntexturedBuildingFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder firstSceneBuilder = new();
+        StubResoniteSceneBuilder secondSceneBuilder = new();
+        PlateauImportService firstService = new(firstSceneBuilder);
+        PlateauImportService secondService = new(secondSceneBuilder);
+
+        ImportExecutionResult first = await firstService.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ImportExecutionResult second = await secondService.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+
+        ResoniteConstructionPlan firstPlan = first.Metadata.ToPlan(firstSceneBuilder.CityObjects);
+        ResoniteConstructionPlan secondPlan = second.Metadata.ToPlan(secondSceneBuilder.CityObjects);
+
+        Assert.Equal(
+            firstPlan.CityObjects.SelectMany(static cityObject => cityObject.Materials).Select(static material => material.TexturePath),
+            secondPlan.CityObjects.SelectMany(static cityObject => cityObject.Materials).Select(static material => material.TexturePath));
     }
 
     [Fact]
@@ -662,6 +820,56 @@ public sealed class PlateauImportServiceTests
             xml);
     }
 
+    private static void CreateRuntimeUntexturedBuildingFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>10 10 10</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-uv-vs-triplanar">
+                  <gml:name>Facade And Roof Building</gml:name>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-wall">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-wall">
+                              <gml:posList>0 0 0 0 0 5 5 0 5 5 0 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-roof">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-roof">
+                              <gml:posList>0 0 5 5 0 5 5 5 5 0 5 5 0 0 5</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_untextured.gml"),
+            xml);
+    }
+
     private static void CreateRuntimeTriangleFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
@@ -752,5 +960,10 @@ public sealed class PlateauImportServiceTests
             (ay * bz) - (az * by),
             (az * bx) - (ax * bz),
             (ax * by) - (ay * bx));
+    }
+
+    private static bool Approximately(double actual, double expected)
+    {
+        return Math.Abs(actual - expected) < 1e-4;
     }
 }
