@@ -29,7 +29,7 @@ The repository bundles the following 2K AmbientCG materials under CC0:
 - `roof`:
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
-  `Asphalt002_2K-JPG_Color.jpg`, `Road006_2K-JPG_Color.jpg`
+  `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
 - `other`:
   `Concrete012_2K-JPG_Color.jpg`, `Ground054_2K-JPG_Color.jpg`
 
@@ -40,8 +40,8 @@ Sources:
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
 - `Concrete012`: <https://ambientcg.com/view?id=Concrete012>
 - `Concrete033`: <https://ambientcg.com/view?id=Concrete033>
-- `Asphalt002`: <https://ambientcg.com/view?id=Asphalt002>
-- `Road006`: <https://ambientcg.com/view?id=Road006>
+- `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
+- `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
 
 The checked-in files keep only the maps that the live builder consumes directly:

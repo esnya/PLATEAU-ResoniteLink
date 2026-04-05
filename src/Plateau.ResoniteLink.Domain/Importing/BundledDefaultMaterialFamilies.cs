@@ -22,8 +22,8 @@ public static class BundledDefaultMaterialFamilies
 
     public static readonly IReadOnlyList<string> RoadVariants =
     [
-        "default-materials/road/Asphalt002_2K-JPG_Color.jpg",
-        "default-materials/road/Road006_2K-JPG_Color.jpg",
+        "default-materials/road/Asphalt020L_2K-JPG_Color.jpg",
+        "default-materials/road/Asphalt023L_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> OtherVariants =
