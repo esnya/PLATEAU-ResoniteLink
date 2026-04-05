@@ -10,9 +10,20 @@ internal static class DefaultMaterialCatalog
         bool preferUvProjection,
         string variantSelectionKey)
     {
+        if (ShouldUseWireframeMaterial(packageName))
+        {
+            return new ResolvedMaterial(
+                ResoniteMaterialType.Wireframe,
+                TexturePath: null,
+                ResoniteTextureSourceKind.Bundled,
+                ResoniteMaterialProjection.Uv,
+                Family: null);
+        }
+
         if (!string.IsNullOrWhiteSpace(texturePath))
         {
             return new ResolvedMaterial(
+                ResoniteMaterialType.Standard,
                 texturePath,
                 ResoniteTextureSourceKind.Dataset,
                 ResoniteMaterialProjection.Uv,
@@ -21,10 +32,20 @@ internal static class DefaultMaterialCatalog
 
         string family = ResolveBundledTextureFamily(packageName, preferUvProjection);
         return new ResolvedMaterial(
+            ResoniteMaterialType.Standard,
             SelectBundledTexturePath(family, variantSelectionKey),
             ResoniteTextureSourceKind.Bundled,
             preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
             family);
+    }
+
+    private static bool ShouldUseWireframeMaterial(string packageName)
+    {
+        return packageName switch
+        {
+            "area" or "fld" or "htd" or "ifld" or "lsld" or "luse" or "rfld" or "tnm" or "urf" => true,
+            _ => false,
+        };
     }
 
     private static string ResolveBundledTextureFamily(string packageName, bool preferUvProjection)
@@ -51,6 +72,7 @@ internal static class DefaultMaterialCatalog
     }
 
     internal sealed record ResolvedMaterial(
+        ResoniteMaterialType MaterialType,
         string? TexturePath,
         ResoniteTextureSourceKind TextureSourceKind,
         ResoniteMaterialProjection Projection,

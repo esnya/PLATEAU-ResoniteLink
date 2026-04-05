@@ -3,6 +3,7 @@ namespace Plateau.ResoniteLink.Domain.Importing;
 public sealed record ResoniteMaterialBinding(
     string MaterialKey,
     ResoniteColor BaseColor,
+    ResoniteMaterialType MaterialType,
     string? TexturePath,
     ResoniteTextureSourceKind TextureSourceKind,
     ResoniteMaterialProjection Projection,

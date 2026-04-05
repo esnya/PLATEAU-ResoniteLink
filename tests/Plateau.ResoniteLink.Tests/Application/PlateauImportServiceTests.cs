@@ -104,9 +104,10 @@ public sealed class PlateauImportServiceTests
             landUse.Materials,
             static material =>
             {
-                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
+                Assert.Equal(ResoniteMaterialType.Wireframe, material.MaterialType);
+                Assert.Null(material.TexturePath);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
-                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+                Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
             });
 
         ResoniteConstructionCityObject relief = Assert.Single(
@@ -520,6 +521,7 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static candidate => candidate.DisplayName == "Multi LOD Building");
         Assert.Equal("bldg", cityObject.PackageName);
+        Assert.Equal(3, cityObject.LodLevel);
         Assert.Equal(25.0, ComputeMeshArea(cityObject.Mesh), 6);
     }
 
@@ -631,6 +633,7 @@ public sealed class PlateauImportServiceTests
             building.Materials,
             static material =>
             {
+                Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
@@ -641,6 +644,7 @@ public sealed class PlateauImportServiceTests
             road.Materials,
             static material =>
             {
+                Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoadVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
@@ -651,9 +655,10 @@ public sealed class PlateauImportServiceTests
             area.Materials,
             static material =>
             {
-                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
+                Assert.Equal(ResoniteMaterialType.Wireframe, material.MaterialType);
+                Assert.Null(material.TexturePath);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
-                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+                Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
             });
     }
 
@@ -703,9 +708,41 @@ public sealed class PlateauImportServiceTests
             .ToArray();
 
         Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 0.0));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 1.0));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 1.0) && Approximately(uv.Y, 0.0));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 1.0) && Approximately(uv.Y, 1.0));
+        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 1.75));
+        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 1.75) && Approximately(uv.Y, 0.0));
+        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 1.75) && Approximately(uv.Y, 1.75));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesWallSurfaceSemanticForSlopedUntexturedBuildingWalls()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeThematicSurfaceBuildingFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject building = Assert.Single(scene.CityObjects);
+        Assert.Contains(
+            building.Materials,
+            static material =>
+                BundledDefaultMaterialFamilies.FacadeVariants.Contains(material.TexturePath!)
+                && material.Projection == ResoniteMaterialProjection.Uv);
+        Assert.Contains(
+            building.Materials,
+            static material =>
+                BundledDefaultMaterialFamilies.RoofVariants.Contains(material.TexturePath!)
+                && material.Projection == ResoniteMaterialProjection.Triplanar);
     }
 
     [Fact]
@@ -1282,6 +1319,68 @@ public sealed class PlateauImportServiceTests
 
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_untextured.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeThematicSurfaceBuildingFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>10 10 10</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-thematic-surfaces">
+                  <gml:name>Thematic Surface Building</gml:name>
+                  <bldg:boundedBy>
+                    <bldg:WallSurface gml:id="wall-1">
+                      <bldg:lod2MultiSurface>
+                        <gml:MultiSurface>
+                          <gml:surfaceMember>
+                            <gml:Polygon gml:id="poly-themed-wall">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-themed-wall">
+                                  <gml:posList>0 0 0 0 5 5 5 5 5 5 0 0 0 0 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Polygon>
+                          </gml:surfaceMember>
+                        </gml:MultiSurface>
+                      </bldg:lod2MultiSurface>
+                    </bldg:WallSurface>
+                  </bldg:boundedBy>
+                  <bldg:boundedBy>
+                    <bldg:RoofSurface gml:id="roof-1">
+                      <bldg:lod2MultiSurface>
+                        <gml:MultiSurface>
+                          <gml:surfaceMember>
+                            <gml:Polygon gml:id="poly-themed-roof">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-themed-roof">
+                                  <gml:posList>0 5 5 5 5 5 5 10 5 0 10 5 0 5 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Polygon>
+                          </gml:surfaceMember>
+                        </gml:MultiSurface>
+                      </bldg:lod2MultiSurface>
+                    </bldg:RoofSurface>
+                  </bldg:boundedBy>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_thematic.gml"),
             xml);
     }
 

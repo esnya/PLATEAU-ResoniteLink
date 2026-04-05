@@ -7,13 +7,17 @@ internal static class ResoniteLinkEntityIdFactory
         string kind,
         string? suffix = null)
     {
-        string baseId = BuildBaseId(SanitizeId(dataset), kind);
-        if (!string.IsNullOrWhiteSpace(suffix))
-        {
-            baseId = $"{baseId}_{SanitizeId(suffix)}";
-        }
+        return CreateDatasetScopedEntityId(dataset, kind, suffix is null ? [] : [suffix]);
+    }
 
-        return baseId;
+    public static string CreateDatasetScopedEntityId(
+        string dataset,
+        string kind,
+        params string?[] suffixes)
+    {
+        return AppendSuffixes(
+            BuildBaseId(SanitizeId(dataset), kind),
+            suffixes);
     }
 
     public static string CreateStableEntityId(
@@ -22,16 +26,12 @@ internal static class ResoniteLinkEntityIdFactory
         string kind,
         string? suffix = null)
     {
-        string baseId = BuildBaseId(
-            SanitizeId(dataset),
-            SanitizeId(meshCode),
-            kind);
-        if (!string.IsNullOrWhiteSpace(suffix))
-        {
-            baseId = $"{baseId}_{SanitizeId(suffix)}";
-        }
-
-        return baseId;
+        return AppendSuffixes(
+            BuildBaseId(
+                SanitizeId(dataset),
+                SanitizeId(meshCode),
+                kind),
+            suffix is null ? [] : [suffix]);
     }
 
     public static string CreateEntityId(
@@ -41,14 +41,22 @@ internal static class ResoniteLinkEntityIdFactory
         string buildNonce,
         string? suffix = null)
     {
-        string baseId = BuildBaseId(
-            SanitizeId(dataset),
-            SanitizeId(meshCode),
-            kind);
-        if (!string.IsNullOrWhiteSpace(suffix))
-        {
-            baseId = $"{baseId}_{SanitizeId(suffix)}";
-        }
+        return CreateEntityId(dataset, meshCode, kind, buildNonce, suffix is null ? [] : [suffix]);
+    }
+
+    public static string CreateEntityId(
+        string dataset,
+        string meshCode,
+        string kind,
+        string buildNonce,
+        params string?[] suffixes)
+    {
+        string baseId = AppendSuffixes(
+            BuildBaseId(
+                SanitizeId(dataset),
+                SanitizeId(meshCode),
+                kind),
+            suffixes);
 
         return $"{baseId}_{buildNonce}";
     }
@@ -61,5 +69,18 @@ internal static class ResoniteLinkEntityIdFactory
     private static string BuildBaseId(params string[] parts)
     {
         return $"PlateauResoniteLink_{string.Join("_", parts.Select(SanitizeId))}";
+    }
+
+    private static string AppendSuffixes(string baseId, IEnumerable<string?> suffixes)
+    {
+        foreach (string? suffix in suffixes)
+        {
+            if (!string.IsNullOrWhiteSpace(suffix))
+            {
+                baseId = $"{baseId}_{SanitizeId(suffix)}";
+            }
+        }
+
+        return baseId;
     }
 }

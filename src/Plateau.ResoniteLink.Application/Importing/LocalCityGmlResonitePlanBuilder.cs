@@ -227,7 +227,8 @@ public static class LocalCityGmlResonitePlanBuilder
             displayName = objectId;
         }
 
-        ParsedSurface[] surfaces = SelectPreferredLodSurfaceElements(cityObjectElement)
+        (XElement[] preferredSurfaceElements, int? lodLevel) = SelectPreferredLodSurfaceElements(cityObjectElement);
+        ParsedSurface[] surfaces = preferredSurfaceElements
             .Select(surfaceElement => ParseSurface(surfaceElement, appearanceLibrary))
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
@@ -249,7 +250,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
-        return new ParsedCityObject(slotKey, displayName!, packageName, surfaces, coordinateReferenceSystem);
+        return new ParsedCityObject(slotKey, displayName!, packageName, lodLevel, surfaces, coordinateReferenceSystem);
     }
 
     private static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
@@ -307,7 +308,7 @@ public static class LocalCityGmlResonitePlanBuilder
             MaxTextureSize: DefaultDemTerrainTextureMaxSize);
     }
 
-    private static XElement[] SelectPreferredLodSurfaceElements(XElement cityObjectElement)
+    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(XElement cityObjectElement)
     {
         (XElement SurfaceElement, int? LodLevel)[] surfaces = cityObjectElement
             .Descendants()
@@ -323,7 +324,7 @@ public static class LocalCityGmlResonitePlanBuilder
             ? explicitLodLevels.Max()
             : null;
 
-        return highestLod.HasValue
+        XElement[] selectedSurfaces = highestLod.HasValue
             ? surfaces
                 .Where(surface => surface.LodLevel == highestLod.Value)
                 .Select(static surface => surface.SurfaceElement)
@@ -331,6 +332,8 @@ public static class LocalCityGmlResonitePlanBuilder
             : surfaces
                 .Select(static surface => surface.SurfaceElement)
                 .ToArray();
+
+        return (selectedSurfaces, highestLod);
     }
 
     private static ParsedSurface ApplyPackageSurfaceDefaults(string packageName, ParsedSurface surface)
@@ -612,6 +615,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
         return new ParsedSurface(
             PolygonId: polygonId,
+            Semantic: ParseSurfaceSemantic(polygonElement),
             ExteriorRing: exteriorParsedRing,
             InteriorRings: interiorRings,
             BaseColor: appearance.BaseColor,
@@ -756,6 +760,7 @@ public static class LocalCityGmlResonitePlanBuilder
         IReadOnlyList<IGrouping<string, MaterializedSurface>> materialGroups = materializedSurfaces
             .GroupBy(
                 static materializedSurface => CreateMaterialKey(
+                    materializedSurface.Material.MaterialType,
                     materializedSurface.Material.TexturePath,
                     materializedSurface.Material.TextureSourceKind,
                     materializedSurface.Material.Projection,
@@ -797,6 +802,7 @@ public static class LocalCityGmlResonitePlanBuilder
                 new ResoniteMaterialBinding(
                     MaterialKey: materialGroup.Key,
                     BaseColor: representativeSurface.Surface.BaseColor,
+                    MaterialType: representativeSurface.Material.MaterialType,
                     TexturePath: representativeSurface.Material.TexturePath,
                     TextureSourceKind: representativeSurface.Material.TextureSourceKind,
                     Projection: representativeSurface.Material.Projection,
@@ -808,6 +814,7 @@ public static class LocalCityGmlResonitePlanBuilder
             SlotKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
+            LodLevel: cityObject.LodLevel,
             Transform: new ResoniteTransform(slotPosition),
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials);
@@ -824,6 +831,7 @@ public static class LocalCityGmlResonitePlanBuilder
             return new MaterializedSurface(
                 surface,
                 new DefaultMaterialCatalog.ResolvedMaterial(
+                    ResoniteMaterialType.Standard,
                     surface.TexturePath,
                     ResoniteTextureSourceKind.Bundled,
                     ResoniteMaterialProjection.Uv,
@@ -1065,9 +1073,7 @@ public static class LocalCityGmlResonitePlanBuilder
         horizontalAxis = Normalize(horizontalAxis);
 
         double minU = double.PositiveInfinity;
-        double maxU = double.NegativeInfinity;
         double minV = double.PositiveInfinity;
-        double maxV = double.NegativeInfinity;
 
         foreach (GeodeticPoint vertex in surface.Vertices)
         {
@@ -1075,14 +1081,15 @@ public static class LocalCityGmlResonitePlanBuilder
             double u = Dot(position, horizontalAxis);
             double v = position.Y;
             minU = Math.Min(minU, u);
-            maxU = Math.Max(maxU, u);
             minV = Math.Min(minV, v);
-            maxV = Math.Max(maxV, v);
         }
 
-        double scaleU = Math.Max(maxU - minU, 1e-8);
-        double scaleV = Math.Max(maxV - minV, 1e-8);
-        return new SurfaceUvProjection(horizontalAxis, minU, minV, scaleU, scaleV);
+        return new SurfaceUvProjection(
+            horizontalAxis,
+            minU,
+            minV,
+            BundledDefaultMaterialTiling.DefaultTilesPerMeter.X,
+            BundledDefaultMaterialTiling.DefaultTilesPerMeter.Y);
     }
 
     private static ResoniteFloat2 CreateGeneratedSurfaceUv(
@@ -1092,8 +1099,8 @@ public static class LocalCityGmlResonitePlanBuilder
         SurfaceUvProjection projection)
     {
         ResoniteFloat3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
-        double u = (Dot(position, projection.HorizontalAxis) - projection.MinU) / projection.ScaleU;
-        double v = (position.Y - projection.MinV) / projection.ScaleV;
+        double u = (Dot(position, projection.HorizontalAxis) - projection.MinU) * projection.ScaleU;
+        double v = (position.Y - projection.MinV) * projection.ScaleV;
         return new ResoniteFloat2(u, v);
     }
 
@@ -1304,6 +1311,7 @@ public static class LocalCityGmlResonitePlanBuilder
     }
 
     private static string CreateMaterialKey(
+        ResoniteMaterialType materialType,
         string? texturePath,
         ResoniteTextureSourceKind textureSourceKind,
         ResoniteMaterialProjection projection,
@@ -1317,9 +1325,10 @@ public static class LocalCityGmlResonitePlanBuilder
             ? "none"
             : string.Create(CultureInfo.InvariantCulture, $"{depthOffset.Factor:0.######},{depthOffset.Units:0.######}");
 
+        string materialTypeKey = materialType.ToString().ToLowerInvariant();
         return texturePath is null
-            ? $"depth:{depthOffsetKey}|color:{colorKey}"
-            : $"{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePath.ToLowerInvariant()}|depth:{depthOffsetKey}|color:{colorKey}";
+            ? $"type:{materialTypeKey}|depth:{depthOffsetKey}|color:{colorKey}"
+            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePath.ToLowerInvariant()}|depth:{depthOffsetKey}|color:{colorKey}";
     }
 
     private static bool ShouldPreferUvProjection(
@@ -1344,7 +1353,44 @@ public static class LocalCityGmlResonitePlanBuilder
             return false;
         }
 
+        if (surface.Semantic is ParsedSurfaceSemantic.Wall)
+        {
+            return true;
+        }
+
+        if (surface.Semantic is ParsedSurfaceSemantic.Roof
+            or ParsedSurfaceSemantic.Ground
+            or ParsedSurfaceSemantic.OuterCeiling
+            or ParsedSurfaceSemantic.OuterFloor)
+        {
+            return false;
+        }
+
         return IsFacadeSurface(surface, cityObjectOrigin, cityObjectCartesian);
+    }
+
+    private static ParsedSurfaceSemantic ParseSurfaceSemantic(XElement polygonElement)
+    {
+        for (XElement? ancestor = polygonElement.Parent; ancestor is not null; ancestor = ancestor.Parent)
+        {
+            ParsedSurfaceSemantic semantic = ancestor.Name.LocalName switch
+            {
+                "WallSurface" or "InteriorWallSurface" => ParsedSurfaceSemantic.Wall,
+                "RoofSurface" => ParsedSurfaceSemantic.Roof,
+                "GroundSurface" => ParsedSurfaceSemantic.Ground,
+                "ClosureSurface" => ParsedSurfaceSemantic.Closure,
+                "OuterCeilingSurface" => ParsedSurfaceSemantic.OuterCeiling,
+                "OuterFloorSurface" => ParsedSurfaceSemantic.OuterFloor,
+                _ => ParsedSurfaceSemantic.Unknown,
+            };
+
+            if (semantic != ParsedSurfaceSemantic.Unknown)
+            {
+                return semantic;
+            }
+        }
+
+        return ParsedSurfaceSemantic.Unknown;
     }
 
     private static bool IsFacadeSurface(
@@ -1638,6 +1684,7 @@ public static class LocalCityGmlResonitePlanBuilder
         string SlotKey,
         string DisplayName,
         string PackageName,
+        int? LodLevel,
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
         bool TerrainAligned = false);
@@ -1706,6 +1753,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
     private sealed record ParsedSurface(
         string PolygonId,
+        ParsedSurfaceSemantic Semantic,
         ParsedRing ExteriorRing,
         ParsedRing[] InteriorRings,
         ResoniteColor BaseColor,
@@ -1738,6 +1786,17 @@ public static class LocalCityGmlResonitePlanBuilder
         double MinV,
         double ScaleU,
         double ScaleV);
+
+    private enum ParsedSurfaceSemantic
+    {
+        Unknown = 0,
+        Wall = 1,
+        Roof = 2,
+        Ground = 3,
+        Closure = 4,
+        OuterCeiling = 5,
+        OuterFloor = 6,
+    }
 
     private sealed record GeodeticPoint(
         double Latitude,

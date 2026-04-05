@@ -12,20 +12,23 @@ namespace Plateau.ResoniteLink.Cli;
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
+    private const string SharedAssetsSlotName = "Shared";
+    private const string SharedMaterialsSlotName = "Materials";
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly Action<string>? progressReporter;
-    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = new(0.35, 0.35);
+    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = BundledDefaultMaterialTiling.DefaultTilesPerMeter;
+    private const float DefaultWireframeThickness = 0.01f;
+    private const double DefaultWireframeFillOpacity = 0.08;
     private IResoniteLinkClient? client;
     private ResoniteConstructionMetadata? metadata;
     private string? buildNonce;
     private string? datasetSlotId;
     private string? meshCodeSlotId;
-    private string? texturesSlotId;
-    private string? materialsSlotId;
-    private string? meshCodeMeshesSlotId;
-    private Dictionary<string, string>? textureComponentIds;
+    private string? datasetAssetsSlotId;
+    private string? sharedAssetsSlotId;
+    private string? sharedMaterialsSlotId;
     private Dictionary<string, string>? materialComponentIds;
     private ResoniteLicenseManager? licenseManager;
     private string? generatedAssetsRoot;
@@ -72,31 +75,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             metadata.Request.MeshCode,
             "meshcode",
             buildNonce);
-        string datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+        datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assets");
         string datasetLicenseComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "license");
-        texturesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+        sharedAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assetgroup",
-            "textures");
-        string meshesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            "shared");
+        sharedMaterialsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assetgroup",
-            "meshes");
-        materialsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            metadata.Request.Dataset,
-            "assetgroup",
-            "materials");
-        meshCodeMeshesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            metadata.Request.Dataset,
-            "meshassets",
-            metadata.Request.MeshCode);
+            "shared-materials");
 
         client = clientFactory();
-        textureComponentIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         materialComponentIds = new Dictionary<string, string>(StringComparer.Ordinal);
         licenseManager = new ResoniteLicenseManager(metadata.Attribution);
         knownSlotIds = new HashSet<string>(StringComparer.Ordinal);
@@ -144,16 +138,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         knownSlotIds.Add(meshCodeSlotId);
 
         await EnsureSlotKnownAsync(client, datasetAssetsSlotId, datasetSlotId, "Assets", null, cancellationToken);
-        await EnsureSlotKnownAsync(client, texturesSlotId, datasetAssetsSlotId, "Textures", null, cancellationToken);
-        await EnsureSlotKnownAsync(client, meshesSlotId, datasetAssetsSlotId, "Meshes", null, cancellationToken);
-        await EnsureSlotKnownAsync(client, materialsSlotId, datasetAssetsSlotId, "Materials", null, cancellationToken);
-        await EnsureSlotKnownAsync(
-            client,
-            meshCodeMeshesSlotId,
-            meshesSlotId,
-            metadata.Request.MeshCode,
-            null,
-            cancellationToken);
+        await EnsureSlotKnownAsync(client, sharedAssetsSlotId, datasetAssetsSlotId, SharedAssetsSlotName, null, cancellationToken);
+        await EnsureSlotKnownAsync(client, sharedMaterialsSlotId, sharedAssetsSlotId, SharedMaterialsSlotName, null, cancellationToken);
         ReportProgress("[live] Dataset slots and asset groups are ready.");
     }
 
@@ -165,9 +151,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ObjectDisposedException.ThrowIf(client is null, this);
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
-        ObjectDisposedException.ThrowIf(materialsSlotId is null, this);
-        ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
         ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
 
@@ -212,10 +195,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         buildNonce = null;
         datasetSlotId = null;
         meshCodeSlotId = null;
-        texturesSlotId = null;
-        materialsSlotId = null;
-        meshCodeMeshesSlotId = null;
-        textureComponentIds = null;
+        datasetAssetsSlotId = null;
+        sharedAssetsSlotId = null;
+        sharedMaterialsSlotId = null;
         materialComponentIds = null;
         licenseManager = null;
         generatedAssetsRoot = null;
@@ -233,7 +215,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await foreach (QueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
         {
             PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-            await ImportPreparedTexturesAsync(preparedCityObject.Textures, cancellationToken);
             await BuildPreparedCityObjectAsync(preparedCityObject, cancellationToken);
             processedCityObjectCount++;
             ReportProgress(
@@ -290,52 +271,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             await Task.WhenAll(texturePreparationTasks));
     }
 
-    private async Task ImportPreparedTexturesAsync(
-        IReadOnlyList<PreparedTextureReference> texturePaths,
-        CancellationToken cancellationToken)
-    {
-        ObjectDisposedException.ThrowIf(client is null, this);
-        ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
-        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
-
-        foreach (PreparedTextureReference texture in texturePaths)
-        {
-            string textureCacheKey = CreateTextureCacheKey(texture.TexturePath, texture.TextureSourceKind);
-            if (textureComponentIds.ContainsKey(textureCacheKey))
-            {
-                continue;
-            }
-
-            string textureKey = CreatePathKey(textureCacheKey);
-            string textureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-                metadata.Request.Dataset,
-                "texture",
-                textureKey);
-            string textureSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-                metadata.Request.Dataset,
-                "textureslot",
-                textureKey);
-
-            await EnsureTextureAssetSlotKnownAsync(
-                client,
-                textureSlotId,
-                Path.GetFileName(texture.TexturePath),
-                cancellationToken);
-
-            await EnsureAssetComponentUrlKnownAsync(
-                client,
-                textureSlotId,
-                textureComponentId,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                "URL",
-                () => client.ImportTextureAsync(texture.AbsoluteTexturePath, cancellationToken),
-                cancellationToken);
-
-            textureComponentIds[textureCacheKey] = textureComponentId;
-        }
-    }
-
     private async Task<string> ResolveTextureImportPathAsync(
         string datasetRoot,
         string texturePath,
@@ -370,9 +305,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(client is null, this);
         ObjectDisposedException.ThrowIf(metadata is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
-        ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
-        ObjectDisposedException.ThrowIf(materialsSlotId is null, this);
-        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(datasetAssetsSlotId is null, this);
+        ObjectDisposedException.ThrowIf(sharedMaterialsSlotId is null, this);
         ObjectDisposedException.ThrowIf(materialComponentIds is null, this);
         ObjectDisposedException.ThrowIf(buildNonce is null, this);
 
@@ -403,6 +337,26 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             "collider",
             buildNonce,
             cityObject.SlotKey);
+        string packageSlotId = GetMeshCodePackageSlotId(
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
+            buildNonce,
+            cityObject.PackageName);
+        string lodSlotId = GetMeshCodeLodSlotId(
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
+            buildNonce,
+            cityObject.PackageName,
+            cityObject.LodLevel);
+        string assetPackageSlotId = GetAssetPackageSlotId(metadata.Request.Dataset, cityObject.PackageName);
+        string assetLodSlotId = GetAssetLodSlotId(metadata.Request.Dataset, cityObject.PackageName, cityObject.LodLevel);
+        string assetCityObjectSlotId = GetAssetCityObjectSlotId(
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
+            cityObject.SlotKey);
+
+        await EnsureSlotKnownAsync(client, packageSlotId, meshCodeSlotId, cityObject.PackageName, null, cancellationToken);
+        await EnsureSlotKnownAsync(client, lodSlotId, packageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
 
         await client.AddSlotAsync(
             new AddSlot
@@ -412,7 +366,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     ID = cityObjectSlotId,
                     Parent = new Reference
                     {
-                        TargetID = meshCodeSlotId,
+                        TargetID = lodSlotId,
                     },
                     Name = new Field_string
                     {
@@ -424,10 +378,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         knownSlotIds!.Add(cityObjectSlotId);
 
+        await EnsureSlotKnownAsync(client, assetPackageSlotId, datasetAssetsSlotId, cityObject.PackageName, null, cancellationToken);
+        await EnsureSlotKnownAsync(client, assetLodSlotId, assetPackageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
+        await EnsureSlotKnownAsync(client, assetCityObjectSlotId, assetLodSlotId, cityObject.DisplayName, null, cancellationToken);
+
         await EnsureMeshAssetSlotKnownAsync(
             client,
             meshAssetSlotId,
-            $"Mesh {cityObject.DisplayName}",
+            cityObject.DisplayName,
+            assetCityObjectSlotId,
             cancellationToken);
 
         await EnsureAssetComponentUrlKnownAsync(
@@ -451,32 +410,49 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 metadata.Request.Dataset,
                 "materialslot",
                 material.MaterialKey);
+            string textureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+                metadata.Request.Dataset,
+                "texture",
+                material.MaterialKey);
 
             Dictionary<string, Member> materialMembers = CreateMaterialMembers(material);
-            string materialComponentType = material.Projection switch
+            string materialComponentType = material.MaterialType switch
             {
-                ResoniteMaterialProjection.Uv => "[FrooxEngine]FrooxEngine.PBS_Metallic",
-                ResoniteMaterialProjection.Triplanar => "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic",
-                _ => throw new InvalidOperationException($"Unsupported material projection '{material.Projection}'."),
-            };
-
-            string textureCacheKey = CreateTextureCacheKey(material.TexturePath, material.TextureSourceKind);
-            if (material.TexturePath is not null
-                && textureComponentIds.TryGetValue(textureCacheKey, out string? textureComponentId))
-            {
-                materialMembers["AlbedoTexture"] = new Reference
+                ResoniteMaterialType.Standard => material.Projection switch
                 {
-                    TargetID = textureComponentId,
-                };
-            }
+                    ResoniteMaterialProjection.Uv => "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                    ResoniteMaterialProjection.Triplanar => "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic",
+                    _ => throw new InvalidOperationException($"Unsupported material projection '{material.Projection}'."),
+                },
+                ResoniteMaterialType.Wireframe => "[FrooxEngine]FrooxEngine.WireframeMaterial",
+                _ => throw new InvalidOperationException($"Unsupported material type '{material.MaterialType}'."),
+            };
 
             if (!materialComponentIds.ContainsKey(material.MaterialKey))
             {
                 await EnsureMaterialAssetSlotKnownAsync(
                     client,
                     materialSlotId,
-                    $"Material {materialIndex.ToString(CultureInfo.InvariantCulture)} {material.MaterialKey}",
+                    material.MaterialKey,
                     cancellationToken);
+
+                if (material.TexturePath is not null
+                    && preparedCityObject.TryGetTexturePath(material.TexturePath, material.TextureSourceKind, out string? absoluteTexturePath))
+                {
+                    await EnsureAssetComponentUrlKnownAsync(
+                        client,
+                        materialSlotId,
+                        textureComponentId,
+                        "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                        "URL",
+                        () => client.ImportTextureAsync(absoluteTexturePath!, cancellationToken),
+                        cancellationToken);
+                    materialMembers["AlbedoTexture"] = new Reference
+                    {
+                        TargetID = textureComponentId,
+                    };
+                }
+
                 await EnsureComponentKnownAsync(
                     client,
                     materialSlotId,
@@ -621,24 +597,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         Dictionary<string, Member> materialMembers = new(StringComparer.Ordinal)
         {
-            ["AlbedoColor"] = new Field_colorX
-            {
-                Value = new colorX
-                {
-                    r = (float)material.BaseColor.R,
-                    g = (float)material.BaseColor.G,
-                    b = (float)material.BaseColor.B,
-                    a = (float)material.BaseColor.A,
-                    Profile = "sRGB",
-                },
-            },
+            ["AlbedoColor"] = CreateColorMember(material.BaseColor),
             ["Smoothness"] = new Field_float
             {
                 Value = 0.0f,
             },
         };
 
-        if (material.Projection == ResoniteMaterialProjection.Triplanar)
+        if (material.MaterialType == ResoniteMaterialType.Standard
+            && material.Projection == ResoniteMaterialProjection.Triplanar)
         {
             materialMembers["Metallic"] = new Field_float
             {
@@ -665,6 +632,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 Value = 8.0f,
             };
             materialMembers["ObjectSpace"] = new Field_bool
+            {
+                Value = true,
+            };
+        }
+
+        if (material.MaterialType == ResoniteMaterialType.Wireframe)
+        {
+            materialMembers["Thickness"] = new Field_float
+            {
+                Value = DefaultWireframeThickness,
+            };
+            materialMembers["ScreenSpace"] = new Field_bool
+            {
+                Value = true,
+            };
+            materialMembers["LineColor"] = CreateColorMember(material.BaseColor);
+            materialMembers["FillColor"] = CreateColorMember(material.BaseColor with
+            {
+                A = Math.Clamp(material.BaseColor.A * DefaultWireframeFillOpacity, 0.0, 1.0),
+            });
+            materialMembers["DoubleSided"] = new Field_bool
             {
                 Value = true,
             };
@@ -698,6 +686,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
     }
 
+    private static Field_colorX CreateColorMember(ResoniteColor color)
+    {
+        return new Field_colorX
+        {
+            Value = new colorX
+            {
+                r = (float)color.R,
+                g = (float)color.G,
+                b = (float)color.B,
+                a = (float)color.A,
+                Profile = "sRGB",
+            },
+        };
+    }
+
     private async Task AwaitProcessingTaskIfCompletedAsync()
     {
         if (processingTask is not null && processingTask.IsCompleted)
@@ -725,34 +728,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         knownSlotIds.Add(slotId);
     }
 
-    private async Task EnsureTextureAssetSlotKnownAsync(
-        IResoniteLinkClient client,
-        string slotId,
-        string slotName,
-        CancellationToken cancellationToken)
-    {
-        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
-        await EnsureAssetSlotKnownAsync(client, slotId, texturesSlotId, slotName, cancellationToken);
-    }
-
     private async Task EnsureMaterialAssetSlotKnownAsync(
         IResoniteLinkClient client,
         string slotId,
         string slotName,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(materialsSlotId is null, this);
-        await EnsureAssetSlotKnownAsync(client, slotId, materialsSlotId, slotName, cancellationToken);
+        ObjectDisposedException.ThrowIf(sharedMaterialsSlotId is null, this);
+        await EnsureAssetSlotKnownAsync(client, slotId, sharedMaterialsSlotId, slotName, cancellationToken);
     }
 
     private async Task EnsureMeshAssetSlotKnownAsync(
         IResoniteLinkClient client,
         string slotId,
         string slotName,
+        string parentId,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
-        await EnsureAssetSlotKnownAsync(client, slotId, meshCodeMeshesSlotId, slotName, cancellationToken);
+        await EnsureAssetSlotKnownAsync(client, slotId, parentId, slotName, cancellationToken);
     }
 
     private async Task EnsureAssetSlotKnownAsync(
@@ -943,9 +936,36 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return fieldUri.Value;
     }
 
-    private static string CreatePathKey(string path)
+    private static string FormatLodSlotName(int? lodLevel)
     {
-        return string.Concat(path.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
+        return lodLevel.HasValue
+            ? string.Create(CultureInfo.InvariantCulture, $"LOD{lodLevel.Value}")
+            : "LOD0";
+    }
+
+    private static string GetMeshCodePackageSlotId(string dataset, string meshCode, string nonce, string packageName)
+    {
+        return ResoniteLinkEntityIdFactory.CreateEntityId(dataset, meshCode, "package", nonce, packageName);
+    }
+
+    private static string GetMeshCodeLodSlotId(string dataset, string meshCode, string nonce, string packageName, int? lodLevel)
+    {
+        return ResoniteLinkEntityIdFactory.CreateEntityId(dataset, meshCode, "lod", nonce, packageName, FormatLodSlotName(lodLevel));
+    }
+
+    private static string GetAssetPackageSlotId(string dataset, string packageName)
+    {
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetpackage", packageName);
+    }
+
+    private static string GetAssetLodSlotId(string dataset, string packageName, int? lodLevel)
+    {
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetlod", packageName, FormatLodSlotName(lodLevel));
+    }
+
+    private static string GetAssetCityObjectSlotId(string dataset, string meshCode, string slotKey)
+    {
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetcityobject", meshCode, slotKey);
     }
 
     private sealed record QueuedCityObject(
@@ -955,7 +975,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record PreparedCityObject(
         ResoniteConstructionCityObject CityObject,
         ImportMeshRawData MeshImport,
-        IReadOnlyList<PreparedTextureReference> Textures);
+        IReadOnlyList<PreparedTextureReference> Textures)
+    {
+        public bool TryGetTexturePath(
+            string texturePath,
+            ResoniteTextureSourceKind textureSourceKind,
+            out string? absoluteTexturePath)
+        {
+            PreparedTextureReference? preparedTexture = Textures.FirstOrDefault(texture =>
+                string.Equals(texture.TexturePath, texturePath, StringComparison.Ordinal)
+                && texture.TextureSourceKind == textureSourceKind);
+            absoluteTexturePath = preparedTexture?.AbsoluteTexturePath;
+            return preparedTexture is not null;
+        }
+    }
 
     private sealed record PreparedTextureReference(
         string TexturePath,
