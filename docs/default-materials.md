@@ -22,7 +22,7 @@ The default facade fallback now uses facade-specific assets only. Brick-like mat
 
 ## Bundled Assets
 
-The repository bundles the following 2K albedo textures from AmbientCG under CC0:
+The repository bundles the following 2K AmbientCG materials under CC0:
 
 - `facade`:
   `Facade018C_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
@@ -44,4 +44,12 @@ Sources:
 - `Road006`: <https://ambientcg.com/view?id=Road006>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
 
-Only the albedo maps are embedded today. The live material builder wires them into `PBS_Metallic`, `PBS_TriplanarMetallic`, or `WireframeMaterial`, depending on the fallback path above.
+The checked-in files keep only the maps that the live builder consumes directly:
+
+- `*_Color.jpg` for albedo
+- `*_NormalGL.jpg` for normal mapping
+- `*_Height.jpg` for parallax height
+- `*_Metallic.png` for Resonite's packed metallic map when the source material exposes roughness data
+- `*_Emission.jpg` when the source material includes an emissive texture
+
+Bundled metallic maps follow the Resonite wiki packing for `PBS_Metallic`: red stores metallic, green stores occlusion or height, and alpha stores smoothness. When a bundled `HeightMap` is assigned, the live builder also writes a reduced `HeightScale` of `0.002` so the parallax effect stays close to one tenth of the material's default strength.

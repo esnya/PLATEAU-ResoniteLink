@@ -34,7 +34,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
         Assert.Single(destinations);
-        Assert.Equal(2, fakeClient.ImportedTexturePaths.Count);
+        Assert.Equal(6, fakeClient.ImportedTexturePaths.Count);
         Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
@@ -78,7 +78,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] staticTextureRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(2, staticTextureRequests.Length);
+        Assert.Equal(6, staticTextureRequests.Length);
 
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
@@ -90,6 +90,18 @@ public sealed class ResoniteLinkSceneBuilderTests
             fakeClient.ImportedTexturePaths,
             path => BundledDefaultMaterialFamilies.FacadeVariants.Any(variant =>
                 path.EndsWith(variant.Replace('/', Path.DirectorySeparatorChar), StringComparison.Ordinal)));
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            static path => path.EndsWith("_NormalGL.jpg", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            static path => path.EndsWith("_Height.jpg", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            static path => path.EndsWith("_Metallic.png", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            static path => path.EndsWith("_Emission.jpg", StringComparison.Ordinal));
 
         AddComponent datasetTextureRequest = Assert.Single(
             staticTextureRequests,
@@ -210,7 +222,16 @@ public sealed class ResoniteLinkSceneBuilderTests
                 Assert.IsType<Field_float2>(triplanarMaterial.Members["TextureOffset"]);
                 Assert.IsType<Field_float>(triplanarMaterial.Members["TriplanarBlendPower"]);
                 Assert.IsType<Field_bool>(triplanarMaterial.Members["ObjectSpace"]);
+                Assert.IsType<Reference>(triplanarMaterial.Members["NormalMap"]);
+                Assert.IsType<Field_float>(triplanarMaterial.Members["NormalScale"]);
+                Assert.IsType<Reference>(triplanarMaterial.Members["HeightMap"]);
+                Assert.IsType<Field_float>(triplanarMaterial.Members["HeightScale"]);
+                Assert.IsType<Reference>(triplanarMaterial.Members["MetallicMap"]);
+                Assert.IsType<Reference>(triplanarMaterial.Members["OcclusionMap"]);
             });
+
+        Field_float triplanarHeightScale = Assert.IsType<Field_float>(triplanarMaterials[0].Members["HeightScale"]);
+        Assert.Equal(0.002f, triplanarHeightScale.Value);
 
         Component uvFacadeMaterial = Assert.Single(
             fakeClient.AddedComponents.Where(static request =>
@@ -221,6 +242,11 @@ public sealed class ResoniteLinkSceneBuilderTests
         Field_float2 uvScale = Assert.IsType<Field_float2>(uvFacadeMaterial.Members["TextureScale"]);
         Assert.Equal((float)(1.0 / 13.0), uvScale.Value.x, 6);
         Assert.Equal((float)(1.0 / 13.0), uvScale.Value.y, 6);
+        Assert.IsType<Reference>(uvFacadeMaterial.Members["NormalMap"]);
+        Assert.IsType<Reference>(uvFacadeMaterial.Members["HeightMap"]);
+        Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
+        Assert.IsType<Reference>(uvFacadeMaterial.Members["MetallicMap"]);
+        Assert.IsType<Reference>(uvFacadeMaterial.Members["OcclusionMap"]);
     }
 
     [Fact]
@@ -373,6 +399,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.Equal(0.01f, thickness.Value);
         Assert.True(screenSpace.Value);
+        Assert.DoesNotContain("AlbedoColor", material.Members.Keys);
+        Assert.DoesNotContain("Smoothness", material.Members.Keys);
         Assert.Equal(0.2f, lineColor.Value.r, 6);
         Assert.Equal(0.4f, lineColor.Value.g, 6);
         Assert.Equal(0.6f, lineColor.Value.b, 6);

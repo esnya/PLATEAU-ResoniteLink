@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets/DefaultMaterials/**/*.jpg" />
+    <EmbeddedResource Include="Assets/DefaultMaterials/**/*.png" />
   </ItemGroup>
 
   <PropertyGroup>

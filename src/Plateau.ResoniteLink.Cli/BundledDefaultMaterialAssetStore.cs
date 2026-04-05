@@ -6,6 +6,9 @@ internal static class BundledDefaultMaterialAssetStore
 {
     private static readonly object SyncRoot = new();
     private static readonly Assembly Assembly = typeof(BundledDefaultMaterialAssetStore).Assembly;
+    private static readonly HashSet<string> ResourceNames = Assembly
+        .GetManifestResourceNames()
+        .ToHashSet(StringComparer.Ordinal);
     private static readonly string ExtractionRoot = Path.Combine(
         Path.GetTempPath(),
         "Plateau.ResoniteLink",
@@ -19,7 +22,7 @@ internal static class BundledDefaultMaterialAssetStore
             throw new InvalidOperationException($"Bundled material path must start with '{logicalPrefix}', but was '{logicalPath}'.");
         }
 
-        string resourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{logicalPath[logicalPrefix.Length..].Replace('/', '.')}";
+        string resourceName = GetResourceName(logicalPath);
 
         string absolutePath = Path.Combine(
             ExtractionRoot,
@@ -49,5 +52,36 @@ internal static class BundledDefaultMaterialAssetStore
         }
 
         return absolutePath;
+    }
+
+    public static bool TryGetAbsolutePath(string logicalPath, out string absolutePath)
+    {
+        if (!TryGetResourceName(logicalPath, out _))
+        {
+            absolutePath = string.Empty;
+            return false;
+        }
+
+        absolutePath = GetAbsolutePath(logicalPath);
+        return true;
+    }
+
+    private static string GetResourceName(string logicalPath)
+    {
+        return TryGetResourceName(logicalPath, out string? resourceName)
+            ? resourceName
+            : throw new InvalidOperationException($"Embedded resource for '{logicalPath}' was not found.");
+    }
+
+    private static bool TryGetResourceName(string logicalPath, out string resourceName)
+    {
+        const string logicalPrefix = "default-materials/";
+        if (!logicalPath.StartsWith(logicalPrefix, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException($"Bundled material path must start with '{logicalPrefix}', but was '{logicalPath}'.");
+        }
+
+        resourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{logicalPath[logicalPrefix.Length..].Replace('/', '.')}";
+        return ResourceNames.Contains(resourceName);
     }
 }

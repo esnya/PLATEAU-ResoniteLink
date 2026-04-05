@@ -22,7 +22,7 @@
 
 ## 同梱アセット
 
-リポジトリには AmbientCG の CC0 2K albedo texture を次の対応で同梱する。
+リポジトリには AmbientCG の CC0 2K material を次の対応で同梱する。
 
 - `facade`:
   `Facade018C_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
@@ -44,4 +44,12 @@ Sources:
 - `Road006`: <https://ambientcg.com/view?id=Road006>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
 
-現状は albedo map のみを同梱する。live material builder 側で、上記の経路に応じて `PBS_Metallic`、`PBS_TriplanarMetallic`、または `WireframeMaterial` に接続する。
+リポジトリに残すのは、live material builder が直接使う最終マップだけに絞る。
+
+- `*_Color.jpg`: albedo
+- `*_NormalGL.jpg`: normal map
+- `*_Height.jpg`: parallax 用の height map
+- `*_Metallic.png`: 元 material に roughness がある場合の Resonite packed metallic map
+- `*_Emission.jpg`: 元 material に emissive texture がある場合のみ
+
+同梱 metallic map は、Resonite wiki の `PBS_Metallic` に合わせて、R に metallic、G に occlusion または height、A に smoothness を入れる。さらに、同梱 `HeightMap` を割り当てる場合は、parallax が強すぎないように live builder 側で `HeightScale` を `0.002` に下げる。

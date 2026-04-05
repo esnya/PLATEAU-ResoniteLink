@@ -14,6 +14,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const int MaxQueuedCityObjects = 4;
     private const string SharedAssetsSlotName = "Shared";
     private const string SharedMaterialsSlotName = "Materials";
+    private const float DefaultNormalScale = 1.0f;
+    private const float DefaultBundledHeightScale = 0.002f;
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
@@ -414,6 +416,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 metadata.Request.Dataset,
                 "texture",
                 material.MaterialKey);
+            string emissionTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+                metadata.Request.Dataset,
+                "texture",
+                $"{material.MaterialKey}-emission");
+            string heightTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+                metadata.Request.Dataset,
+                "texture",
+                $"{material.MaterialKey}-height");
+            string metallicTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+                metadata.Request.Dataset,
+                "texture",
+                $"{material.MaterialKey}-metallic");
+            string normalTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+                metadata.Request.Dataset,
+                "texture",
+                $"{material.MaterialKey}-normal");
 
             Dictionary<string, Member> materialMembers = CreateMaterialMembers(material);
             string materialComponentType = material.MaterialType switch
@@ -451,6 +469,88 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     {
                         TargetID = textureComponentId,
                     };
+                }
+
+                if (TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
+                    && textureSet is not null)
+                {
+                    if (textureSet.NormalPath is not null)
+                    {
+                        await EnsureAssetComponentUrlKnownAsync(
+                            client,
+                            materialSlotId,
+                            normalTextureComponentId,
+                            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                            "URL",
+                            () => client.ImportTextureAsync(textureSet.NormalPath, cancellationToken),
+                            cancellationToken);
+                        materialMembers["NormalMap"] = new Reference
+                        {
+                            TargetID = normalTextureComponentId,
+                        };
+                        materialMembers["NormalScale"] = new Field_float
+                        {
+                            Value = DefaultNormalScale,
+                        };
+                    }
+
+                    if (textureSet.HeightPath is not null)
+                    {
+                        await EnsureAssetComponentUrlKnownAsync(
+                            client,
+                            materialSlotId,
+                            heightTextureComponentId,
+                            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                            "URL",
+                            () => client.ImportTextureAsync(textureSet.HeightPath, cancellationToken),
+                            cancellationToken);
+                        materialMembers["HeightMap"] = new Reference
+                        {
+                            TargetID = heightTextureComponentId,
+                        };
+                        materialMembers["HeightScale"] = new Field_float
+                        {
+                            Value = DefaultBundledHeightScale,
+                        };
+                    }
+
+                    if (textureSet.MetallicPath is not null)
+                    {
+                        await EnsureAssetComponentUrlKnownAsync(
+                            client,
+                            materialSlotId,
+                            metallicTextureComponentId,
+                            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                            "URL",
+                            () => client.ImportTextureAsync(textureSet.MetallicPath, cancellationToken),
+                            cancellationToken);
+                        Reference metallicReference = new()
+                        {
+                            TargetID = metallicTextureComponentId,
+                        };
+                        materialMembers["MetallicMap"] = metallicReference;
+                        materialMembers["OcclusionMap"] = new Reference
+                        {
+                            TargetID = metallicTextureComponentId,
+                        };
+                    }
+
+                    if (textureSet.EmissionPath is not null)
+                    {
+                        await EnsureAssetComponentUrlKnownAsync(
+                            client,
+                            materialSlotId,
+                            emissionTextureComponentId,
+                            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                            "URL",
+                            () => client.ImportTextureAsync(textureSet.EmissionPath, cancellationToken),
+                            cancellationToken);
+                        materialMembers["EmissiveMap"] = new Reference
+                        {
+                            TargetID = emissionTextureComponentId,
+                        };
+                        materialMembers["EmissiveColor"] = CreateColorMember(new ResoniteColor(1.0, 1.0, 1.0, 1.0));
+                    }
                 }
 
                 await EnsureComponentKnownAsync(
@@ -595,14 +695,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private static Dictionary<string, Member> CreateMaterialMembers(ResoniteMaterialBinding material)
     {
-        Dictionary<string, Member> materialMembers = new(StringComparer.Ordinal)
+        Dictionary<string, Member> materialMembers = new(StringComparer.Ordinal);
+
+        if (material.MaterialType == ResoniteMaterialType.Standard)
         {
-            ["AlbedoColor"] = CreateColorMember(material.BaseColor),
-            ["Smoothness"] = new Field_float
+            materialMembers["AlbedoColor"] = CreateColorMember(material.BaseColor);
+            materialMembers["Smoothness"] = new Field_float
             {
                 Value = 0.0f,
-            },
-        };
+            };
+        }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.TextureScale is not null)
@@ -676,6 +778,45 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         return materialMembers;
+    }
+
+    private static bool TryGetBundledCompanionTextureSet(
+        ResoniteMaterialBinding material,
+        out BundledDefaultMaterialTextureSet? textureSet)
+    {
+        textureSet = null;
+        if (material.MaterialType != ResoniteMaterialType.Standard
+            || material.TextureSourceKind != ResoniteTextureSourceKind.Bundled
+            || string.IsNullOrWhiteSpace(material.TexturePath))
+        {
+            return false;
+        }
+
+        string albedoLogicalPath = material.TexturePath;
+        string stem = Path.GetFileNameWithoutExtension(albedoLogicalPath);
+        if (!stem.EndsWith("_Color", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string directory = Path.GetDirectoryName(albedoLogicalPath)?.Replace('\\', '/')
+            ?? throw new InvalidOperationException($"Could not determine bundled texture directory for '{albedoLogicalPath}'.");
+        string baseStem = stem[..^"_Color".Length];
+
+        textureSet = new BundledDefaultMaterialTextureSet(
+            TryResolveBundledTexture(directory, $"{baseStem}_Emission.jpg"),
+            TryResolveBundledTexture(directory, $"{baseStem}_Height.jpg"),
+            TryResolveBundledTexture(directory, $"{baseStem}_Metallic.png"),
+            TryResolveBundledTexture(directory, $"{baseStem}_NormalGL.jpg"));
+        return true;
+    }
+
+    private static string? TryResolveBundledTexture(string directory, string fileName)
+    {
+        string logicalPath = $"{directory}/{fileName}";
+        return BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath)
+            ? absolutePath
+            : null;
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)
@@ -994,6 +1135,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return preparedTexture is not null;
         }
     }
+
+    private sealed record BundledDefaultMaterialTextureSet(
+        string? EmissionPath,
+        string? HeightPath,
+        string? MetallicPath,
+        string? NormalPath);
 
     private sealed record PreparedTextureReference(
         string TexturePath,
