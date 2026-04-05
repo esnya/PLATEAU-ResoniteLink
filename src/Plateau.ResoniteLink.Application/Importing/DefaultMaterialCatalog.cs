@@ -8,6 +8,7 @@ internal static class DefaultMaterialCatalog
         string packageName,
         string? texturePath,
         bool preferUvProjection,
+        string? familyOverride,
         string variantSelectionKey)
     {
         if (ShouldUseWireframeMaterial(packageName))
@@ -17,7 +18,8 @@ internal static class DefaultMaterialCatalog
                 TexturePath: null,
                 ResoniteTextureSourceKind.Bundled,
                 ResoniteMaterialProjection.Uv,
-                Family: null);
+                Family: null,
+                TextureScale: null);
         }
 
         if (!string.IsNullOrWhiteSpace(texturePath))
@@ -27,16 +29,19 @@ internal static class DefaultMaterialCatalog
                 texturePath,
                 ResoniteTextureSourceKind.Dataset,
                 ResoniteMaterialProjection.Uv,
-                Family: null);
+                Family: null,
+                TextureScale: null);
         }
 
-        string family = ResolveBundledTextureFamily(packageName, preferUvProjection);
+        string family = familyOverride ?? ResolveBundledTextureFamily(packageName, preferUvProjection);
+        string selectedTexturePath = SelectBundledTexturePath(family, variantSelectionKey);
         return new ResolvedMaterial(
             ResoniteMaterialType.Standard,
-            SelectBundledTexturePath(family, variantSelectionKey),
+            selectedTexturePath,
             ResoniteTextureSourceKind.Bundled,
             preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
-            family);
+            family,
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath));
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)
@@ -76,5 +81,6 @@ internal static class DefaultMaterialCatalog
         string? TexturePath,
         ResoniteTextureSourceKind TextureSourceKind,
         ResoniteMaterialProjection Projection,
-        string? Family);
+        string? Family,
+        ResoniteFloat2? TextureScale);
 }

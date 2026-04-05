@@ -8,4 +8,5 @@ public sealed record ResoniteMaterialBinding(
     ResoniteTextureSourceKind TextureSourceKind,
     ResoniteMaterialProjection Projection,
     ResoniteMaterialDepthOffset? DepthOffset,
-    IReadOnlyList<int> SubmeshIndices);
+    IReadOnlyList<int> SubmeshIndices,
+    ResoniteFloat2? TextureScale = null);

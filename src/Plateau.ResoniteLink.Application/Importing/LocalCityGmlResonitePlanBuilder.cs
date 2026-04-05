@@ -765,6 +765,7 @@ public static class LocalCityGmlResonitePlanBuilder
                     materializedSurface.Material.TextureSourceKind,
                     materializedSurface.Material.Projection,
                     materializedSurface.DepthOffset,
+                    materializedSurface.Material.TextureScale,
                     materializedSurface.Surface.BaseColor),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
@@ -775,12 +776,12 @@ public static class LocalCityGmlResonitePlanBuilder
             IGrouping<string, MaterializedSurface> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
 
-            foreach (ParsedSurface surface in materialGroup
-                         .Select(static materializedSurface => materializedSurface.Surface)
-                         .OrderBy(static surface => surface.PolygonId, StringComparer.Ordinal))
+            foreach (MaterializedSurface materializedSurface in materialGroup
+                         .OrderBy(static surface => surface.Surface.PolygonId, StringComparer.Ordinal))
             {
                 TriangulateSurface(
-                    surface,
+                    materializedSurface.Surface,
+                    materializedSurface.Material,
                     cityObject.PackageName,
                     cityObjectOrigin,
                     cityObjectCartesian,
@@ -807,7 +808,8 @@ public static class LocalCityGmlResonitePlanBuilder
                     TextureSourceKind: representativeSurface.Material.TextureSourceKind,
                     Projection: representativeSurface.Material.Projection,
                     DepthOffset: representativeSurface.DepthOffset,
-                    SubmeshIndices: [materialIndex]));
+                    SubmeshIndices: [materialIndex],
+                    TextureScale: representativeSurface.Material.TextureScale));
         }
 
         return new ResoniteConstructionCityObject(
@@ -835,7 +837,8 @@ public static class LocalCityGmlResonitePlanBuilder
                     surface.TexturePath,
                     ResoniteTextureSourceKind.Bundled,
                     ResoniteMaterialProjection.Uv,
-                    Family: null),
+                    Family: null,
+                    TextureScale: null),
                 DepthOffset: null);
         }
 
@@ -848,7 +851,8 @@ public static class LocalCityGmlResonitePlanBuilder
             cityObject.PackageName,
             surface.TexturePath,
             preferUvProjection,
-            $"{cityObject.SlotKey}:{surface.PolygonId}:{(preferUvProjection ? "uv" : "triplanar")}");
+            preferUvProjection ? BundledDefaultMaterialFamilies.Facade : null,
+            $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
         ResoniteMaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
@@ -857,6 +861,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
     private static void TriangulateSurface(
         ParsedSurface surface,
+        DefaultMaterialCatalog.ResolvedMaterial material,
         string packageName,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -872,7 +877,7 @@ public static class LocalCityGmlResonitePlanBuilder
         SurfaceUvProjection? generatedSurfaceUvProjection = !useGeneratedDemUv
             && surface.TexturePath is null
             && ShouldPreferUvProjection(packageName, surface, cityObjectOrigin, cityObjectCartesian)
-                ? CreateGeneratedSurfaceUvProjection(surface, cityObjectOrigin, cityObjectCartesian)
+                ? CreateGeneratedSurfaceUvProjection(surface, cityObjectOrigin, cityObjectCartesian, material.TextureScale)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateTessellatedRings(
             surface,
@@ -1047,7 +1052,8 @@ public static class LocalCityGmlResonitePlanBuilder
     private static SurfaceUvProjection? CreateGeneratedSurfaceUvProjection(
         ParsedSurface surface,
         GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
+        LocalCartesian? cityObjectCartesian,
+        ResoniteFloat2? textureScale)
     {
         ResoniteFloat3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
@@ -1074,6 +1080,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
         double minU = double.PositiveInfinity;
         double minV = double.PositiveInfinity;
+        double maxV = double.NegativeInfinity;
 
         foreach (GeodeticPoint vertex in surface.Vertices)
         {
@@ -1082,14 +1089,15 @@ public static class LocalCityGmlResonitePlanBuilder
             double v = position.Y;
             minU = Math.Min(minU, u);
             minV = Math.Min(minV, v);
+            maxV = Math.Max(maxV, v);
         }
 
         return new SurfaceUvProjection(
             horizontalAxis,
             minU,
             minV,
-            BundledDefaultMaterialTiling.DefaultTilesPerMeter.X,
-            BundledDefaultMaterialTiling.DefaultTilesPerMeter.Y);
+            Math.Max(maxV - minV, 1e-8),
+            AlignVerticalSpan(Math.Max(maxV - minV, 1e-8), textureScale?.Y));
     }
 
     private static ResoniteFloat2 CreateGeneratedSurfaceUv(
@@ -1099,9 +1107,22 @@ public static class LocalCityGmlResonitePlanBuilder
         SurfaceUvProjection projection)
     {
         ResoniteFloat3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
-        double u = (Dot(position, projection.HorizontalAxis) - projection.MinU) * projection.ScaleU;
-        double v = (position.Y - projection.MinV) * projection.ScaleV;
+        double u = Dot(position, projection.HorizontalAxis) - projection.MinU;
+        double v = ((position.Y - projection.MinV) / projection.Height) * projection.AlignedHeight;
         return new ResoniteFloat2(u, v);
+    }
+
+    private static double AlignVerticalSpan(double height, double? tilesPerMeterY)
+    {
+        if (!tilesPerMeterY.HasValue
+            || tilesPerMeterY.Value <= 1e-8
+            || height <= 1e-8)
+        {
+            return height;
+        }
+
+        double repeats = Math.Max(1.0, Math.Round(height * tilesPerMeterY.Value, MidpointRounding.AwayFromZero));
+        return repeats / tilesPerMeterY.Value;
     }
 
     private static bool IsGeneratedDemTexturePath(string? texturePath)
@@ -1316,6 +1337,7 @@ public static class LocalCityGmlResonitePlanBuilder
         ResoniteTextureSourceKind textureSourceKind,
         ResoniteMaterialProjection projection,
         ResoniteMaterialDepthOffset? depthOffset,
+        ResoniteFloat2? textureScale,
         ResoniteColor color)
     {
         string colorKey = string.Create(
@@ -1324,11 +1346,14 @@ public static class LocalCityGmlResonitePlanBuilder
         string depthOffsetKey = depthOffset is null
             ? "none"
             : string.Create(CultureInfo.InvariantCulture, $"{depthOffset.Factor:0.######},{depthOffset.Units:0.######}");
+        string textureScaleKey = textureScale is null
+            ? "none"
+            : string.Create(CultureInfo.InvariantCulture, $"{textureScale.X:0.######},{textureScale.Y:0.######}");
 
         string materialTypeKey = materialType.ToString().ToLowerInvariant();
         return texturePath is null
-            ? $"type:{materialTypeKey}|depth:{depthOffsetKey}|color:{colorKey}"
-            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePath.ToLowerInvariant()}|depth:{depthOffsetKey}|color:{colorKey}";
+            ? $"type:{materialTypeKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|color:{colorKey}"
+            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePath.ToLowerInvariant()}|depth:{depthOffsetKey}|scale:{textureScaleKey}|color:{colorKey}";
     }
 
     private static bool ShouldPreferUvProjection(
@@ -1409,6 +1434,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
         return Math.Abs(normal.Y) < 0.45;
     }
+
 
     private static string NormalizePath(string path)
     {
@@ -1784,8 +1810,8 @@ public static class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 HorizontalAxis,
         double MinU,
         double MinV,
-        double ScaleU,
-        double ScaleV);
+        double Height,
+        double AlignedHeight);
 
     private enum ParsedSurfaceSemantic
     {

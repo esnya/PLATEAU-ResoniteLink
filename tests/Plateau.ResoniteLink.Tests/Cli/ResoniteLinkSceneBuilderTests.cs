@@ -211,6 +211,16 @@ public sealed class ResoniteLinkSceneBuilderTests
                 Assert.IsType<Field_float>(triplanarMaterial.Members["TriplanarBlendPower"]);
                 Assert.IsType<Field_bool>(triplanarMaterial.Members["ObjectSpace"]);
             });
+
+        Component uvFacadeMaterial = Assert.Single(
+            fakeClient.AddedComponents.Where(static request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                    && request.Data.Members.ContainsKey("AlbedoTexture")
+                    && request.Data.Members.ContainsKey("TextureScale"))
+                .Select(static request => request.Data));
+        Field_float2 uvScale = Assert.IsType<Field_float2>(uvFacadeMaterial.Members["TextureScale"]);
+        Assert.Equal((float)(1.0 / 13.0), uvScale.Value.x, 6);
+        Assert.Equal((float)(1.0 / 13.0), uvScale.Value.y, 6);
     }
 
     [Fact]

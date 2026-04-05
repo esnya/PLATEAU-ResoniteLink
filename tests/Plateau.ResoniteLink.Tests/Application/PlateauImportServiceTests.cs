@@ -682,6 +682,12 @@ public sealed class PlateauImportServiceTests
         CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
 
         ResoniteConstructionCityObject building = Assert.Single(scene.CityObjects);
+        Assert.DoesNotContain(
+            building.Materials,
+            static material => string.Equals(
+                material.TexturePath,
+                "default-materials/facade/PaintedPlaster012_2K-JPG_Color.jpg",
+                StringComparison.Ordinal));
         Assert.Contains(
             building.Materials,
             static material =>
@@ -698,6 +704,15 @@ public sealed class PlateauImportServiceTests
             static material =>
                 BundledDefaultMaterialFamilies.FacadeVariants.Contains(material.TexturePath!)
                 && material.Projection == ResoniteMaterialProjection.Uv);
+        Assert.NotNull(facadeMaterial.TextureScale);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(facadeMaterial.TexturePath!).X,
+            facadeMaterial.TextureScale!.X,
+            6);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(facadeMaterial.TexturePath!).Y,
+            facadeMaterial.TextureScale.Y,
+            6);
         int facadeSubmeshIndex = Assert.Single(facadeMaterial.SubmeshIndices);
         ResoniteMeshSubmesh facadeSubmesh = Assert.Single(
             building.Mesh.Submeshes,
@@ -707,10 +722,14 @@ public sealed class PlateauImportServiceTests
             .Distinct()
             .ToArray();
 
+        double expectedTopY = Math.Max(
+            1.0,
+            Math.Round(5.0 * facadeMaterial.TextureScale.Y, MidpointRounding.AwayFromZero))
+            / facadeMaterial.TextureScale.Y;
         Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 0.0));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 1.75));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 1.75) && Approximately(uv.Y, 0.0));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 1.75) && Approximately(uv.Y, 1.75));
+        Assert.Contains(facadeUvs, uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, expectedTopY));
+        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 5.0) && Approximately(uv.Y, 0.0));
+        Assert.Contains(facadeUvs, uv => Approximately(uv.X, 5.0) && Approximately(uv.Y, expectedTopY));
     }
 
     [Fact]
@@ -743,6 +762,41 @@ public sealed class PlateauImportServiceTests
             static material =>
                 BundledDefaultMaterialFamilies.RoofVariants.Contains(material.TexturePath!)
                 && material.Projection == ResoniteMaterialProjection.Triplanar);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesSingleFacadeMaterialPerBuildingAcrossMultipleWalls()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeMultiWallBuildingFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject building = Assert.Single(scene.CityObjects);
+        ResoniteMaterialBinding[] facadeMaterials = building.Materials
+            .Where(static material =>
+                BundledDefaultMaterialFamilies.FacadeVariants.Contains(material.TexturePath!)
+                && material.Projection == ResoniteMaterialProjection.Uv)
+            .ToArray();
+
+        Assert.Single(facadeMaterials);
+        Assert.DoesNotContain(
+            facadeMaterials,
+            static material => string.Equals(
+                material.TexturePath,
+                "default-materials/facade/PaintedPlaster012_2K-JPG_Color.jpg",
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1381,6 +1435,65 @@ public sealed class PlateauImportServiceTests
 
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_thematic.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeMultiWallBuildingFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>10 10 10</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-multi-wall">
+                  <gml:name>Multi Wall Building</gml:name>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-wall-a">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-wall-a">
+                              <gml:posList>0 0 0 0 0 5 5 0 5 5 0 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-wall-b">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-wall-b">
+                              <gml:posList>5 0 0 5 0 5 10 0 5 10 0 0 5 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-roof-a">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-roof-a">
+                              <gml:posList>0 0 5 10 0 5 10 10 5 0 10 5 0 0 5</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_multiwall.gml"),
             xml);
     }
 

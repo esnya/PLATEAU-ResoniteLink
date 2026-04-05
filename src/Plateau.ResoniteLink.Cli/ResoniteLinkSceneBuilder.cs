@@ -605,18 +605,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
 
         if (material.MaterialType == ResoniteMaterialType.Standard
-            && material.Projection == ResoniteMaterialProjection.Triplanar)
+            && material.TextureScale is not null)
         {
-            materialMembers["Metallic"] = new Field_float
-            {
-                Value = 0.0f,
-            };
             materialMembers["TextureScale"] = new Field_float2
             {
                 Value = new float2
                 {
-                    x = (float)DefaultTriplanarTextureScale.X,
-                    y = (float)DefaultTriplanarTextureScale.Y,
+                    x = (float)material.TextureScale.X,
+                    y = (float)material.TextureScale.Y,
                 },
             };
             materialMembers["TextureOffset"] = new Field_float2
@@ -626,6 +622,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     x = 0.0f,
                     y = 0.0f,
                 },
+            };
+        }
+
+        if (material.MaterialType == ResoniteMaterialType.Standard
+            && material.Projection == ResoniteMaterialProjection.Triplanar)
+        {
+            materialMembers["Metallic"] = new Field_float
+            {
+                Value = 0.0f,
             };
             materialMembers["TriplanarBlendPower"] = new Field_float
             {
