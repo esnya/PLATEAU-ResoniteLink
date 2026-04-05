@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.Threading.Channels;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -9,6 +11,7 @@ namespace Plateau.ResoniteLink.Cli;
 
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
+    private const int MaxQueuedCityObjects = 4;
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
@@ -22,8 +25,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private string? materialsSlotId;
     private string? meshCodeMeshesSlotId;
     private Dictionary<string, string>? textureComponentIds;
+    private Dictionary<string, string>? materialComponentIds;
     private ResoniteLicenseManager? licenseManager;
     private string? generatedAssetsRoot;
+    private HashSet<string>? knownSlotIds;
+    private HashSet<string>? knownComponentIds;
+    private ConcurrentDictionary<string, Task<string>>? resolvedTexturePathTasks;
+    private Channel<QueuedCityObject>? cityObjectChannel;
+    private Task? processingTask;
 
     public ResoniteLinkSceneBuilder(Uri endpoint)
         : this(endpoint, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator())
@@ -84,10 +93,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         client = clientFactory();
         textureComponentIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        materialComponentIds = new Dictionary<string, string>(StringComparer.Ordinal);
         licenseManager = new ResoniteLicenseManager(metadata.Attribution);
+        knownSlotIds = new HashSet<string>(StringComparer.Ordinal);
+        knownComponentIds = new HashSet<string>(StringComparer.Ordinal);
+        resolvedTexturePathTasks = new ConcurrentDictionary<string, Task<string>>(StringComparer.OrdinalIgnoreCase);
+        cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
+            new BoundedChannelOptions(MaxQueuedCityObjects)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            });
         await client.ConnectAsync(endpoint, cancellationToken);
+        processingTask = ProcessQueuedCityObjectsAsync(cityObjectChannel.Reader, cancellationToken);
 
-        await EnsureSlotAsync(
+        await EnsureSlotKnownAsync(
             client,
             datasetSlotId,
             "Root",
@@ -113,12 +134,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
             },
             cancellationToken);
+        knownSlotIds.Add(meshCodeSlotId);
 
-        await EnsureSlotAsync(client, datasetAssetsSlotId, datasetSlotId, "Assets", null, cancellationToken);
-        await EnsureSlotAsync(client, texturesSlotId, datasetAssetsSlotId, "Textures", null, cancellationToken);
-        await EnsureSlotAsync(client, meshesSlotId, datasetAssetsSlotId, "Meshes", null, cancellationToken);
-        await EnsureSlotAsync(client, materialsSlotId, datasetAssetsSlotId, "Materials", null, cancellationToken);
-        await EnsureSlotAsync(
+        await EnsureSlotKnownAsync(client, datasetAssetsSlotId, datasetSlotId, "Assets", null, cancellationToken);
+        await EnsureSlotKnownAsync(client, texturesSlotId, datasetAssetsSlotId, "Textures", null, cancellationToken);
+        await EnsureSlotKnownAsync(client, meshesSlotId, datasetAssetsSlotId, "Meshes", null, cancellationToken);
+        await EnsureSlotKnownAsync(client, materialsSlotId, datasetAssetsSlotId, "Materials", null, cancellationToken);
+        await EnsureSlotKnownAsync(
             client,
             meshCodeMeshesSlotId,
             meshesSlotId,
@@ -139,33 +161,42 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(materialsSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
-        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
-        ObjectDisposedException.ThrowIf(licenseManager is null, this);
-        ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
-        ObjectDisposedException.ThrowIf(buildNonce is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
 
-        await ImportTexturesAsync(cityObject, cancellationToken);
+        await AwaitProcessingTaskIfCompletedAsync();
 
-        await BuildCityObjectAsync(
-            client,
-            metadata,
-            cityObject,
-            meshCodeSlotId,
-            meshCodeMeshesSlotId,
-            materialsSlotId,
-            textureComponentIds,
-            buildNonce,
+        Task<PreparedCityObject> preparationTask = PrepareCityObjectAsync(cityObject, cancellationToken);
+        await cityObjectChannel.Writer.WriteAsync(
+            new QueuedCityObject(cityObject, preparationTask),
             cancellationToken);
+        await AwaitProcessingTaskIfCompletedAsync();
     }
 
-    public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
-        return Task.FromResult<IReadOnlyList<string>>([$"{endpoint}#{meshCodeSlotId}"]);
+        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
+        ObjectDisposedException.ThrowIf(processingTask is null, this);
+
+        cityObjectChannel.Writer.TryComplete();
+        await processingTask.WaitAsync(cancellationToken);
+        return [$"{endpoint}#{meshCodeSlotId}"];
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        cityObjectChannel?.Writer.TryComplete();
+        if (processingTask is not null)
+        {
+            try
+            {
+                await processingTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
         client?.Dispose();
         client = null;
         metadata = null;
@@ -176,23 +207,38 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         materialsSlotId = null;
         meshCodeMeshesSlotId = null;
         textureComponentIds = null;
+        materialComponentIds = null;
         licenseManager = null;
         generatedAssetsRoot = null;
-        return ValueTask.CompletedTask;
+        knownSlotIds = null;
+        knownComponentIds = null;
+        resolvedTexturePathTasks = null;
+        cityObjectChannel = null;
+        processingTask = null;
     }
 
-    private async Task ImportTexturesAsync(
+    private async Task ProcessQueuedCityObjectsAsync(
+        ChannelReader<QueuedCityObject> reader,
+        CancellationToken cancellationToken)
+    {
+        await foreach (QueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
+        {
+            PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
+            await ImportPreparedTexturesAsync(preparedCityObject.Textures, cancellationToken);
+            await BuildPreparedCityObjectAsync(preparedCityObject, cancellationToken);
+        }
+    }
+
+    private async Task<PreparedCityObject> PrepareCityObjectAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(client is null, this);
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
-        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
         ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
+        ObjectDisposedException.ThrowIf(resolvedTexturePathTasks is null, this);
 
         string datasetRoot = Path.GetFullPath(metadata.Request.InputPath!);
-        (string TexturePath, ResoniteTextureSourceKind TextureSourceKind)[] texturePaths = cityObject.Materials
+        (string TexturePath, ResoniteTextureSourceKind TextureSourceKind)[] distinctTextures = cityObject.Materials
             .Where(static material => !string.IsNullOrWhiteSpace(material.TexturePath))
             .Select(static material => (TexturePath: material.TexturePath!, TextureSourceKind: material.TextureSourceKind))
             .Distinct()
@@ -200,14 +246,48 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             .ThenBy(static texture => texture.TexturePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        foreach ((string texturePath, ResoniteTextureSourceKind textureSourceKind) in texturePaths)
+        Task<PreparedTextureReference>[] texturePreparationTasks = distinctTextures
+            .Select(async texture =>
+            {
+                string absoluteTexturePath = await resolvedTexturePathTasks.GetOrAdd(
+                    CreateTextureCacheKey(texture.TexturePath, texture.TextureSourceKind),
+                    _ => ResolveTextureImportPathAsync(
+                        datasetRoot,
+                        texture.TexturePath,
+                        texture.TextureSourceKind,
+                        cancellationToken));
+
+                return new PreparedTextureReference(
+                    texture.TexturePath,
+                    texture.TextureSourceKind,
+                    absoluteTexturePath);
+            })
+            .ToArray();
+        Task<ImportMeshRawData> meshImportTask = Task.Run(() => CreateMeshImport(cityObject.Mesh), cancellationToken);
+
+        return new PreparedCityObject(
+            cityObject,
+            await meshImportTask,
+            await Task.WhenAll(texturePreparationTasks));
+    }
+
+    private async Task ImportPreparedTexturesAsync(
+        IReadOnlyList<PreparedTextureReference> texturePaths,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(client is null, this);
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
+        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+
+        foreach (PreparedTextureReference texture in texturePaths)
         {
-            string absoluteTexturePath = await ResolveTextureImportPathAsync(
-                datasetRoot,
-                texturePath,
-                textureSourceKind,
-                cancellationToken);
-            string textureCacheKey = CreateTextureCacheKey(texturePath, textureSourceKind);
+            string textureCacheKey = CreateTextureCacheKey(texture.TexturePath, texture.TextureSourceKind);
+            if (textureComponentIds.ContainsKey(textureCacheKey))
+            {
+                continue;
+            }
+
             string textureKey = CreatePathKey(textureCacheKey);
             string textureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
                 metadata.Request.Dataset,
@@ -218,21 +298,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 "textureslot",
                 textureKey);
 
-            await EnsureSlotAsync(
+            await EnsureSlotKnownAsync(
                 client,
                 textureSlotId,
                 texturesSlotId,
-                Path.GetFileName(texturePath),
+                Path.GetFileName(texture.TexturePath),
                 null,
                 cancellationToken);
 
-            await EnsureAssetComponentUrlAsync(
+            await EnsureAssetComponentUrlKnownAsync(
                 client,
                 textureSlotId,
                 textureComponentId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 "URL",
-                () => client.ImportTextureAsync(absoluteTexturePath, cancellationToken),
+                () => client.ImportTextureAsync(texture.AbsoluteTexturePath, cancellationToken),
                 cancellationToken);
 
             textureComponentIds[textureCacheKey] = textureComponentId;
@@ -266,17 +346,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
     }
 
-    private static async Task BuildCityObjectAsync(
-        IResoniteLinkClient client,
-        ResoniteConstructionMetadata metadata,
-        ResoniteConstructionCityObject cityObject,
-        string meshCodeSlotId,
-        string meshCodeMeshesSlotId,
-        string materialsSlotId,
-        Dictionary<string, string> textureComponentIds,
-        string buildNonce,
+    private async Task BuildPreparedCityObjectAsync(
+        PreparedCityObject preparedCityObject,
         CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(client is null, this);
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
+        ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
+        ObjectDisposedException.ThrowIf(materialsSlotId is null, this);
+        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(materialComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(buildNonce is null, this);
+
+        ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         string cityObjectSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
             metadata.Request.Dataset,
             metadata.Request.MeshCode,
@@ -322,8 +405,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
             },
             cancellationToken);
+        knownSlotIds!.Add(cityObjectSlotId);
 
-        await EnsureSlotAsync(
+        await EnsureSlotKnownAsync(
             client,
             cityObjectAssetsSlotId,
             cityObjectSlotId,
@@ -331,13 +415,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             null,
             cancellationToken);
 
-        await EnsureAssetComponentUrlAsync(
+        await EnsureAssetComponentUrlKnownAsync(
             client,
             cityObjectAssetsSlotId,
             staticMeshId,
             "[FrooxEngine]FrooxEngine.StaticMesh",
             "URL",
-            () => client.ImportMeshAsync(CreateMeshImport(cityObject.Mesh), cancellationToken),
+            () => client.ImportMeshAsync(preparedCityObject.MeshImport, cancellationToken),
             cancellationToken);
 
         List<string> materialIds = [];
@@ -371,20 +455,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 };
             }
 
-            await EnsureSlotAsync(
-                client,
-                materialSlotId,
-                materialsSlotId,
-                $"Material {materialIndex.ToString(CultureInfo.InvariantCulture)} {material.MaterialKey}",
-                null,
-                cancellationToken);
-            await EnsureComponentAsync(
-                client,
-                materialSlotId,
-                materialId,
-                materialComponentType,
-                materialMembers,
-                cancellationToken);
+            if (!materialComponentIds.ContainsKey(material.MaterialKey))
+            {
+                await EnsureSlotKnownAsync(
+                    client,
+                    materialSlotId,
+                    materialsSlotId,
+                    $"Material {materialIndex.ToString(CultureInfo.InvariantCulture)} {material.MaterialKey}",
+                    null,
+                    cancellationToken);
+                await EnsureComponentKnownAsync(
+                    client,
+                    materialSlotId,
+                    materialId,
+                    materialComponentType,
+                    materialMembers,
+                    cancellationToken);
+                materialComponentIds[material.MaterialKey] = materialId;
+            }
 
             materialIds.Add(materialId);
         }
@@ -416,6 +504,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
             },
             cancellationToken);
+        knownComponentIds!.Add(rendererId);
 
         await client.AddComponentAsync(
             new AddComponent
@@ -443,6 +532,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
             },
             cancellationToken);
+        knownComponentIds.Add(colliderId);
     }
 
     private static ImportMeshRawData CreateMeshImport(ResoniteImportedMesh mesh)
@@ -583,6 +673,81 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
     }
 
+    private async Task AwaitProcessingTaskIfCompletedAsync()
+    {
+        if (processingTask is not null && processingTask.IsCompleted)
+        {
+            await processingTask;
+        }
+    }
+
+    private async Task EnsureSlotKnownAsync(
+        IResoniteLinkClient client,
+        string slotId,
+        string parentId,
+        string slotName,
+        ResoniteFloat3? position,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(knownSlotIds is null, this);
+
+        if (knownSlotIds.Contains(slotId))
+        {
+            return;
+        }
+
+        await EnsureSlotAsync(client, slotId, parentId, slotName, position, cancellationToken);
+        knownSlotIds.Add(slotId);
+    }
+
+    private async Task<Uri> EnsureAssetComponentUrlKnownAsync(
+        IResoniteLinkClient client,
+        string containerSlotId,
+        string componentId,
+        string componentType,
+        string uriMemberName,
+        Func<Task<Uri>> importAssetAsync,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(knownComponentIds is null, this);
+
+        Uri assetUri = await EnsureAssetComponentUrlAsync(
+            client,
+            containerSlotId,
+            componentId,
+            componentType,
+            uriMemberName,
+            importAssetAsync,
+            cancellationToken);
+        knownComponentIds.Add(componentId);
+        return assetUri;
+    }
+
+    private async Task EnsureComponentKnownAsync(
+        IResoniteLinkClient client,
+        string containerSlotId,
+        string componentId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(knownComponentIds is null, this);
+
+        if (knownComponentIds.Contains(componentId))
+        {
+            return;
+        }
+
+        await EnsureComponentAsync(
+            client,
+            containerSlotId,
+            componentId,
+            componentType,
+            members,
+            cancellationToken);
+        knownComponentIds.Add(componentId);
+    }
+
     private static async Task EnsureSlotAsync(
         IResoniteLinkClient client,
         string slotId,
@@ -717,4 +882,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         return string.Concat(path.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
+
+    private sealed record QueuedCityObject(
+        ResoniteConstructionCityObject CityObject,
+        Task<PreparedCityObject> PreparationTask);
+
+    private sealed record PreparedCityObject(
+        ResoniteConstructionCityObject CityObject,
+        ImportMeshRawData MeshImport,
+        IReadOnlyList<PreparedTextureReference> Textures);
+
+    private sealed record PreparedTextureReference(
+        string TexturePath,
+        ResoniteTextureSourceKind TextureSourceKind,
+        string AbsoluteTexturePath);
 }

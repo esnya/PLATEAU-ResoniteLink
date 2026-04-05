@@ -280,6 +280,42 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
     }
 
+    [Fact]
+    public async Task ProcessCityObjectAsyncQueuesWorkBeforeLiveMeshImportCompletes()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: fixturePath,
+                ServerUri: null));
+        ResoniteConstructionMetadata metadata = new(
+            plan.SchemaVersion,
+            plan.WorldName,
+            plan.Request,
+            plan.SourceDataset,
+            plan.Attribution,
+            plan.LocalOrigin);
+
+        using BlockingResoniteLinkClient blockingClient = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => blockingClient);
+
+        await builder.BeginAsync(metadata, "artifacts/resonite");
+        await builder.ProcessCityObjectAsync(plan.CityObjects[0]);
+
+        Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
+        Assert.False(completionTask.IsCompleted);
+
+        blockingClient.ReleaseMeshImports();
+
+        IReadOnlyList<string> destinations = await completionTask;
+        Assert.Single(destinations);
+    }
+
     private sealed class FakeResoniteLinkClient : IResoniteLinkClient
     {
         private readonly FakeResoniteLinkSession session;
@@ -419,6 +455,68 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
 
             return texturePath;
+        }
+    }
+
+    private sealed class BlockingResoniteLinkClient : IResoniteLinkClient
+    {
+        private readonly TaskCompletionSource meshImportRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Component?>(null);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(null);
+        }
+
+        public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            await meshImportRelease.Task.WaitAsync(cancellationToken);
+            return new Uri("resdb:///mesh/0", UriKind.Absolute);
+        }
+
+        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
+        }
+
+        public void ReleaseMeshImports()
+        {
+            meshImportRelease.TrySetResult();
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
         }
     }
 

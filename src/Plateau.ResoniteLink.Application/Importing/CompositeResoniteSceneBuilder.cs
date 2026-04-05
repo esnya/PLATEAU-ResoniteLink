@@ -15,10 +15,7 @@ public sealed class CompositeResoniteSceneBuilder(IReadOnlyList<IResoniteSceneBu
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
 
-        foreach (IResoniteSceneBuilder builder in builders)
-        {
-            await builder.BeginAsync(metadata, outputRoot, cancellationToken);
-        }
+        await Task.WhenAll(builders.Select(builder => builder.BeginAsync(metadata, outputRoot, cancellationToken)));
     }
 
     public async Task ProcessCityObjectAsync(
@@ -27,30 +24,18 @@ public sealed class CompositeResoniteSceneBuilder(IReadOnlyList<IResoniteSceneBu
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
-        foreach (IResoniteSceneBuilder builder in builders)
-        {
-            await builder.ProcessCityObjectAsync(cityObject, cancellationToken);
-        }
+        await Task.WhenAll(builders.Select(builder => builder.ProcessCityObjectAsync(cityObject, cancellationToken)));
     }
 
     public async Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
     {
-        List<string> destinations = [];
-
-        foreach (IResoniteSceneBuilder builder in builders)
-        {
-            IReadOnlyList<string> builderDestinations = await builder.CompleteAsync(cancellationToken);
-            destinations.AddRange(builderDestinations);
-        }
-
-        return destinations;
+        IReadOnlyList<string>[] results = await Task.WhenAll(
+            builders.Select(builder => builder.CompleteAsync(cancellationToken)));
+        return results.SelectMany(static destinations => destinations).ToArray();
     }
 
     public async ValueTask DisposeAsync()
     {
-        foreach (IResoniteSceneBuilder builder in builders)
-        {
-            await builder.DisposeAsync();
-        }
+        await Task.WhenAll(builders.Select(builder => builder.DisposeAsync().AsTask()));
     }
 }
