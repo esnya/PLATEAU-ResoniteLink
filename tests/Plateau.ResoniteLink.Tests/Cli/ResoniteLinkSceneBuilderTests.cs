@@ -224,14 +224,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                 Assert.IsType<Field_bool>(triplanarMaterial.Members["ObjectSpace"]);
                 Assert.IsType<Reference>(triplanarMaterial.Members["NormalMap"]);
                 Assert.IsType<Field_float>(triplanarMaterial.Members["NormalScale"]);
-                Assert.IsType<Reference>(triplanarMaterial.Members["HeightMap"]);
-                Assert.IsType<Field_float>(triplanarMaterial.Members["HeightScale"]);
                 Assert.IsType<Reference>(triplanarMaterial.Members["MetallicMap"]);
                 Assert.IsType<Reference>(triplanarMaterial.Members["OcclusionMap"]);
+                Assert.DoesNotContain("HeightMap", triplanarMaterial.Members.Keys);
+                Assert.DoesNotContain("HeightScale", triplanarMaterial.Members.Keys);
             });
-
-        Field_float triplanarHeightScale = Assert.IsType<Field_float>(triplanarMaterials[0].Members["HeightScale"]);
-        Assert.Equal(0.002f, triplanarHeightScale.Value);
 
         Component uvFacadeMaterial = Assert.Single(
             fakeClient.AddedComponents.Where(static request =>
@@ -247,7 +244,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
         Assert.IsType<Reference>(uvFacadeMaterial.Members["MetallicMap"]);
         Assert.IsType<Reference>(uvFacadeMaterial.Members["OcclusionMap"]);
+        Field_float uvHeightScale = Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
+        Assert.Equal(0.002f, uvHeightScale.Value);
     }
+
 
     [Fact]
     public async Task BuildAsyncAppliesMaterialDepthOffsetForTerrainAlignedOverlays()

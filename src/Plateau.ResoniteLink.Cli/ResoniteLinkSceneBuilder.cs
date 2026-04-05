@@ -494,7 +494,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                         };
                     }
 
-                    if (textureSet.HeightPath is not null)
+                    if (textureSet.HeightPath is not null
+                        && material.Projection == ResoniteMaterialProjection.Uv)
                     {
                         await EnsureAssetComponentUrlKnownAsync(
                             client,
