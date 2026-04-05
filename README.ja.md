@@ -1,8 +1,8 @@
 # Plateau.ResoniteLink
 
-Plateau.ResoniteLink は、PLATEAU のデータセットを Resonite に取り込むための .NET 10 プロジェクトです。最初の実装済み縦切りは CLI 起点で、データセットとメッシュコード指定から、展開済み `udx/<package>/` ツリー配下にあるメッシュコード対応ファイルやネストされたメッシュコードディレクトリを対象に、決定的な Resonite 構築メタデータと逐次的な city object stream を生成します。
+Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデータセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に取り込むための .NET 10 プロジェクトです。決定的な Resonite 構築データを生成しつつ、city object を逐次的に流すことで、インポート結果が Resonite 上に順次現れるようにします。
 
-インポート意味論と用語の参照実装は `PLATEAU-SDK-for-UNITY` とします。
+インポート挙動と用語は、[PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) を参考にしています。
 
 ## 使い方
 
