@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Plateau.ResoniteLink.Application.Importing;
 
 namespace Plateau.ResoniteLink.Cli;
@@ -66,7 +68,7 @@ public sealed class CliApplication
                 cancellationToken);
 
             await standardOutput.WriteLineAsync("Resonite construction plan generated.");
-            await standardOutput.WriteLineAsync($"World: {result.Plan.WorldName}");
+            await standardOutput.WriteLineAsync($"World: {result.Metadata.WorldName}");
 
             foreach (string destination in result.Destinations)
             {
@@ -86,6 +88,10 @@ public sealed class CliApplication
         }
     }
 
+    [SuppressMessage(
+        "Reliability",
+        "CA2000:Dispose objects before losing scope",
+        Justification = "PlateauImportService owns the scene builder lifetime and disposes it after each execution.")]
     private static PlateauImportService CreateImportService(BuildCommandOptions options)
     {
         List<IResoniteSceneBuilder> builders =

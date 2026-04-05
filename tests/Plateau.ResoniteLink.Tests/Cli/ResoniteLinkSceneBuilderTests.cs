@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -6,6 +8,10 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
+[SuppressMessage(
+    "Reliability",
+    "CA2000:Dispose objects before losing scope",
+    Justification = "The test helper owns builder disposal for all streaming execution paths.")]
 public sealed class ResoniteLinkSceneBuilderTests
 {
     [Fact]
@@ -25,11 +31,11 @@ public sealed class ResoniteLinkSceneBuilderTests
             new Uri("ws://localhost:12345/"),
             () => fakeClient);
 
-        IReadOnlyList<string> destinations = await builder.BuildAsync(plan, outputRoot: "artifacts/resonite");
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, plan);
 
         Assert.Single(destinations);
         Assert.Single(fakeClient.ImportedTexturePaths);
-        Assert.Equal(plan.Buildings.Count, fakeClient.ImportedMeshes.Count);
+        Assert.Equal(plan.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
         Assert.Contains(fakeClient.AddedComponents, static request =>
@@ -116,10 +122,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient firstClient = new();
         using FakeResoniteLinkClient secondClient = new();
 
-        await new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient)
-            .BuildAsync(plan, outputRoot: "artifacts/resonite");
-        await new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient)
-            .BuildAsync(plan, outputRoot: "artifacts/resonite");
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), plan);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), plan);
 
         HashSet<string> firstEntityIds = firstClient.AddedSlots
             .Select(static request => request.Data.ID)
@@ -151,13 +155,11 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient firstClient = new(session);
         using FakeResoniteLinkClient secondClient = new(session);
 
-        await new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient)
-            .BuildAsync(plan, outputRoot: "artifacts/resonite");
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), plan);
         int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
 
-        await new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient)
-            .BuildAsync(plan, outputRoot: "artifacts/resonite");
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), plan);
 
         Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
         Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
@@ -300,9 +302,36 @@ public sealed class ResoniteLinkSceneBuilderTests
     private static bool IsRunScopedEntityId(string id)
     {
         return id.Contains("_meshcode_", StringComparison.Ordinal)
-            || id.Contains("_building_", StringComparison.Ordinal)
+            || id.Contains("_cityobject_", StringComparison.Ordinal)
             || id.Contains("_renderer_", StringComparison.Ordinal)
             || id.Contains("_collider_", StringComparison.Ordinal)
             || id.Contains("_material_", StringComparison.Ordinal);
+    }
+
+    private static async Task<IReadOnlyList<string>> RunBuilderAsync(
+        ResoniteLinkSceneBuilder builder,
+        ResoniteConstructionPlan plan)
+    {
+        try
+        {
+            ResoniteConstructionMetadata metadata = new(
+                plan.SchemaVersion,
+                plan.WorldName,
+                plan.Request,
+                plan.SourceDataset,
+                plan.LocalOrigin);
+
+            await builder.BeginAsync(metadata, "artifacts/resonite");
+            foreach (ResoniteConstructionCityObject cityObject in plan.CityObjects)
+            {
+                await builder.ProcessCityObjectAsync(cityObject);
+            }
+
+            return await builder.CompleteAsync();
+        }
+        finally
+        {
+            await builder.DisposeAsync();
+        }
     }
 }

@@ -2,10 +2,16 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public interface IResoniteSceneBuilder
+public interface IResoniteSceneBuilder : IAsyncDisposable
 {
-    Task<IReadOnlyList<string>> BuildAsync(
-        ResoniteConstructionPlan plan,
+    Task BeginAsync(
+        ResoniteConstructionMetadata metadata,
         string outputRoot,
         CancellationToken cancellationToken = default);
+
+    Task ProcessCityObjectAsync(
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default);
 }

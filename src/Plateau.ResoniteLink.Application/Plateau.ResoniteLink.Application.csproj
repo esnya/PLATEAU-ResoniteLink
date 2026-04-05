@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <PackageReference Include="GeographicLib.NET" />
+    <PackageReference Include="LibTessDotNet" />
     <ProjectReference Include="..\Plateau.ResoniteLink.Domain\Plateau.ResoniteLink.Domain.csproj" />
   </ItemGroup>
 

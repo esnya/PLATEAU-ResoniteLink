@@ -1,6 +1,6 @@
 # Plateau.ResoniteLink
 
-Plateau.ResoniteLink is a .NET 10 project for bringing PLATEAU datasets into Resonite. The first implemented slice is CLI-first and turns a dataset plus mesh-code selection into a deterministic Resonite construction plan and a live ResoniteLink import path for local or online `bldg` CityGML data.
+Plateau.ResoniteLink is a .NET 10 project for bringing PLATEAU datasets into Resonite. The first implemented slice is CLI-first and turns a dataset plus mesh-code selection into deterministic Resonite construction metadata plus a sequential city-object stream for local or online PLATEAU CityGML data under extracted `udx/<package>/` trees, including mesh-code-specific files and nested mesh-code directories.
 
 `PLATEAU-SDK-for-UNITY` is the implementation reference for import semantics and terminology.
 
@@ -25,7 +25,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 The CLI writes a Resonite construction plan JSON under `artifacts/<os>/resonite/<dataset>/<mesh-code>/`.
 By default, build outputs and CLI artifacts are separated per host OS. On Linux/WSL, the default artifact root is `artifacts/linux/resonite/`; on Windows, it is `artifacts/windows/resonite/`.
-The current v1 importer reads local `bldg` CityGML, preserves deterministic submesh/material ordering, and emits live-ready mesh and material payloads.
+The current v1 importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects to artifact/live adapters without holding the full live build in memory.
 
 Fetch an official PLATEAU CityGML ZIP online through the default CKAN catalog flow:
 
@@ -50,14 +50,13 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-The live path connects to `ws://localhost:<port>/`, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, and then attaches `StaticMesh`, `StaticTexture2D`, `MeshRenderer`, `PBS_Metallic`, and `MeshCollider` components. JSON artifact output is kept as a local record.
+The live path connects to `ws://localhost:<port>/`, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, and then attaches `StaticMesh`, `StaticTexture2D`, `MeshRenderer`, `PBS_Metallic`, and `MeshCollider` components. City objects are sent sequentially so large mesh-code imports do not require a full in-memory batch before live output. JSON artifact output is kept as a local record.
 
 The current live adapter uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures, because the current ResoniteLink runtime returns a usable mesh asset URL on the raw-data path.
 
 Validate formatting, analyzers, and tests:
 
 ```bash
-dotnet format Plateau.ResoniteLink.sln --verify-no-changes
-dotnet build Plateau.ResoniteLink.sln --configuration Release
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore
+dotnet format whitespace . --folder --verify-no-changes
+dotnet test Plateau.ResoniteLink.sln --configuration Release
 ```

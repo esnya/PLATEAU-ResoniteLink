@@ -1,9 +1,15 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
+[SuppressMessage(
+    "Reliability",
+    "CA2000:Dispose objects before losing scope",
+    Justification = "The tests intentionally hand ownership to PlateauImportService or helper methods.")]
 public sealed class PlateauImportServiceTests
 {
     [Fact]
@@ -21,23 +27,319 @@ public sealed class PlateauImportServiceTests
                 InputPath: fixturePath,
                 ServerUri: null),
             outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
 
-        Assert.Equal("PLATEAU tokyo23ku 53394525", result.Plan.WorldName);
-        Assert.Equal("tokyo23ku", result.Plan.Request.Dataset);
-        Assert.Equal("53394525", result.Plan.Request.MeshCode);
-        Assert.Equal("bldg", result.Plan.SourceDataset.PackageName);
+        Assert.Equal("PLATEAU tokyo23ku 53394525", result.Metadata.WorldName);
+        Assert.Equal("tokyo23ku", result.Metadata.Request.Dataset);
+        Assert.Equal("53394525", result.Metadata.Request.MeshCode);
+        Assert.Equal(["bldg"], result.Metadata.SourceDataset.PackageNames);
         Assert.Contains(
             "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
-            result.Plan.SourceDataset.SourceFiles);
-        Assert.Equal(2, result.Plan.Buildings.Count);
-        ResoniteConstructionBuilding buildingOne = Assert.Single(
-            result.Plan.Buildings,
-            static building => building.DisplayName == "Building One");
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(2, plan.CityObjects.Count);
+        ResoniteConstructionCityObject buildingOne = Assert.Single(
+            plan.CityObjects,
+            static cityObject => cityObject.DisplayName == "Building One");
+        Assert.Equal("bldg", buildingOne.PackageName);
         Assert.Equal(2, buildingOne.Materials.Count);
         Assert.Contains(
             buildingOne.Materials,
             static material => material.TexturePath == "udx/bldg/53394525/appearance/roof.png");
         Assert.Equal("stub://artifact", Assert.Single(result.Destinations));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncBuildsCityObjectsAcrossPackagesAndKeepsDetailedModelTextures()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: fixturePath,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        Assert.Equal(["bldg", "dem", "luse", "tran"], result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(
+            "udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Contains(
+            "udx/luse/53394525/plateau_tokyo23ku_luse_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Contains(
+            "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(5, plan.CityObjects.Count);
+
+        ResoniteConstructionCityObject road = Assert.Single(
+            plan.CityObjects,
+            static cityObject => cityObject.DisplayName == "Road Segment One");
+        Assert.Equal("tran", road.PackageName);
+        ResoniteMaterialBinding texturedMaterial = Assert.Single(
+            road.Materials,
+            static material => material.TexturePath is not null);
+        Assert.Equal("udx/tran/53394525/appearance/road.png", texturedMaterial.TexturePath);
+
+        ResoniteConstructionCityObject landUse = Assert.Single(
+            plan.CityObjects,
+            static cityObject => cityObject.DisplayName == "Land Use One");
+        Assert.Equal("luse", landUse.PackageName);
+
+        ResoniteConstructionCityObject relief = Assert.Single(
+            plan.CityObjects,
+            static cityObject => cityObject.DisplayName == "Relief One");
+        Assert.Equal("dem", relief.PackageName);
+        Assert.Single(relief.Mesh.Submeshes);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncBuildsPlanFromFlatUdxPackageLayout()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetFlatUdx");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394406",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: fixturePath,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        Assert.Equal(["bldg"], result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(
+            "udx/bldg/53394406_bldg_6697_op2.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+
+        ResoniteConstructionCityObject building = Assert.Single(plan.CityObjects);
+        Assert.Equal("Flat Layout Building", building.DisplayName);
+        Assert.Contains(
+            building.Materials,
+            static material => material.TexturePath == "udx/bldg/appearance/roof.png");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncIncludesParentMeshPackageFilesForEightDigitMeshCodes()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: fixturePath,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        Assert.Equal(["bldg", "dem", "luse", "tran"], result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(
+            "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Contains(
+            "udx/luse/533945/plateau_tokyo23ku_luse_533945.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Contains(
+            "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+
+        Assert.Equal(4, plan.CityObjects.Count);
+        Assert.DoesNotContain(
+            plan.CityObjects,
+            static cityObject => cityObject.DisplayName == "Outside Road");
+        Assert.Contains(
+            plan.CityObjects,
+            static cityObject => cityObject.PackageName == "tran" && cityObject.DisplayName == "Parent Tile Road");
+        Assert.Contains(
+            plan.CityObjects,
+            static cityObject => cityObject.PackageName == "luse" && cityObject.DisplayName == "Parent Tile Land Use");
+        Assert.Contains(
+            plan.CityObjects,
+            static cityObject => cityObject.PackageName == "dem" && cityObject.DisplayName == "Parent Tile Relief");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncSupportsOfficialPlateauCityObjectPackagePrefixes()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimePackageFixture(datasetRoot.Path, "area", "urn:plateau:test:area", "Area", "Area One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "cons", "urn:plateau:test:cons", "OtherConstruction", "Construction One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "fld", "urn:plateau:test:fld", "FloodRisk", "Flood Risk One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "frn", "http://www.opengis.net/citygml/cityfurniture/2.0", "CityFurniture", "City Furniture One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "gen", "urn:plateau:test:gen", "GenericObject", "Generic One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "htd", "urn:plateau:test:htd", "HeightControlDistrict", "Height Control One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "ifld", "urn:plateau:test:ifld", "InlandFloodRisk", "Inland Flood One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "lsld", "urn:plateau:test:lsld", "LandSlideRisk", "Landslide Risk One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "rfld", "urn:plateau:test:rfld", "ReservoirFloodRisk", "Reservoir Flood One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "rwy", "http://www.opengis.net/citygml/transportation/2.0", "Railway", "Railway One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "squr", "http://www.opengis.net/citygml/transportation/2.0", "Square", "Square One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "tnm", "urn:plateau:test:tnm", "TsunamiRisk", "Tsunami Risk One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "trk", "http://www.opengis.net/citygml/transportation/2.0", "Track", "Track One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "veg", "http://www.opengis.net/citygml/vegetation/2.0", "SolitaryVegetationObject", "Vegetation One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "ubld", "urn:plateau:test:ubld", "UndergroundBuilding", "Underground Building One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "unf", "urn:plateau:test:unf", "UndergroundFacility", "Underground Facility One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "urf", "urn:plateau:test:urf", "UrbanPlanningDecision", "Urban Planning One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "brid", "http://www.opengis.net/citygml/bridge/2.0", "Bridge", "Bridge One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "tun", "http://www.opengis.net/citygml/tunnel/2.0", "Tunnel", "Tunnel One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "wtr", "http://www.opengis.net/citygml/waterbody/2.0", "WaterBody", "Water Body One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "wwy", "urn:plateau:test:wwy", "Waterway", "Waterway One");
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        Assert.Equal(
+            ["area", "brid", "cons", "fld", "frn", "gen", "htd", "ifld", "lsld", "rfld", "rwy", "squr", "tnm", "trk", "tun", "ubld", "unf", "urf", "veg", "wtr", "wwy"],
+            result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "area" && cityObject.DisplayName == "Area One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "cons" && cityObject.DisplayName == "Construction One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "fld" && cityObject.DisplayName == "Flood Risk One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "frn" && cityObject.DisplayName == "City Furniture One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "gen" && cityObject.DisplayName == "Generic One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "htd" && cityObject.DisplayName == "Height Control One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "ifld" && cityObject.DisplayName == "Inland Flood One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "lsld" && cityObject.DisplayName == "Landslide Risk One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "rfld" && cityObject.DisplayName == "Reservoir Flood One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "rwy" && cityObject.DisplayName == "Railway One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "squr" && cityObject.DisplayName == "Square One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "tnm" && cityObject.DisplayName == "Tsunami Risk One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "trk" && cityObject.DisplayName == "Track One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "veg" && cityObject.DisplayName == "Vegetation One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "ubld" && cityObject.DisplayName == "Underground Building One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "unf" && cityObject.DisplayName == "Underground Facility One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "urf" && cityObject.DisplayName == "Urban Planning One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "brid" && cityObject.DisplayName == "Bridge One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "tun" && cityObject.DisplayName == "Tunnel One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "wtr" && cityObject.DisplayName == "Water Body One");
+        Assert.Contains(plan.CityObjects, static cityObject => cityObject.PackageName == "wwy" && cityObject.DisplayName == "Waterway One");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncTriangulatesConcaveLandUseWithoutOverfilling()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeComplexLandUseFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(
+            plan.CityObjects,
+            static candidate => candidate.DisplayName == "Concave Land Use");
+        Assert.Equal("luse", cityObject.PackageName);
+        Assert.Equal(7.0, ComputeMeshArea(cityObject.Mesh), 6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncTriangulatesLandUseWithInteriorRingsAsHoles()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeComplexLandUseFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(
+            plan.CityObjects,
+            static candidate => candidate.DisplayName == "Hole Land Use");
+        Assert.Equal("luse", cityObject.PackageName);
+        Assert.Equal(84.0, ComputeMeshArea(cityObject.Mesh), 6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncKeepsOnlyHighestLodGeometryPerCityObject()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeMultiLodFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(
+            plan.CityObjects,
+            static candidate => candidate.DisplayName == "Multi LOD Building");
+        Assert.Equal("bldg", cityObject.PackageName);
+        Assert.Equal(25.0, ComputeMeshArea(cityObject.Mesh), 6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncReversesTriangleWindingForResoniteFrontFaces()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeTriangleFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                InputPath: datasetRoot.Path,
+                ServerUri: null),
+            outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(
+            plan.CityObjects,
+            static candidate => candidate.DisplayName == "Triangle Building");
+        ResoniteMeshSubmesh submesh = Assert.Single(cityObject.Mesh.Submeshes);
+        Assert.Equal([0, 2, 1], submesh.TriangleVertexIndices);
+
+        ResoniteFloat3 triangleNormal = ComputeTriangleNormal(cityObject.Mesh, submesh);
+        Assert.True(triangleNormal.Y > 0.0, $"Expected reversed front-face winding, but normal was {triangleNormal}.");
     }
 
     [Fact]
@@ -76,9 +378,10 @@ public sealed class PlateauImportServiceTests
                 InputPath: fixturePath,
                 ServerUri: null),
             outputRoot: "artifacts/resonite");
+        ResoniteConstructionPlan plan = result.Metadata.ToPlan(sceneBuilder.CityObjects);
 
-        ResoniteConstructionBuilding building = Assert.Single(result.Plan.Buildings);
-        ResoniteMaterialBinding material = Assert.Single(building.Materials);
+        ResoniteConstructionCityObject cityObject = Assert.Single(plan.CityObjects);
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
         Assert.Null(material.TexturePath);
         Assert.Equal(0.52, material.BaseColor.R, 6);
         Assert.Equal(0.62, material.BaseColor.G, 6);
@@ -143,20 +446,41 @@ public sealed class PlateauImportServiceTests
             outputRoot: "artifacts/resonite");
 
         Assert.Equal(DatasetSourceKind.Server, Assert.Single(resolver.Requests).SourceKind);
-        Assert.Equal(DatasetSourceKind.Local, result.Plan.Request.SourceKind);
-        Assert.Equal(fixturePath, result.Plan.Request.InputPath);
+        Assert.Equal(DatasetSourceKind.Local, result.Metadata.Request.SourceKind);
+        Assert.Equal(fixturePath, result.Metadata.Request.InputPath);
     }
 
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
-        public Task<IReadOnlyList<string>> BuildAsync(
-            ResoniteConstructionPlan plan,
+        public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+
+        public Task BeginAsync(
+            ResoniteConstructionMetadata metadata,
             string outputRoot,
             CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(plan);
+            ArgumentNullException.ThrowIfNull(metadata);
             ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
+            return Task.CompletedTask;
+        }
+
+        public Task ProcessCityObjectAsync(
+            ResoniteConstructionCityObject cityObject,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(cityObject);
+            CityObjects.Add(cityObject);
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
+        {
             return Task.FromResult<IReadOnlyList<string>>(["stub://artifact"]);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
         }
     }
 
@@ -172,5 +496,261 @@ public sealed class PlateauImportServiceTests
             Requests.Add(request);
             return Task.FromResult(resolvedRequest);
         }
+    }
+
+    private static void CreateRuntimePackageFixture(
+        string datasetRoot,
+        string packageName,
+        string packageNamespace,
+        string cityObjectType,
+        string displayName)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", packageName, "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:pkg="{packageNamespace}">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0004 139.0004 4</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <pkg:{cityObjectType} gml:id="{packageName}-1">
+                  <gml:name>{displayName}</gml:name>
+                  <pkg:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-{packageName}-1">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-{packageName}-1">
+                              <gml:posList>35.0000 139.0000 0 35.0003 139.0000 1 35.0003 139.0003 2 35.0000 139.0003 0 35.0000 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </pkg:lod1MultiSurface>
+                </pkg:{cityObjectType}>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, $"plateau_tokyo23ku_{packageName}_53394525.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeComplexLandUseFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "luse", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:luse="http://www.opengis.net/citygml/landuse/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>20 20 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <luse:LandUse gml:id="LND_concave">
+                  <gml:name>Concave Land Use</gml:name>
+                  <luse:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-concave">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-concave">
+                              <gml:posList>0 0 0 4 0 0 4 1 0 1 1 0 1 4 0 0 4 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </luse:lod1MultiSurface>
+                </luse:LandUse>
+              </core:cityObjectMember>
+              <core:cityObjectMember>
+                <luse:LandUse gml:id="LND_hole">
+                  <gml:name>Hole Land Use</gml:name>
+                  <luse:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-hole">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-hole-outer">
+                              <gml:posList>10 0 0 20 0 0 20 10 0 10 10 0 10 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                          <gml:interior>
+                            <gml:LinearRing gml:id="ring-hole-inner">
+                              <gml:posList>13 3 0 17 3 0 17 7 0 13 7 0 13 3 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:interior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </luse:lod1MultiSurface>
+                </luse:LandUse>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_luse_53394525_complex.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeMultiLodFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>10 10 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-multi-lod">
+                  <gml:name>Multi LOD Building</gml:name>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-lod2">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-lod2">
+                              <gml:posList>0 0 0 10 0 0 10 10 0 0 10 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                  <bldg:lod3MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-lod3">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-lod3">
+                              <gml:posList>0 0 0 5 0 0 5 5 0 0 5 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod3MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_multi_lod.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeTriangleFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>1 1 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-triangle">
+                  <gml:name>Triangle Building</gml:name>
+                  <bldg:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-triangle">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-triangle">
+                              <gml:posList>0 0 0 1 0 0 0 1 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod1MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_triangle.gml"),
+            xml);
+    }
+
+    private static double ComputeMeshArea(ResoniteImportedMesh mesh)
+    {
+        double area = 0.0;
+
+        foreach (ResoniteMeshSubmesh submesh in mesh.Submeshes)
+        {
+            for (int index = 0; index + 2 < submesh.TriangleVertexIndices.Count; index += 3)
+            {
+                ResoniteFloat3 position0 = mesh.Vertices[submesh.TriangleVertexIndices[index]].Position;
+                ResoniteFloat3 position1 = mesh.Vertices[submesh.TriangleVertexIndices[index + 1]].Position;
+                ResoniteFloat3 position2 = mesh.Vertices[submesh.TriangleVertexIndices[index + 2]].Position;
+
+                double ax = position1.X - position0.X;
+                double ay = position1.Y - position0.Y;
+                double az = position1.Z - position0.Z;
+                double bx = position2.X - position0.X;
+                double by = position2.Y - position0.Y;
+                double bz = position2.Z - position0.Z;
+
+                double crossX = (ay * bz) - (az * by);
+                double crossY = (az * bx) - (ax * bz);
+                double crossZ = (ax * by) - (ay * bx);
+                area += Math.Sqrt((crossX * crossX) + (crossY * crossY) + (crossZ * crossZ)) / 2.0;
+            }
+        }
+
+        return area;
+    }
+
+    private static ResoniteFloat3 ComputeTriangleNormal(ResoniteImportedMesh mesh, ResoniteMeshSubmesh submesh)
+    {
+        int index0 = submesh.TriangleVertexIndices[0];
+        int index1 = submesh.TriangleVertexIndices[1];
+        int index2 = submesh.TriangleVertexIndices[2];
+        ResoniteFloat3 position0 = mesh.Vertices[index0].Position;
+        ResoniteFloat3 position1 = mesh.Vertices[index1].Position;
+        ResoniteFloat3 position2 = mesh.Vertices[index2].Position;
+
+        double ax = position1.X - position0.X;
+        double ay = position1.Y - position0.Y;
+        double az = position1.Z - position0.Z;
+        double bx = position2.X - position0.X;
+        double by = position2.Y - position0.Y;
+        double bz = position2.Z - position0.Z;
+
+        return new ResoniteFloat3(
+            (ay * bz) - (az * by),
+            (az * bx) - (ax * bz),
+            (ax * by) - (ay * bx));
     }
 }

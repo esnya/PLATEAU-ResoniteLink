@@ -6,4 +6,4 @@ public sealed record ResoniteConstructionPlan(
     PlateauImportRequest Request,
     PlateauSourceDataset SourceDataset,
     ResoniteLocalOrigin LocalOrigin,
-    IReadOnlyList<ResoniteConstructionBuilding> Buildings);
+    IReadOnlyList<ResoniteConstructionCityObject> CityObjects);

@@ -15,8 +15,9 @@
 
 - Resonite への書き込みはアプリケーション層の抽象越しに行う。CLI は現段階のアダプター実装を差し込むだけに留める。
 - PLATEAU のデータセット、mesh code、ローカル/サーバー由来といった概念はドメインモデルで正規化する。
-- 最初の実装は JSON アーティファクトと live ResoniteLink adapter の両方で同じ構築契約を使う。
+- 最初の実装は JSON アーティファクトと live ResoniteLink adapter の両方で同じ構築契約を使い、その契約を安定した metadata と逐次的な city object stream に分ける。
 - ResoniteLink の asset I/O は末端に閉じ込め、アプリケーション層は transport 固有の command ではなく mesh / material payload を渡す。
+- 大きい取り込みでは、live payload 全体を先にメモリへ積まず、city object を非同期に逐次ストリームして下流アダプターへ渡す。
 
 ## 設定方針
 

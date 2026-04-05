@@ -33,10 +33,31 @@ public sealed class PlateauImportService(
         PlateauImportRequest resolvedRequest =
             await datasetSourceResolver.ResolveAsync(normalizedRequest, outputRoot, cancellationToken);
 
-        ResoniteConstructionPlan plan = LocalCityGmlResonitePlanBuilder.BuildPlan(resolvedRequest);
-        IReadOnlyList<string> destinations =
-            await sceneBuilder.BuildAsync(plan, outputRoot, cancellationToken);
+        IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(resolvedRequest);
 
-        return new ImportExecutionResult(plan, destinations);
+        try
+        {
+            await sceneBuilder.BeginAsync(source.Metadata, outputRoot, cancellationToken);
+            bool processedAnyCityObject = false;
+
+            await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync(cancellationToken))
+            {
+                processedAnyCityObject = true;
+                await sceneBuilder.ProcessCityObjectAsync(cityObject, cancellationToken);
+            }
+
+            if (!processedAnyCityObject)
+            {
+                throw new PlateauImportValidationException(
+                    [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
+            }
+
+            IReadOnlyList<string> destinations = await sceneBuilder.CompleteAsync(cancellationToken);
+            return new ImportExecutionResult(source.Metadata, destinations);
+        }
+        finally
+        {
+            await sceneBuilder.DisposeAsync();
+        }
     }
 }

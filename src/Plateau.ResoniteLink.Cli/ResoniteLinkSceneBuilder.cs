@@ -11,6 +11,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
+    private IResoniteLinkClient? client;
+    private ResoniteConstructionMetadata? metadata;
+    private string? buildNonce;
+    private string? datasetSlotId;
+    private string? meshCodeSlotId;
+    private string? texturesSlotId;
+    private string? materialsSlotId;
+    private string? meshCodeMeshesSlotId;
+    private Dictionary<string, string>? textureComponentIds;
 
     public ResoniteLinkSceneBuilder(Uri endpoint)
         : this(endpoint, static () => new ResoniteLinkClient())
@@ -23,51 +32,53 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         this.clientFactory = clientFactory;
     }
 
-    public async Task<IReadOnlyList<string>> BuildAsync(
-        ResoniteConstructionPlan plan,
+    public async Task BeginAsync(
+        ResoniteConstructionMetadata metadata,
         string outputRoot,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
 
-        string buildNonce = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
-        string datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+        this.metadata = metadata;
+        buildNonce = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+        datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
             "dataset");
-        string meshCodeSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
-            plan.Request.Dataset,
-            plan.Request.MeshCode,
+        meshCodeSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
             "meshcode",
             buildNonce);
         string datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+            metadata.Request.Dataset,
             "assets");
-        string texturesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+        texturesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
             "assetgroup",
             "textures");
         string meshesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+            metadata.Request.Dataset,
             "assetgroup",
             "meshes");
-        string materialsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+        materialsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
             "assetgroup",
             "materials");
-        string meshCodeMeshesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+        meshCodeMeshesSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
             "meshassets",
-            plan.Request.MeshCode);
+            metadata.Request.MeshCode);
 
-        using IResoniteLinkClient client = clientFactory();
+        client = clientFactory();
+        textureComponentIds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         await client.ConnectAsync(endpoint, cancellationToken);
 
         await EnsureSlotAsync(
             client,
             datasetSlotId,
             "Root",
-            $"PLATEAU {plan.Request.Dataset}",
+            $"PLATEAU {metadata.Request.Dataset}",
             new ResoniteFloat3(0.0, 1.5, 0.0),
             cancellationToken);
 
@@ -83,7 +94,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     },
                     Name = new Field_string
                     {
-                        Value = $"Mesh Code {plan.Request.MeshCode}",
+                        Value = $"Mesh Code {metadata.Request.MeshCode}",
                     },
                 },
             },
@@ -97,42 +108,77 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             client,
             meshCodeMeshesSlotId,
             meshesSlotId,
-            $"Mesh Code {plan.Request.MeshCode}",
+            $"Mesh Code {metadata.Request.MeshCode}",
             null,
             cancellationToken);
-
-        Dictionary<string, string> textureComponentIds = await ImportTexturesAsync(
-            client,
-            plan,
-            texturesSlotId,
-            cancellationToken);
-
-        foreach (ResoniteConstructionBuilding building in plan.Buildings)
-        {
-            await BuildBuildingAsync(
-                client,
-                plan,
-                building,
-                meshCodeSlotId,
-                meshCodeMeshesSlotId,
-                materialsSlotId,
-                textureComponentIds,
-                buildNonce,
-                cancellationToken);
-        }
-
-        return [$"{endpoint}#{meshCodeSlotId}"];
     }
 
-    private static async Task<Dictionary<string, string>> ImportTexturesAsync(
+    public async Task ProcessCityObjectAsync(
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cityObject);
+
+        ObjectDisposedException.ThrowIf(client is null, this);
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(texturesSlotId is null, this);
+        ObjectDisposedException.ThrowIf(materialsSlotId is null, this);
+        ObjectDisposedException.ThrowIf(meshCodeMeshesSlotId is null, this);
+        ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
+        ObjectDisposedException.ThrowIf(textureComponentIds is null, this);
+        ObjectDisposedException.ThrowIf(buildNonce is null, this);
+
+        await ImportTexturesAsync(
+            client,
+            metadata,
+            cityObject,
+            texturesSlotId,
+            textureComponentIds,
+            cancellationToken);
+
+        await BuildCityObjectAsync(
+            client,
+            metadata,
+            cityObject,
+            meshCodeSlotId,
+            meshCodeMeshesSlotId,
+            materialsSlotId,
+            textureComponentIds,
+            buildNonce,
+            cancellationToken);
+    }
+
+    public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
+        return Task.FromResult<IReadOnlyList<string>>([$"{endpoint}#{meshCodeSlotId}"]);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        client?.Dispose();
+        client = null;
+        metadata = null;
+        buildNonce = null;
+        datasetSlotId = null;
+        meshCodeSlotId = null;
+        texturesSlotId = null;
+        materialsSlotId = null;
+        meshCodeMeshesSlotId = null;
+        textureComponentIds = null;
+        return ValueTask.CompletedTask;
+    }
+
+    private static async Task ImportTexturesAsync(
         IResoniteLinkClient client,
-        ResoniteConstructionPlan plan,
+        ResoniteConstructionMetadata metadata,
+        ResoniteConstructionCityObject cityObject,
         string texturesSlotId,
+        Dictionary<string, string> textureComponentIds,
         CancellationToken cancellationToken)
     {
-        string datasetRoot = Path.GetFullPath(plan.Request.InputPath!);
-        string[] texturePaths = plan.Buildings
-            .SelectMany(static building => building.Materials)
+        string datasetRoot = Path.GetFullPath(metadata.Request.InputPath!);
+        string[] texturePaths = cityObject.Materials
             .Select(static material => material.TexturePath)
             .Where(static texturePath => !string.IsNullOrWhiteSpace(texturePath))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -140,17 +186,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             .Cast<string>()
             .ToArray();
 
-        Dictionary<string, string> textureComponentIds = new(StringComparer.OrdinalIgnoreCase);
         foreach (string texturePath in texturePaths)
         {
             string absoluteTexturePath = Path.GetFullPath(Path.Combine(datasetRoot, texturePath));
             string textureKey = CreatePathKey(texturePath);
             string textureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-                plan.Request.Dataset,
+                metadata.Request.Dataset,
                 "texture",
                 textureKey);
             string textureSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-                plan.Request.Dataset,
+                metadata.Request.Dataset,
                 "textureslot",
                 textureKey);
 
@@ -173,14 +218,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
             textureComponentIds[texturePath] = textureComponentId;
         }
-
-        return textureComponentIds;
     }
 
-    private static async Task BuildBuildingAsync(
+    private static async Task BuildCityObjectAsync(
         IResoniteLinkClient client,
-        ResoniteConstructionPlan plan,
-        ResoniteConstructionBuilding building,
+        ResoniteConstructionMetadata metadata,
+        ResoniteConstructionCityObject cityObject,
         string meshCodeSlotId,
         string meshCodeMeshesSlotId,
         string materialsSlotId,
@@ -188,79 +231,79 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string buildNonce,
         CancellationToken cancellationToken)
     {
-        string buildingSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
-            plan.Request.Dataset,
-            plan.Request.MeshCode,
-            "building",
+        string cityObjectSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
+            "cityobject",
             buildNonce,
-            building.SlotKey);
-        string buildingAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
-            "buildingassets",
-            $"{plan.Request.MeshCode}_{building.SlotKey}");
+            cityObject.SlotKey);
+        string cityObjectAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            metadata.Request.Dataset,
+            "cityobjectassets",
+            $"{metadata.Request.MeshCode}_{cityObject.SlotKey}");
         string staticMeshId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            plan.Request.Dataset,
+            metadata.Request.Dataset,
             "staticmesh",
-            $"{plan.Request.MeshCode}_{building.SlotKey}");
+            $"{metadata.Request.MeshCode}_{cityObject.SlotKey}");
         string rendererId = ResoniteLinkEntityIdFactory.CreateEntityId(
-            plan.Request.Dataset,
-            plan.Request.MeshCode,
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
             "renderer",
             buildNonce,
-            building.SlotKey);
+            cityObject.SlotKey);
         string colliderId = ResoniteLinkEntityIdFactory.CreateEntityId(
-            plan.Request.Dataset,
-            plan.Request.MeshCode,
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
             "collider",
             buildNonce,
-            building.SlotKey);
+            cityObject.SlotKey);
 
         await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
                 {
-                    ID = buildingSlotId,
+                    ID = cityObjectSlotId,
                     Parent = new Reference
                     {
                         TargetID = meshCodeSlotId,
                     },
                     Name = new Field_string
                     {
-                        Value = building.DisplayName,
+                        Value = cityObject.DisplayName,
                     },
-                    Position = CreateFloat3(building.Transform.Position),
+                    Position = CreateFloat3(cityObject.Transform.Position),
                 },
             },
             cancellationToken);
 
         await EnsureSlotAsync(
             client,
-            buildingAssetsSlotId,
+            cityObjectAssetsSlotId,
             meshCodeMeshesSlotId,
-            $"{building.DisplayName} Assets",
+            $"{cityObject.DisplayName} Assets",
             null,
             cancellationToken);
 
         await EnsureAssetComponentUrlAsync(
             client,
-            buildingAssetsSlotId,
+            cityObjectAssetsSlotId,
             staticMeshId,
             "[FrooxEngine]FrooxEngine.StaticMesh",
             "URL",
-            () => client.ImportMeshAsync(CreateMeshImport(building.Mesh), cancellationToken),
+            () => client.ImportMeshAsync(CreateMeshImport(cityObject.Mesh), cancellationToken),
             cancellationToken);
 
         List<string> materialIds = [];
-        for (int materialIndex = 0; materialIndex < building.Materials.Count; materialIndex++)
+        for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
-            ResoniteMaterialBinding material = building.Materials[materialIndex];
+            ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
             string materialId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-                plan.Request.Dataset,
+                metadata.Request.Dataset,
                 "materialasset",
                 material.MaterialKey);
             string materialSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-                plan.Request.Dataset,
+                metadata.Request.Dataset,
                 "materialslot",
                 material.MaterialKey);
 
@@ -313,7 +356,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await client.AddComponentAsync(
             new AddComponent
             {
-                ContainerSlotId = buildingSlotId,
+                ContainerSlotId = cityObjectSlotId,
                 Data = new Component
                 {
                     ID = rendererId,
@@ -341,7 +384,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await client.AddComponentAsync(
             new AddComponent
             {
-                ContainerSlotId = buildingSlotId,
+                ContainerSlotId = cityObjectSlotId,
                 Data = new Component
                 {
                     ID = colliderId,

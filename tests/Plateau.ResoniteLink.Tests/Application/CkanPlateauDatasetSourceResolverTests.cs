@@ -132,6 +132,68 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             "plateau_tokyo23ku_bldg_533944.gml")));
     }
 
+    [Fact]
+    public async Task ResolveAsyncExtractsOfficialPlateauPackageArchivesUnderUdx()
+    {
+        byte[] zipBytes = CreateZipArchive(
+            ("area.zip", CreateZipArchive(("plateau_tokyo23ku_area_533944.gml", "<CityModel />"))),
+            ("cons.zip", CreateZipArchive(("plateau_tokyo23ku_cons_533944.gml", "<CityModel />"))),
+            ("ifld.zip", CreateZipArchive(("plateau_tokyo23ku_ifld_533944.gml", "<CityModel />"))),
+            ("rfld.zip", CreateZipArchive(("plateau_tokyo23ku_rfld_533944.gml", "<CityModel />"))),
+            ("rwy.zip", CreateZipArchive(("plateau_tokyo23ku_rwy_533944.gml", "<CityModel />"))),
+            ("squr.zip", CreateZipArchive(("plateau_tokyo23ku_squr_533944.gml", "<CityModel />"))),
+            ("tnm.zip", CreateZipArchive(("plateau_tokyo23ku_tnm_533944.gml", "<CityModel />"))),
+            ("trk.zip", CreateZipArchive(("plateau_tokyo23ku_trk_533944.gml", "<CityModel />"))),
+            ("ubld.zip", CreateZipArchive(("plateau_tokyo23ku_ubld_533944.gml", "<CityModel />"))),
+            ("unf.zip", CreateZipArchive(("plateau_tokyo23ku_unf_533944.gml", "<CityModel />"))),
+            ("urf.zip", CreateZipArchive(("plateau_tokyo23ku_urf_533944.gml", "<CityModel />"))),
+            ("wtr.zip", CreateZipArchive(("plateau_tokyo23ku_wtr_533944.gml", "<CityModel />"))),
+            ("wwy.zip", CreateZipArchive(("plateau_tokyo23ku_wwy_533944.gml", "<CityModel />"))));
+
+        using TemporaryDirectory outputRoot = new();
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            if (request.RequestUri is not null
+                && string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/official-packages.zip", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(zipBytes),
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        using HttpClient httpClient = new(handler);
+
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+
+        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Server,
+                InputPath: null,
+                ServerUri: new Uri("https://example.test/official-packages.zip", UriKind.Absolute)),
+            outputRoot.Path);
+
+        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        Assert.NotNull(resolvedRequest.InputPath);
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "area", "plateau_tokyo23ku_area_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "cons", "plateau_tokyo23ku_cons_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "ifld", "plateau_tokyo23ku_ifld_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "rfld", "plateau_tokyo23ku_rfld_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "rwy", "plateau_tokyo23ku_rwy_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "squr", "plateau_tokyo23ku_squr_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "tnm", "plateau_tokyo23ku_tnm_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "trk", "plateau_tokyo23ku_trk_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "ubld", "plateau_tokyo23ku_ubld_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "unf", "plateau_tokyo23ku_unf_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "urf", "plateau_tokyo23ku_urf_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "wtr", "plateau_tokyo23ku_wtr_533944.gml")));
+        Assert.True(File.Exists(Path.Combine(resolvedRequest.InputPath, "udx", "wwy", "plateau_tokyo23ku_wwy_533944.gml")));
+    }
+
     private static byte[] CreateZipArchive(params (string Path, string Content)[] entries)
     {
         using MemoryStream stream = new();

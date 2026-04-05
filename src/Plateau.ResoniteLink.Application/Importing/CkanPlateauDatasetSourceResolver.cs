@@ -11,6 +11,35 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 {
     private static readonly Uri DefaultCatalogApiBaseUri = new("https://search.ckan.jp/backend/api/", UriKind.Absolute);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> PlateauPackageNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "area",
+        "bldg",
+        "brid",
+        "cons",
+        "dem",
+        "fld",
+        "frn",
+        "gen",
+        "htd",
+        "ifld",
+        "lsld",
+        "luse",
+        "rfld",
+        "rwy",
+        "squr",
+        "tnm",
+        "tran",
+        "trk",
+        "tun",
+        "ubld",
+        "unf",
+        "urf",
+        "veg",
+        "waterbody",
+        "wtr",
+        "wwy",
+    };
 
     private readonly HttpClient httpClient;
 
@@ -291,12 +320,12 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
     private static string GetExtractionMarkerContents(Uri archiveUri)
     {
-        return $"v2{Environment.NewLine}{archiveUri}";
+        return $"v3{Environment.NewLine}{archiveUri}";
     }
 
     private static bool IsPlateauPackageName(string value)
     {
-        return value is "bldg" or "brid" or "dem" or "fld" or "frn" or "htd" or "luse" or "tran" or "urf" or "veg" or "waterbody";
+        return PlateauPackageNames.Contains(value);
     }
 
     private static string NormalizeDatasetSlug(string dataset)

@@ -15,8 +15,9 @@
 
 - Writing into Resonite must happen behind an application-layer abstraction. The CLI only wires the current adapter.
 - PLATEAU concepts such as dataset, mesh code, and local versus server-backed sources are normalized in domain models.
-- The first implementation keeps one shared construction contract for both JSON artifacts and the live ResoniteLink adapter.
+- The first implementation keeps one shared construction contract for both JSON artifacts and the live ResoniteLink adapter, split into stable metadata plus a sequential city-object stream.
 - ResoniteLink asset I/O stays at the edge. The application layer hands the adapter mesh/material payloads, not transport-specific commands.
+- Large imports must stream city objects asynchronously into downstream adapters instead of materializing the entire live payload in memory first.
 
 ## Configuration Strategy
 
