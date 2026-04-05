@@ -442,6 +442,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     ResoniteMaterialProjection.Triplanar => "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic",
                     _ => throw new InvalidOperationException($"Unsupported material projection '{material.Projection}'."),
                 },
+                ResoniteMaterialType.VertexColor => "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic",
                 ResoniteMaterialType.Wireframe => "[FrooxEngine]FrooxEngine.WireframeMaterial",
                 _ => throw new InvalidOperationException($"Unsupported material type '{material.MaterialType}'."),
             };
@@ -636,7 +637,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             VertexCount = mesh.Vertices.Count,
             HasNormals = true,
             HasTangents = false,
-            HasColors = false,
+            HasColors = mesh.Vertices.Any(static vertex => vertex.Color is not null),
             BoneWeightCount = 0,
             UV_Channel_Dimensions = [2],
             Submeshes = orderedSubmeshes
@@ -671,6 +672,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 x = (float)vertex.UV0.X,
                 y = (float)vertex.UV0.Y,
             };
+            if (request.HasColors)
+            {
+                ResoniteColor color = vertex.Color ?? new ResoniteColor(1.0, 1.0, 1.0, 1.0);
+                request.Colors[index] = new color
+                {
+                    r = (float)color.R,
+                    g = (float)color.G,
+                    b = (float)color.B,
+                    a = (float)color.A,
+                };
+            }
         }
 
         for (int submeshIndex = 0; submeshIndex < orderedSubmeshes.Length; submeshIndex++)
@@ -701,6 +713,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (material.MaterialType == ResoniteMaterialType.Standard)
         {
             materialMembers["AlbedoColor"] = CreateColorMember(material.BaseColor);
+            materialMembers["Smoothness"] = new Field_float
+            {
+                Value = 0.0f,
+            };
+        }
+
+        if (material.MaterialType == ResoniteMaterialType.VertexColor)
+        {
+            materialMembers["AlbedoColor"] = CreateColorMember(new ResoniteColor(1.0, 1.0, 1.0, 1.0));
             materialMembers["Smoothness"] = new Field_float
             {
                 Value = 0.0f,

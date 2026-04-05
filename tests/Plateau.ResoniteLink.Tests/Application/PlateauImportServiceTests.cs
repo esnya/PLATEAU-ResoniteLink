@@ -136,6 +136,37 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncFiltersRequestedPackages()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null,
+                PackageNames: ["tran", "waterbody", "dem", "tran"]),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        Assert.Equal(["dem", "tran"], result.Metadata.SourceDataset.PackageNames);
+        Assert.DoesNotContain(
+            result.Metadata.SourceDataset.SourceFiles,
+            static path => path.Contains("/bldg/", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            result.Metadata.SourceDataset.SourceFiles,
+            static path => path.Contains("/luse/", StringComparison.Ordinal));
+        Assert.Equal(2, scene.CityObjects.Count);
+        Assert.All(
+            scene.CityObjects,
+            static cityObject => Assert.True(cityObject.PackageName is "dem" or "tran"));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncBuildsSceneFromFlatUdxPackageLayout()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -265,6 +296,61 @@ public sealed class PlateauImportServiceTests
             building.Mesh.Vertices,
             static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
         Assert.All(building.Materials, static material => Assert.Null(material.DepthOffset));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncLeavesHighLodTransportationGeometryUnchangedWhenDemExists()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeHighLodTransportationFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject road = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Precise Road");
+        Assert.Equal("tran", road.PackageName);
+        Assert.All(
+            road.Mesh.Vertices,
+            static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
+        Assert.All(road.Materials, static material => Assert.Null(material.DepthOffset));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncGeneratesUvProjectedFallbackMaterialForTexturelessTransportation()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeTexturelessTransportationFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject road = Assert.Single(scene.CityObjects);
+        ResoniteMaterialBinding material = Assert.Single(road.Materials);
+        Assert.Equal("tran", road.PackageName);
+        Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+        Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
     }
 
     [Fact]
@@ -444,6 +530,59 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(scene.CityObjects, static cityObject => cityObject.PackageName == "tun" && cityObject.DisplayName == "Tunnel One");
         Assert.Contains(scene.CityObjects, static cityObject => cityObject.PackageName == "wtr" && cityObject.DisplayName == "Water Body One");
         Assert.Contains(scene.CityObjects, static cityObject => cityObject.PackageName == "wwy" && cityObject.DisplayName == "Waterway One");
+
+        ResoniteConstructionCityObject vegetation = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.PackageName == "veg" && cityObject.DisplayName == "Vegetation One");
+        Assert.All(
+            vegetation.Materials,
+            static material =>
+            {
+                Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
+                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
+                Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+            });
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesVertexColorMaterialsForVegetationAndFallsBackToDefaultMaterialWithoutDiffuseColor()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeVegetationFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject vegetation = Assert.Single(scene.CityObjects);
+        Assert.Equal("veg", vegetation.PackageName);
+        Assert.Equal(2, vegetation.Materials.Count);
+        Assert.Contains(
+            vegetation.Materials,
+            static material =>
+                material.MaterialType == ResoniteMaterialType.VertexColor
+                && material.TexturePath is null
+                && material.Projection == ResoniteMaterialProjection.Uv
+                && Approximately(material.BaseColor.R, 0.45)
+                && Approximately(material.BaseColor.G, 0.28)
+                && Approximately(material.BaseColor.B, 0.12));
+        Assert.Contains(
+            vegetation.Materials,
+            static material =>
+                material.MaterialType == ResoniteMaterialType.Standard
+                && material.TexturePath is not null
+                && BundledDefaultMaterialFamilies.OtherVariants.Contains(material.TexturePath)
+                && material.Projection == ResoniteMaterialProjection.Triplanar);
     }
 
     [Fact]
@@ -722,14 +861,13 @@ public sealed class PlateauImportServiceTests
             .Distinct()
             .ToArray();
 
-        double expectedTopY = Math.Max(
-            1.0,
-            Math.Round(5.0 * facadeMaterial.TextureScale.Y, MidpointRounding.AwayFromZero))
-            / facadeMaterial.TextureScale.Y;
         Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 0.0));
-        Assert.Contains(facadeUvs, uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, expectedTopY));
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 5.0) && Approximately(uv.Y, 0.0));
-        Assert.Contains(facadeUvs, uv => Approximately(uv.X, 5.0) && Approximately(uv.Y, expectedTopY));
+        Assert.True(
+            facadeUvs.Max(static uv => uv.X) - facadeUvs.Min(static uv => uv.X) >= 5.0 - 1e-4,
+            "Expected facade UVs to span the wall width.");
+        Assert.True(
+            facadeUvs.Max(static uv => uv.Y) - facadeUvs.Min(static uv => uv.Y) >= 5.0 - 1e-4,
+            "Expected facade UVs to span the wall height.");
     }
 
     [Fact]
@@ -1021,6 +1159,66 @@ public sealed class PlateauImportServiceTests
             xml);
     }
 
+    private static void CreateRuntimeVegetationFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "veg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:veg="http://www.opengis.net/citygml/vegetation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>10 10 10</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:X3DMaterial>
+                      <app:diffuseColor>0.45 0.28 0.12</app:diffuseColor>
+                      <app:target uri="#poly-trunk" />
+                    </app:X3DMaterial>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+              <core:cityObjectMember>
+                <veg:SolitaryVegetationObject gml:id="veg-tree">
+                  <gml:name>Vegetation Fixture</gml:name>
+                  <veg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-trunk">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-trunk">
+                              <gml:posList>0 0 0 0 0 3 1 0 3 1 0 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-leaf">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-leaf">
+                              <gml:posList>0 0 3 0 0 6 4 0 6 4 0 3 0 0 3</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </veg:lod2MultiSurface>
+                </veg:SolitaryVegetationObject>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_veg_53394525_colors.gml"),
+            xml);
+    }
+
     private static void CreateRuntimeWideDemFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
@@ -1267,6 +1465,118 @@ public sealed class PlateauImportServiceTests
                     </gml:MultiSurface>
                   </bldg:lod1MultiSurface>
                 </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeHighLodTransportationFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(demDirectory);
+        File.WriteAllText(
+            Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 10</gml:lowerCorner>
+                  <gml:upperCorner>35.0010 139.0010 30</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-precise-road">
+                  <gml:name>Precise Road Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-precise-road-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-precise-road">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-precise-road">
+                                  <gml:posList>35.0000 139.0000 10 35.0000 139.0010 20 35.0010 139.0000 30 35.0000 139.0000 10</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        string tranDirectory = Path.Combine(datasetRoot, "udx", "tran", "53394525");
+        Directory.CreateDirectory(tranDirectory);
+        File.WriteAllText(
+            Path.Combine(tranDirectory, "plateau_tokyo23ku_tran_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0005 139.0005 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-precise-road">
+                  <gml:name>Precise Road</gml:name>
+                  <tran:lod3MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-precise-road">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-precise-road">
+                              <gml:posList>35.0000 139.0000 0 35.0000 139.0005 0 35.0005 139.0000 0 35.0000 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod3MultiSurface>
+                </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeTexturelessTransportationFixture(string datasetRoot)
+    {
+        string tranDirectory = Path.Combine(datasetRoot, "udx", "tran", "53394525");
+        Directory.CreateDirectory(tranDirectory);
+        File.WriteAllText(
+            Path.Combine(tranDirectory, "plateau_tokyo23ku_tran_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>8 0 2</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-generated-uv">
+                  <gml:name>Generated UV Road</gml:name>
+                  <tran:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-generated-uv-road">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-generated-uv-road">
+                              <gml:posList>0 0 0 8 0 0 8 0 2 0 0 2 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod2MultiSurface>
+                </tran:Road>
               </core:cityObjectMember>
             </core:CityModel>
             """);

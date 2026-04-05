@@ -1,19 +1,27 @@
 # デフォルトマテリアル
 
-テクスチャを持たない PLATEAU 地物には、地物タイプごとにデフォルトマテリアルを割り当てる PLATEAU SDK for Unity の考え方に合わせて、同梱デフォルトテクスチャを適用するようにした。各ファミリには複数のバリエーションを持たせ、city object / material key から決定的に 1 つ選ぶので、再インポートしても結果は安定する。
+テクスチャを持たない PLATEAU 地物には、地物タイプごとにデフォルトマテリアルを割り当てる PLATEAU SDK for Unity の考え方に合わせて、同梱デフォルトテクスチャを適用するようにした。fallback ファミリは 1 つ以上のバリエーションを持てるようにし、city object / material key から決定的に 1 つ選ぶので、再インポートしても結果は安定する。
 
 ## カテゴリ対応
 
+現在の package bucket は、Unity SDK に合わせた命名で importer が対応する公式 package 候補全体から整理している。
+
 - `building`: `bldg`, `ubld`
 - `road`: `tran`, `rwy`, `squr`, `trk`
-- `other`: それ以外の package
+- `wireframe overlay`: `area`, `fld`, `htd`, `ifld`, `lsld`, `luse`, `rfld`, `tnm`, `urf`
+- `vegetation`: `veg`
+- `other solid fallback`: `brid`, `cons`, `frn`, `gen`, `tun`, `unf`, `wtr`, `wwy`
+- `special case`: `dem` は生成 terrain overlay 経路を維持し、同梱 fallback family は使わない
 
 現在の ResoniteLink 経路では、フォールバックをマテリアル意図ごとに分ける。
 
 - データセット由来の詳細テクスチャは UV ベースの `PBS_Metallic` を維持する
 - 未テクスチャの建物側面は UV ベースの facade texture を使う
 - 未テクスチャの屋根、道路、その他 package は `PBS_TriplanarMetallic` を使う
+- 未テクスチャの植生は、元データに `X3DMaterial.diffuseColor` があれば `PBS_VertexColorMetallic` を使い、無ければ他の textureless package と同じ default material fallback を使う
 - `area`、`luse`、`fld`、`ifld`、`rfld`、`lsld`、`tnm`、`htd`、`urf` のような直接の設置物ではない重ね合わせデータは `WireframeMaterial` を使う
+
+package から material 方針への対応は `PlateauPackageCatalog` に集約してあり、サポート対象の non-`dem` package が必ずちょうど 1 つの material bucket に入ることをテストで固定している。これにより、Unity SDK 側の package 対応と fallback policy のズレを見つけやすくしている。
 
 建物の facade 判定は、`bldg:WallSurface` などの CityGML thematic surface を優先し、その文脈がない場合だけ polygon の向きから推定するようにした。fallback 経路では、ほぼ垂直な面を facade UV とみなし、roof / ground 系の semantic は triplanar を維持する。
 

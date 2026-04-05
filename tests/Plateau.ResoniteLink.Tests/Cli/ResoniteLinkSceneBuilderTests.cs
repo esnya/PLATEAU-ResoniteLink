@@ -410,6 +410,98 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncUsesVertexColorMaterialAndImportsMeshColorsForVegetation()
+    {
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU tokyo23ku 53394525",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["veg"],
+                    SourceFiles: ["udx/veg/53394525/plateau_tokyo23ku_veg_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "veg_tree",
+                    DisplayName: "Vegetation",
+                    PackageName: "veg",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: new ResoniteImportedMesh(
+                        Vertices:
+                        [
+                            new ResoniteMeshVertex(
+                                new ResoniteFloat3(0.0, 0.0, 0.0),
+                                new ResoniteFloat3(0.0, 1.0, 0.0),
+                                new ResoniteFloat2(0.0, 0.0),
+                                new ResoniteColor(0.2, 0.6, 0.2, 1.0)),
+                            new ResoniteMeshVertex(
+                                new ResoniteFloat3(1.0, 0.0, 0.0),
+                                new ResoniteFloat3(0.0, 1.0, 0.0),
+                                new ResoniteFloat2(1.0, 0.0),
+                                new ResoniteColor(0.2, 0.6, 0.2, 1.0)),
+                            new ResoniteMeshVertex(
+                                new ResoniteFloat3(0.0, 0.0, 1.0),
+                                new ResoniteFloat3(0.0, 1.0, 0.0),
+                                new ResoniteFloat2(0.0, 1.0),
+                                new ResoniteColor(0.2, 0.6, 0.2, 1.0)),
+                        ],
+                        Submeshes:
+                        [
+                            new ResoniteMeshSubmesh(0, "veg-vertex-color", [0, 1, 2]),
+                        ]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "veg-vertex-color",
+                            BaseColor: new ResoniteColor(0.2, 0.6, 0.2, 1.0),
+                            MaterialType: ResoniteMaterialType.VertexColor,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Assert.Contains(
+            fakeClient.AddedComponents,
+            static request => string.Equals(
+                request.Data.ComponentType,
+                "[FrooxEngine]FrooxEngine.PBS_VertexColorMetallic",
+                StringComparison.Ordinal));
+
+        ImportMeshRawData importedMesh = Assert.Single(fakeClient.ImportedMeshes);
+        Assert.True(importedMesh.HasColors);
+        Assert.Equal(3, importedMesh.Colors.Length);
+        Assert.Equal(0.2f, importedMesh.Colors[0].r, 6);
+        Assert.Equal(0.6f, importedMesh.Colors[0].g, 6);
+        Assert.Equal(0.2f, importedMesh.Colors[0].b, 6);
+        Assert.Equal(1.0f, importedMesh.Colors[0].a, 6);
+    }
+
+    [Fact]
     public async Task BuildAsyncUsesUniqueEntityIdsAcrossRuns()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");

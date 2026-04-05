@@ -5,6 +5,7 @@ public static class BundledDefaultMaterialFamilies
     public const string Facade = "facade";
     public const string Roof = "roof";
     public const string Road = "road";
+    public const string Vegetation = "vegetation";
     public const string Other = "other";
 
     public static readonly IReadOnlyList<string> FacadeVariants =
@@ -26,6 +27,12 @@ public static class BundledDefaultMaterialFamilies
         "default-materials/road/Asphalt023L_2K-JPG_Color.jpg",
     ];
 
+    public static readonly IReadOnlyList<string> VegetationVariants =
+    [
+        "default-materials/other/Ground054_2K-JPG_Color.jpg",
+        "default-materials/other/Concrete012_2K-JPG_Color.jpg",
+    ];
+
     public static readonly IReadOnlyList<string> OtherVariants =
     [
         "default-materials/other/Concrete012_2K-JPG_Color.jpg",
@@ -39,6 +46,7 @@ public static class BundledDefaultMaterialFamilies
             Facade => FacadeVariants,
             Roof => RoofVariants,
             Road => RoadVariants,
+            Vegetation => VegetationVariants,
             Other => OtherVariants,
             _ => throw new InvalidOperationException($"Unknown bundled material family '{family}'."),
         };

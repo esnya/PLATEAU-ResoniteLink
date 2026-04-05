@@ -33,39 +33,52 @@ internal static class DefaultMaterialCatalog
                 TextureScale: null);
         }
 
-        string family = familyOverride ?? ResolveBundledTextureFamily(packageName, preferUvProjection);
+        bool useFacadeUvProjection = ShouldUseFacadeUvProjection(packageName, preferUvProjection);
+        string family = familyOverride ?? ResolveBundledTextureFamily(packageName, useFacadeUvProjection);
         string selectedTexturePath = SelectBundledTexturePath(family, variantSelectionKey);
         return new ResolvedMaterial(
             ResoniteMaterialType.Standard,
             selectedTexturePath,
             ResoniteTextureSourceKind.Bundled,
-            preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
+            useFacadeUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
             family,
             BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath));
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)
     {
-        return packageName switch
-        {
-            "area" or "fld" or "htd" or "ifld" or "lsld" or "luse" or "rfld" or "tnm" or "urf" => true,
-            _ => false,
-        };
+        return PlateauPackageCatalog.IsWireframeOverlayPackage(packageName);
     }
 
-    private static string ResolveBundledTextureFamily(string packageName, bool preferUvProjection)
+    private static bool ShouldUseFacadeUvProjection(string packageName, bool preferUvProjection)
     {
-        if (preferUvProjection)
+        return preferUvProjection
+            && PlateauPackageCatalog.IsBuildingPackage(packageName);
+    }
+
+    private static string ResolveBundledTextureFamily(string packageName, bool useFacadeUvProjection)
+    {
+        if (useFacadeUvProjection)
         {
             return BundledDefaultMaterialFamilies.Facade;
         }
 
-        return packageName switch
+        if (PlateauPackageCatalog.IsBuildingPackage(packageName))
         {
-            "bldg" or "ubld" => BundledDefaultMaterialFamilies.Roof,
-            "tran" or "rwy" or "squr" or "trk" => BundledDefaultMaterialFamilies.Road,
-            _ => BundledDefaultMaterialFamilies.Other,
-        };
+            return BundledDefaultMaterialFamilies.Roof;
+        }
+
+        if (PlateauPackageCatalog.IsRoadPackage(packageName))
+        {
+            return BundledDefaultMaterialFamilies.Road;
+        }
+
+        if (PlateauPackageCatalog.IsVegetationPackage(packageName))
+        {
+            return BundledDefaultMaterialFamilies.Vegetation;
+        }
+
+        return BundledDefaultMaterialFamilies.Other;
     }
 
     private static string SelectBundledTexturePath(string family, string variantSelectionKey)
