@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Plateau.ResoniteLink.Application\Plateau.ResoniteLink.Application.csproj" />
+    <ProjectReference Include="..\Plateau.ResoniteLink.Domain\Plateau.ResoniteLink.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YellowDogMan.ResoniteLink" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="GeographicLib.NET" />
+    <ProjectReference Include="..\Plateau.ResoniteLink.Domain\Plateau.ResoniteLink.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

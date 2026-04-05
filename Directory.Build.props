@@ -1,0 +1,30 @@
+<Project>
+  <PropertyGroup>
+    <RepositoryHostOs>unknown</RepositoryHostOs>
+    <RepositoryHostOs Condition="$([MSBuild]::IsOSPlatform('Windows'))">windows</RepositoryHostOs>
+    <RepositoryHostOs Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux</RepositoryHostOs>
+    <RepositoryHostOs Condition="$([MSBuild]::IsOSPlatform('OSX'))">macos</RepositoryHostOs>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>10-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' != '' or '$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+    <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)/artifacts/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

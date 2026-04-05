@@ -1,0 +1,53 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{csproj,props,targets,sln,slnx,xml,config,nuspec}]
+indent_size = 2
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.cs]
+indent_size = 4
+tab_width = 4
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = true
+dotnet_style_namespace_match_folder = true:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_prefer_collection_expression = when_types_strictly_match:warning
+dotnet_style_prefer_null_propagation = true:warning
+dotnet_style_prefer_auto_properties = true:warning
+dotnet_style_object_initializer = true:warning
+dotnet_style_collection_initializer = true:warning
+
+csharp_prefer_braces = true:warning
+csharp_prefer_simple_using_statement = true:warning
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_elsewhere = false:warning
+csharp_style_var_for_built_in_types = false:warning
+csharp_style_var_when_type_is_apparent = false:warning
+csharp_style_prefer_switch_expression = true:warning
+csharp_style_prefer_method_group_conversion = true:warning
+csharp_style_prefer_primary_constructors = false:silent
+csharp_using_directive_placement = outside_namespace:warning
+
+dotnet_diagnostic.IDE0005.severity = error
+dotnet_diagnostic.IDE0055.severity = error
+dotnet_diagnostic.CA1031.severity = warning
+dotnet_diagnostic.CA1305.severity = warning
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1716.severity = warning
+dotnet_diagnostic.CA1822.severity = warning
+dotnet_diagnostic.CA1849.severity = warning
+dotnet_diagnostic.CA2000.severity = warning

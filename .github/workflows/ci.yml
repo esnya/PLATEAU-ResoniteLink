@@ -1,0 +1,31 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          cache: true
+
+      - name: Restore
+        run: dotnet restore Plateau.ResoniteLink.sln --locked-mode
+
+      - name: Format
+        run: dotnet format Plateau.ResoniteLink.sln --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal

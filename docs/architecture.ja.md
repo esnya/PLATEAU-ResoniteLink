@@ -1,0 +1,25 @@
+# Architecture
+
+## レイヤー
+
+- `src/Plateau.ResoniteLink.Domain`
+  PLATEAU 入力と Resonite 構築計画の正規化されたモデルを置く。
+- `src/Plateau.ResoniteLink.Application`
+  入力検証、CityGML からの構築計画生成、Resonite 側アダプター呼び出しのオーケストレーションを置く。
+- `src/Plateau.ResoniteLink.Cli`
+  コマンドライン構文、入出力、JSON アーティファクト出力アダプター、現時点の ResoniteLink live adapter を置く。
+- `tests/Plateau.ResoniteLink.Tests`
+  CLI の構文、要件に近いアプリケーション挙動、決定的な出力契約を検証する。
+
+## 境界
+
+- Resonite への書き込みはアプリケーション層の抽象越しに行う。CLI は現段階のアダプター実装を差し込むだけに留める。
+- PLATEAU のデータセット、mesh code、ローカル/サーバー由来といった概念はドメインモデルで正規化する。
+- 最初の実装は JSON アーティファクトと live ResoniteLink adapter の両方で同じ構築契約を使う。
+- ResoniteLink の asset I/O は末端に閉じ込め、アプリケーション層は transport 固有の command ではなく mesh / material payload を渡す。
+
+## 設定方針
+
+- SDK、Analyzer、フォーマット、パッケージバージョンはルートで一元管理する。
+- 各プロジェクトは個別に必要な差分だけを持つ。
+- CI はローカル検証コマンドと同じ流れで `restore -> format -> build -> test` を実行する。

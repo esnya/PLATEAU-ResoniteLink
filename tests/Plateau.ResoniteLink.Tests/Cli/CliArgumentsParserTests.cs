@@ -1,0 +1,158 @@
+using Plateau.ResoniteLink.Cli;
+using Plateau.ResoniteLink.Domain.Importing;
+
+namespace Plateau.ResoniteLink.Tests.Cli;
+
+public sealed class CliArgumentsParserTests
+{
+    [Fact]
+    public void ParseParsesLocalBuildCommand()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "local",
+                "--input",
+                "/data/plateau",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.False(result.ShowHelp);
+        Assert.NotNull(result.Options);
+        Assert.Equal("tokyo23ku", result.Options.Request.Dataset);
+        Assert.Equal("53394525", result.Options.Request.MeshCode);
+        Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
+        Assert.Equal(
+            Path.Combine("artifacts", GetCurrentOsDirectoryName(), "resonite"),
+            result.Options.OutputRoot);
+        Assert.Null(result.Options.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseRejectsUnknownOption()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--unexpected",
+                "value",
+            ]);
+
+        Assert.Equal("Unknown option '--unexpected'.", result.Error);
+        Assert.Null(result.Options);
+    }
+
+    [Fact]
+    public void ParseParsesServerCommand()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "server",
+                "--server-url",
+                "https://example.invalid/plateau",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(DatasetSourceKind.Server, result.Options!.Request.SourceKind);
+        Assert.Equal(
+            new Uri("https://example.invalid/plateau"),
+            result.Options.Request.ServerUri);
+    }
+
+    [Fact]
+    public void ParseParsesResoniteLinkPort()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "local",
+                "--input",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options!.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseRejectsResoniteLinkPortAndUrlTogether()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "local",
+                "--input",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-url",
+                "ws://localhost:12346/",
+            ]);
+
+        Assert.Equal(
+            "Specify either --resonitelink-port or --resonitelink-url, not both.",
+            result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDeprecatedTileOption()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--tile",
+                "53394525",
+            ]);
+
+        Assert.Equal("The --tile option has been replaced. Use --mesh-code.", result.Error);
+    }
+
+    private static string GetCurrentOsDirectoryName()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return "windows";
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            return "linux";
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return "macos";
+        }
+
+        return "unknown";
+    }
+}
