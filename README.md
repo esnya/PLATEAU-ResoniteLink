@@ -4,6 +4,8 @@ Plateau.ResoniteLink is a .NET 10 project for bringing [PLATEAU](https://www.mli
 
 Import behavior and terminology are guided by [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/).
 
+Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyVersion`, `FileVersion`, and `InformationalVersion` from those tags, emitting numeric assembly versions without the `v` prefix.
+
 ## Usage
 
 Restore dependencies:

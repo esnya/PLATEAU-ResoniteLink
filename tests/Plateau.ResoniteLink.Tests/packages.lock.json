@@ -18,6 +18,12 @@
           "Microsoft.TestPlatform.TestHost": "17.14.1"
         }
       },
+      "MinVer": {
+        "type": "Direct",
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "2lMTCQl5bGP4iv0JNkockPnyllC6eHLz+CoK2ICvalvHod+exXSxueu9hq+zNkU7bZBJf8wMfeRC/Edn8AGmEg=="
+      },
       "xunit": {
         "type": "Direct",
         "requested": "[2.9.3, )",
@@ -112,6 +118,7 @@
         "dependencies": {
           "Plateau.ResoniteLink.Application": "[1.0.0, )",
           "Plateau.ResoniteLink.Domain": "[1.0.0, )",
+          "SixLabors.ImageSharp": "[3.1.12, )",
           "YellowDogMan.ResoniteLink": "[0.13.1, )"
         }
       },
@@ -129,6 +136,12 @@
         "requested": "[1.1.15, )",
         "resolved": "1.1.15",
         "contentHash": "KuA7N3Nv/lIeawJdQBQJR6oqWD9KETHLbWzBqapwFs+Tby+R5I4crkKujKMm5bXcSuFZ8LNtflFQVadsWCbBjg=="
+      },
+      "SixLabors.ImageSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.12, )",
+        "resolved": "3.1.12",
+        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
       },
       "YellowDogMan.ResoniteLink": {
         "type": "CentralTransitive",

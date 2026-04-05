@@ -4,6 +4,8 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデー�
 
 インポート挙動と用語は、[PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) を参考にしています。
 
+リリースタグは `vX.Y.Z` 形式を使います。ビルド成果物の `Version`、`AssemblyVersion`、`FileVersion`、`InformationalVersion` はそのタグから決定し、アセンブリの数値バージョンには `v` prefix を含めません。
+
 ## 使い方
 
 依存関係を復元します。

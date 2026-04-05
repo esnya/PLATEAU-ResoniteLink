@@ -22,6 +22,8 @@
 
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
 
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+
     <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/bin/$(MSBuildProjectName)/</BaseOutputPath>
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>

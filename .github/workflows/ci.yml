@@ -12,6 +12,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -22,7 +24,7 @@ jobs:
         run: dotnet restore Plateau.ResoniteLink.sln --locked-mode
 
       - name: Format
-        run: dotnet format Plateau.ResoniteLink.sln --verify-no-changes --no-restore
+        run: dotnet format whitespace . --folder --verify-no-changes
 
       - name: Build
         run: dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore
