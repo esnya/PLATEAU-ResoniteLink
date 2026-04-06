@@ -81,19 +81,47 @@ internal static class BundledDefaultMaterialAssetStore
             throw new InvalidOperationException($"Bundled material path must start with '{logicalPrefix}', but was '{logicalPath}'.");
         }
 
-        resourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{logicalPath[logicalPrefix.Length..].Replace('/', '.')}";
+        string relativePath = logicalPath[logicalPrefix.Length..];
+        string resourceSuffix = relativePath.Replace('/', '.');
+        resourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{resourceSuffix}";
         if (ResourceNames.Contains(resourceName))
         {
             return true;
         }
 
-        string normalizedResourceName = resourceName.Replace('-', '_');
+        string normalizedResourceSuffix = CreateNormalizedResourceSuffix(relativePath);
+        string normalizedResourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{normalizedResourceSuffix}";
         if (ResourceNames.Contains(normalizedResourceName))
         {
             resourceName = normalizedResourceName;
             return true;
         }
 
+        foreach (string candidateResourceName in ResourceNames)
+        {
+            if (candidateResourceName.EndsWith(normalizedResourceSuffix, StringComparison.Ordinal))
+            {
+                resourceName = candidateResourceName;
+                return true;
+            }
+        }
+
         return false;
+    }
+
+    private static string CreateNormalizedResourceSuffix(string relativePath)
+    {
+        string[] segments = relativePath.Split('/');
+        if (segments.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        for (int index = 0; index < segments.Length - 1; index++)
+        {
+            segments[index] = segments[index].Replace('-', '_');
+        }
+
+        return string.Join('.', segments);
     }
 }

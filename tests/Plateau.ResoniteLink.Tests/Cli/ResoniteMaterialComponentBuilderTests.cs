@@ -131,8 +131,20 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Assert.True(resolved);
         Assert.NotNull(textureSet);
         Assert.Null(textureSet.EmissionPath);
-        Assert.Null(textureSet.HeightPath);
-        Assert.Null(textureSet.MetallicPath);
-        Assert.Null(textureSet.NormalPath);
+        Assert.EndsWith("_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
+        Assert.EndsWith("_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
+        Assert.EndsWith("_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BundledDefaultMaterialAssetStoreResolvesCityFurnitureAsset()
+    {
+        bool resolved = BundledDefaultMaterialAssetStore.TryGetAbsolutePath(
+            BundledDefaultMaterialFamilies.CityFurnitureVariants[0],
+            out string absolutePath);
+
+        Assert.True(resolved);
+        Assert.EndsWith("Metal032_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
+        Assert.True(File.Exists(absolutePath));
     }
 }
