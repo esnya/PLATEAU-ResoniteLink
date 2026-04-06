@@ -175,7 +175,7 @@ public static class LocalCityGmlResonitePlanBuilder
             ? CreateDemTerrainTextureOverlays(demBounds.Value)
             : [];
 
-        GeodeticPoint globalOriginPoint = CreateGlobalOrigin(globalBounds.Value);
+        GeodeticPoint globalOriginPoint = CreateGlobalOrigin(globalBounds.Value, requestedMeshArea, referenceSystem.IsGeographic);
         TerrainHeightSampler? terrainHeightSampler = referenceSystem.IsGeographic && demTerrainTriangles.Count > 0
             ? TerrainHeightSampler.Create(demTerrainTriangles, globalOriginPoint, referenceSystem.Geocentric!)
             : null;
@@ -950,12 +950,22 @@ public static class LocalCityGmlResonitePlanBuilder
 
     private static GeodeticPoint ComputeGlobalOrigin(IEnumerable<ParsedCityObject> cityObjects)
     {
-        return CreateGlobalOrigin(GetBounds(cityObjects));
+        return CreateGlobalOrigin(GetBounds(cityObjects), requestedMeshArea: null, isGeographicReferenceSystem: false);
     }
 
     private static GeodeticPoint CreateGlobalOrigin(
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) bounds)
+        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) bounds,
+        MeshCodeArea? requestedMeshArea,
+        bool isGeographicReferenceSystem)
     {
+        if (isGeographicReferenceSystem && requestedMeshArea is not null)
+        {
+            return new GeodeticPoint(
+                Latitude: (requestedMeshArea.SouthLatitude + requestedMeshArea.NorthLatitude) / 2.0,
+                Longitude: (requestedMeshArea.WestLongitude + requestedMeshArea.EastLongitude) / 2.0,
+                Altitude: bounds.minAltitude);
+        }
+
         return new GeodeticPoint(
             Latitude: (bounds.minLatitude + bounds.maxLatitude) / 2.0,
             Longitude: (bounds.minLongitude + bounds.maxLongitude) / 2.0,

@@ -767,6 +767,27 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncUsesMeshCodeCenterForGeographicLocalOrigin()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        Assert.True(Approximately(result.Metadata.LocalOrigin.Latitude, 35.6875));
+        Assert.True(Approximately(result.Metadata.LocalOrigin.Longitude, 139.69375));
+        Assert.True(Approximately(result.Metadata.LocalOrigin.Altitude, 0.0));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsResoniteTriangleWindingAlignedWithVertexNormals()
     {
         using TemporaryDirectory datasetRoot = new();
