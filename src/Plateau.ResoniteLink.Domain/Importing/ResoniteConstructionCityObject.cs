@@ -4,8 +4,10 @@ public sealed record ResoniteConstructionCityObject(
     string SlotKey,
     string DisplayName,
     string PackageName,
+    string ActualMeshCode,
     int? LodLevel,
     ResoniteTransform Transform,
     ResoniteImportedMesh Mesh,
     IReadOnlyList<ResoniteMaterialBinding> Materials,
-    bool CollisionEnabled = true);
+    bool CollisionEnabled = true,
+    string? SourceObjectKey = null);

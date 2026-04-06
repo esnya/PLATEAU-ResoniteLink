@@ -229,6 +229,19 @@ public sealed class ResoniteLinkSceneBuilderTests
                 Assert.DoesNotContain("HeightMap", triplanarMaterial.Members.Keys);
                 Assert.DoesNotContain("HeightScale", triplanarMaterial.Members.Keys);
             });
+        Assert.Contains(
+            triplanarMaterials,
+            static triplanarMaterial =>
+            {
+                Field_float2 scale = Assert.IsType<Field_float2>(triplanarMaterial.Members["TextureScale"]);
+                bool matchesAsphalt020L =
+                    Math.Abs(scale.Value.x - (float)BundledDefaultMaterialProfiles.Asphalt020LTilesPerMeter.X) < 0.000001f
+                    && Math.Abs(scale.Value.y - (float)BundledDefaultMaterialProfiles.Asphalt020LTilesPerMeter.Y) < 0.000001f;
+                bool matchesAsphalt023L =
+                    Math.Abs(scale.Value.x - (float)BundledDefaultMaterialProfiles.Asphalt023LTilesPerMeter.X) < 0.000001f
+                    && Math.Abs(scale.Value.y - (float)BundledDefaultMaterialProfiles.Asphalt023LTilesPerMeter.Y) < 0.000001f;
+                return matchesAsphalt020L || matchesAsphalt023L;
+            });
 
         Component uvFacadeMaterial = Assert.Single(
             fakeClient.AddedComponents.Where(static request =>
@@ -279,6 +292,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SlotKey: "terrain_road",
                     DisplayName: "Terrain Road",
                     PackageName: "tran",
+                    ActualMeshCode: "53394525",
                     LodLevel: 1,
                     Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
                     Mesh: new ResoniteImportedMesh(
@@ -353,6 +367,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SlotKey: "area_overlay",
                     DisplayName: "Area Overlay",
                     PackageName: "area",
+                    ActualMeshCode: "53394525",
                     LodLevel: 1,
                     Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
                     Mesh: new ResoniteImportedMesh(
@@ -439,6 +454,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SlotKey: "veg_tree",
                     DisplayName: "Vegetation",
                     PackageName: "veg",
+                    ActualMeshCode: "53394525",
                     LodLevel: 2,
                     Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
                     Mesh: new ResoniteImportedMesh(
@@ -531,6 +547,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SlotKey: "veg_default",
                     DisplayName: "Vegetation Default",
                     PackageName: "veg",
+                    ActualMeshCode: "53394525",
                     LodLevel: 2,
                     Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
                     Mesh: new ResoniteImportedMesh(
@@ -615,6 +632,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SlotKey: "tran_marking",
                     DisplayName: "Road Marking",
                     PackageName: "tran",
+                    ActualMeshCode: "53394525",
                     LodLevel: 2,
                     Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
                     Mesh: new ResoniteImportedMesh(
@@ -661,7 +679,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncUsesUniqueEntityIdsAcrossRuns()
+    public async Task BuildAsyncKeepsStableEntityIdsAcrossRuns()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         CapturedResoniteScene scene = LoadScene(
@@ -681,15 +699,47 @@ public sealed class ResoniteLinkSceneBuilderTests
         HashSet<string> firstEntityIds = firstClient.AddedSlots
             .Select(static request => request.Data.ID)
             .Concat(firstClient.AddedComponents.Select(static request => request.Data.ID))
-            .Where(static id => IsRunScopedEntityId(id))
             .ToHashSet(StringComparer.Ordinal);
 
-        Assert.DoesNotContain(
-            secondClient.AddedSlots.Select(static request => request.Data.ID).Where(static id => IsRunScopedEntityId(id)),
-            firstEntityIds.Contains);
-        Assert.DoesNotContain(
-            secondClient.AddedComponents.Select(static request => request.Data.ID).Where(static id => IsRunScopedEntityId(id)),
-            firstEntityIds.Contains);
+        Assert.Equal(
+            firstEntityIds.OrderBy(static id => id, StringComparer.Ordinal),
+            secondClient.AddedSlots
+                .Select(static request => request.Data.ID)
+                .Concat(secondClient.AddedComponents.Select(static request => request.Data.ID))
+                .OrderBy(static id => id, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncAppendsDifferentMeshCodeAndSkipsSharedObjectsAlreadyPlaced()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+
+        CapturedResoniteScene firstScene = CreateAppendScene("53394525", "Building 25");
+        CapturedResoniteScene secondScene = CreateAppendScene("53394526", "Building 26");
+
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), firstScene);
+        int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
+        int addedParentMeshSlotsAfterFirstRun = firstClient.AddedSlots.Count(request =>
+            GetSlotPath(firstClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal));
+
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), secondScene);
+
+        Assert.Contains("PLATEAU tokyo23ku/53394525", secondClient.SlotPaths.Values);
+        Assert.Contains("PLATEAU tokyo23ku/53394526", secondClient.SlotPaths.Values);
+
+        Slot appendedMeshCodeSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")];
+        Field_float3 appendedPosition = Assert.IsType<Field_float3>(appendedMeshCodeSlot.Position);
+        Assert.NotEqual(0.0f, appendedPosition.Value.x);
+
+        Assert.Equal(importedMeshCountAfterFirstRun + 1, secondClient.ImportedMeshes.Count);
+        Assert.Equal(
+            addedParentMeshSlotsAfterFirstRun,
+            secondClient.AddedSlots.Count(request =>
+                GetSlotPath(secondClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal)));
+        Assert.Contains("PLATEAU tokyo23ku/533945/dem/LOD0/Shared Terrain", secondClient.SlotPaths.Values);
+        Assert.Contains("PLATEAU tokyo23ku/53394526/bldg/LOD2/Building 26", secondClient.SlotPaths.Values);
     }
 
     [Fact]
@@ -856,11 +906,11 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(component);
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             session.SlotsById.TryGetValue(slotId, out Slot? slot);
-            return Task.FromResult(slot);
+            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -887,6 +937,29 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
 
             return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = session.SlotsById.Values
+                .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
         }
     }
 
@@ -949,7 +1022,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult<Component?>(null);
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Slot?>(null);
@@ -1026,15 +1099,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             : "LOD0";
     }
 
-    private static bool IsRunScopedEntityId(string id)
-    {
-        return id.Contains("_meshcode_", StringComparison.Ordinal)
-            || id.Contains("_cityobject_", StringComparison.Ordinal)
-            || id.Contains("_renderer_", StringComparison.Ordinal)
-            || id.Contains("_collider_", StringComparison.Ordinal)
-            || id.Contains("_material_", StringComparison.Ordinal);
-    }
-
     private static async Task<IReadOnlyList<string>> RunBuilderAsync(
         ResoniteLinkSceneBuilder builder,
         CapturedResoniteScene scene)
@@ -1064,4 +1128,96 @@ public sealed class ResoniteLinkSceneBuilderTests
     private sealed record CapturedResoniteScene(
         ResoniteConstructionMetadata Metadata,
         IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
+
+    private static CapturedResoniteScene CreateAppendScene(string meshCode, string buildingName)
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: $"PLATEAU tokyo23ku {meshCode}",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg", "dem"],
+                SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", $"udx/bldg/{meshCode}/plateau_tokyo23ku_bldg_{meshCode}.gml"],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: meshCode switch
+            {
+                "53394525" => new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+                "53394526" => new ResoniteLocalOrigin(35.6875, 139.70625, 0.0),
+                _ => throw new InvalidOperationException($"Unexpected mesh code '{meshCode}'."),
+            });
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_shared",
+                    DisplayName: "Shared Terrain",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"bldg_{meshCode}",
+                    DisplayName: buildingName,
+                    PackageName: "bldg",
+                    ActualMeshCode: meshCode,
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh($"bldg-{meshCode}"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: $"bldg-{meshCode}",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+    }
+
+    private static ResoniteImportedMesh CreateTriangleMesh(string materialKey)
+    {
+        return new ResoniteImportedMesh(
+            Vertices:
+            [
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, materialKey, [0, 1, 2]),
+            ]);
+    }
+
 }

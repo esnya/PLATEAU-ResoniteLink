@@ -9,4 +9,5 @@ public sealed record ResoniteMaterialBinding(
     ResoniteMaterialProjection Projection,
     ResoniteMaterialDepthOffset? DepthOffset,
     IReadOnlyList<int> SubmeshIndices,
-    ResoniteFloat2? TextureScale = null);
+    ResoniteFloat2? TextureScale = null,
+    string? Family = null);

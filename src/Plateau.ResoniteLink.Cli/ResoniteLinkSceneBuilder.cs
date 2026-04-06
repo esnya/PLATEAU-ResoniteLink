@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Channels;
 
+using GeographicLib;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -21,7 +23,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly Action<string>? progressReporter;
     private IResoniteLinkClient? client;
     private ResoniteConstructionMetadata? metadata;
-    private string? buildNonce;
     private string? datasetSlotId;
     private string? meshCodeSlotId;
     private string? datasetAssetsSlotId;
@@ -69,15 +70,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         this.metadata = metadata;
         generatedAssetsRoot = Path.Combine(Path.GetFullPath(workRoot), ".generated-assets");
-        buildNonce = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "dataset");
-        meshCodeSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
+        meshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
             metadata.Request.MeshCode,
-            "meshcode",
-            buildNonce);
+            "meshcode");
         datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "assets");
@@ -146,25 +145,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             new ResoniteFloat3(0.0, 1.5, 0.0),
             cancellationToken);
         await licenseManager.EnsureDatasetLicenseAsync(client, datasetSlotId, datasetLicenseComponentId, cancellationToken);
-
-        await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    ID = meshCodeSlotId,
-                    Parent = new Reference
-                    {
-                        TargetID = datasetSlotId,
-                    },
-                    Name = new Field_string
-                    {
-                        Value = metadata.Request.MeshCode,
-                    },
-                },
-            },
+        ResoniteFloat3 meshCodeRootPosition = await ResolveMeshCodeRootPositionAsync(
+            client,
+            metadata.Request.Dataset,
+            metadata.Request.MeshCode,
             cancellationToken);
-        knownSlotIds.Add(meshCodeSlotId);
+        await EnsureSlotKnownAsync(
+            client,
+            meshCodeSlotId,
+            datasetSlotId,
+            metadata.Request.MeshCode,
+            meshCodeRootPosition,
+            cancellationToken);
 
         await EnsureSlotKnownAsync(client, datasetAssetsSlotId, datasetSlotId, "Assets", null, cancellationToken);
         await EnsureSlotKnownAsync(client, sharedAssetsSlotId, datasetAssetsSlotId, SharedAssetsSlotName, null, cancellationToken);
@@ -228,7 +220,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         client?.Dispose();
         client = null;
         metadata = null;
-        buildNonce = null;
         datasetSlotId = null;
         meshCodeSlotId = null;
         datasetAssetsSlotId = null;
@@ -354,78 +345,73 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         ObjectDisposedException.ThrowIf(client is null, this);
         ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(datasetSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
         ObjectDisposedException.ThrowIf(datasetAssetsSlotId is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
-        ObjectDisposedException.ThrowIf(buildNonce is null, this);
 
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
-        string cityObjectSlotId = ResoniteLinkEntityIdFactory.CreateEntityId(
+        string rootMeshCode = cityObject.ActualMeshCode;
+        string rootMeshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
-            metadata.Request.MeshCode,
+            rootMeshCode,
+            "meshcode");
+        ResoniteFloat3 rootMeshCodePosition = await ResolveMeshCodeRootPositionAsync(client, metadata.Request.Dataset, rootMeshCode, cancellationToken);
+        await EnsureSlotKnownAsync(
+            client,
+            rootMeshCodeSlotId,
+            datasetSlotId,
+            rootMeshCode,
+            rootMeshCodePosition,
+            cancellationToken);
+
+        string objectIdentity = GetCityObjectIdentity(cityObject);
+        string cityObjectSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
+            metadata.Request.Dataset,
+            rootMeshCode,
             "cityobject",
-            buildNonce,
-            cityObject.SlotKey);
+            objectIdentity);
         string meshAssetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "meshslot",
-            $"{metadata.Request.MeshCode}_{cityObject.SlotKey}");
+            rootMeshCode,
+            objectIdentity);
         string staticMeshId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "staticmesh",
-            $"{metadata.Request.MeshCode}_{cityObject.SlotKey}");
-        string rendererId = ResoniteLinkEntityIdFactory.CreateEntityId(
+            rootMeshCode,
+            objectIdentity);
+        string rendererId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
-            metadata.Request.MeshCode,
+            rootMeshCode,
             "renderer",
-            buildNonce,
-            cityObject.SlotKey);
-        string colliderId = ResoniteLinkEntityIdFactory.CreateEntityId(
+            objectIdentity);
+        string colliderId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
-            metadata.Request.MeshCode,
+            rootMeshCode,
             "collider",
-            buildNonce,
-            cityObject.SlotKey);
-        string packageSlotId = GetMeshCodePackageSlotId(
-            metadata.Request.Dataset,
-            metadata.Request.MeshCode,
-            buildNonce,
-            cityObject.PackageName);
-        string lodSlotId = GetMeshCodeLodSlotId(
-            metadata.Request.Dataset,
-            metadata.Request.MeshCode,
-            buildNonce,
+            objectIdentity);
+        string packageSlotId = GetMeshCodePackageSlotId(metadata.Request.Dataset, rootMeshCode, cityObject.PackageName);
+        string lodSlotId = GetMeshCodeLodSlotId(metadata.Request.Dataset, rootMeshCode, cityObject.PackageName, cityObject.LodLevel);
+        string assetPackageSlotId = GetAssetPackageSlotId(metadata.Request.Dataset, rootMeshCode, cityObject.PackageName);
+        string assetLodSlotId = GetAssetLodSlotId(metadata.Request.Dataset, rootMeshCode, cityObject.PackageName, cityObject.LodLevel);
+        string assetCityObjectSlotId = GetAssetCityObjectSlotId(metadata.Request.Dataset, rootMeshCode, objectIdentity);
+
+        await EnsureSlotKnownAsync(
+            client,
+            packageSlotId,
+            rootMeshCodeSlotId,
             cityObject.PackageName,
-            cityObject.LodLevel);
-        string assetPackageSlotId = GetAssetPackageSlotId(metadata.Request.Dataset, cityObject.PackageName);
-        string assetLodSlotId = GetAssetLodSlotId(metadata.Request.Dataset, cityObject.PackageName, cityObject.LodLevel);
-        string assetCityObjectSlotId = GetAssetCityObjectSlotId(
-            metadata.Request.Dataset,
-            metadata.Request.MeshCode,
-            cityObject.SlotKey);
-
-        await EnsureSlotKnownAsync(client, packageSlotId, meshCodeSlotId, cityObject.PackageName, null, cancellationToken);
-        await EnsureSlotKnownAsync(client, lodSlotId, packageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
-
-        await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    ID = cityObjectSlotId,
-                    Parent = new Reference
-                    {
-                        TargetID = lodSlotId,
-                    },
-                    Name = new Field_string
-                    {
-                        Value = cityObject.DisplayName,
-                    },
-                    Position = CreateFloat3(cityObject.Transform.Position),
-                },
-            },
+            null,
             cancellationToken);
-        knownSlotIds!.Add(cityObjectSlotId);
+        await EnsureSlotKnownAsync(client, lodSlotId, packageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
+        await EnsureSlotKnownAsync(
+            client,
+            cityObjectSlotId,
+            lodSlotId,
+            cityObject.DisplayName,
+            cityObject.Transform.Position,
+            cancellationToken);
 
         await EnsureSlotKnownAsync(client, assetPackageSlotId, datasetAssetsSlotId, cityObject.PackageName, null, cancellationToken);
         await EnsureSlotKnownAsync(client, assetLodSlotId, assetPackageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
@@ -535,6 +521,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return sceneBuildStopwatch?.Elapsed.TotalSeconds ?? 0.0;
     }
 
+    private static string GetCityObjectIdentity(ResoniteConstructionCityObject cityObject)
+    {
+        return cityObject.SourceObjectKey ?? cityObject.SlotKey;
+    }
+
     private static string CreateTextureCacheKey(string? texturePath, ResoniteTextureSourceKind textureSourceKind)
     {
         return texturePath is null
@@ -553,6 +544,80 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 z = (float)value.Z,
             },
         };
+    }
+
+    private static ResoniteFloat3 GetPositionOrDefault(Slot slot)
+    {
+        return slot.Position is Field_float3 position
+            ? new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z)
+            : new ResoniteFloat3(0.0, 0.0, 0.0);
+    }
+
+    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+    }
+
+    private static bool TryGetMeshCodeName(Slot slot, out string meshCode)
+    {
+        meshCode = slot.Name?.Value ?? string.Empty;
+        return PlateauMeshCode.TryGetCenter(meshCode, out _);
+    }
+
+    private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
+    {
+        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
+            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
+        {
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        LocalCartesian cartesian = new(
+            referenceCenter.Latitude,
+            referenceCenter.Longitude,
+            referenceCenter.Altitude,
+            Geocentric.WGS84);
+        (double x, double y, double z) eun = cartesian.Forward(
+            currentCenter.Latitude,
+            currentCenter.Longitude,
+            currentCenter.Altitude);
+        return new ResoniteFloat3(
+            X: eun.x,
+            Y: eun.z,
+            Z: eun.y);
+    }
+
+    private async Task<ResoniteFloat3> ResolveMeshCodeRootPositionAsync(
+        IResoniteLinkClient client,
+        string dataset,
+        string meshCode,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(datasetSlotId is null, this);
+
+        string targetMeshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
+            dataset,
+            meshCode,
+            "meshcode");
+        Slot? existingMeshCodeSlot = await client.GetSlotAsync(targetMeshCodeSlotId, 0, cancellationToken);
+        if (existingMeshCodeSlot is not null)
+        {
+            return GetPositionOrDefault(existingMeshCodeSlot);
+        }
+
+        Slot? datasetSlot = await client.GetSlotAsync(datasetSlotId, 1, cancellationToken);
+        Slot? referenceSlot = datasetSlot?.Children?
+            .FirstOrDefault(slot =>
+                !string.Equals(slot.ID, targetMeshCodeSlotId, StringComparison.Ordinal)
+                && TryGetMeshCodeName(slot, out _));
+        if (referenceSlot is null || !TryGetMeshCodeName(referenceSlot, out string referenceMeshCode))
+        {
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        return Add(
+            GetPositionOrDefault(referenceSlot),
+            ComputeMeshCodeOffset(referenceMeshCode, meshCode));
     }
 
     private async Task AwaitProcessingTaskIfCompletedAsync()
@@ -668,7 +733,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteFloat3? position,
         CancellationToken cancellationToken)
     {
-        Slot? existingSlot = await client.GetSlotAsync(slotId, cancellationToken);
+        Slot? existingSlot = await client.GetSlotAsync(slotId, 0, cancellationToken);
         if (existingSlot is not null)
         {
             return;
@@ -797,29 +862,29 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             : "LOD0";
     }
 
-    private static string GetMeshCodePackageSlotId(string dataset, string meshCode, string nonce, string packageName)
+    private static string GetMeshCodePackageSlotId(string dataset, string meshCode, string packageName)
     {
-        return ResoniteLinkEntityIdFactory.CreateEntityId(dataset, meshCode, "package", nonce, packageName);
+        return ResoniteLinkEntityIdFactory.CreateStableEntityId(dataset, meshCode, "package", packageName);
     }
 
-    private static string GetMeshCodeLodSlotId(string dataset, string meshCode, string nonce, string packageName, int? lodLevel)
+    private static string GetMeshCodeLodSlotId(string dataset, string meshCode, string packageName, int? lodLevel)
     {
-        return ResoniteLinkEntityIdFactory.CreateEntityId(dataset, meshCode, "lod", nonce, packageName, FormatLodSlotName(lodLevel));
+        return ResoniteLinkEntityIdFactory.CreateStableEntityId(dataset, meshCode, "lod", packageName, FormatLodSlotName(lodLevel));
     }
 
-    private static string GetAssetPackageSlotId(string dataset, string packageName)
+    private static string GetAssetPackageSlotId(string dataset, string meshCode, string packageName)
     {
-        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetpackage", packageName);
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetpackage", meshCode, packageName);
     }
 
-    private static string GetAssetLodSlotId(string dataset, string packageName, int? lodLevel)
+    private static string GetAssetLodSlotId(string dataset, string meshCode, string packageName, int? lodLevel)
     {
-        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetlod", packageName, FormatLodSlotName(lodLevel));
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetlod", meshCode, packageName, FormatLodSlotName(lodLevel));
     }
 
-    private static string GetAssetCityObjectSlotId(string dataset, string meshCode, string slotKey)
+    private static string GetAssetCityObjectSlotId(string dataset, string meshCode, string objectIdentity)
     {
-        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetcityobject", meshCode, slotKey);
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "assetcityobject", meshCode, objectIdentity);
     }
 
     private sealed record QueuedCityObject(

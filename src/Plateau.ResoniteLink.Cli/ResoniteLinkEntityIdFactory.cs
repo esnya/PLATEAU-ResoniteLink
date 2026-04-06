@@ -34,6 +34,20 @@ internal static class ResoniteLinkEntityIdFactory
             suffix is null ? [] : [suffix]);
     }
 
+    public static string CreateStableEntityId(
+        string dataset,
+        string meshCode,
+        string kind,
+        params string?[] suffixes)
+    {
+        return AppendSuffixes(
+            BuildBaseId(
+                SanitizeId(dataset),
+                SanitizeId(meshCode),
+                kind),
+            suffixes);
+    }
+
     public static string CreateEntityId(
         string dataset,
         string meshCode,

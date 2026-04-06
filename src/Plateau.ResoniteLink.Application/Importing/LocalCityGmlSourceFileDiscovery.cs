@@ -80,6 +80,7 @@ public static class LocalCityGmlSourceFileDiscovery
             path,
             relativePath,
             packageName,
+            matchedMeshCode,
             matchedMeshCode.Length < sourceFileSearchCodes[0].Length);
     }
 
@@ -126,4 +127,5 @@ public sealed record LocalCityGmlSourceFileDescriptor(
     string AbsolutePath,
     string RelativePath,
     string PackageName,
+    string MatchedMeshCode,
     bool RequiresMeshAreaFilter);

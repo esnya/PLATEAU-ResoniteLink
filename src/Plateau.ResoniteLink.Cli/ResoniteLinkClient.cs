@@ -12,7 +12,7 @@ internal interface IResoniteLinkClient : IDisposable
 
     Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken);
 
-    Task<Slot?> GetSlotAsync(string slotId, CancellationToken cancellationToken);
+    Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken);
 
     Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken);
 
@@ -59,14 +59,14 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         return response.Success ? response.Data : null;
     }
 
-    public async Task<Slot?> GetSlotAsync(string slotId, CancellationToken cancellationToken)
+    public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         SlotData response = await link.GetSlotData(
             new GetSlot
             {
                 SlotID = slotId,
-                Depth = 0,
+                Depth = depth,
                 IncludeComponentData = false,
             });
 
