@@ -55,43 +55,13 @@ internal static class ResoniteMaterialComponentBuilder
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.TextureScale is not null)
         {
-            materialMembers["TextureScale"] = new Field_float2
-            {
-                Value = new float2
-                {
-                    x = (float)material.TextureScale.X,
-                    y = (float)material.TextureScale.Y,
-                },
-            };
-            materialMembers["TextureOffset"] = new Field_float2
-            {
-                Value = new float2
-                {
-                    x = 0.0f,
-                    y = 0.0f,
-                },
-            };
+            AddTextureTransformMembers(materialMembers, material.TextureScale);
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Triplanar)
         {
-            materialMembers["TextureScale"] = new Field_float2
-            {
-                Value = new float2
-                {
-                    x = (float)DefaultTriplanarTextureScale.X,
-                    y = (float)DefaultTriplanarTextureScale.Y,
-                },
-            };
-            materialMembers["TextureOffset"] = new Field_float2
-            {
-                Value = new float2
-                {
-                    x = 0.0f,
-                    y = 0.0f,
-                },
-            };
+            AddTextureTransformMembers(materialMembers, material.TextureScale ?? DefaultTriplanarTextureScale);
             materialMembers["Metallic"] = new Field_float
             {
                 Value = 0.0f,
@@ -142,6 +112,28 @@ internal static class ResoniteMaterialComponentBuilder
         return materialMembers;
     }
 
+    private static void AddTextureTransformMembers(
+        Dictionary<string, Member> materialMembers,
+        ResoniteFloat2 textureScale)
+    {
+        materialMembers["TextureScale"] = new Field_float2
+        {
+            Value = new float2
+            {
+                x = (float)textureScale.X,
+                y = (float)textureScale.Y,
+            },
+        };
+        materialMembers["TextureOffset"] = new Field_float2
+        {
+            Value = new float2
+            {
+                x = 0.0f,
+                y = 0.0f,
+            },
+        };
+    }
+
     public static bool TryGetBundledCompanionTextureSet(
         ResoniteMaterialBinding material,
         out BundledDefaultMaterialTextureSet? textureSet)
@@ -168,19 +160,25 @@ internal static class ResoniteMaterialComponentBuilder
         string baseStem = stem[..^"_Color".Length];
 
         textureSet = new BundledDefaultMaterialTextureSet(
-            TryResolveBundledTexture(directory, $"{baseStem}_Emission.jpg"),
-            TryResolveBundledTexture(directory, $"{baseStem}_Height.jpg"),
-            TryResolveBundledTexture(directory, $"{baseStem}_Metallic.png"),
-            TryResolveBundledTexture(directory, $"{baseStem}_NormalGL.jpg"));
+            TryResolveBundledTexture(directory, $"{baseStem}_Emission", ".jpg", ".png"),
+            TryResolveBundledTexture(directory, $"{baseStem}_Height", ".jpg", ".png"),
+            TryResolveBundledTexture(directory, $"{baseStem}_Metallic", ".png", ".jpg"),
+            TryResolveBundledTexture(directory, $"{baseStem}_NormalGL", ".jpg", ".png"));
         return true;
     }
 
-    private static string? TryResolveBundledTexture(string directory, string fileName)
+    private static string? TryResolveBundledTexture(string directory, string baseFileName, params string[] extensions)
     {
-        string logicalPath = $"{directory}/{fileName}";
-        return BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath)
-            ? absolutePath
-            : null;
+        foreach (string extension in extensions)
+        {
+            string logicalPath = $"{directory}/{baseFileName}{extension}";
+            if (BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath))
+            {
+                return absolutePath;
+            }
+        }
+
+        return null;
     }
 
     public static Field_colorX CreateColorMember(ResoniteColor color)

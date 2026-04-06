@@ -10,27 +10,31 @@ The current package buckets are derived from the full official package candidate
 - `road`: `tran`, `rwy`, `squr`, `trk`
 - `wireframe overlay`: `area`, `fld`, `htd`, `ifld`, `lsld`, `luse`, `rfld`, `tnm`, `urf`
 - `vegetation`: `veg`
-- `other solid fallback`: `brid`, `cons`, `frn`, `gen`, `tun`, `unf`, `wtr`, `wwy`
+- `city furniture`: `frn`
+- `other solid fallback`: `brid`, `cons`, `gen`, `tun`, `unf`, `wtr`, `wwy`
 - `special case`: `dem` keeps its generated terrain overlay path and does not use the bundled fallback families
 
-The current ResoniteLink path splits the fallback by material intent:
-
-- detailed dataset textures keep UV-based `PBS_Metallic`
-- untextured building facades use UV-based facade textures
-- untextured roofs, roads, and other packages use `PBS_TriplanarMetallic`
-- untextured vegetation uses `PBS_VertexColorMetallic` when the source exposes `X3DMaterial.diffuseColor`, and otherwise uses textureless `PBS_Metallic` with a default green `AlbedoColor`
-- non-installation overlays such as `area`, `luse`, `fld`, `ifld`, `rfld`, `lsld`, `tnm`, `htd`, and `urf` render as `WireframeMaterial`
-
 The package-to-material mapping is centralized in `PlateauPackageCatalog`, and tests assert that every supported non-`dem` package belongs to exactly one material bucket so Unity-SDK package coverage and fallback policy stay in sync.
+`frn` now resolves through a dedicated `city-furniture` fallback family instead of sharing the generic `other` bucket.
+As of `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0), published on 2026-03-12, Unity maps `PredefinedCityModelPackage.CityFurniture` to `PlateauDefaultCityFurniture`, whose default texture set uses a generic metal look. ResoniteLink follows that look, but the checked-in fallback texture data is sourced directly from AmbientCG instead of copying the Unity SDK asset files.
 
-For buildings, facade detection now prefers CityGML thematic surfaces such as `bldg:WallSurface` and falls back to polygon orientation only when that semantic wrapper is absent. Near-vertical surfaces still default to facade UVs in the fallback path; roof- and ground-like semantics keep triplanar projection.
+## `frn` Sampling Note
 
-Generated facade UVs now use a fixed repeat density instead of normalizing every polygon to `0..1`, so bundled facade textures tile across larger wall spans.
-The default facade fallback now uses facade-specific assets only. Brick-like materials are no longer selected for wall fallback. The material carries the physical repeat scale, while generated facade UVs stay wall-local and snap vertically so the bottom and top edges land on repeat boundaries.
+Sampling the Unity SDK's `TestDataTokyoMini` `frn` fixture showed that detailed city furniture is largely texture-driven:
+
+- `53394525_frn_6697_sjkms_op.gml` contains 2 `frn:CityFurniture` objects and uses `lod2Geometry`
+- it contains 34 `ParameterizedTexture` elements that reference 17 unique texture images
+- it contains no `X3DMaterial`
+- 467 of 481 polygons have explicit texture targets, leaving a small untextured remainder across horizontal, sloped, and vertical faces
+
+That sample supports the current policy:
+
+- when dataset textures exist, keep UV-based dataset materials
+- when some polygons in `frn` remain untextured, fall back with triplanar projection instead of a building-style facade/roof split
 
 ## Bundled Assets
 
-The repository bundles the following 2K AmbientCG materials under CC0:
+The repository bundles the following fallback materials:
 
 - `facade`:
   `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
@@ -38,6 +42,8 @@ The repository bundles the following 2K AmbientCG materials under CC0:
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
   `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
+- `city-furniture`:
+  `Metal032_2K-JPG_Color.jpg`
 - `other`:
   `Concrete012_2K-JPG_Color.jpg`, `Ground054_2K-JPG_Color.jpg`
 
@@ -51,6 +57,25 @@ Sources:
 - `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
 - `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
+- `Metal032`: <https://ambientcg.com/view?id=Metal032>
+
+All bundled fallback textures currently checked into this repository are sourced from AmbientCG and distributed under CC0 1.0.
+The local license tracking note is stored in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
+
+Source tracking by checked-in asset family:
+
+- `default-materials/facade/Facade018A_2K-JPG_*` -> AmbientCG `Facade018A` -> <https://ambientcg.com/view?id=Facade018A>
+- `default-materials/facade/Facade019A_2K-JPG_*` -> AmbientCG `Facade019A` -> <https://ambientcg.com/view?id=Facade019A>
+- `default-materials/facade/Facade020A_2K-JPG_*` -> AmbientCG `Facade020A` -> <https://ambientcg.com/view?id=Facade020A>
+- `default-materials/roof/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
+- `default-materials/roof/Concrete033_2K-JPG_*` -> AmbientCG `Concrete033` -> <https://ambientcg.com/view?id=Concrete033>
+- `default-materials/road/Asphalt020L_2K-JPG_*` -> AmbientCG `Asphalt020L` -> <https://ambientcg.com/view?id=Asphalt020L>
+- `default-materials/road/Asphalt023L_2K-JPG_*` -> AmbientCG `Asphalt023L` -> <https://ambientcg.com/view?id=Asphalt023L>
+- `default-materials/other/Ground054_2K-JPG_*` -> AmbientCG `Ground054` -> <https://ambientcg.com/view?id=Ground054>
+- `default-materials/other/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
+- `default-materials/city-furniture/Metal032_2K-JPG_*` -> AmbientCG `Metal032` -> <https://ambientcg.com/view?id=Metal032>
+
+The `city-furniture` metallic map is not a verbatim upstream file. `Metal032_2K-JPG_Metallic.png` is derived from the AmbientCG `Metal032_2K-JPG_Metalness.jpg` and `Metal032_2K-JPG_Roughness.jpg` maps and repacked for Resonite `PBS_Metallic`.
 
 The checked-in files keep only the maps that the live builder consumes directly:
 

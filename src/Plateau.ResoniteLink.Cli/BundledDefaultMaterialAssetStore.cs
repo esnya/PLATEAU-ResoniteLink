@@ -82,6 +82,18 @@ internal static class BundledDefaultMaterialAssetStore
         }
 
         resourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{logicalPath[logicalPrefix.Length..].Replace('/', '.')}";
-        return ResourceNames.Contains(resourceName);
+        if (ResourceNames.Contains(resourceName))
+        {
+            return true;
+        }
+
+        string normalizedResourceName = resourceName.Replace('-', '_');
+        if (ResourceNames.Contains(normalizedResourceName))
+        {
+            resourceName = normalizedResourceName;
+            return true;
+        }
+
+        return false;
     }
 }

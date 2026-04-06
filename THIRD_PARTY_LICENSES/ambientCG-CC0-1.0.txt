@@ -1,0 +1,10 @@
+ambientCG assets included in this repository are sourced from https://ambientcg.com/
+and are provided under the Creative Commons CC0 1.0 Universal license.
+
+License information:
+- https://docs.ambientcg.com/license/
+- https://creativecommons.org/publicdomain/zero/1.0/
+
+Tracked bundled fallback material sources are documented in:
+- docs/default-materials.md
+- docs/default-materials.ja.md

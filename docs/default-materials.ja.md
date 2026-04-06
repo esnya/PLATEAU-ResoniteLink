@@ -10,27 +10,30 @@
 - `road`: `tran`, `rwy`, `squr`, `trk`
 - `wireframe overlay`: `area`, `fld`, `htd`, `ifld`, `lsld`, `luse`, `rfld`, `tnm`, `urf`
 - `vegetation`: `veg`
-- `other solid fallback`: `brid`, `cons`, `frn`, `gen`, `tun`, `unf`, `wtr`, `wwy`
+- `city furniture`: `frn`
+- `other solid fallback`: `brid`, `cons`, `gen`, `tun`, `unf`, `wtr`, `wwy`
 - `special case`: `dem` は生成 terrain overlay 経路を維持し、同梱 fallback family は使わない
 
-現在の ResoniteLink 経路では、フォールバックをマテリアル意図ごとに分ける。
+package から material 方針への対応は `PlateauPackageCatalog` に集約してあり、サポート対象の non-`dem` package が必ずちょうど 1 つの material bucket に入ることをテストで固定している。これにより、Unity SDK 側の package 対応と fallback policy のズレを見つけやすくしている。`frn` は汎用 `other` bucket ではなく、専用の `city-furniture` fallback family に入る。
+2026-03-12 公開の `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0) 時点では、Unity 側の `PredefinedCityModelPackage.CityFurniture` は `PlateauDefaultCityFurniture` に対応し、見た目は generic metal 系になっている。ResoniteLink もその見た目に寄せるが、チェックインする fallback texture data 自体は Unity SDK の asset をコピーせず、AmbientCG から直接取得したものを使う。
 
-- データセット由来の詳細テクスチャは UV ベースの `PBS_Metallic` を維持する
-- 未テクスチャの建物側面は UV ベースの facade texture を使う
-- 未テクスチャの屋根、道路、その他 package は `PBS_TriplanarMetallic` を使う
-- 未テクスチャの植生は、元データに `X3DMaterial.diffuseColor` があれば `PBS_VertexColorMetallic` を使い、無ければ緑の `AlbedoColor` を持つ textureless `PBS_Metallic` を使う
-- `area`、`luse`、`fld`、`ifld`、`rfld`、`lsld`、`tnm`、`htd`、`urf` のような直接の設置物ではない重ね合わせデータは `WireframeMaterial` を使う
+## `frn` サンプリングメモ
 
-package から material 方針への対応は `PlateauPackageCatalog` に集約してあり、サポート対象の non-`dem` package が必ずちょうど 1 つの material bucket に入ることをテストで固定している。これにより、Unity SDK 側の package 対応と fallback policy のズレを見つけやすくしている。
+Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリングすると、詳細な city furniture はかなり texture 主導だった。
 
-建物の facade 判定は、`bldg:WallSurface` などの CityGML thematic surface を優先し、その文脈がない場合だけ polygon の向きから推定するようにした。fallback 経路では、ほぼ垂直な面を facade UV とみなし、roof / ground 系の semantic は triplanar を維持する。
+- `53394525_frn_6697_sjkms_op.gml` には 2 つの `frn:CityFurniture` object があり、`lod2Geometry` を使っている
+- `ParameterizedTexture` は 34 件あり、参照する texture image は 17 種類
+- `X3DMaterial` は含まれない
+- 481 polygon のうち 467 polygon には明示的な texture target があり、未割当の少数 polygon は水平面、斜面、垂直面にまたがる
 
-生成する facade UV は、各 polygon を `0..1` に正規化するのではなく、固定の繰り返し密度を使う。これにより、同梱 facade texture を大きい壁面でもタイル表示できる。
-さらに、建物壁面の fallback は facade 専用アセットのみにした。レンガ系マテリアルは壁 fallback では選ばれない。物理的な繰り返しスケールは Material 側で持ち、生成 facade UV は壁ローカルのまま、縦方向だけは壁の下端と上端が repeat 境界に乗るようにそろえる。
+このサンプルから、現在の方針は妥当だと判断できる。
+
+- dataset texture がある場合は UV ベースの dataset material を維持する
+- `frn` の一部 polygon が未テクスチャでも、building の facade/roof 分岐には寄せず、triplanar fallback で受ける
 
 ## 同梱アセット
 
-リポジトリには AmbientCG の CC0 2K material を次の対応で同梱する。
+リポジトリには次の fallback material を同梱する。
 
 - `facade`:
   `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
@@ -38,6 +41,8 @@ package から material 方針への対応は `PlateauPackageCatalog` に集約�
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
   `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
+- `city-furniture`:
+  `Metal032_2K-JPG_Color.jpg`
 - `other`:
   `Concrete012_2K-JPG_Color.jpg`, `Ground054_2K-JPG_Color.jpg`
 
@@ -51,6 +56,25 @@ Sources:
 - `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
 - `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
+- `Metal032`: <https://ambientcg.com/view?id=Metal032>
+
+現在このリポジトリに同梱している fallback texture は、すべて AmbientCG 由来で、ライセンスは CC0 1.0 である。
+ローカルの追跡用メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` に置いている。
+
+チェックイン済み asset family ごとの取得元:
+
+- `default-materials/facade/Facade018A_2K-JPG_*` -> AmbientCG `Facade018A` -> <https://ambientcg.com/view?id=Facade018A>
+- `default-materials/facade/Facade019A_2K-JPG_*` -> AmbientCG `Facade019A` -> <https://ambientcg.com/view?id=Facade019A>
+- `default-materials/facade/Facade020A_2K-JPG_*` -> AmbientCG `Facade020A` -> <https://ambientcg.com/view?id=Facade020A>
+- `default-materials/roof/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
+- `default-materials/roof/Concrete033_2K-JPG_*` -> AmbientCG `Concrete033` -> <https://ambientcg.com/view?id=Concrete033>
+- `default-materials/road/Asphalt020L_2K-JPG_*` -> AmbientCG `Asphalt020L` -> <https://ambientcg.com/view?id=Asphalt020L>
+- `default-materials/road/Asphalt023L_2K-JPG_*` -> AmbientCG `Asphalt023L` -> <https://ambientcg.com/view?id=Asphalt023L>
+- `default-materials/other/Ground054_2K-JPG_*` -> AmbientCG `Ground054` -> <https://ambientcg.com/view?id=Ground054>
+- `default-materials/other/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
+- `default-materials/city-furniture/Metal032_2K-JPG_*` -> AmbientCG `Metal032` -> <https://ambientcg.com/view?id=Metal032>
+
+`city-furniture` の metallic map は upstream のファイルをそのまま置いているわけではない。`Metal032_2K-JPG_Metallic.png` は AmbientCG の `Metal032_2K-JPG_Metalness.jpg` と `Metal032_2K-JPG_Roughness.jpg` から Resonite `PBS_Metallic` 向けに再pack したもの。
 
 リポジトリに残すのは、live material builder が直接使う最終マップだけに絞る。
 

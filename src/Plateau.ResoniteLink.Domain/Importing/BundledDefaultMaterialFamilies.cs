@@ -36,7 +36,7 @@ public static class BundledDefaultMaterialFamilies
 
     public static readonly IReadOnlyList<string> CityFurnitureVariants =
     [
-        "default-materials/other/Concrete012_2K-JPG_Color.jpg",
+        "default-materials/city-furniture/Metal032_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> OtherVariants =

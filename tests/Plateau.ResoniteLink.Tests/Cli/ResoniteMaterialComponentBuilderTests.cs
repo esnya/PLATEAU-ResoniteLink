@@ -54,7 +54,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Triplanar,
             DepthOffset: null,
-            TextureScale: null,
+            TextureScale: new ResoniteFloat2(0.25, 0.125),
             SubmeshIndices: [0]);
         ResoniteMaterialBinding wireframeMaterial = new(
             MaterialKey: "overlay",
@@ -71,11 +71,15 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Dictionary<string, Member> wireframeMembers = ResoniteMaterialComponentBuilder.CreateMembers(wireframeMaterial);
 
         Assert.Equal("[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic", ResoniteMaterialComponentBuilder.GetComponentType(triplanarMaterial));
-        Assert.IsType<Field_float2>(triplanarMembers["TextureScale"]);
-        Assert.IsType<Field_float2>(triplanarMembers["TextureOffset"]);
+        Field_float2 triplanarTextureScale = Assert.IsType<Field_float2>(triplanarMembers["TextureScale"]);
+        Field_float2 triplanarTextureOffset = Assert.IsType<Field_float2>(triplanarMembers["TextureOffset"]);
         Assert.IsType<Field_float>(triplanarMembers["Metallic"]);
         Assert.IsType<Field_float>(triplanarMembers["TriplanarBlendPower"]);
         Assert.IsType<Field_bool>(triplanarMembers["ObjectSpace"]);
+        Assert.Equal(0.25f, triplanarTextureScale.Value.x, 6);
+        Assert.Equal(0.125f, triplanarTextureScale.Value.y, 6);
+        Assert.Equal(0.0f, triplanarTextureOffset.Value.x, 6);
+        Assert.Equal(0.0f, triplanarTextureOffset.Value.y, 6);
 
         Assert.Equal("[FrooxEngine]FrooxEngine.WireframeMaterial", ResoniteMaterialComponentBuilder.GetComponentType(wireframeMaterial));
         Field_float thickness = Assert.IsType<Field_float>(wireframeMembers["Thickness"]);
@@ -106,5 +110,29 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Assert.EndsWith("_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
         Assert.EndsWith("_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
         Assert.EndsWith("_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryGetBundledCompanionTextureSetResolvesCityFurnitureCompanions()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "city-furniture",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePath: BundledDefaultMaterialFamilies.CityFurnitureVariants[0],
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Triplanar,
+            DepthOffset: null,
+            TextureScale: null,
+            SubmeshIndices: [0]);
+
+        bool resolved = ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+
+        Assert.True(resolved);
+        Assert.NotNull(textureSet);
+        Assert.Null(textureSet.EmissionPath);
+        Assert.Null(textureSet.HeightPath);
+        Assert.Null(textureSet.MetallicPath);
+        Assert.Null(textureSet.NormalPath);
     }
 }
