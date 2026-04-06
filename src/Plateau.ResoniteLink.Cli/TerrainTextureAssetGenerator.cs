@@ -19,7 +19,6 @@ internal interface ITerrainTextureAssetGenerator
 
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
-    private const double PixelEpsilon = 1e-6;
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
 
     public async Task<string> EnsureTextureAsync(
@@ -39,63 +38,31 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             return texturePath;
         }
 
-        GeographicRectangle bounds = terrainTextureOverlay.GeographicBounds;
-        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MinLongitude, terrainTextureOverlay.ZoomLevel);
-        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MaxLongitude, terrainTextureOverlay.ZoomLevel);
-        double topPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MaxLatitude, terrainTextureOverlay.ZoomLevel);
-        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MinLatitude, terrainTextureOverlay.ZoomLevel);
-
-        if (rightPixel - leftPixel <= PixelEpsilon || bottomPixel - topPixel <= PixelEpsilon)
-        {
-            throw new InvalidOperationException(
-                $"Terrain texture overlay '{terrainTextureOverlay.TexturePath}' has degenerate geographic bounds.");
-        }
-
-        int minTileX = (int)Math.Floor(leftPixel / WebMercatorTileMath.TileSizePixels);
-        int maxTileX = (int)Math.Floor((rightPixel - PixelEpsilon) / WebMercatorTileMath.TileSizePixels);
-        int minTileY = (int)Math.Floor(topPixel / WebMercatorTileMath.TileSizePixels);
-        int maxTileY = (int)Math.Floor((bottomPixel - PixelEpsilon) / WebMercatorTileMath.TileSizePixels);
+        TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(terrainTextureOverlay);
 
         using Image<Rgba32> stitchedImage = new(
-            (maxTileX - minTileX + 1) * WebMercatorTileMath.TileSizePixels,
-            (maxTileY - minTileY + 1) * WebMercatorTileMath.TileSizePixels);
+            layoutPlan.StitchedWidth,
+            layoutPlan.StitchedHeight);
 
-        for (int tileY = minTileY; tileY <= maxTileY; tileY++)
+        for (int tileY = layoutPlan.MinTileY; tileY <= layoutPlan.MaxTileY; tileY++)
         {
-            for (int tileX = minTileX; tileX <= maxTileX; tileX++)
+            for (int tileX = layoutPlan.MinTileX; tileX <= layoutPlan.MaxTileX; tileX++)
             {
                 using Image<Rgba32> tileImage = await DownloadTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
                 stitchedImage.Mutate(context => context.DrawImage(
                     tileImage,
                     new Point(
-                        (tileX - minTileX) * WebMercatorTileMath.TileSizePixels,
-                        (tileY - minTileY) * WebMercatorTileMath.TileSizePixels),
+                        (tileX - layoutPlan.MinTileX) * WebMercatorTileMath.TileSizePixels,
+                        (tileY - layoutPlan.MinTileY) * WebMercatorTileMath.TileSizePixels),
                     1.0f));
             }
         }
 
-        int cropLeft = Math.Clamp(
-            (int)Math.Floor(leftPixel - (minTileX * WebMercatorTileMath.TileSizePixels)),
-            0,
-            stitchedImage.Width - 1);
-        int cropTop = Math.Clamp(
-            (int)Math.Floor(topPixel - (minTileY * WebMercatorTileMath.TileSizePixels)),
-            0,
-            stitchedImage.Height - 1);
-        int cropRight = Math.Clamp(
-            (int)Math.Ceiling((rightPixel - (minTileX * WebMercatorTileMath.TileSizePixels)) - PixelEpsilon),
-            cropLeft + 1,
-            stitchedImage.Width);
-        int cropBottom = Math.Clamp(
-            (int)Math.Ceiling((bottomPixel - (minTileY * WebMercatorTileMath.TileSizePixels)) - PixelEpsilon),
-            cropTop + 1,
-            stitchedImage.Height);
-
         using Image<Rgba32> croppedImage = stitchedImage.Clone(context => context.Crop(new Rectangle(
-            cropLeft,
-            cropTop,
-            cropRight - cropLeft,
-            cropBottom - cropTop)));
+            layoutPlan.CropLeft,
+            layoutPlan.CropTop,
+            layoutPlan.CropWidth,
+            layoutPlan.CropHeight)));
 
         using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
         await outputImage.SaveAsPngAsync(texturePath, cancellationToken);

@@ -7,12 +7,15 @@ namespace Plateau.ResoniteLink.Application.Importing;
 public sealed class PlateauImportService(
     IResoniteSceneBuilder sceneBuilder,
     IPlateauDatasetSourceResolver? datasetSourceResolver = null,
-    Action<string>? progressReporter = null)
+    Action<string>? progressReporter = null,
+    IResoniteConstructionSourceFactory? constructionSourceFactory = null)
 {
     private readonly IResoniteSceneBuilder sceneBuilder = sceneBuilder;
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver();
     private readonly Action<string>? progressReporter = progressReporter;
+    private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
+        constructionSourceFactory ?? new LocalCityGmlConstructionSourceFactory();
 
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
@@ -43,7 +46,7 @@ public sealed class PlateauImportService(
             $"[import] Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'.");
 
         Stopwatch sourceStopwatch = Stopwatch.StartNew();
-        IResoniteConstructionSource source = await LocalCityGmlResonitePlanBuilder.CreateConstructionSourceAsync(
+        IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
             resolvedRequest,
             progressReporter,
             cancellationToken);

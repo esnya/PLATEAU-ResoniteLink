@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using System.Collections.Concurrent;
 
 using GeographicLib;
 
@@ -21,9 +19,6 @@ public static class LocalCityGmlResonitePlanBuilder
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-1.0, -1.0);
-    private static readonly Regex MeshCodeTokenRegex = new(
-        @"(?<!\d)(\d{8}|\d{6})(?!\d)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly ResoniteColor DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly ResoniteColor DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
     private static readonly ResoniteColor DefaultRoadMarkingColor = new(1.0, 1.0, 1.0, 1.0);
@@ -61,19 +56,17 @@ public static class LocalCityGmlResonitePlanBuilder
 
         string datasetRoot = PlateauDatasetPathResolver.ResolveDatasetRoot(request.LocalSourcePath);
         MeshCodeArea? requestedMeshArea = MeshCodeArea.TryParse(request.MeshCode);
-        string[] sourceFileSearchCodes = GetSourceFileSearchCodes(request.MeshCode);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
-        HashSet<string>? requestedPackageNames = request.PackageNames is null
-            ? null
-            : new HashSet<string>(request.PackageNames, StringComparer.OrdinalIgnoreCase);
-        SourceFileDescriptor[] sourceFiles = Directory
-            .EnumerateFiles(datasetRoot, "*.gml", SearchOption.AllDirectories)
-            .Select(path => CreateSourceFileDescriptor(datasetRoot, path, sourceFileSearchCodes, requestedPackageNames))
-            .Where(static descriptor => descriptor is not null)
-            .Select(static descriptor => descriptor!)
-            .OrderBy(static descriptor => GetPackageSendPriority(descriptor.PackageName))
-            .ThenBy(static descriptor => descriptor.RelativePath, StringComparer.Ordinal)
+        SourceFileDescriptor[] sourceFiles = LocalCityGmlSourceFileDiscovery.Discover(
+                datasetRoot,
+                request.MeshCode,
+                request.PackageNames)
+            .Select(static descriptor => new SourceFileDescriptor(
+                descriptor.AbsolutePath,
+                descriptor.RelativePath,
+                descriptor.PackageName,
+                descriptor.RequiresMeshAreaFilter))
             .ToArray();
         scanStopwatch.Stop();
         progressReporter?.Invoke(
@@ -133,7 +126,12 @@ public static class LocalCityGmlResonitePlanBuilder
         Stopwatch demStopwatch = Stopwatch.StartNew();
         ParsedSourceFileResult[] demParsedSourceFiles = demPipelines.Count == 0
             ? []
-            : await Task.WhenAll(demPipelines.Select(static pipeline => pipeline.ParseTask));
+            : await Task.WhenAll(demPipelines.Select(pipeline => ParseSourceFileAsync(
+                pipeline.SourceFile,
+                datasetRoot,
+                requestedMeshArea,
+                progressReporter,
+                cancellationToken)));
         demStopwatch.Stop();
 
         List<CachedSourceFileDescriptor> cachedDemSourceFiles = demParsedSourceFiles
@@ -211,6 +209,8 @@ public static class LocalCityGmlResonitePlanBuilder
             sourceFilePipelines
                 .Where(static pipeline => !string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
                 .ToArray(),
+            datasetRoot,
+            requestedMeshArea,
             referenceSystem,
             globalOriginPoint,
             terrainHeightSampler);
@@ -223,7 +223,6 @@ public static class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        ConcurrentDictionary<string, PackageParseAccumulator> packageAccumulators = new(StringComparer.OrdinalIgnoreCase);
         SourceFilePipeline[] pipelines = sourceFiles
             .Select(sourceFile =>
             {
@@ -231,7 +230,6 @@ public static class LocalCityGmlResonitePlanBuilder
                     sourceFile,
                     datasetRoot,
                     requestedMeshArea,
-                    packageAccumulators,
                     progressReporter,
                     cancellationToken);
                 Task<SourceFileMetadataResult> metadataTask = BootstrapSourceFileMetadataAsync(
@@ -257,60 +255,45 @@ public static class LocalCityGmlResonitePlanBuilder
         SourceFileDescriptor sourceFile,
         string datasetRoot,
         MeshCodeArea? requestedMeshArea,
-        ConcurrentDictionary<string, PackageParseAccumulator> packageAccumulators,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
-        await using FileStream stream = new(
-            sourceFile.AbsolutePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 16 * 1024,
-            useAsync: true);
-        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        ParsedCityObject[] cityObjects = ParseCityObjects(
-            document,
-            sourceFile,
-            datasetRoot,
-            requestedMeshArea);
+        List<ParsedCityObject> cityObjects = [];
+        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsAsync(
+                           sourceFile,
+                           datasetRoot,
+                           requestedMeshArea,
+                           cancellationToken))
+        {
+            cityObjects.Add(cityObject);
+        }
         fileStopwatch.Stop();
 
+        ParsedCityObject[] cityObjectArray = cityObjects
+            .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
+            .ToArray();
         (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds =
-            cityObjects.Length > 0
-                ? GetBounds(cityObjects)
+            cityObjectArray.Length > 0
+                ? GetBounds(cityObjectArray)
                 : null;
-        CoordinateReferenceSystem? fileReferenceSystem = cityObjects.Length > 0
-            ? GetReferenceSystem(cityObjects)
+        CoordinateReferenceSystem? fileReferenceSystem = cityObjectArray.Length > 0
+            ? GetReferenceSystem(cityObjectArray)
             : null;
         TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? [.. ExtractTerrainHeightTriangles(cityObjects)]
+            ? [.. ExtractTerrainHeightTriangles(cityObjectArray)]
             : [];
-
-        packageAccumulators.AddOrUpdate(
-            sourceFile.PackageName,
-            _ => new PackageParseAccumulator(
-                FileCount: 1,
-                CityObjectCount: cityObjects.Length,
-                Elapsed: fileStopwatch.Elapsed),
-            (_, current) => current with
-            {
-                FileCount = current.FileCount + 1,
-                CityObjectCount = current.CityObjectCount + cityObjects.Length,
-                Elapsed = current.Elapsed + fileStopwatch.Elapsed,
-            });
 
         progressReporter?.Invoke(
             $"[import] Parsed file '{sourceFile.RelativePath}' "
-            + $"({sourceFile.PackageName}, {cityObjects.Length} city objects) "
+            + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
             + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s.");
 
         return new ParsedSourceFileResult(
             sourceFile,
-            cityObjects,
+            cityObjectArray,
             fileReferenceSystem,
             bounds,
             terrainTriangles,
@@ -326,17 +309,9 @@ public static class LocalCityGmlResonitePlanBuilder
         cancellationToken.ThrowIfCancellationRequested();
 
         Stopwatch stopwatch = Stopwatch.StartNew();
-        await using FileStream stream = new(
-            sourceFile.AbsolutePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 8 * 1024,
-            useAsync: true);
-        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        CoordinateReferenceSystem? referenceSystem = TryParseDocumentReferenceSystem(document);
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds =
-            TryParseDocumentBounds(document);
+        (CoordinateReferenceSystem? referenceSystem,
+            (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds) =
+            await ReadDocumentMetadataAsync(sourceFile.AbsolutePath, cancellationToken);
         stopwatch.Stop();
 
         if (referenceSystem is null || bounds is null)
@@ -357,54 +332,117 @@ public static class LocalCityGmlResonitePlanBuilder
         return new SourceFileMetadataResult(sourceFile, referenceSystem, bounds, stopwatch.Elapsed);
     }
 
-    private static string[] GetSourceFileSearchCodes(string meshCode)
+    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
+        SourceFileDescriptor sourceFile,
+        string datasetRoot,
+        MeshCodeArea? requestedMeshArea,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
+        await using FileStream stream = new(
+            sourceFile.AbsolutePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 16 * 1024,
+            useAsync: true);
+        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+        ParsedCityObject[] cityObjects = ParseCityObjects(
+            document,
+            sourceFile,
+            datasetRoot,
+            requestedMeshArea);
 
-        if (meshCode.Length >= 8)
+        foreach (ParsedCityObject cityObject in cityObjects)
         {
-            return [meshCode, meshCode[..6]];
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return cityObject;
         }
-
-        return [meshCode];
     }
 
-    private static SourceFileDescriptor? CreateSourceFileDescriptor(
-        string datasetRoot,
-        string path,
-        string[] sourceFileSearchCodes,
-        HashSet<string>? requestedPackageNames)
+    private static async Task<(CoordinateReferenceSystem? ReferenceSystem,
+        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? Bounds)>
+        ReadDocumentMetadataAsync(
+            string absolutePath,
+            CancellationToken cancellationToken)
     {
-        string relativePath = NormalizePath(Path.GetRelativePath(datasetRoot, path));
-        string[] segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length < 3
-            || !string.Equals(segments[0], "udx", StringComparison.OrdinalIgnoreCase))
+        await using FileStream stream = new(
+            absolutePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 8 * 1024,
+            useAsync: true);
+        System.Xml.XmlReaderSettings settings = new()
         {
-            return null;
+            Async = true,
+            IgnoreComments = true,
+            IgnoreWhitespace = true,
+            DtdProcessing = System.Xml.DtdProcessing.Ignore,
+        };
+        using System.Xml.XmlReader reader = System.Xml.XmlReader.Create(stream, settings);
+        CoordinateReferenceSystem? referenceSystem = null;
+        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds = null;
+
+        while (await reader.ReadAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reader.NodeType != System.Xml.XmlNodeType.Element
+                || !string.Equals(reader.LocalName, "Envelope", StringComparison.Ordinal)
+                || !string.Equals(reader.NamespaceURI, Gml.NamespaceName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            using System.Xml.XmlReader subtreeReader = reader.ReadSubtree();
+            XElement envelopeElement = await XElement.LoadAsync(subtreeReader, LoadOptions.None, cancellationToken);
+            string? srsName = envelopeElement.Attribute("srsName")?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(srsName))
+            {
+                referenceSystem = CoordinateReferenceSystem.Parse(srsName);
+            }
+
+            double[] lowerCorner = ParseDoubles(envelopeElement.Element(Gml + "lowerCorner")?.Value ?? string.Empty);
+            double[] upperCorner = ParseDoubles(envelopeElement.Element(Gml + "upperCorner")?.Value ?? string.Empty);
+            if (lowerCorner.Length >= 2 && upperCorner.Length >= 2)
+            {
+                double lowerAltitude = lowerCorner.Length >= 3 ? lowerCorner[2] : 0.0;
+                double upperAltitude = upperCorner.Length >= 3 ? upperCorner[2] : lowerAltitude;
+                bounds = (
+                    minLatitude: Math.Min(lowerCorner[0], upperCorner[0]),
+                    maxLatitude: Math.Max(lowerCorner[0], upperCorner[0]),
+                    minLongitude: Math.Min(lowerCorner[1], upperCorner[1]),
+                    maxLongitude: Math.Max(lowerCorner[1], upperCorner[1]),
+                    minAltitude: Math.Min(lowerAltitude, upperAltitude));
+            }
+
+            break;
         }
 
-        if (!PlateauPackageCatalog.TryNormalizePackageName(segments[1], out string packageName))
+        if (referenceSystem is null || bounds is null)
         {
-            return null;
+            await using FileStream fallbackStream = new(
+                absolutePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 8 * 1024,
+                useAsync: true);
+            XDocument document = await XDocument.LoadAsync(fallbackStream, LoadOptions.None, cancellationToken);
+            referenceSystem ??= TryParseDocumentReferenceSystem(document);
+            referenceSystem ??= CoordinateReferenceSystem.Parse(document);
+            bounds ??= TryParseDocumentBounds(document);
         }
 
-        if (requestedPackageNames is not null && !requestedPackageNames.Contains(packageName))
-        {
-            return null;
-        }
+        return (referenceSystem, bounds);
+    }
 
-        string? matchedMeshCode = MatchMeshCodeFromFileName(path, sourceFileSearchCodes)
-            ?? MatchMeshCodeFromDirectoryPath(segments, sourceFileSearchCodes);
-        if (matchedMeshCode is null)
-        {
-            return null;
-        }
-
-        return new SourceFileDescriptor(
-            path,
-            relativePath,
-            packageName,
-            matchedMeshCode.Length < sourceFileSearchCodes[0].Length);
+    private static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
+        string absolutePath,
+        CancellationToken cancellationToken)
+    {
+        (CoordinateReferenceSystem? referenceSystem, _) = await ReadDocumentMetadataAsync(absolutePath, cancellationToken);
+        return referenceSystem ?? throw new PlateauImportValidationException(
+            [$"CityGML file '{NormalizePath(absolutePath)}' does not declare a supported coordinate reference system."]);
     }
 
     private static CoordinateReferenceSystem? TryParseDocumentReferenceSystem(XDocument document)
@@ -447,32 +485,6 @@ public static class LocalCityGmlResonitePlanBuilder
             minLongitude: Math.Min(lowerCorner[1], upperCorner[1]),
             maxLongitude: Math.Max(lowerCorner[1], upperCorner[1]),
             minAltitude: Math.Min(lowerAltitude, upperAltitude));
-    }
-
-    private static string? MatchMeshCodeFromFileName(string path, string[] sourceFileSearchCodes)
-    {
-        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
-        string[] fileMeshCodes = MeshCodeTokenRegex
-            .Matches(fileNameWithoutExtension)
-            .Select(static match => match.Groups[1].Value)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        return sourceFileSearchCodes
-            .OrderByDescending(static code => code.Length)
-            .FirstOrDefault(code => fileMeshCodes.Contains(code, StringComparer.Ordinal));
-    }
-
-    private static string? MatchMeshCodeFromDirectoryPath(string[] segments, string[] sourceFileSearchCodes)
-    {
-        string[] directorySegments = segments
-            .Skip(2)
-            .Take(Math.Max(segments.Length - 3, 0))
-            .ToArray();
-
-        return sourceFileSearchCodes
-            .OrderByDescending(static code => code.Length)
-            .FirstOrDefault(code => directorySegments.Contains(code, StringComparer.OrdinalIgnoreCase));
     }
 
     private static ParsedCityObject? ParseCityObject(
@@ -606,13 +618,6 @@ public static class LocalCityGmlResonitePlanBuilder
             && string.IsNullOrWhiteSpace(surface.TexturePath)
             ? surface with { TexturePath = DefaultDemTerrainTexturePath }
             : surface;
-    }
-
-    private static int GetPackageSendPriority(string packageName)
-    {
-        return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? 0
-            : 1;
     }
 
     private static int? GetSurfaceLodLevel(XElement surfaceElement, XElement cityObjectElement)
@@ -2187,6 +2192,8 @@ public static class LocalCityGmlResonitePlanBuilder
         ResoniteConstructionMetadata metadata,
         IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles,
         IReadOnlyList<SourceFilePipeline> deferredSourceFiles,
+        string datasetRoot,
+        MeshCodeArea? requestedMeshArea,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
         TerrainHeightSampler? terrainHeightSampler)
@@ -2224,14 +2231,30 @@ public static class LocalCityGmlResonitePlanBuilder
 
             foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
             {
-                ParsedSourceFileResult parsedSourceFile = sourceFile.ParseTask.GetAwaiter().GetResult();
-                if (parsedSourceFile.CityObjects.Length == 0)
+                List<ParsedCityObject> parsedCityObjects = [];
+                IAsyncEnumerator<ParsedCityObject> enumerator = StreamParsedCityObjectsAsync(
+                        sourceFile.SourceFile,
+                        datasetRoot,
+                        requestedMeshArea,
+                        CancellationToken.None)
+                    .GetAsyncEnumerator();
+
+                try
                 {
-                    continue;
+                    while (enumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult())
+                    {
+                        parsedCityObjects.Add(enumerator.Current);
+                    }
+                }
+                finally
+                {
+                    enumerator.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 }
 
                 foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(parsedSourceFile.SourceFile, parsedSourceFile.CityObjects),
+                    new CachedSourceFileDescriptor(
+                        sourceFile.SourceFile,
+                        parsedCityObjects.OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal).ToArray()),
                     globalOriginPoint,
                     globalCartesian,
                     demTerrainTextureOverlays,
@@ -2272,22 +2295,48 @@ public static class LocalCityGmlResonitePlanBuilder
             foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                ParsedSourceFileResult parsedSourceFile = await sourceFile.ParseTask.WaitAsync(cancellationToken);
-                if (parsedSourceFile.CityObjects.Length == 0)
-                {
-                    continue;
-                }
 
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(parsedSourceFile.SourceFile, parsedSourceFile.CityObjects),
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler))
+                await foreach (ResoniteConstructionCityObject cityObject in StreamMaterializedCityObjectsAsync(
+                                   sourceFile.SourceFile,
+                                   datasetRoot,
+                                   requestedMeshArea,
+                                   globalOriginPoint,
+                                   globalCartesian,
+                                   demTerrainTextureOverlays,
+                                   terrainHeightSampler,
+                                   cancellationToken))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
                     yield return cityObject;
                 }
+            }
+        }
+    }
+
+    private static async IAsyncEnumerable<ResoniteConstructionCityObject> StreamMaterializedCityObjectsAsync(
+        SourceFileDescriptor sourceFile,
+        string datasetRoot,
+        MeshCodeArea? requestedMeshArea,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (ParsedCityObject parsedCityObject in StreamParsedCityObjectsAsync(
+                           sourceFile,
+                           datasetRoot,
+                           requestedMeshArea,
+                           cancellationToken))
+        {
+            foreach (ResoniteConstructionCityObject cityObject in MaterializeParsedCityObject(
+                         parsedCityObject,
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         terrainHeightSampler))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return cityObject;
             }
         }
     }
@@ -2301,51 +2350,69 @@ public static class LocalCityGmlResonitePlanBuilder
     {
         foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
         {
-            ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
-            foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
-                         terrainAlignedCityObject,
-                         demTerrainTextureOverlays))
+            foreach (ResoniteConstructionCityObject cityObject in MaterializeParsedCityObject(
+                         parsedCityObject,
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         terrainHeightSampler))
             {
-                ResoniteConstructionCityObject cityObject = MaterializeCityObject(
-                    splitCityObject.CityObject,
-                    globalOriginPoint,
-                    globalCartesian,
-                    splitCityObject.Overlay);
+                yield return cityObject;
+            }
+        }
+    }
 
-                if (cityObject.Mesh.Submeshes.Count > 0)
-                {
-                    yield return cityObject;
-                }
+    private static IEnumerable<ResoniteConstructionCityObject> MaterializeParsedCityObject(
+        ParsedCityObject parsedCityObject,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler)
+    {
+        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
+                     terrainAlignedCityObject,
+                     demTerrainTextureOverlays))
+        {
+            ResoniteConstructionCityObject cityObject = MaterializeCityObject(
+                splitCityObject.CityObject,
+                globalOriginPoint,
+                globalCartesian,
+                splitCityObject.Overlay);
 
-                GeodeticPoint markingOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
-                LocalCartesian? markingCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
-                    ? new LocalCartesian(
-                        markingOrigin.Latitude,
-                        markingOrigin.Longitude,
-                        markingOrigin.Altitude,
-                        splitCityObject.CityObject.ReferenceSystem.Geocentric)
-                    : null;
-                ParsedCityObject? roadMarkingCityObject = CreateGeneratedRoadMarkingCityObject(
-                    splitCityObject.CityObject,
-                    markingOrigin,
-                    markingCartesian);
-                if (roadMarkingCityObject is null)
-                {
-                    continue;
-                }
+            if (cityObject.Mesh.Submeshes.Count > 0)
+            {
+                yield return cityObject;
+            }
 
-                ResoniteConstructionCityObject markingObject = MaterializeCityObject(
-                    roadMarkingCityObject,
-                    globalOriginPoint,
-                    globalCartesian,
-                    splitCityObject.Overlay) with
-                {
-                    CollisionEnabled = false,
-                };
-                if (markingObject.Mesh.Submeshes.Count > 0)
-                {
-                    yield return markingObject;
-                }
+            GeodeticPoint markingOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
+            LocalCartesian? markingCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+                ? new LocalCartesian(
+                    markingOrigin.Latitude,
+                    markingOrigin.Longitude,
+                    markingOrigin.Altitude,
+                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                : null;
+            ParsedCityObject? roadMarkingCityObject = CreateGeneratedRoadMarkingCityObject(
+                splitCityObject.CityObject,
+                markingOrigin,
+                markingCartesian);
+            if (roadMarkingCityObject is null)
+            {
+                continue;
+            }
+
+            ResoniteConstructionCityObject markingObject = MaterializeCityObject(
+                roadMarkingCityObject,
+                globalOriginPoint,
+                globalCartesian,
+                splitCityObject.Overlay) with
+            {
+                CollisionEnabled = false,
+            };
+            if (markingObject.Mesh.Submeshes.Count > 0)
+            {
+                yield return markingObject;
             }
         }
     }
@@ -2492,11 +2559,6 @@ public static class LocalCityGmlResonitePlanBuilder
         CoordinateReferenceSystem? ReferenceSystem,
         (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? Bounds,
         TerrainHeightTriangle[] TerrainTriangles,
-        TimeSpan Elapsed);
-
-    private readonly record struct PackageParseAccumulator(
-        int FileCount,
-        int CityObjectCount,
         TimeSpan Elapsed);
 
     private sealed record MeshCodeArea(
@@ -3294,6 +3356,64 @@ public static class LocalCityGmlResonitePlanBuilder
             return new AppearanceLibrary(colorsByPolygonId, texturesByPolygonId);
         }
 
+        public static async Task<AppearanceLibrary> ParseAsync(
+            string absolutePath,
+            string sourceDirectory,
+            string datasetRoot,
+            CancellationToken cancellationToken)
+        {
+            Dictionary<string, ResoniteColor> colorsByPolygonId = new(StringComparer.Ordinal);
+            Dictionary<string, TextureAssignment> texturesByPolygonId = new(StringComparer.Ordinal);
+
+            await using FileStream stream = new(
+                absolutePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 16 * 1024,
+                useAsync: true);
+            System.Xml.XmlReaderSettings settings = new()
+            {
+                Async = true,
+                IgnoreComments = true,
+                IgnoreWhitespace = true,
+                DtdProcessing = System.Xml.DtdProcessing.Ignore,
+            };
+            using System.Xml.XmlReader reader = System.Xml.XmlReader.Create(stream, settings);
+
+            while (await reader.ReadAsync())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.NodeType != System.Xml.XmlNodeType.Element
+                    || !string.Equals(reader.NamespaceURI, App.NamespaceName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                switch (reader.LocalName)
+                {
+                    case "ParameterizedTexture":
+                        using (System.Xml.XmlReader subtreeReader = reader.ReadSubtree())
+                        {
+                            XElement textureElement = await XElement.LoadAsync(subtreeReader, LoadOptions.None, cancellationToken);
+                            ParseParameterizedTexture(textureElement, sourceDirectory, datasetRoot, texturesByPolygonId);
+                        }
+
+                        break;
+                    case "X3DMaterial":
+                        using (System.Xml.XmlReader subtreeReader = reader.ReadSubtree())
+                        {
+                            XElement materialElement = await XElement.LoadAsync(subtreeReader, LoadOptions.None, cancellationToken);
+                            ParseX3DMaterial(materialElement, colorsByPolygonId);
+                        }
+
+                        break;
+                }
+            }
+
+            return new AppearanceLibrary(colorsByPolygonId, texturesByPolygonId);
+        }
+
         public SurfaceAppearance Resolve(string polygonId)
         {
             ResoniteColor baseColor = colorsByPolygonId.TryGetValue(polygonId, out ResoniteColor? color)
@@ -3357,6 +3477,65 @@ public static class LocalCityGmlResonitePlanBuilder
                 G: values[1],
                 B: values[2],
                 A: values.Length >= 4 ? values[3] : 1.0);
+        }
+
+        private static void ParseParameterizedTexture(
+            XElement textureElement,
+            string sourceDirectory,
+            string datasetRoot,
+            Dictionary<string, TextureAssignment> texturesByPolygonId)
+        {
+            string? imageUri = textureElement.Element(App + "imageURI")?.Value.Trim();
+            string? resolvedTexturePath = ResolveTexturePath(sourceDirectory, datasetRoot, imageUri);
+            if (resolvedTexturePath is null)
+            {
+                return;
+            }
+
+            foreach (XElement targetElement in textureElement.Elements(App + "target"))
+            {
+                string? polygonId = StripReferencePrefix(targetElement.Attribute("uri")?.Value);
+                if (string.IsNullOrWhiteSpace(polygonId))
+                {
+                    continue;
+                }
+
+                Dictionary<string, IReadOnlyList<ResoniteFloat2>> ringCoordinates = new(StringComparer.Ordinal);
+                foreach (XElement textureCoordinatesElement in targetElement.Descendants(App + "textureCoordinates"))
+                {
+                    string? ringId = StripReferencePrefix(textureCoordinatesElement.Attribute("ring")?.Value);
+                    if (string.IsNullOrWhiteSpace(ringId))
+                    {
+                        continue;
+                    }
+
+                    List<ResoniteFloat2> coordinates = ParseTextureCoordinates(textureCoordinatesElement.Value);
+                    if (coordinates.Count > 0)
+                    {
+                        ringCoordinates[ringId] = coordinates;
+                    }
+                }
+
+                texturesByPolygonId[polygonId] = new TextureAssignment(resolvedTexturePath, ringCoordinates);
+            }
+        }
+
+        private static void ParseX3DMaterial(
+            XElement materialElement,
+            Dictionary<string, ResoniteColor> colorsByPolygonId)
+        {
+            ResoniteColor diffuseColor = ParseColor(
+                materialElement.Element(App + "diffuseColor")?.Value,
+                DefaultMaterialColor);
+
+            foreach (XElement targetElement in materialElement.Elements(App + "target"))
+            {
+                string? polygonId = StripReferencePrefix(targetElement.Attribute("uri")?.Value);
+                if (!string.IsNullOrWhiteSpace(polygonId))
+                {
+                    colorsByPolygonId[polygonId] = diffuseColor;
+                }
+            }
         }
     }
 }

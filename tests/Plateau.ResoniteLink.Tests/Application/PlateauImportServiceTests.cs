@@ -1151,6 +1151,40 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scene builder completion finished", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ExecuteAsyncUsesInjectedConstructionSourceFactory()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingConstructionSourceFactory constructionSourceFactory = new(CreateStubConstructionSource());
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: " tokyo23ku ",
+                MeshCode: " 53394525 ",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source", UriKind.Absolute)),
+            workRoot: "runtime/resonite");
+
+        PlateauImportRequest factoryRequest = Assert.Single(constructionSourceFactory.Requests);
+        Assert.Equal("/resolved/source", factoryRequest.LocalSourcePath);
+        Assert.Equal("tokyo23ku", factoryRequest.Dataset);
+        Assert.Equal("53394525", factoryRequest.MeshCode);
+        Assert.Equal("stub://resonite", Assert.Single(result.Destinations));
+        Assert.Single(sceneBuilder.CityObjects);
+    }
+
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
@@ -1197,6 +1231,113 @@ public sealed class PlateauImportServiceTests
             Requests.Add(request);
             return Task.FromResult(resolvedRequest);
         }
+    }
+
+    private sealed class RecordingConstructionSourceFactory(IResoniteConstructionSource source)
+        : IResoniteConstructionSourceFactory
+    {
+        public List<PlateauImportRequest> Requests { get; } = [];
+
+        public Task<IResoniteConstructionSource> CreateAsync(
+            PlateauImportRequest request,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            progressReporter?.Invoke("[import] Parsed 1 city object from stub source in 0.000s.");
+            return Task.FromResult(source);
+        }
+    }
+
+    private sealed class StubConstructionSource(ResoniteConstructionMetadata metadata, IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+        : IResoniteConstructionSource
+    {
+        public ResoniteConstructionMetadata Metadata { get; } = metadata;
+
+        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
+        {
+            return cityObjects;
+        }
+
+        public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (ResoniteConstructionCityObject cityObject in cityObjects)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return cityObject;
+                await Task.Yield();
+            }
+        }
+    }
+
+    private static StubConstructionSource CreateStubConstructionSource()
+    {
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "stub-city-object",
+            DisplayName: "Stub City Object",
+            PackageName: "bldg",
+            LodLevel: 1,
+            CollisionEnabled: true,
+            Transform: new ResoniteTransform(
+                Position: new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                Vertices:
+                [
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(0.0, 0.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(1.0, 0.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(0.0, 0.0, 1.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(0.0, 1.0)),
+                ],
+                Submeshes:
+                [
+                    new ResoniteMeshSubmesh(0, "default", [0, 1, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "stub-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.VertexColor,
+                    TexturePath: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    TextureScale: null,
+                    SubmeshIndices: [0]),
+            ]);
+
+        return new StubConstructionSource(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "Stub World",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: "/resolved/source",
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["bldg"],
+                    SourceFiles: ["udx/bldg/53394525/stub.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "stub",
+                        LicenseName: "stub",
+                        LicenseUrl: "https://example.invalid/license"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [cityObject]);
     }
 
     private static void CreateRuntimePackageFixture(
