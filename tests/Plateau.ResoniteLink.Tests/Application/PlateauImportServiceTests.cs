@@ -346,37 +346,69 @@ public sealed class PlateauImportServiceTests
             workRoot: "runtime/resonite");
         CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
 
-        ResoniteConstructionCityObject road = Assert.Single(scene.CityObjects);
-        Assert.Equal(2, road.Materials.Count);
+        Assert.Equal(2, scene.CityObjects.Count);
+        ResoniteConstructionCityObject road = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Generated UV Road");
+        Assert.Single(road.Materials);
         Assert.Equal("tran", road.PackageName);
 
         ResoniteMaterialBinding roadMaterial = Assert.Single(
             road.Materials,
             static material => material.MaterialType == ResoniteMaterialType.Standard);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, roadMaterial.TextureSourceKind);
-        Assert.Equal(ResoniteMaterialProjection.Triplanar, roadMaterial.Projection);
+        Assert.Equal(ResoniteMaterialProjection.Uv, roadMaterial.Projection);
 
-        ResoniteMaterialBinding markingMaterial = Assert.Single(
-            road.Materials,
-            static material => material.MaterialType == ResoniteMaterialType.VertexColor);
+        ResoniteConstructionCityObject marking = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Generated UV Road Marking");
+        Assert.False(marking.CollisionEnabled);
+        ResoniteMaterialBinding markingMaterial = Assert.Single(marking.Materials);
+        Assert.Equal(ResoniteMaterialType.VertexColor, markingMaterial.MaterialType);
         Assert.Null(markingMaterial.TexturePath);
         Assert.Equal(ResoniteMaterialProjection.Uv, markingMaterial.Projection);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, markingMaterial.DepthOffset);
-        Assert.Equal(1.0, markingMaterial.BaseColor.R, 6);
-        Assert.Equal(1.0, markingMaterial.BaseColor.G, 6);
-        Assert.Equal(1.0, markingMaterial.BaseColor.B, 6);
 
         int markingSubmeshIndex = Assert.Single(markingMaterial.SubmeshIndices);
         ResoniteMeshSubmesh markingSubmesh = Assert.Single(
-            road.Mesh.Submeshes,
+            marking.Mesh.Submeshes,
             submesh => submesh.Index == markingSubmeshIndex);
         Assert.All(
             markingSubmesh.TriangleVertexIndices,
             index =>
             {
-                Assert.NotNull(road.Mesh.Vertices[index].Color);
-                Assert.Equal(1.0, road.Mesh.Vertices[index].Color!.R, 6);
+                Assert.NotNull(marking.Mesh.Vertices[index].Color);
+                Assert.Equal(1.0, marking.Mesh.Vertices[index].Color!.R, 6);
             });
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncSegmentsGeneratedRoadMarkingsAlongRoadDirectionOnSlopedTransportation()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSlopedTransportationFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject marking = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Segmented Slope Road Marking");
+        Assert.False(marking.CollisionEnabled);
+        Assert.True(marking.Mesh.Vertices.Count > 6);
+        Assert.All(
+            marking.Mesh.Vertices,
+            static vertex => Assert.InRange(vertex.Position.Y, -0.001, 4.001));
     }
 
     [Fact]
@@ -407,13 +439,16 @@ public sealed class PlateauImportServiceTests
             "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
             result.Metadata.SourceDataset.SourceFiles);
 
-        Assert.Equal(4, scene.CityObjects.Count);
+        Assert.Equal(5, scene.CityObjects.Count);
         Assert.DoesNotContain(
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Outside Road");
         Assert.Contains(
             scene.CityObjects,
             static cityObject => cityObject.PackageName == "tran" && cityObject.DisplayName == "Parent Tile Road");
+        Assert.Contains(
+            scene.CityObjects,
+            static cityObject => cityObject.PackageName == "tran" && cityObject.DisplayName == "Parent Tile Road Marking");
         Assert.Contains(
             scene.CityObjects,
             static cityObject => cityObject.PackageName == "luse" && cityObject.DisplayName == "Parent Tile Land Use");
@@ -565,14 +600,17 @@ public sealed class PlateauImportServiceTests
             static material =>
             {
                 Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
-                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
+                Assert.Null(material.TexturePath);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
-                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+                Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
+                Assert.Equal(0.32, material.BaseColor.R, 6);
+                Assert.Equal(0.58, material.BaseColor.G, 6);
+                Assert.Equal(0.24, material.BaseColor.B, 6);
             });
     }
 
     [Fact]
-    public async Task ExecuteAsyncUsesVertexColorMaterialsForVegetationAndFallsBackToDefaultMaterialWithoutDiffuseColor()
+    public async Task ExecuteAsyncUsesVertexColorMaterialsForVegetationAndFallsBackToGreenPbsMaterialWithoutDiffuseColor()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeVegetationFixture(datasetRoot.Path);
@@ -606,9 +644,11 @@ public sealed class PlateauImportServiceTests
             vegetation.Materials,
             static material =>
                 material.MaterialType == ResoniteMaterialType.Standard
-                && material.TexturePath is not null
-                && BundledDefaultMaterialFamilies.OtherVariants.Contains(material.TexturePath)
-                && material.Projection == ResoniteMaterialProjection.Triplanar);
+                && material.TexturePath is null
+                && material.Projection == ResoniteMaterialProjection.Uv
+                && Approximately(material.BaseColor.R, 0.32)
+                && Approximately(material.BaseColor.G, 0.58)
+                && Approximately(material.BaseColor.B, 0.24));
     }
 
     [Fact]
@@ -812,7 +852,7 @@ public sealed class PlateauImportServiceTests
                 Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoadVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
-                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+                Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
             });
 
         ResoniteConstructionCityObject area = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "Area One");
@@ -1025,6 +1065,33 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(DatasetSourceKind.Remote, Assert.Single(resolver.Requests).SourceKind);
         Assert.Equal(DatasetSourceKind.Local, result.Metadata.Request.SourceKind);
         Assert.Equal(fixturePath, result.Metadata.Request.LocalSourcePath);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncReportsTimestampFreePhaseLogsThroughProgressReporter()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        List<string> progressMessages = [];
+        PlateauImportService service = new(
+            sceneBuilder,
+            progressReporter: progressMessages.Add);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Resolved dataset source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scanned ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Parsed ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Prepared construction source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Streamed ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scene builder completion finished", StringComparison.Ordinal));
     }
 
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
@@ -1596,6 +1663,43 @@ public sealed class PlateauImportServiceTests
                           <gml:exterior>
                             <gml:LinearRing gml:id="ring-generated-uv-road">
                               <gml:posList>0 0 0 8 0 0 8 2 0 0 2 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod2MultiSurface>
+                </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeSlopedTransportationFixture(string datasetRoot)
+    {
+        string tranDirectory = Path.Combine(datasetRoot, "udx", "tran", "53394525");
+        Directory.CreateDirectory(tranDirectory);
+        File.WriteAllText(
+            Path.Combine(tranDirectory, "plateau_tokyo23ku_tran_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>20 2 4</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-generated-sloped">
+                  <gml:name>Segmented Slope Road</gml:name>
+                  <tran:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-generated-sloped-road">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-generated-sloped-road">
+                              <gml:posList>0 0 0 20 0 1 20 2 4 0 2 0 0 0 0</gml:posList>
                             </gml:LinearRing>
                           </gml:exterior>
                         </gml:Polygon>

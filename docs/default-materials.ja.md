@@ -18,7 +18,7 @@
 - データセット由来の詳細テクスチャは UV ベースの `PBS_Metallic` を維持する
 - 未テクスチャの建物側面は UV ベースの facade texture を使う
 - 未テクスチャの屋根、道路、その他 package は `PBS_TriplanarMetallic` を使う
-- 未テクスチャの植生は、元データに `X3DMaterial.diffuseColor` があれば `PBS_VertexColorMetallic` を使い、無ければ他の textureless package と同じ default material fallback を使う
+- 未テクスチャの植生は、元データに `X3DMaterial.diffuseColor` があれば `PBS_VertexColorMetallic` を使い、無ければ緑の `AlbedoColor` を持つ textureless `PBS_Metallic` を使う
 - `area`、`luse`、`fld`、`ifld`、`rfld`、`lsld`、`tnm`、`htd`、`urf` のような直接の設置物ではない重ね合わせデータは `WireframeMaterial` を使う
 
 package から material 方針への対応は `PlateauPackageCatalog` に集約してあり、サポート対象の non-`dem` package が必ずちょうど 1 つの material bucket に入ることをテストで固定している。これにより、Unity SDK 側の package 対応と fallback policy のズレを見つけやすくしている。

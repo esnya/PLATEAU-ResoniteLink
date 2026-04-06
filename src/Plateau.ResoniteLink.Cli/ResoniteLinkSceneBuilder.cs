@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Channels;
 
@@ -37,9 +38,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private HashSet<string>? knownSlotIds;
     private HashSet<string>? knownComponentIds;
     private ConcurrentDictionary<string, Task<string>>? resolvedTexturePathTasks;
+    private Dictionary<string, TerrainTextureOverlay>? terrainTextureOverlaysByPath;
     private Channel<QueuedCityObject>? cityObjectChannel;
     private Task? processingTask;
     private int processedCityObjectCount;
+    private Stopwatch? sceneBuildStopwatch;
+    private int firstQueuedCityObjectLogged;
+    private int firstPreparedCityObjectLogged;
+    private int firstBuiltCityObjectLogged;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
         : this(endpoint, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), progressReporter)
@@ -98,6 +104,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         knownSlotIds = new HashSet<string>(StringComparer.Ordinal);
         knownComponentIds = new HashSet<string>(StringComparer.Ordinal);
         resolvedTexturePathTasks = new ConcurrentDictionary<string, Task<string>>(StringComparer.OrdinalIgnoreCase);
+        terrainTextureOverlaysByPath = metadata.SourceDataset.TerrainTextureOverlays.ToDictionary(
+            static overlay => overlay.TexturePath,
+            StringComparer.Ordinal);
         cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
             new BoundedChannelOptions(MaxQueuedCityObjects)
             {
@@ -106,6 +115,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 FullMode = BoundedChannelFullMode.Wait,
             });
         processedCityObjectCount = 0;
+        sceneBuildStopwatch = Stopwatch.StartNew();
+        firstQueuedCityObjectLogged = 0;
+        firstPreparedCityObjectLogged = 0;
+        firstBuiltCityObjectLogged = 0;
         await client.ConnectAsync(endpoint, cancellationToken);
         processingTask = ProcessQueuedCityObjectsAsync(cityObjectChannel.Reader, cancellationToken);
         ReportProgress(
@@ -159,6 +172,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await AwaitProcessingTaskIfCompletedAsync();
 
         Task<PreparedCityObject> preparationTask = PrepareCityObjectAsync(cityObject, cancellationToken);
+        if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
+        {
+            ReportProgress(
+                $"[live] First city object queued after {GetSceneElapsedSeconds():F3}s: "
+                + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+        }
+
         await cityObjectChannel.Writer.WriteAsync(
             new QueuedCityObject(cityObject, preparationTask),
             cancellationToken);
@@ -206,8 +226,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         knownSlotIds = null;
         knownComponentIds = null;
         resolvedTexturePathTasks = null;
+        terrainTextureOverlaysByPath = null;
         cityObjectChannel = null;
         processingTask = null;
+        sceneBuildStopwatch = null;
     }
 
     private async Task ProcessQueuedCityObjectsAsync(
@@ -266,11 +288,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             })
             .ToArray();
         Task<ImportMeshRawData> meshImportTask = Task.Run(() => CreateMeshImport(cityObject.Mesh), cancellationToken);
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        PreparedTextureReference[] preparedTextures = await Task.WhenAll(texturePreparationTasks);
+        ImportMeshRawData meshImport = await meshImportTask;
+        stopwatch.Stop();
+
+        if (Interlocked.CompareExchange(ref firstPreparedCityObjectLogged, 1, 0) == 0)
+        {
+            ReportProgress(
+                $"[live] First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
+                + $"after scene start {GetSceneElapsedSeconds():F3}s: "
+                + $"{cityObject.DisplayName} "
+                + $"(textures={preparedTextures.Length}, vertices={cityObject.Mesh.Vertices.Count}, submeshes={cityObject.Mesh.Submeshes.Count})");
+        }
 
         return new PreparedCityObject(
             cityObject,
-            await meshImportTask,
-            await Task.WhenAll(texturePreparationTasks));
+            meshImport,
+            preparedTextures);
     }
 
     private async Task<string> ResolveTextureImportPathAsync(
@@ -281,10 +316,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
         ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
+        ObjectDisposedException.ThrowIf(terrainTextureOverlaysByPath is null, this);
 
-        TerrainTextureOverlay? terrainTextureOverlay = metadata.SourceDataset.TerrainTextureOverlays
-            .FirstOrDefault(overlay => string.Equals(overlay.TexturePath, texturePath, StringComparison.Ordinal));
-        if (terrainTextureOverlay is not null)
+        if (terrainTextureOverlaysByPath.TryGetValue(texturePath, out TerrainTextureOverlay? terrainTextureOverlay))
         {
             return await terrainTextureAssetGenerator.EnsureTextureAsync(
                 terrainTextureOverlay,
@@ -609,11 +643,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     {
                         ["Type"] = new Field_Enum
                         {
-                            Value = "Static",
+                            Value = cityObject.CollisionEnabled ? "Static" : "NoCollision",
                         },
                         ["CharacterCollider"] = new Field_bool
                         {
-                            Value = true,
+                            Value = cityObject.CollisionEnabled,
                         },
                         ["Mesh"] = new Reference
                         {
@@ -624,6 +658,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             },
             cancellationToken);
         knownComponentIds.Add(colliderId);
+
+        if (Interlocked.CompareExchange(ref firstBuiltCityObjectLogged, 1, 0) == 0)
+        {
+            ReportProgress(
+                $"[live] First city object built after {GetSceneElapsedSeconds():F3}s: "
+                + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+        }
+    }
+
+    private double GetSceneElapsedSeconds()
+    {
+        return sceneBuildStopwatch?.Elapsed.TotalSeconds ?? 0.0;
     }
 
     private static ImportMeshRawData CreateMeshImport(ResoniteImportedMesh mesh)

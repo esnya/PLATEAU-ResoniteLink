@@ -18,7 +18,7 @@ The current ResoniteLink path splits the fallback by material intent:
 - detailed dataset textures keep UV-based `PBS_Metallic`
 - untextured building facades use UV-based facade textures
 - untextured roofs, roads, and other packages use `PBS_TriplanarMetallic`
-- untextured vegetation uses `PBS_VertexColorMetallic` when the source exposes `X3DMaterial.diffuseColor`, and otherwise falls back to the same default material path as other textureless packages
+- untextured vegetation uses `PBS_VertexColorMetallic` when the source exposes `X3DMaterial.diffuseColor`, and otherwise uses textureless `PBS_Metallic` with a default green `AlbedoColor`
 - non-installation overlays such as `area`, `luse`, `fld`, `ifld`, `rfld`, `lsld`, `tnm`, `htd`, and `urf` render as `WireframeMaterial`
 
 The package-to-material mapping is centralized in `PlateauPackageCatalog`, and tests assert that every supported non-`dem` package belongs to exactly one material bucket so Unity-SDK package coverage and fallback policy stay in sync.

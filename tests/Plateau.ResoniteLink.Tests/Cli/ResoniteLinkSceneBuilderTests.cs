@@ -502,6 +502,165 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncUsesGreenPbsMaterialForColorlessVegetation()
+    {
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU tokyo23ku 53394525",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["veg"],
+                    SourceFiles: ["udx/veg/53394525/plateau_tokyo23ku_veg_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "veg_default",
+                    DisplayName: "Vegetation Default",
+                    PackageName: "veg",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: new ResoniteImportedMesh(
+                        Vertices:
+                        [
+                            new ResoniteMeshVertex(
+                                new ResoniteFloat3(0.0, 0.0, 0.0),
+                                new ResoniteFloat3(0.0, 1.0, 0.0),
+                                new ResoniteFloat2(0.0, 0.0)),
+                            new ResoniteMeshVertex(
+                                new ResoniteFloat3(1.0, 0.0, 0.0),
+                                new ResoniteFloat3(0.0, 1.0, 0.0),
+                                new ResoniteFloat2(1.0, 0.0)),
+                            new ResoniteMeshVertex(
+                                new ResoniteFloat3(0.0, 0.0, 1.0),
+                                new ResoniteFloat3(0.0, 1.0, 0.0),
+                                new ResoniteFloat2(0.0, 1.0)),
+                        ],
+                        Submeshes:
+                        [
+                            new ResoniteMeshSubmesh(0, "veg-green-default", [0, 1, 2]),
+                        ]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "veg-green-default",
+                            BaseColor: new ResoniteColor(0.32, 0.58, 0.24, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component material = Assert.Single(
+            fakeClient.AddedComponents.Where(static request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                    && !request.Data.Members.ContainsKey("AlbedoTexture"))
+                .Select(static request => request.Data));
+        Field_colorX albedoColor = Assert.IsType<Field_colorX>(material.Members["AlbedoColor"]);
+        Assert.Equal(0.32f, albedoColor.Value.r, 6);
+        Assert.Equal(0.58f, albedoColor.Value.g, 6);
+        Assert.Equal(0.24f, albedoColor.Value.b, 6);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDisablesColliderForNoCollisionCityObjects()
+    {
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU tokyo23ku 53394525",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["tran"],
+                    SourceFiles: ["udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "tran_marking",
+                    DisplayName: "Road Marking",
+                    PackageName: "tran",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: new ResoniteImportedMesh(
+                        Vertices:
+                        [
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0), new ResoniteColor(1.0, 1.0, 1.0, 1.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0), new ResoniteColor(1.0, 1.0, 1.0, 1.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0), new ResoniteColor(1.0, 1.0, 1.0, 1.0)),
+                        ],
+                        Submeshes:
+                        [
+                            new ResoniteMeshSubmesh(0, "tran-marking", [0, 1, 2]),
+                        ]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "tran-marking",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.VertexColor,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset,
+                            SubmeshIndices: [0]),
+                    ],
+                    CollisionEnabled: false),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component collider = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Field_Enum type = Assert.IsType<Field_Enum>(collider.Members["Type"]);
+        Field_bool characterCollider = Assert.IsType<Field_bool>(collider.Members["CharacterCollider"]);
+        Assert.Equal("NoCollision", type.Value);
+        Assert.False(characterCollider.Value);
+    }
+
+    [Fact]
     public async Task BuildAsyncUsesUniqueEntityIdsAcrossRuns()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
