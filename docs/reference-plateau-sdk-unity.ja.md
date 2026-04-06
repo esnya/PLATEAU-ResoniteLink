@@ -8,6 +8,7 @@
 - 空間単位の選択を、PLATEAU の正式名称である `mesh-code` として扱うこと。
 - Unity 側の package 対応がそのまま持ち込めるよう、`udx/<package>/` の公式 PLATEAU package 命名に従うこと。
 - Unity 側の `dem` 地形テクスチャに合わせ、航空写真や地図タイルを Web Mercator の共有 overlay として結合し、繰り返し前提の代替 texture ではなく、その geographic overlay に対して DEM の UV を割り当てること。
+- 低LOD の `tran` では、長い交通系 quad を DEM 追従前に分割し、Unity の road adjustment に近い地形追従へ寄せること。
 - `DatasetSourceConfigLocal` と `DatasetSourceConfigRemote` の両方を視野に入れ、`LocalSourcePath` や `ServerUrl` のような Unity SDK 側の名称を import model でも踏襲すること。
 - UI 先行ではなく、まずインポート契約と処理境界を固めること。
 - 大きいデータは、ひとつの全件バッチを前提にせず、tile や city object を増分的に流せる構造を優先すること。
