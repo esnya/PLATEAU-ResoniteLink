@@ -13,3 +13,6 @@
 - CLI のオーケストレーション、アプリケーションロジック、ドメインモデルをテスト可能でホスト非依存に保つため、Resonite 固有の I/O は抽象の背後に置く。
 - 決定的な出力、明示的なコマンド入力、再現可能なローカル/CI の挙動を優先する。
 - 振る舞いを変更したら、自動テストを追加または更新する。
+
+## Live Send 手順
+- 具体的な live send と Resonite UnitySDK `AutoDiscovery` の運用手順は [docs/live-testing.ja.md](/mnt/c/Users/esnya/Documents/PLATEAU-ResoniteLink/docs/live-testing.ja.md) を参照すること。

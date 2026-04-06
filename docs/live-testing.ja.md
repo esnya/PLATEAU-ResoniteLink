@@ -9,6 +9,41 @@
 - ResoniteLink のポートはセッションごとに変わる。ソース管理に固定値を書かない。
 - この環境では WSL から Windows 側 listener へ直接到達できない。
 - live import は Windows 上で実行し、宛先は `localhost` を使う。
+- このリポジトリの CLI 自体は listener port を自動発見しない。したがって、先に有効な listener port を確認し、その値を CLI に明示指定する必要がある。
+
+## Port の見つけ方
+
+ResoniteLink の port を、単なる `Renderite.Host.exe` の listener から推測してはいけない。UnitySDK が使っているのと同じ情報源を使う。
+
+- ResoniteLink は UDP `12512` で active session を announce する。
+- announce payload には `sessionName`、`sessionID`、`linkPort` が入る。
+- UnitySDK の `AutoDiscovery` UI は、実際には `ResoniteLink.LinkSessionListener` が UDP `12512` を listen して `linkPort` を読んでいるだけである。
+
+Unity なしの運用手順:
+
+1. Resonite を起動し、対象 world を開くか join する。
+2. Resonite の dash で `Session` を開き、`Enable Resonite Link` を押す。
+3. Session settings に表示される `ResoniteLink running on port: <port number>` を読めるなら、それを使う。
+4. UI だけでは足りない場合や複数 session がある場合は、UDP `12512` の announce を listen し、受信 JSON の `linkPort` を読む。
+5. 発見した `sessionName` / `sessionID` を、対象 world と照合する。
+6. 見つかった port をこのリポジトリの CLI に `--resonitelink-port` で渡すか、完全な endpoint を `--resonitelink-url` で渡す。
+
+announce ベースで確認する最小の Windows PowerShell パターン:
+
+```powershell
+$udp = [System.Net.Sockets.UdpClient]::new(12512)
+$remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+$bytes = $udp.Receive([ref]$remote)
+$json = [System.Text.Encoding]::UTF8.GetString($bytes)
+$json | ConvertFrom-Json
+```
+
+返ってくる object には `sessionName`、`sessionID`、`linkPort` が含まれるはずである。
+
+失敗時の扱い:
+
+- live send が `SocketException (10061)` などの connection refused で失敗した場合、その port で listener が有効ではない前提で扱う。
+- まず `Enable Resonite Link` を再確認し、その後 Session UI か、新しい UDP `12512` announce で port を再確認する。
 
 ## WSL の勘所
 

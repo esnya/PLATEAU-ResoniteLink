@@ -9,6 +9,41 @@ Use this workflow only for machine-level checks against a running ResoniteLink l
 - The ResoniteLink port is session-specific. Do not hard-code it in source control.
 - In this environment, WSL cannot reach the Windows-side listener directly.
 - Run the live import from Windows and target `localhost`.
+- This repository's CLI does not discover the listener port by itself. Resolve the active listener port first and then pass it explicitly to the CLI.
+
+## Port Discovery
+
+Do not infer the ResoniteLink port from an arbitrary `Renderite.Host.exe` listener. Use the same source that the Unity SDK uses:
+
+- ResoniteLink announces active sessions over UDP on port `12512`.
+- The announcement payload contains `sessionName`, `sessionID`, and `linkPort`.
+- The Unity SDK `AutoDiscovery` UI is just a thin wrapper over `ResoniteLink.LinkSessionListener`, which listens on UDP `12512` and reads `linkPort` from each discovered session.
+
+Operator workflow without Unity:
+
+1. Run Resonite and open or join the target world.
+2. Open `Session` on the Resonite dash and click `Enable Resonite Link`.
+3. Read the in-game text `ResoniteLink running on port: <port number>` on the Session settings page if it is visible.
+4. If the UI is not enough or multiple sessions are active, listen for UDP announcements on port `12512` and read `linkPort` from the received JSON.
+5. Match the discovered `sessionName` / `sessionID` to the world you intend to target.
+6. Pass that port to this repository's CLI with `--resonitelink-port`, or pass a full endpoint with `--resonitelink-url`.
+
+Minimal Windows PowerShell pattern for announcement-based discovery:
+
+```powershell
+$udp = [System.Net.Sockets.UdpClient]::new(12512)
+$remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+$bytes = $udp.Receive([ref]$remote)
+$json = [System.Text.Encoding]::UTF8.GetString($bytes)
+$json | ConvertFrom-Json
+```
+
+The returned object should contain `sessionName`, `sessionID`, and `linkPort`.
+
+Failure handling:
+
+- If a live send fails with `SocketException (10061)` or another connection-refused error, assume the listener is not active on that port until proven otherwise.
+- Re-check `Enable Resonite Link`, then re-confirm the port from the in-game Session UI or a fresh UDP `12512` announcement.
 
 ## WSL Notes
 

@@ -13,3 +13,6 @@ This repository builds a .NET 10 import pipeline that maps PLATEAU datasets into
 - Keep Resonite-specific I/O behind abstractions so CLI orchestration, application logic, and domain models remain testable and host-agnostic.
 - Prefer deterministic outputs, explicit command inputs, and reproducible local/CI behavior.
 - Add or update automated tests when behavior changes.
+
+## Live Send Workflow
+- Follow the concrete live-send and Resonite UnitySDK `AutoDiscovery` workflow in [docs/live-testing.md](/mnt/c/Users/esnya/Documents/PLATEAU-ResoniteLink/docs/live-testing.md).
