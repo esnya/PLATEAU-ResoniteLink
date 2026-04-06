@@ -33,7 +33,7 @@ package から material 方針への対応は `PlateauPackageCatalog` に集約�
 リポジトリには AmbientCG の CC0 2K material を次の対応で同梱する。
 
 - `facade`:
-  `Facade018C_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
+  `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
 - `roof`:
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
@@ -43,7 +43,7 @@ package から material 方針への対応は `PlateauPackageCatalog` に集約�
 
 Sources:
 
-- `Facade018C`: <https://ambientcg.com/view?id=Facade018C>
+- `Facade018A`: <https://ambientcg.com/view?id=Facade018A>
 - `Facade019A`: <https://ambientcg.com/view?id=Facade019A>
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
 - `Concrete012`: <https://ambientcg.com/view?id=Concrete012>
@@ -58,6 +58,6 @@ Sources:
 - `*_NormalGL.jpg`: normal map
 - `*_Height.jpg`: parallax 用の height map
 - `*_Metallic.png`: 元 material に roughness がある場合の Resonite packed metallic map
-- `*_Emission.jpg`: 元 material に emissive texture がある場合のみ
+- facade fallback では facade 系の `*_Emission.jpg` を残すが、`018A/019A/020A` の各ファミリ内で emissive pixel の面積が最小になるサブバリエーションを選び直している
 
 同梱 metallic map は、Resonite wiki の `PBS_Metallic` に合わせて、R に metallic、G に occlusion または height、A に smoothness を入れる。さらに、同梱 `HeightMap` を割り当てる場合は、parallax が強すぎないように live builder 側で `HeightScale` を `0.002` に下げる。

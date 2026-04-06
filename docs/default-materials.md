@@ -33,7 +33,7 @@ The default facade fallback now uses facade-specific assets only. Brick-like mat
 The repository bundles the following 2K AmbientCG materials under CC0:
 
 - `facade`:
-  `Facade018C_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
+  `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
 - `roof`:
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
@@ -43,7 +43,7 @@ The repository bundles the following 2K AmbientCG materials under CC0:
 
 Sources:
 
-- `Facade018C`: <https://ambientcg.com/view?id=Facade018C>
+- `Facade018A`: <https://ambientcg.com/view?id=Facade018A>
 - `Facade019A`: <https://ambientcg.com/view?id=Facade019A>
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
 - `Concrete012`: <https://ambientcg.com/view?id=Concrete012>
@@ -58,6 +58,6 @@ The checked-in files keep only the maps that the live builder consumes directly:
 - `*_NormalGL.jpg` for normal mapping
 - `*_Height.jpg` for parallax height
 - `*_Metallic.png` for Resonite's packed metallic map when the source material exposes roughness data
-- `*_Emission.jpg` when the source material includes an emissive texture
+- Facade fallback keeps the facade-specific `*_Emission.jpg` maps, but the selected `018A/019A/020A` sub-variants were re-picked by comparing emissive pixel coverage and taking the lowest-emission option in each family
 
 Bundled metallic maps follow the Resonite wiki packing for `PBS_Metallic`: red stores metallic, green stores occlusion or height, and alpha stores smoothness. When a bundled `HeightMap` is assigned, the live builder also writes a reduced `HeightScale` of `0.002` so the parallax effect stays close to one tenth of the material's default strength.
