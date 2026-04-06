@@ -1394,6 +1394,7 @@ public sealed class PlateauImportServiceTests
             SlotKey: "stub-city-object",
             DisplayName: "Stub City Object",
             PackageName: "bldg",
+            ActualMeshCode: "53394525",
             LodLevel: 1,
             CollisionEnabled: true,
             Transform: new ResoniteTransform(
