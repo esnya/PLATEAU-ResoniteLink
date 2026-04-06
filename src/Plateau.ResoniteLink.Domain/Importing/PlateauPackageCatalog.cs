@@ -16,6 +16,12 @@ public static class PlateauPackageCatalog
         "trk",
     ];
 
+    public static readonly string[] PathLikePackageNames =
+    [
+        .. RoadPackageNames,
+        "wwy",
+    ];
+
     public static readonly string[] WireframeOverlayPackageNames =
     [
         "area",
@@ -102,6 +108,8 @@ public static class PlateauPackageCatalog
         new(BuildingPackageNames, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> RoadPackageNameSet =
         new(RoadPackageNames, StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> PathLikePackageNameSet =
+        new(PathLikePackageNames, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> WireframeOverlayPackageNameSet =
         new(WireframeOverlayPackageNames, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> VegetationPackageNameSet =
@@ -166,6 +174,11 @@ public static class PlateauPackageCatalog
     public static bool IsRoadPackage(string packageName)
     {
         return RoadPackageNameSet.Contains(packageName);
+    }
+
+    public static bool IsPathLikePackage(string packageName)
+    {
+        return PathLikePackageNameSet.Contains(packageName);
     }
 
     public static bool IsWireframeOverlayPackage(string packageName)

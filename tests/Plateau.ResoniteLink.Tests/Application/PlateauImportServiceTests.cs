@@ -358,6 +358,11 @@ public sealed class PlateauImportServiceTests
             static material => material.MaterialType == ResoniteMaterialType.Standard);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, roadMaterial.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, roadMaterial.Projection);
+        double roadUSpan = road.Mesh.Vertices.Max(static vertex => vertex.UV0.X)
+            - road.Mesh.Vertices.Min(static vertex => vertex.UV0.X);
+        double roadVSpan = road.Mesh.Vertices.Max(static vertex => vertex.UV0.Y)
+            - road.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        Assert.True(roadUSpan > roadVSpan);
 
         ResoniteConstructionCityObject marking = Assert.Single(
             scene.CityObjects,
@@ -380,6 +385,37 @@ public sealed class PlateauImportServiceTests
                 Assert.NotNull(marking.Mesh.Vertices[index].Color);
                 Assert.Equal(1.0, marking.Mesh.Vertices[index].Color!.R, 6);
             });
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncGeneratesPathAlignedUvFallbackMaterialForTexturelessWaterway()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeTexturelessWaterwayFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject waterway = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Generated UV Waterway");
+        ResoniteMaterialBinding waterwayMaterial = Assert.Single(waterway.Materials);
+        Assert.Equal(ResoniteMaterialProjection.Uv, waterwayMaterial.Projection);
+        double waterwayUSpan = waterway.Mesh.Vertices.Max(static vertex => vertex.UV0.X)
+            - waterway.Mesh.Vertices.Min(static vertex => vertex.UV0.X);
+        double waterwayVSpan = waterway.Mesh.Vertices.Max(static vertex => vertex.UV0.Y)
+            - waterway.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        Assert.True(waterwayUSpan > waterwayVSpan);
     }
 
     [Fact]
@@ -1707,6 +1743,43 @@ public sealed class PlateauImportServiceTests
                     </gml:MultiSurface>
                   </tran:lod2MultiSurface>
                 </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeTexturelessWaterwayFixture(string datasetRoot)
+    {
+        string waterwayDirectory = Path.Combine(datasetRoot, "udx", "wwy", "53394525");
+        Directory.CreateDirectory(waterwayDirectory);
+        File.WriteAllText(
+            Path.Combine(waterwayDirectory, "plateau_tokyo23ku_wwy_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:wwy="urn:plateau:test:wwy">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3">
+                  <gml:lowerCorner>0 0 0</gml:lowerCorner>
+                  <gml:upperCorner>12 2 1</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <wwy:Waterway gml:id="wwy-generated-uv">
+                  <gml:name>Generated UV Waterway</gml:name>
+                  <wwy:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-generated-uv-waterway">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-generated-uv-waterway">
+                              <gml:posList>0 0 0 12 0 1 12 2 1 0 2 0 0 0 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </wwy:lod2MultiSurface>
+                </wwy:Waterway>
               </core:cityObjectMember>
             </core:CityModel>
             """);

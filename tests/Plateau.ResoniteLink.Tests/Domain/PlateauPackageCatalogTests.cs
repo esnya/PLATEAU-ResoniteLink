@@ -42,6 +42,11 @@ public sealed class PlateauPackageCatalogTests
             Assert.True(PlateauPackageCatalog.IsRoadPackage(packageName));
         }
 
+        foreach (string packageName in PlateauPackageCatalog.PathLikePackageNames)
+        {
+            Assert.True(PlateauPackageCatalog.IsPathLikePackage(packageName));
+        }
+
         foreach (string packageName in PlateauPackageCatalog.WireframeOverlayPackageNames)
         {
             Assert.True(PlateauPackageCatalog.IsWireframeOverlayPackage(packageName));

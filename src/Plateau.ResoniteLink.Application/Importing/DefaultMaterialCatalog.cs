@@ -40,7 +40,7 @@ internal static class DefaultMaterialCatalog
             ResoniteMaterialType.Standard,
             selectedTexturePath,
             ResoniteTextureSourceKind.Bundled,
-            useFacadeUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
+            preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
             family,
             BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath));
     }

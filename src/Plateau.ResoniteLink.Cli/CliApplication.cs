@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 using Plateau.ResoniteLink.Application.Importing;
 
@@ -94,9 +95,16 @@ public sealed class CliApplication
         Justification = "PlateauImportService owns the scene builder lifetime and disposes it after each execution.")]
     private static PlateauImportService CreateImportService(BuildCommandOptions options)
     {
+        Action<string> reporter = static message =>
+        {
+            string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
+            Console.Out.WriteLine($"[{timestamp}] {message}");
+        };
+
         return new PlateauImportService(
             new ResoniteLinkSceneBuilder(
                 options.ResoniteLinkUri!,
-                static message => Console.Out.WriteLine(message)));
+                reporter),
+            progressReporter: reporter);
     }
 }

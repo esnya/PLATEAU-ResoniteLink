@@ -7,4 +7,5 @@ public sealed record ResoniteConstructionCityObject(
     int? LodLevel,
     ResoniteTransform Transform,
     ResoniteImportedMesh Mesh,
-    IReadOnlyList<ResoniteMaterialBinding> Materials);
+    IReadOnlyList<ResoniteMaterialBinding> Materials,
+    bool CollisionEnabled = true);

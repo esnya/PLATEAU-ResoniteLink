@@ -1690,14 +1690,14 @@ public static class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3[] positions,
         ResoniteFloat3 normal)
     {
-        if (!PlateauPackageCatalog.IsRoadPackage(packageName)
+        if (!PlateauPackageCatalog.IsPathLikePackage(packageName)
             || positions.Length < 2
             || Math.Abs(normal.Y) < 0.7)
         {
             return null;
         }
 
-        ResoniteFloat3 axisU = default;
+        ResoniteFloat3 axisU = Subtract(positions[1], positions[0]);
         double axisULength = 0.0;
         for (int index = 0; index < positions.Length; index++)
         {
@@ -1897,6 +1897,14 @@ public static class LocalCityGmlResonitePlanBuilder
             left.Z - right.Z);
     }
 
+    private static ResoniteFloat3 Multiply(ResoniteFloat3 vector, double scalar)
+    {
+        return new ResoniteFloat3(
+            vector.X * scalar,
+            vector.Y * scalar,
+            vector.Z * scalar);
+    }
+
     private static ResoniteFloat3 Cross(ResoniteFloat3 left, ResoniteFloat3 right)
     {
         return new ResoniteFloat3(
@@ -2012,7 +2020,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
         if (!IsBuildingPackage(packageName))
         {
-            return string.Equals(packageName, "tran", StringComparison.OrdinalIgnoreCase)
+            return PlateauPackageCatalog.IsPathLikePackage(packageName)
                 && IsNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
         }
 
