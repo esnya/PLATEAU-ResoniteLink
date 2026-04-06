@@ -78,6 +78,11 @@ internal static class DefaultMaterialCatalog
             return BundledDefaultMaterialFamilies.Vegetation;
         }
 
+        if (PlateauPackageCatalog.IsCityFurniturePackage(packageName))
+        {
+            return BundledDefaultMaterialFamilies.CityFurniture;
+        }
+
         return BundledDefaultMaterialFamilies.Other;
     }
 

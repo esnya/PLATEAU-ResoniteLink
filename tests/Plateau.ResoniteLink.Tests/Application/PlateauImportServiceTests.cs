@@ -875,6 +875,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimePackageFixture(datasetRoot.Path, "bldg", "http://www.opengis.net/citygml/building/2.0", "Building", "Building One");
         CreateRuntimePackageFixture(datasetRoot.Path, "tran", "http://www.opengis.net/citygml/transportation/2.0", "Road", "Road One");
+        CreateRuntimePackageFixture(datasetRoot.Path, "frn", "http://www.opengis.net/citygml/cityfurniture/2.0", "CityFurniture", "City Furniture One");
         CreateRuntimePackageFixture(datasetRoot.Path, "area", "urn:plateau:test:area", "Area", "Area One");
 
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -910,6 +911,17 @@ public sealed class PlateauImportServiceTests
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoadVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
+            });
+
+        ResoniteConstructionCityObject cityFurniture = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "City Furniture One");
+        Assert.All(
+            cityFurniture.Materials,
+            static material =>
+            {
+                Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
+                Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.CityFurnitureVariants);
+                Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+                Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
             });
 
         ResoniteConstructionCityObject area = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "Area One");

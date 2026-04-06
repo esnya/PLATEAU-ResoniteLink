@@ -13,6 +13,7 @@ public sealed class PlateauPackageCatalogTests
             .. PlateauPackageCatalog.RoadPackageNames,
             .. PlateauPackageCatalog.WireframeOverlayPackageNames,
             .. PlateauPackageCatalog.VegetationPackageNames,
+            .. PlateauPackageCatalog.CityFurniturePackageNames,
             .. PlateauPackageCatalog.OtherMaterialPackageNames,
         ];
 
@@ -55,6 +56,11 @@ public sealed class PlateauPackageCatalogTests
         foreach (string packageName in PlateauPackageCatalog.VegetationPackageNames)
         {
             Assert.True(PlateauPackageCatalog.IsVegetationPackage(packageName));
+        }
+
+        foreach (string packageName in PlateauPackageCatalog.CityFurniturePackageNames)
+        {
+            Assert.True(PlateauPackageCatalog.IsCityFurniturePackage(packageName));
         }
 
         foreach (string packageName in PlateauPackageCatalog.OtherMaterialPackageNames)

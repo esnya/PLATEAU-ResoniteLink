@@ -40,11 +40,15 @@ public static class PlateauPackageCatalog
         "veg",
     ];
 
+    public static readonly string[] CityFurniturePackageNames =
+    [
+        "frn",
+    ];
+
     public static readonly string[] OtherMaterialPackageNames =
     [
         "brid",
         "cons",
-        "frn",
         "gen",
         "tun",
         "unf",
@@ -114,6 +118,8 @@ public static class PlateauPackageCatalog
         new(WireframeOverlayPackageNames, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> VegetationPackageNameSet =
         new(VegetationPackageNames, StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> CityFurniturePackageNameSet =
+        new(CityFurniturePackageNames, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> OtherMaterialPackageNameSet =
         new(OtherMaterialPackageNames, StringComparer.OrdinalIgnoreCase);
 
@@ -189,6 +195,11 @@ public static class PlateauPackageCatalog
     public static bool IsVegetationPackage(string packageName)
     {
         return VegetationPackageNameSet.Contains(packageName);
+    }
+
+    public static bool IsCityFurniturePackage(string packageName)
+    {
+        return CityFurniturePackageNameSet.Contains(packageName);
     }
 
     public static bool IsOtherMaterialPackage(string packageName)
