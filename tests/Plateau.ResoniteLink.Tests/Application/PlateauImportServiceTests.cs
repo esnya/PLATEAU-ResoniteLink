@@ -1591,11 +1591,11 @@ public sealed class PlateauImportServiceTests
                   <gml:name>Generated UV Road</gml:name>
                   <tran:lod2MultiSurface>
                     <gml:MultiSurface>
-                      <gml:surfaceMember>
+                              <gml:surfaceMember>
                         <gml:Polygon gml:id="poly-generated-uv-road">
                           <gml:exterior>
                             <gml:LinearRing gml:id="ring-generated-uv-road">
-                              <gml:posList>0 0 0 8 0 0 8 0 2 0 0 2 0 0 0</gml:posList>
+                              <gml:posList>0 0 0 8 0 0 8 2 0 0 2 0 0 0 0</gml:posList>
                             </gml:LinearRing>
                           </gml:exterior>
                         </gml:Polygon>

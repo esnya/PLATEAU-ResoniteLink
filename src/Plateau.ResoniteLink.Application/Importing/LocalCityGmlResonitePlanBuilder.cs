@@ -939,11 +939,18 @@ public static class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
+        double minAltitude = vertices.Min(static point => point.Altitude);
+        double maxAltitude = vertices.Max(static point => point.Altitude);
+        if (maxAltitude - minAltitude > 1e-6)
+        {
+            return null;
+        }
+
         ResoniteFloat3[] positions = vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         ResoniteFloat3? normal = ComputePolygonNormal(positions);
-        if (normal is null || Math.Abs(normal.Y) < 0.8)
+        if (normal is null || Math.Abs(normal.Y) < 0.98)
         {
             return null;
         }
@@ -1005,7 +1012,8 @@ public static class LocalCityGmlResonitePlanBuilder
                 (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5);
     }
 
-    // Adapted from PLATEAU-SDK-for-Unity Runtime/RoadAdjust/RnmModelAdjuster.cs (MIT).
+    // Adapted from PLATEAU-SDK-for-Unity Runtime/RoadAdjust/RnmModelAdjuster.cs.
+    // Upstream MIT license text is stored in THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt.
     private static GeodeticPoint[] MoveTowardNearest(
         IReadOnlyList<GeodeticPoint> sourceWay,
         IReadOnlyList<GeodeticPoint> targetWay,
