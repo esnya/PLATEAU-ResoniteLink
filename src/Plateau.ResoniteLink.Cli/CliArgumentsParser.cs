@@ -23,7 +23,7 @@ public static class CliArgumentsParser
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
-                               Optional. Number of parallel ResoniteLink connections for live sends. Default: 4.
+                                                             Optional. Number of parallel ResoniteLink connections for live sends. Default: 1.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           -h, --help             Show this help text.
         """;
@@ -47,7 +47,7 @@ public static class CliArgumentsParser
         string? localSourcePath = null;
         string workRoot = Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite");
         Uri? resoniteLinkUri = null;
-        int resoniteLinkConnectionCount = 4;
+        int resoniteLinkConnectionCount = 1;
         bool enableSendMetrics = false;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
