@@ -35,6 +35,31 @@ public static class LocalCityGmlSourceFileDiscovery
             .ToArray();
     }
 
+    public static IReadOnlyList<LocalCityGmlSourceFileDescriptor> Discover(
+        IEnumerable<string> relativePaths,
+        string meshCode,
+        IReadOnlyList<string>? packageNames)
+    {
+        ArgumentNullException.ThrowIfNull(relativePaths);
+        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
+
+        string[] sourceFileSearchCodes = GetSourceFileSearchCodes(meshCode);
+        HashSet<string>? requestedPackageNames = packageNames is null
+            ? null
+            : new HashSet<string>(
+                PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames),
+                StringComparer.OrdinalIgnoreCase);
+
+        return relativePaths
+            .Where(path => path.EndsWith(".gml", StringComparison.OrdinalIgnoreCase))
+            .Select(path => CreateSourceFileDescriptorFromRelativePath(path, sourceFileSearchCodes, requestedPackageNames))
+            .Where(static descriptor => descriptor is not null)
+            .Select(static descriptor => descriptor!)
+            .OrderBy(static descriptor => GetPackageSendPriority(descriptor.PackageName))
+            .ThenBy(static descriptor => descriptor.RelativePath, StringComparer.Ordinal)
+            .ToArray();
+    }
+
     private static string[] GetSourceFileSearchCodes(string meshCode)
     {
         if (meshCode.Length >= 8)
@@ -84,9 +109,61 @@ public static class LocalCityGmlSourceFileDiscovery
             matchedMeshCode.Length < sourceFileSearchCodes[0].Length);
     }
 
+    private static LocalCityGmlSourceFileDescriptor? CreateSourceFileDescriptorFromRelativePath(
+        string relativePath,
+        string[] sourceFileSearchCodes,
+        HashSet<string>? requestedPackageNames)
+    {
+        string normalizedPath = NormalizePath(relativePath);
+        string[] segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length < 3
+            || !string.Equals(segments[0], "udx", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (!PlateauPackageCatalog.TryNormalizePackageName(segments[1], out string packageName))
+        {
+            return null;
+        }
+
+        if (requestedPackageNames is not null && !requestedPackageNames.Contains(packageName))
+        {
+            return null;
+        }
+
+        string? matchedMeshCode = MatchMeshCodeFromRelativePath(normalizedPath, sourceFileSearchCodes)
+            ?? MatchMeshCodeFromDirectoryPath(segments, sourceFileSearchCodes);
+        if (matchedMeshCode is null)
+        {
+            return null;
+        }
+
+        return new LocalCityGmlSourceFileDescriptor(
+            normalizedPath,
+            normalizedPath,
+            packageName,
+            matchedMeshCode,
+            matchedMeshCode.Length < sourceFileSearchCodes[0].Length);
+    }
+
     private static string? MatchMeshCodeFromFileName(string path, string[] sourceFileSearchCodes)
     {
         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+        string[] fileMeshCodes = MeshCodeTokenRegex
+            .Matches(fileNameWithoutExtension)
+            .Select(static match => match.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        return sourceFileSearchCodes
+            .OrderByDescending(static code => code.Length)
+            .FirstOrDefault(code => fileMeshCodes.Contains(code, StringComparer.Ordinal));
+    }
+
+    private static string? MatchMeshCodeFromRelativePath(string path, string[] sourceFileSearchCodes)
+    {
+        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(NormalizePath(path));
         string[] fileMeshCodes = MeshCodeTokenRegex
             .Matches(fileNameWithoutExtension)
             .Select(static match => match.Groups[1].Value)

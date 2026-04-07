@@ -83,13 +83,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(Directory.Exists(resolvedRequest.LocalSourcePath));
-        Assert.True(File.Exists(Path.Combine(
-            resolvedRequest.LocalSourcePath,
-            "udx",
-            "bldg",
-            "plateau_tokyo23ku_bldg_533944.gml")));
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "533944.zip",
+            "udx/bldg/plateau_tokyo23ku_bldg_533944.gml");
     }
 
     [Fact]
@@ -126,13 +123,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(
-            resolvedRequest.LocalSourcePath,
-            "udx",
-            "bldg",
-            "533944",
-            "plateau_tokyo23ku_bldg_533944.gml")));
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "direct.zip",
+            "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml");
     }
 
     [Fact]
@@ -169,13 +163,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(
-            resolvedRequest.LocalSourcePath,
-            "udx",
-            "bldg",
-            "533944",
-            "plateau_tokyo23ku_bldg_533944.gml")));
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "direct.7z",
+            "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml");
     }
 
     [Fact]
@@ -212,15 +203,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.Equal(
-            Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", "53394611", "wrapped", "13100_tokyo23-ku_2022_citygml_1_2_op"),
-            resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(
-            resolvedRequest.LocalSourcePath,
-            "udx",
-            "bldg",
-            "53394611_bldg_6697_2_op.gml")));
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "wrapped.zip",
+            "udx/bldg/53394611_bldg_6697_2_op.gml");
     }
 
     [Fact]
@@ -257,15 +243,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.Equal(
-            Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", "53394611", "wrapped", "13100_tokyo23-ku_2022_citygml_1_2_op"),
-            resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(
-            resolvedRequest.LocalSourcePath,
-            "udx",
-            "bldg",
-            "53394611_bldg_6697_2_op.gml")));
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "wrapped.7z",
+            "udx/bldg/53394611_bldg_6697_2_op.gml");
     }
 
     [Fact]
@@ -314,20 +295,19 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "area", "plateau_tokyo23ku_area_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "cons", "plateau_tokyo23ku_cons_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "ifld", "plateau_tokyo23ku_ifld_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "rfld", "plateau_tokyo23ku_rfld_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "rwy", "plateau_tokyo23ku_rwy_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "squr", "plateau_tokyo23ku_squr_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "tnm", "plateau_tokyo23ku_tnm_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "trk", "plateau_tokyo23ku_trk_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "ubld", "plateau_tokyo23ku_ubld_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "unf", "plateau_tokyo23ku_unf_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "urf", "plateau_tokyo23ku_urf_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "wtr", "plateau_tokyo23ku_wtr_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "wwy", "plateau_tokyo23ku_wwy_533944.gml")));
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/area/plateau_tokyo23ku_area_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/cons/plateau_tokyo23ku_cons_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/ifld/plateau_tokyo23ku_ifld_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/rfld/plateau_tokyo23ku_rfld_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/rwy/plateau_tokyo23ku_rwy_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/squr/plateau_tokyo23ku_squr_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/tnm/plateau_tokyo23ku_tnm_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/trk/plateau_tokyo23ku_trk_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/ubld/plateau_tokyo23ku_ubld_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/unf/plateau_tokyo23ku_unf_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/urf/plateau_tokyo23ku_urf_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/wtr/plateau_tokyo23ku_wtr_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.zip", "udx/wwy/plateau_tokyo23ku_wwy_533944.gml");
     }
 
     [Fact]
@@ -376,20 +356,19 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "area", "plateau_tokyo23ku_area_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "cons", "plateau_tokyo23ku_cons_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "ifld", "plateau_tokyo23ku_ifld_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "rfld", "plateau_tokyo23ku_rfld_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "rwy", "plateau_tokyo23ku_rwy_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "squr", "plateau_tokyo23ku_squr_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "tnm", "plateau_tokyo23ku_tnm_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "trk", "plateau_tokyo23ku_trk_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "ubld", "plateau_tokyo23ku_ubld_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "unf", "plateau_tokyo23ku_unf_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "urf", "plateau_tokyo23ku_urf_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "wtr", "plateau_tokyo23ku_wtr_533944.gml")));
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, "udx", "wwy", "plateau_tokyo23ku_wwy_533944.gml")));
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/area/plateau_tokyo23ku_area_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/cons/plateau_tokyo23ku_cons_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/ifld/plateau_tokyo23ku_ifld_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/rfld/plateau_tokyo23ku_rfld_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/rwy/plateau_tokyo23ku_rwy_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/squr/plateau_tokyo23ku_squr_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/tnm/plateau_tokyo23ku_tnm_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/trk/plateau_tokyo23ku_trk_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/ubld/plateau_tokyo23ku_ubld_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/unf/plateau_tokyo23ku_unf_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/urf/plateau_tokyo23ku_urf_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/wtr/plateau_tokyo23ku_wtr_533944.gml");
+        await AssertResolvedArchiveContainsAsync(resolvedRequest, "official-packages.7z", "udx/wwy/plateau_tokyo23ku_wwy_533944.gml");
     }
 
     [Fact]
@@ -463,13 +442,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(Directory.Exists(resolvedRequest.LocalSourcePath));
-        Assert.True(File.Exists(Path.Combine(
-            resolvedRequest.LocalSourcePath,
-            "udx",
-            "bldg",
-            "plateau_tokyo23ku_bldg_533944.gml")));
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "533944.7z",
+            "udx/bldg/plateau_tokyo23ku_bldg_533944.gml");
     }
 
     [Fact]
@@ -624,9 +600,24 @@ public sealed class CkanPlateauDatasetSourceResolverTests
                 ServerUri: new Uri(archiveUri, UriKind.Absolute)),
             workRoot);
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            Path.GetFileName(new Uri(archiveUri, UriKind.Absolute).LocalPath),
+            expectedPathSuffix.Replace('\\', '/'));
+    }
+
+    private static async Task AssertResolvedArchiveContainsAsync(
+        PlateauImportRequest resolvedRequest,
+        string expectedArchiveFileName,
+        string expectedRelativePath)
+    {
         Assert.NotNull(resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(Path.Combine(resolvedRequest.LocalSourcePath, expectedPathSuffix)));
+        Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
+        Assert.Equal(expectedArchiveFileName, Path.GetFileName(resolvedRequest.LocalSourcePath));
+
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(resolvedRequest.LocalSourcePath);
+        Assert.Contains(expectedRelativePath, datasetSource.EnumerateFiles());
+        Assert.True(datasetSource.FileExists(expectedRelativePath));
     }
 
     private sealed class StubHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler) : HttpMessageHandler

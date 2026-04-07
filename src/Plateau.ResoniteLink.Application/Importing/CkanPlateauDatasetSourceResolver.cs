@@ -1,13 +1,8 @@
-using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using Plateau.ResoniteLink.Domain.Importing;
-
-using SharpCompress.Archives;
-using SharpCompress.Common;
-using SharpCompress.Readers;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
@@ -67,10 +62,6 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
         string archiveFileName = GetArchiveFileName(archiveUri);
         string archivePath = Path.Combine(cacheRoot, archiveFileName);
-        string extractRoot = Path.Combine(cacheRoot, Path.GetFileNameWithoutExtension(archiveFileName));
-        string completionMarkerPath = Path.Combine(extractRoot, ".extracted");
-        string completionMarkerContents = GetExtractionMarkerContents(archiveUri);
-
         if (!File.Exists(archivePath))
         {
             using HttpResponseMessage response = await httpClient.GetAsync(
@@ -84,25 +75,10 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             await archiveStream.CopyToAsync(archiveFile, cancellationToken);
         }
 
-        if (!File.Exists(completionMarkerPath)
-            || !string.Equals(
-                await File.ReadAllTextAsync(completionMarkerPath, cancellationToken),
-                completionMarkerContents,
-                StringComparison.Ordinal))
-        {
-            if (Directory.Exists(extractRoot))
-            {
-                Directory.Delete(extractRoot, recursive: true);
-            }
-
-            await ExtractArchiveAsync(archivePath, extractRoot, cancellationToken);
-            await File.WriteAllTextAsync(completionMarkerPath, completionMarkerContents, cancellationToken);
-        }
-
         return request with
         {
             SourceKind = DatasetSourceKind.Local,
-            LocalSourcePath = PlateauDatasetPathResolver.ResolveDatasetRoot(extractRoot),
+            LocalSourcePath = archivePath,
         };
     }
 
@@ -288,82 +264,6 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         return fileName;
     }
 
-    private static async Task ExtractArchiveAsync(
-        string archivePath,
-        string destinationPath,
-        CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(destinationPath);
-        switch (GetArchiveKind(archivePath))
-        {
-            case SupportedArchiveKind.Zip:
-                await ZipFile.ExtractToDirectoryAsync(
-                    archivePath,
-                    destinationPath,
-                    overwriteFiles: true,
-                    cancellationToken);
-                break;
-            case SupportedArchiveKind.SevenZip:
-                await ExtractSevenZipArchiveAsync(archivePath, destinationPath, cancellationToken);
-                break;
-            default:
-                throw new PlateauImportValidationException(
-                    [$"The archive '{archivePath}' is not a supported archive. Supported extensions: .zip, .7z."]);
-        }
-
-        string[] nestedArchives = Directory
-            .EnumerateFiles(destinationPath, "*", SearchOption.TopDirectoryOnly)
-            .Where(path => TryGetArchiveKind(path, out _))
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        foreach (string nestedArchivePath in nestedArchives)
-        {
-            string nestedName = Path.GetFileNameWithoutExtension(nestedArchivePath);
-            string nestedDestination = IsPlateauPackageName(nestedName)
-                ? Path.Combine(destinationPath, "udx", nestedName)
-                : Path.Combine(destinationPath, nestedName);
-
-            await ExtractArchiveAsync(nestedArchivePath, nestedDestination, cancellationToken);
-        }
-    }
-
-    private static async Task ExtractSevenZipArchiveAsync(
-        string archivePath,
-        string destinationPath,
-        CancellationToken cancellationToken)
-    {
-        using IArchive archive = ArchiveFactory.OpenArchive(
-            archivePath,
-            new ReaderOptions
-            {
-                LeaveStreamOpen = false,
-            });
-
-        ExtractionOptions extractionOptions = new()
-        {
-            ExtractFullPath = true,
-            Overwrite = true,
-        };
-
-        foreach (IArchiveEntry entry in archive.Entries.Where(static entry => !entry.IsDirectory))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            entry.WriteToDirectory(destinationPath, extractionOptions);
-            await Task.Yield();
-        }
-    }
-
-    private static string GetExtractionMarkerContents(Uri archiveUri)
-    {
-        return $"v4{Environment.NewLine}{archiveUri}";
-    }
-
-    private static bool IsPlateauPackageName(string value)
-    {
-        return PlateauPackageCatalog.TryNormalizePackageName(value, out _);
-    }
-
     private static string NormalizeDatasetSlug(string dataset)
     {
         string normalized = dataset.Trim().ToLowerInvariant();
@@ -376,17 +276,6 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
     {
         string normalized = value.Trim();
         return string.Concat(normalized.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
-    }
-
-    private static SupportedArchiveKind GetArchiveKind(string path)
-    {
-        if (TryGetArchiveKind(path, out SupportedArchiveKind archiveKind))
-        {
-            return archiveKind;
-        }
-
-        throw new PlateauImportValidationException(
-            [$"The archive '{path}' is not a supported archive. Supported extensions: .zip, .7z."]);
     }
 
     private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)

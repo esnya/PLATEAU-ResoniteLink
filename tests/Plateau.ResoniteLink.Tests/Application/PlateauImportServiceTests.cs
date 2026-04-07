@@ -1,7 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
+
+using SharpCompress.Common;
+using SharpCompress.Writers.SevenZip;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
@@ -55,6 +59,66 @@ public sealed class PlateauImportServiceTests
                 && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
                 && material.Projection == ResoniteMaterialProjection.Uv);
         Assert.Equal("stub://resonite", Assert.Single(result.Destinations));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncBuildsNormalizedSceneFromZipArchive()
+    {
+        using TemporaryDirectory archiveRoot = new();
+        string archivePath = Path.Combine(archiveRoot.Path, "local-dataset.zip");
+        CreateZipArchiveFromDirectory(TestData.GetFixturePath("LocalPlateauDataset"), archivePath);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: archivePath,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+        Assert.Equal(["bldg"], result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(2, scene.CityObjects.Count);
+        Assert.Contains(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Building One");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncBuildsNormalizedSceneFromSevenZipArchive()
+    {
+        using TemporaryDirectory archiveRoot = new();
+        string archivePath = Path.Combine(archiveRoot.Path, "local-dataset.7z");
+        CreateSevenZipArchiveFromDirectory(TestData.GetFixturePath("LocalPlateauDataset"), archivePath);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: archivePath,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+        Assert.Equal(["bldg"], result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(2, scene.CityObjects.Count);
+        Assert.Contains(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Building One");
     }
 
     [Fact]
@@ -132,7 +196,8 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 0.0) && Approximately(vertex.UV0.Y, 1.0));
         Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 1.0) && Approximately(vertex.UV0.Y, 0.500002));
         Assert.Single(relief.Mesh.Submeshes);
-        Assert.Equal("dem", sceneBuilder.CityObjects[0].PackageName);
+        Assert.Contains(sceneBuilder.CityObjects, static cityObject => cityObject.PackageName == "bldg");
+        Assert.Contains(sceneBuilder.CityObjects, static cityObject => cityObject.PackageName == "dem");
     }
 
     [Fact]
@@ -2491,6 +2556,38 @@ public sealed class PlateauImportServiceTests
     private static bool Approximately(double actual, double expected)
     {
         return Math.Abs(actual - expected) < 1e-4;
+    }
+
+    private static void CreateZipArchiveFromDirectory(string sourceDirectory, string archivePath)
+    {
+        using FileStream stream = File.Create(archivePath);
+        using ZipArchive archive = new(stream, ZipArchiveMode.Create, leaveOpen: false);
+        foreach (string filePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = Path.GetRelativePath(sourceDirectory, filePath).Replace('\\', '/');
+            ZipArchiveEntry entry = archive.CreateEntry(relativePath);
+            using Stream entryStream = entry.Open();
+            using FileStream fileStream = File.OpenRead(filePath);
+            fileStream.CopyTo(entryStream);
+        }
+    }
+
+    private static void CreateSevenZipArchiveFromDirectory(string sourceDirectory, string archivePath)
+    {
+        using FileStream stream = File.Create(archivePath);
+        using SharpCompress.Writers.IWriter writer = SevenZipWriter.OpenWriter(
+            stream,
+            new SevenZipWriterOptions(CompressionType.LZMA)
+            {
+                LeaveStreamOpen = false,
+            });
+
+        foreach (string filePath in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
+        {
+            string relativePath = Path.GetRelativePath(sourceDirectory, filePath).Replace('\\', '/');
+            using FileStream fileStream = File.OpenRead(filePath);
+            writer.Write(relativePath, fileStream, modificationTime: null);
+        }
     }
 }
 

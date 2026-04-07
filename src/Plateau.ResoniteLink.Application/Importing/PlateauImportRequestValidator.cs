@@ -51,7 +51,8 @@ public static class PlateauImportRequestValidator
                     break;
                 }
 
-                if (!Directory.Exists(request.LocalSourcePath))
+                if (!Directory.Exists(request.LocalSourcePath)
+                    && !File.Exists(request.LocalSourcePath))
                 {
                     errors.Add($"The local source path '{request.LocalSourcePath}' does not exist.");
                 }
