@@ -6,7 +6,7 @@ This repository is maintained on a best-effort basis, so review and follow-up ma
 
 Before opening a PR:
 
-- Read [AGENTS.md](AGENTS.md) for repository-specific working rules.
+- If you use a coding agent for this repository, make sure it reads [AGENTS.md](AGENTS.md).
 - Keep runtime and SDK assumptions on .NET 10 unless the change clearly requires otherwise.
 - Update the matching `.ja.md` file when you change an English Markdown document.
 - Add or update tests when behavior changes.
