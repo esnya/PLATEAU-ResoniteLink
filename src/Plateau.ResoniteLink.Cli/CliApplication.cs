@@ -100,11 +100,16 @@ public sealed class CliApplication
             string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
             Console.Out.WriteLine($"[{timestamp}] {message}");
         };
+        ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
+            ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
+            : ResoniteLinkSendDiagnostics.Disabled;
 
         return new PlateauImportService(
             new ResoniteLinkSceneBuilder(
                 options.ResoniteLinkUri!,
-                reporter),
+                options.ResoniteLinkConnectionCount,
+                diagnostics,
+                progressReporter: reporter),
             progressReporter: reporter);
     }
 }

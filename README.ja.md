@@ -24,10 +24,12 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
-  --resonitelink-port <port>
+  --resonitelink-port <port> \
+  --resonitelink-connections 4 \
+  --send-metrics
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。任意の `--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。任意の `--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。現行の importer は公式 PLATEAU の `udx/<package>/` prefix 群にまたがるローカル CityGML を読み、deterministic な submesh / material 順序を保ちつつ、詳細モデルの `ParameterizedTexture` appearance も live-ready な mesh / material payload に反映し、live build 全体をメモリ保持せず city object 単位で下流へ流します。
+`--resonitelink-port` または `--resonitelink-url` は必須です。任意の `--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。任意の `--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。任意の `--resonitelink-connections` の既定値は `4` で、mesh / texture の live 送信に使う ResoniteLink session 数を制御します。任意の `--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の live send 計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。既定の hot path には影響させません。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。現行の importer は公式 PLATEAU の `udx/<package>/` prefix 群にまたがるローカル CityGML を読み、deterministic な submesh / material 順序を保ちつつ、詳細モデルの `ParameterizedTexture` appearance も live-ready な mesh / material payload に反映し、live build 全体をメモリ保持せず city object 単位で下流へ流します。
 
 既定の CKAN catalog flow を使って、公式 PLATEAU CityGML ZIP をオンライン取得しつつ Resonite に取り込む例:
 
@@ -55,7 +57,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-ライブ経路は `ws://localhost:<port>/` に接続し、公式の ResoniteLink import message で mesh / texture asset を送信し、dataset / mesh-code slot を作成した上で、PLATEAU の帰属表記を持つ dataset-level の `License` コンポーネントを付与し、インポートした scene に必要な Resonite コンポーネントを構築します。city object は逐次送信するため、大きい mesh code でも live 表示前に全件バッチを保持しません。
+ライブ経路は `ws://localhost:<port>/` に接続し、既定では複数の ResoniteLink session を張って、公式の ResoniteLink import message で mesh / texture asset を送信し、dataset / mesh-code slot を作成した上で、PLATEAU の帰属表記を持つ dataset-level の `License` コンポーネントを付与し、インポートした scene に必要な Resonite コンポーネントを構築します。共有 slot / component ID の初期化は 1 回だけに畳み込み、対象 session に既に置かれている city object は mesh / material placement 前に skip しつつ、city object の送信は設定した接続数へ分散するため、大きい mesh code でも full batch をメモリ保持せず live 出力を重ねられます。
 
 同じ ResoniteLink session と dataset に対して `build` を再実行すると、既存 dataset 配下に branch を追記します。各 city object は実際に source data を持つ meshcode branch 配下に置かれるため、`53394525` の要求で読み込んだ親 mesh 由来の object は `533945` 配下に、要求固有の object は `53394525` 配下に残ります。mesh-code root は slot の offset で整列するため近接 import を並べて表示でき、既存 meshcode branch にある object は再送しません。
 

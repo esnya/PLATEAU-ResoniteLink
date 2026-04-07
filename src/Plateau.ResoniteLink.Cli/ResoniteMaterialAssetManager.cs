@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
@@ -12,7 +14,7 @@ internal sealed class ResoniteMaterialAssetManager(
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private readonly Dictionary<string, string> materialComponentIds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Lazy<Task<string>>> materialComponentTasks = new(StringComparer.Ordinal);
 
     public async Task<string> EnsureMaterialComponentAsync(
         IResoniteLinkClient client,
@@ -28,11 +30,25 @@ internal sealed class ResoniteMaterialAssetManager(
             dataset,
             "materialasset",
             material.MaterialKey);
-        if (materialComponentIds.ContainsKey(material.MaterialKey))
-        {
-            return materialId;
-        }
+        return await materialComponentTasks.GetOrAdd(
+            material.MaterialKey,
+            _ => new Lazy<Task<string>>(
+                () => EnsureMaterialComponentCoreAsync(
+                    client,
+                    material,
+                    preparedTexturePathsByKey,
+                    materialId,
+                    cancellationToken),
+                LazyThreadSafetyMode.ExecutionAndPublication)).Value.WaitAsync(cancellationToken);
+    }
 
+    private async Task<string> EnsureMaterialComponentCoreAsync(
+        IResoniteLinkClient client,
+        ResoniteMaterialBinding material,
+        IReadOnlyDictionary<string, string> preparedTexturePathsByKey,
+        string materialId,
+        CancellationToken cancellationToken)
+    {
         string materialSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "materialslot",
@@ -167,7 +183,6 @@ internal sealed class ResoniteMaterialAssetManager(
             materialComponentType,
             materialMembers,
             cancellationToken);
-        materialComponentIds[material.MaterialKey] = materialId;
         return materialId;
     }
 

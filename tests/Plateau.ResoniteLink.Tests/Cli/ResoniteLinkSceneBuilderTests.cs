@@ -29,6 +29,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
@@ -55,8 +57,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"LOD{buildingOne.LodLevel.Value}")
             : "LOD0";
         Assert.Contains("PLATEAU tokyo23ku/Assets", fakeClient.SlotPaths.Values);
-        Assert.Contains("PLATEAU tokyo23ku/Assets/Shared", fakeClient.SlotPaths.Values);
-        Assert.Contains("PLATEAU tokyo23ku/Assets/Shared/Materials", fakeClient.SlotPaths.Values);
+        Assert.Contains("PLATEAU tokyo23ku/Assets/Common", fakeClient.SlotPaths.Values);
         Assert.Contains($"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
         Assert.Contains($"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Textures", fakeClient.SlotPaths.Values);
@@ -112,7 +113,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             });
         Slot textureAssetSlot = fakeClient.SlotsById[datasetTextureRequest.ContainerSlotId];
         Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/Shared/Materials/",
+            "PLATEAU tokyo23ku/Assets/Common/",
             fakeClient.SlotPaths[textureAssetSlot.ID],
             StringComparison.Ordinal);
         Component datasetTexture = datasetTextureRequest.Data;
@@ -128,7 +129,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             });
         Slot bundledTextureAssetSlot = fakeClient.SlotsById[bundledTextureRequest.ContainerSlotId];
         Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/Shared/Materials/",
+            "PLATEAU tokyo23ku/Assets/Common/",
             fakeClient.SlotPaths[bundledTextureAssetSlot.ID],
             StringComparison.Ordinal);
         Component bundledTexture = bundledTextureRequest.Data;
@@ -155,7 +156,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             meshAssetRequests,
             request => string.Equals(
                 fakeClient.SlotPaths[request.ContainerSlotId],
-                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One/Building One",
+                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
                 StringComparison.Ordinal));
 
         AddComponent[] materialRequests = fakeClient.AddedComponents
@@ -167,7 +168,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.All(materialRequests, request =>
         {
             Assert.StartsWith(
-                "PLATEAU tokyo23ku/Assets/Shared/Materials/",
+                "PLATEAU tokyo23ku/Assets/Common/",
                 fakeClient.SlotPaths[request.ContainerSlotId],
                 StringComparison.Ordinal);
         });
@@ -204,6 +205,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         await RunBuilderAsync(builder, scene);
@@ -323,6 +326,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         await RunBuilderAsync(builder, scene);
@@ -398,6 +403,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         await RunBuilderAsync(builder, scene);
@@ -497,6 +504,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         await RunBuilderAsync(builder, scene);
@@ -587,6 +596,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         await RunBuilderAsync(builder, scene);
@@ -664,6 +675,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
         await RunBuilderAsync(builder, scene);
@@ -693,8 +706,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient firstClient = new();
         using FakeResoniteLinkClient secondClient = new();
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), scene);
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), scene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), scene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), scene);
 
         HashSet<string> firstEntityIds = firstClient.AddedSlots
             .Select(static request => request.Data.ID)
@@ -719,12 +732,12 @@ public sealed class ResoniteLinkSceneBuilderTests
         CapturedResoniteScene firstScene = CreateAppendScene("53394525", "Building 25");
         CapturedResoniteScene secondScene = CreateAppendScene("53394526", "Building 26");
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), firstScene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), firstScene);
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
         int addedParentMeshSlotsAfterFirstRun = firstClient.AddedSlots.Count(request =>
             GetSlotPath(firstClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal));
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), secondScene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), secondScene);
 
         Assert.Contains("PLATEAU tokyo23ku/53394525", secondClient.SlotPaths.Values);
         Assert.Contains("PLATEAU tokyo23ku/53394526", secondClient.SlotPaths.Values);
@@ -758,6 +771,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient,
             terrainTextureAssetGenerator);
 
@@ -788,14 +803,56 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient firstClient = new(session);
         using FakeResoniteLinkClient secondClient = new(session);
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => firstClient), scene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), scene);
         int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), () => secondClient), scene);
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), scene);
 
         Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
         Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
+    }
+
+    [Fact]
+    public async Task BuildAsyncCanDistributeImportsAcrossMultipleConnections()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        FakeResoniteLinkSession session = new();
+        FakeResoniteLinkClient[] clients =
+        [
+            new(session),
+            new(session),
+        ];
+        int factoryIndex = 0;
+
+        try
+        {
+            ResoniteLinkSceneBuilder builder = new(
+                new Uri("ws://localhost:12345/"),
+                2,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => clients[Interlocked.Increment(ref factoryIndex) - 1]);
+
+            await RunBuilderAsync(builder, scene);
+        }
+        finally
+        {
+            foreach (FakeResoniteLinkClient client in clients)
+            {
+                client.Dispose();
+            }
+        }
+
+        Assert.True(clients.All(client => client.ConnectCallCount == 1));
+        Assert.True(clients.All(client => client.ImportedMeshCount > 0));
     }
 
     [Fact]
@@ -813,6 +870,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         using BlockingResoniteLinkClient blockingClient = new();
         await using ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
             () => blockingClient);
 
         await builder.BeginAsync(scene.Metadata, "runtime/resonite");
@@ -841,6 +900,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             this.session = session;
         }
 
+        public int ConnectCallCount { get; private set; }
+
         public List<AddComponent> AddedComponents => session.AddedComponents;
 
         public List<AddSlot> AddedSlots => session.AddedSlots;
@@ -855,6 +916,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public Dictionary<string, string> SlotPaths => session.SlotPaths;
 
+        public int ImportedMeshCount { get; private set; }
+
         public void Dispose()
         {
         }
@@ -862,38 +925,46 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ConnectCallCount++;
             return Task.CompletedTask;
         }
 
         public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            session.ComponentsById[request.Data.ID] = request.Data;
-            session.AddedComponents.Add(request);
+            lock (session.Gate)
+            {
+                session.ComponentsById[request.Data.ID] = request.Data;
+                session.AddedComponents.Add(request);
+            }
+
             return Task.CompletedTask;
         }
 
         public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            session.SlotsById[request.Data.ID] = request.Data;
-            session.AddedSlots.Add(request);
-
-            string? slotName = request.Data.Name?.Value;
-            string slotPath = CreateSlotPath(session.SlotPaths, request.Data);
-            session.SlotPaths[request.Data.ID] = slotPath;
-
-            if (!string.IsNullOrWhiteSpace(slotName)
-                && !slotPath.Contains("/Assets/", StringComparison.Ordinal)
-                && !string.Equals(slotPath, slotName, StringComparison.Ordinal)
-                && !slotName.All(char.IsAsciiDigit)
-                && !slotName.StartsWith("LOD", StringComparison.Ordinal)
-                && !string.Equals(slotName, "bldg", StringComparison.Ordinal)
-                && !string.Equals(slotName, "dem", StringComparison.Ordinal)
-                && !string.Equals(slotName, "tran", StringComparison.Ordinal)
-                && !string.Equals(slotName, "luse", StringComparison.Ordinal))
+            lock (session.Gate)
             {
-                session.BuildingSlotIds[slotName] = request.Data.ID;
+                session.SlotsById[request.Data.ID] = request.Data;
+                session.AddedSlots.Add(request);
+
+                string? slotName = request.Data.Name?.Value;
+                string slotPath = CreateSlotPath(session.SlotPaths, request.Data);
+                session.SlotPaths[request.Data.ID] = slotPath;
+
+                if (!string.IsNullOrWhiteSpace(slotName)
+                    && !slotPath.Contains("/Assets/", StringComparison.Ordinal)
+                    && !string.Equals(slotPath, slotName, StringComparison.Ordinal)
+                    && !slotName.All(char.IsAsciiDigit)
+                    && !slotName.StartsWith("LOD", StringComparison.Ordinal)
+                    && !string.Equals(slotName, "bldg", StringComparison.Ordinal)
+                    && !string.Equals(slotName, "dem", StringComparison.Ordinal)
+                    && !string.Equals(slotName, "tran", StringComparison.Ordinal)
+                    && !string.Equals(slotName, "luse", StringComparison.Ordinal))
+                {
+                    session.BuildingSlotIds[slotName] = request.Data.ID;
+                }
             }
 
             return Task.CompletedTask;
@@ -902,38 +973,58 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            session.ComponentsById.TryGetValue(componentId, out Component? component);
+            Component? component;
+            lock (session.Gate)
+            {
+                session.ComponentsById.TryGetValue(componentId, out component);
+            }
+
             return Task.FromResult(component);
         }
 
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            session.SlotsById.TryGetValue(slotId, out Slot? slot);
+            Slot? slot;
+            lock (session.Gate)
+            {
+                session.SlotsById.TryGetValue(slotId, out slot);
+            }
+
             return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            session.ImportedMeshes.Add(request);
-            return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshes.Count - 1}", UriKind.Absolute));
+            lock (session.Gate)
+            {
+                session.ImportedMeshes.Add(request);
+                ImportedMeshCount++;
+                return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshes.Count - 1}", UriKind.Absolute));
+            }
         }
 
         public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            session.ImportedTexturePaths.Add(filePath);
-            return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count - 1}", UriKind.Absolute));
+            lock (session.Gate)
+            {
+                session.ImportedTexturePaths.Add(filePath);
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count - 1}", UriKind.Absolute));
+            }
         }
 
         public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Component existing = session.ComponentsById[request.Data.ID];
-            foreach ((string memberName, Member member) in request.Data.Members)
+            lock (session.Gate)
             {
-                existing.Members[memberName] = member;
+                Component existing = session.ComponentsById[request.Data.ID];
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
             }
 
             return Task.CompletedTask;
@@ -955,10 +1046,14 @@ public sealed class ResoniteLinkSceneBuilderTests
                 return clone;
             }
 
-            clone.Children = session.SlotsById.Values
-                .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
-                .Select(slot => CloneSlot(slot, depth - 1))
-                .ToList();
+            lock (session.Gate)
+            {
+                clone.Children = session.SlotsById.Values
+                    .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                    .Select(slot => CloneSlot(slot, depth - 1))
+                    .ToList();
+            }
+
             return clone;
         }
     }
@@ -1054,6 +1149,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private sealed class FakeResoniteLinkSession
     {
+        public object Gate { get; } = new();
+
         public List<AddComponent> AddedComponents { get; } = [];
 
         public List<AddSlot> AddedSlots { get; } = [];

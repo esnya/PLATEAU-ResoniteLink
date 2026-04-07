@@ -5,4 +5,6 @@ namespace Plateau.ResoniteLink.Cli;
 public sealed record BuildCommandOptions(
     PlateauImportRequest Request,
     string WorkRoot,
-    Uri? ResoniteLinkUri);
+    Uri? ResoniteLinkUri,
+    int ResoniteLinkConnectionCount,
+    bool EnableSendMetrics);

@@ -34,6 +34,8 @@ public sealed class CliArgumentsParserTests
             Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
             result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
+        Assert.False(result.Options.EnableSendMetrics);
     }
 
     [Fact]
@@ -143,6 +145,70 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options!.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseParsesResoniteLinkConnectionCount()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-connections",
+                "8",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(8, result.Options!.ResoniteLinkConnectionCount);
+    }
+
+    [Fact]
+    public void ParseRejectsInvalidResoniteLinkConnectionCount()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-connections",
+                "0",
+            ]);
+
+        Assert.Equal("The value '0' is not a valid ResoniteLink connection count.", result.Error);
+    }
+
+    [Fact]
+    public void ParseEnablesSendMetrics()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--send-metrics",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.True(result.Options!.EnableSendMetrics);
     }
 
     [Fact]

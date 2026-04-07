@@ -22,6 +22,9 @@ public static class CliArgumentsParser
           --work-root <path>     Optional. Working directory for live-generated assets and remote download cache. Default: runtime/<os>/resonite.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
+          --resonitelink-connections <count>
+                               Optional. Number of parallel ResoniteLink connections for live sends. Default: 4.
+          --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           -h, --help             Show this help text.
         """;
 
@@ -44,6 +47,8 @@ public static class CliArgumentsParser
         string? localSourcePath = null;
         string workRoot = Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite");
         Uri? resoniteLinkUri = null;
+        int resoniteLinkConnectionCount = 4;
+        bool enableSendMetrics = false;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = PlateauPackageCatalog.CliDefaultPackageNames;
@@ -130,6 +135,21 @@ public static class CliArgumentsParser
 
                             break;
                         }
+                    case "--resonitelink-connections":
+                        {
+                            string connectionCountValue = ReadValue(args, ref index, token);
+                            if (!int.TryParse(connectionCountValue, out resoniteLinkConnectionCount)
+                                || resoniteLinkConnectionCount < 1)
+                            {
+                                return CliParseResult.Failure(
+                                    $"The value '{connectionCountValue}' is not a valid ResoniteLink connection count.");
+                            }
+
+                            break;
+                        }
+                    case "--send-metrics":
+                        enableSendMetrics = true;
+                        break;
                     case "--source":
                         {
                             string sourceValue = ReadValue(args, ref index, token);
@@ -176,7 +196,13 @@ public static class CliArgumentsParser
                 "Specify either --resonitelink-port or --resonitelink-url.");
         }
 
-        return CliParseResult.Success(new BuildCommandOptions(request, workRoot, resoniteLinkUri));
+        return CliParseResult.Success(
+            new BuildCommandOptions(
+                request,
+                workRoot,
+                resoniteLinkUri,
+                resoniteLinkConnectionCount,
+                enableSendMetrics));
     }
 
     private static string ReadValue(string[] args, ref int index, string optionName)

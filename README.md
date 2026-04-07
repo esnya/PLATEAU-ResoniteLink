@@ -24,10 +24,12 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
-  --resonitelink-port <port>
+  --resonitelink-port <port> \
+  --resonitelink-connections 4 \
+  --send-metrics
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. The optional `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. The optional `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. The option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`. The current importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects without holding the full live build in memory.
+`--resonitelink-port` or `--resonitelink-url` is required. The optional `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. The optional `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. The optional `--resonitelink-connections` defaults to `4` and controls how many live ResoniteLink sessions are opened in parallel for mesh and texture sends. The optional `--send-metrics` enables opt-in live send instrumentation using `System.Diagnostics.Metrics`; it emits low-cardinality counters and histograms plus a CLI summary without changing the default hot path. The option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`. The current importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects without holding the full live build in memory.
 
 Import an official PLATEAU CityGML ZIP online through the default CKAN catalog flow:
 
@@ -55,7 +57,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-The live path connects to `ws://localhost:<port>/`, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then builds the required Resonite components for the imported scene. City objects are sent sequentially so large mesh-code imports do not require a full in-memory batch before visible live output.
+The live path connects to `ws://localhost:<port>/`, opens multiple ResoniteLink sessions by default, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then builds the required Resonite components for the imported scene. Shared slot and component IDs are initialized once and reused across workers, city objects already placed in the target session are skipped before mesh/material placement, and city-object sends are distributed across the configured connections so large mesh-code imports can overlap live output without requiring a full in-memory batch.
 
 Re-running `build` against the same ResoniteLink session and dataset appends new branches under the existing dataset instead of creating a separate dataset root. Each city object is placed under the mesh-code branch that actually owns its source data, so parent-mesh content can stay under a shorter mesh code such as `533945` while request-specific content stays under `53394525`. Mesh-code roots are positioned by slot offsets so neighboring imports line up, and already-placed objects under an existing mesh-code branch are not re-sent.
 
