@@ -8,7 +8,6 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteMaterialAssetManager(
     string dataset,
-    Func<string, string, CancellationToken, Task> ensureMaterialAssetSlotKnownAsync,
     Func<string, string, string, string, Func<Task<Uri>>, CancellationToken, Task<Uri>> ensureAssetComponentUrlKnownAsync,
     Func<string, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> ensureComponentKnownAsync)
 {
@@ -20,23 +19,29 @@ internal sealed class ResoniteMaterialAssetManager(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<string, string> preparedTexturePathsByKey,
+        string materialAssetSlotId,
+        string materialInstanceKey,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(material);
         ArgumentNullException.ThrowIfNull(preparedTexturePathsByKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialAssetSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialInstanceKey);
 
         string materialId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "materialasset",
-            material.MaterialKey);
+            materialInstanceKey);
         return await materialComponentTasks.GetOrAdd(
-            material.MaterialKey,
+            materialInstanceKey,
             _ => new Lazy<Task<string>>(
                 () => EnsureMaterialComponentCoreAsync(
                     client,
                     material,
                     preparedTexturePathsByKey,
+                    materialAssetSlotId,
+                    materialInstanceKey,
                     materialId,
                     cancellationToken),
                 LazyThreadSafetyMode.ExecutionAndPublication)).Value.WaitAsync(cancellationToken);
@@ -46,38 +51,34 @@ internal sealed class ResoniteMaterialAssetManager(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<string, string> preparedTexturePathsByKey,
+        string materialAssetSlotId,
+        string materialInstanceKey,
         string materialId,
         CancellationToken cancellationToken)
     {
-        string materialSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            dataset,
-            "materialslot",
-            material.MaterialKey);
         string textureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "texture",
-            material.MaterialKey);
+            materialInstanceKey);
         string emissionTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "texture",
-            $"{material.MaterialKey}-emission");
+            $"{materialInstanceKey}-emission");
         string heightTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "texture",
-            $"{material.MaterialKey}-height");
+            $"{materialInstanceKey}-height");
         string metallicTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "texture",
-            $"{material.MaterialKey}-metallic");
+            $"{materialInstanceKey}-metallic");
         string normalTextureComponentId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             dataset,
             "texture",
-            $"{material.MaterialKey}-normal");
+            $"{materialInstanceKey}-normal");
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
         string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
-
-        await ensureMaterialAssetSlotKnownAsync(materialSlotId, material.MaterialKey, cancellationToken);
 
         if (material.TexturePath is not null
             && preparedTexturePathsByKey.TryGetValue(
@@ -85,7 +86,7 @@ internal sealed class ResoniteMaterialAssetManager(
                 out string? absoluteTexturePath))
         {
             await ensureAssetComponentUrlKnownAsync(
-                materialSlotId,
+                materialAssetSlotId,
                 textureComponentId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 "URL",
@@ -103,7 +104,7 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.NormalPath is not null)
             {
                 await ensureAssetComponentUrlKnownAsync(
-                    materialSlotId,
+                    materialAssetSlotId,
                     normalTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
@@ -123,7 +124,7 @@ internal sealed class ResoniteMaterialAssetManager(
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
                 await ensureAssetComponentUrlKnownAsync(
-                    materialSlotId,
+                    materialAssetSlotId,
                     heightTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
@@ -142,7 +143,7 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.MetallicPath is not null)
             {
                 await ensureAssetComponentUrlKnownAsync(
-                    materialSlotId,
+                    materialAssetSlotId,
                     metallicTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
@@ -162,7 +163,7 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.EmissionPath is not null)
             {
                 await ensureAssetComponentUrlKnownAsync(
-                    materialSlotId,
+                    materialAssetSlotId,
                     emissionTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
@@ -178,7 +179,7 @@ internal sealed class ResoniteMaterialAssetManager(
         }
 
         await ensureComponentKnownAsync(
-            materialSlotId,
+            materialAssetSlotId,
             materialId,
             materialComponentType,
             materialMembers,

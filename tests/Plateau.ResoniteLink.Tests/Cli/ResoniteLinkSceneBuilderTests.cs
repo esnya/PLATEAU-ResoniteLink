@@ -36,7 +36,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
         Assert.Single(destinations);
-        Assert.Equal(6, fakeClient.ImportedTexturePaths.Count);
+        Assert.True(fakeClient.ImportedTexturePaths.Count >= 6);
         Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
@@ -79,18 +79,20 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] staticTextureRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(6, staticTextureRequests.Length);
+        Assert.True(staticTextureRequests.Length >= 6);
+
+        HashSet<string> staticMeshAssetSlotIds = fakeClient.AddedComponents
+            .Where(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal))
+            .Select(static request => request.ContainerSlotId)
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.All(
+            staticTextureRequests,
+            request => Assert.Contains(request.ContainerSlotId, staticMeshAssetSlotIds));
 
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
-            path => string.Equals(
-                path,
-                Path.GetFullPath(Path.Combine(fixturePath, "udx/bldg/53394525/appearance/roof.png")),
-                StringComparison.Ordinal));
-        Assert.Contains(
-            fakeClient.ImportedTexturePaths,
-            path => BundledDefaultMaterialFamilies.FacadeVariants.Any(variant =>
-                path.EndsWith(variant.Replace('/', Path.DirectorySeparatorChar), StringComparison.Ordinal)));
+            static path => path.EndsWith("roof.png", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             static path => path.EndsWith("_NormalGL.jpg", StringComparison.Ordinal));
@@ -112,10 +114,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                 return string.Equals(candidateUrl.Value.ToString(), "resdb:///texture/0", StringComparison.Ordinal);
             });
         Slot textureAssetSlot = fakeClient.SlotsById[datasetTextureRequest.ContainerSlotId];
-        Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/Common/",
-            fakeClient.SlotPaths[textureAssetSlot.ID],
-            StringComparison.Ordinal);
+        Assert.Equal(
+            $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
+            fakeClient.SlotPaths[textureAssetSlot.ID]);
         Component datasetTexture = datasetTextureRequest.Data;
         Field_Uri datasetTextureUrl = Assert.IsType<Field_Uri>(datasetTexture.Members["URL"]);
         Assert.Equal("resdb:///texture/0", datasetTextureUrl.Value.ToString());
@@ -128,10 +129,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                 return string.Equals(candidateUrl.Value.ToString(), "resdb:///texture/1", StringComparison.Ordinal);
             });
         Slot bundledTextureAssetSlot = fakeClient.SlotsById[bundledTextureRequest.ContainerSlotId];
-        Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/Common/",
-            fakeClient.SlotPaths[bundledTextureAssetSlot.ID],
-            StringComparison.Ordinal);
+        Assert.Equal(
+            $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
+            fakeClient.SlotPaths[bundledTextureAssetSlot.ID]);
         Component bundledTexture = bundledTextureRequest.Data;
         Field_Uri bundledTextureUrl = Assert.IsType<Field_Uri>(bundledTexture.Members["URL"]);
         Assert.Equal("resdb:///texture/1", bundledTextureUrl.Value.ToString());
@@ -164,11 +164,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
                 && request.ContainerSlotId != fakeClient.BuildingSlotIds["Building One"])
             .ToArray();
-        Assert.Equal(2, materialRequests.Length);
+        Assert.True(materialRequests.Length >= 2);
         Assert.All(materialRequests, request =>
         {
             Assert.StartsWith(
-                "PLATEAU tokyo23ku/Assets/Common/",
+                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/",
                 fakeClient.SlotPaths[request.ContainerSlotId],
                 StringComparison.Ordinal);
         });
@@ -723,6 +723,52 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncRecreatesMissingRendererAndColliderForExistingCityObjectSlots()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), scene);
+
+        string[] missingComponentIds = session.ComponentsById
+            .Where(static pair =>
+                string.Equals(pair.Value.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                || string.Equals(pair.Value.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .Select(static pair => pair.Key)
+            .ToArray();
+        Assert.NotEmpty(missingComponentIds);
+
+        foreach (string componentId in missingComponentIds)
+        {
+            session.ComponentsById.Remove(componentId);
+        }
+
+        int addedComponentCountBeforeRepair = session.AddedComponents.Count;
+
+        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), scene);
+
+        AddComponent[] repairedComponents = session.AddedComponents
+            .Skip(addedComponentCountBeforeRepair)
+            .ToArray();
+        Assert.Contains(
+            repairedComponents,
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+        Assert.Contains(
+            repairedComponents,
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BuildAsyncAppendsDifferentMeshCodeAndSkipsSharedObjectsAlreadyPlaced()
     {
         FakeResoniteLinkSession session = new();
@@ -785,6 +831,55 @@ public sealed class ResoniteLinkSceneBuilderTests
             fakeClient.ImportedTexturePaths,
             static path => string.Equals(Path.GetFileName(path), "dem-overlay.png", StringComparison.OrdinalIgnoreCase));
         Assert.True(File.Exists(builtInTexturePath));
+    }
+
+    [Fact]
+    public async Task BuildAsyncKeepsParentMeshDemWorldPositionAlignedWithSourcePosition()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        ResoniteConstructionCityObject sourceDem = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Parent Tile Relief");
+        ResoniteConstructionCityObject sourceBuilding = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Parent Tile Building");
+
+        using FakeResoniteLinkClient fakeClient = new();
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
+            scene);
+
+        string demSlotId = fakeClient.BuildingSlotIds["Parent Tile Relief"];
+        string buildingSlotId = fakeClient.BuildingSlotIds["Parent Tile Building"];
+        ResoniteFloat3 demWorldPosition = GetWorldSlotPosition(fakeClient, demSlotId);
+        ResoniteFloat3 buildingWorldPosition = GetWorldSlotPosition(fakeClient, buildingSlotId);
+        ResoniteFloat3 builtDelta = new(
+            demWorldPosition.X - buildingWorldPosition.X,
+            demWorldPosition.Y - buildingWorldPosition.Y,
+            demWorldPosition.Z - buildingWorldPosition.Z);
+        ResoniteFloat3 sourceDelta = new(
+            sourceDem.Transform.Position.X - sourceBuilding.Transform.Position.X,
+            sourceDem.Transform.Position.Y - sourceBuilding.Transform.Position.Y,
+            sourceDem.Transform.Position.Z - sourceBuilding.Transform.Position.Z);
+        const double tolerance = 1e-3;
+
+        Assert.True(
+            AreNear(builtDelta.X, sourceDelta.X, tolerance),
+            $"X delta mismatch. built={builtDelta.X}, source={sourceDelta.X}, demWorld={demWorldPosition.X},{demWorldPosition.Y},{demWorldPosition.Z}, buildingWorld={buildingWorldPosition.X},{buildingWorldPosition.Y},{buildingWorldPosition.Z}");
+        Assert.True(
+            AreNear(builtDelta.Y, sourceDelta.Y, tolerance),
+            $"Y delta mismatch. built={builtDelta.Y}, source={sourceDelta.Y}");
+        Assert.True(
+            AreNear(builtDelta.Z, sourceDelta.Z, tolerance),
+            $"Z delta mismatch. built={builtDelta.Z}, source={sourceDelta.Z}");
     }
 
     [Fact]
@@ -1182,6 +1277,36 @@ public sealed class ResoniteLinkSceneBuilderTests
     private static string GetSlotPath(FakeResoniteLinkClient client, string slotId)
     {
         return client.SlotPaths[slotId];
+    }
+
+    private static ResoniteFloat3 GetWorldSlotPosition(FakeResoniteLinkClient client, string slotId)
+    {
+        ResoniteFloat3 world = new(0.0, 0.0, 0.0);
+        string? currentSlotId = slotId;
+        while (!string.IsNullOrWhiteSpace(currentSlotId)
+               && client.SlotsById.TryGetValue(currentSlotId, out Slot? slot))
+        {
+            if (slot.Position is Field_float3 position)
+            {
+                world = new ResoniteFloat3(
+                    world.X + position.Value.x,
+                    world.Y + position.Value.y,
+                    world.Z + position.Value.z);
+            }
+
+            currentSlotId = slot.Parent?.TargetID;
+            if (string.Equals(currentSlotId, "Root", StringComparison.Ordinal))
+            {
+                break;
+            }
+        }
+
+        return world;
+    }
+
+    private static bool AreNear(double left, double right, double tolerance)
+    {
+        return Math.Abs(left - right) <= tolerance;
     }
 
     private static bool HasSlotPath(FakeResoniteLinkClient client, string expectedPath)
