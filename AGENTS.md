@@ -1,5 +1,7 @@
 # AGENTS
 
+Read and apply this file when using a coding agent in this repository.
+
 ## Scope
 This repository builds a .NET 10 import pipeline that maps PLATEAU datasets into Resonite-oriented construction data and, later, live Resonite adapters.
 
@@ -15,4 +17,4 @@ This repository builds a .NET 10 import pipeline that maps PLATEAU datasets into
 - Add or update automated tests when behavior changes.
 
 ## Live Send Workflow
-- Follow the concrete live-send and Resonite UnitySDK `AutoDiscovery` workflow in [docs/live-testing.md](/mnt/c/Users/esnya/Documents/PLATEAU-ResoniteLink/docs/live-testing.md).
+- Follow the concrete live-send and Resonite UnitySDK `AutoDiscovery` workflow in [docs/live-testing.md](docs/live-testing.md).

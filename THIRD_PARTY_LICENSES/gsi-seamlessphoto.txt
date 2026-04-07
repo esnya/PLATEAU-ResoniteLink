@@ -1,0 +1,34 @@
+Default DEM terrain imagery in this repository is generated on demand from the
+Geospatial Information Authority of Japan (GSI) seamless photo tile endpoint:
+
+- https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg
+
+Official reference pages:
+
+- GSI tile list: https://maps.gsi.go.jp/development/
+- GSI Maps terms of use: https://maps.gsi.go.jp/help/termsofuse.html
+- Seamless photo caution / source note PDF:
+  https://cyberjapandata.gsi.go.jp/legend/seamlessphoto_precaution.pdf
+
+Current repository behavior:
+
+- The default URL template is defined in
+  src/Plateau.ResoniteLink.Application/Importing/LocalCityGmlResonitePlanBuilder.cs
+  as `DefaultDemTerrainTextureUrlTemplate`.
+- The imagery is not checked into this repository as a bundled asset.
+- The CLI downloads tiles at build time only when DEM terrain texture overlays
+  are generated.
+
+Usage and attribution note:
+
+- GSI Maps terms state that tile usage follows the GSI content terms and that
+  some tiles may include third-party rights or other legal restrictions.
+- The `seamlessphoto` tile entry identifies the source as `全国最新写真（シームレス）`
+  and points to the official caution PDF for source composition details.
+- Some seamless photo coverage uses orthophotos provided by local governments or
+  other parties. Those areas can require additional attribution or separate
+  approval for further reproduction or use.
+
+Before publishing derived content or redistributing generated terrain imagery,
+review the current official GSI pages above for the exact tile coverage being
+used.

@@ -18,6 +18,23 @@ The package-to-material mapping is centralized in `PlateauPackageCatalog`, and t
 `frn` now resolves through a dedicated `city-furniture` fallback family instead of sharing the generic `other` bucket.
 As of `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0), published on 2026-03-12, Unity maps `PredefinedCityModelPackage.CityFurniture` to `PlateauDefaultCityFurniture`, whose default texture set uses a generic metal look. ResoniteLink follows that look, but the checked-in fallback texture data is sourced directly from AmbientCG instead of copying the Unity SDK asset files.
 
+## `dem` Terrain Imagery Note
+
+`dem` is a provenance-sensitive special case. The current default generated terrain overlay is hardcoded in `LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate` to the Geospatial Information Authority of Japan (GSI) seamless photo tile endpoint:
+
+- `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`
+
+This imagery is not bundled into the repository. The CLI fetches it on demand to build DEM terrain textures from the public GSI tile service.
+
+Public redistribution and derivative publishing should keep the following in mind:
+
+- The authoritative usage entry point is the GSI tile list: <https://maps.gsi.go.jp/development/>
+- GSI Maps terms route tile usage through the GSI content terms and explicitly warn that some tiles can include third-party rights or other legal restrictions: <https://maps.gsi.go.jp/help/termsofuse.html>
+- The seamless photo tile entry identifies the source as `全国最新写真（シームレス）` and points to the official caution PDF for source composition and approvals: <https://cyberjapandata.gsi.go.jp/legend/seamlessphoto_precaution.pdf>
+- Some seamless photo coverage includes orthophotos provided by local governments or other parties. In those areas, additional attribution or reproduction restrictions can apply, so downstream users should review the current official GSI notes for the exact coverage they ship.
+
+Repository-local tracking for this dependency lives in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
+
 ## `frn` Sampling Note
 
 Sampling the Unity SDK's `TestDataTokyoMini` `frn` fixture showed that detailed city furniture is largely texture-driven:

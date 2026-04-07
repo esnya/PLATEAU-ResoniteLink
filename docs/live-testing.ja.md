@@ -32,18 +32,31 @@ announce ベースで確認する最小の Windows PowerShell パターン:
 
 ```powershell
 $udp = [System.Net.Sockets.UdpClient]::new(12512)
-$remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
-$bytes = $udp.Receive([ref]$remote)
-$json = [System.Text.Encoding]::UTF8.GetString($bytes)
-$json | ConvertFrom-Json
+$udp.Client.ReceiveTimeout = 30000
+
+try {
+  $remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+  $bytes = $udp.Receive([ref]$remote)
+  $json = [System.Text.Encoding]::UTF8.GetString($bytes)
+  $json | ConvertFrom-Json
+}
+finally {
+  $udp.Close()
+}
 ```
 
 返ってくる object には `sessionName`、`sessionID`、`linkPort` が含まれるはずである。
 
+discovery 時の実務上の注意:
+
+- 単発の短い待機で判定しない。実運用では、少なくとも 30 秒の receive window を取ってから失敗扱いにする。
+- それでも announce を受け取れない場合でも、すぐに port 無効と決めつけず、`Enable Resonite Link` を維持したまま同じ listener 確認を再試行する。
+- 複数 announce が想定される場合は、最初の 1 packet を盲信せず、複数 packet を取り、対象 world に一致する `sessionName` / `sessionID` を選ぶ。
+
 失敗時の扱い:
 
 - live send が `SocketException (10061)` などの connection refused で失敗した場合、その port で listener が有効ではない前提で扱う。
-- まず `Enable Resonite Link` を再確認し、その後 Session UI か、新しい UDP `12512` announce で port を再確認する。
+- まず `Enable Resonite Link` を再確認し、その後 Session UI か、上記の長めの receive window を使った新しい UDP `12512` announce で port を再確認する。
 
 ## WSL の勘所
 

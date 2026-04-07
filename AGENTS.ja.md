@@ -1,5 +1,7 @@
 # AGENTS
 
+このファイルは、このリポジトリで Coding Agent を利用する際に読ませること。
+
 ## 対象
 このリポジトリは、PLATEAU のデータセットを Resonite 向けの構築データへ変換し、将来的には Resonite へ直接反映するアダプターまで含める .NET 10 ベースのインポートパイプラインを実装する。
 
@@ -15,4 +17,4 @@
 - 振る舞いを変更したら、自動テストを追加または更新する。
 
 ## Live Send 手順
-- 具体的な live send と Resonite UnitySDK `AutoDiscovery` の運用手順は [docs/live-testing.ja.md](/mnt/c/Users/esnya/Documents/PLATEAU-ResoniteLink/docs/live-testing.ja.md) を参照すること。
+- 具体的な live send と Resonite UnitySDK `AutoDiscovery` の運用手順は [docs/live-testing.ja.md](docs/live-testing.ja.md) を参照すること。

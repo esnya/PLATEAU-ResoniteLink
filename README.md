@@ -6,6 +6,25 @@ Import behavior and terminology are guided by [PLATEAU SDK for Unity](https://pr
 
 Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyVersion`, `FileVersion`, and `InformationalVersion` from those tags, emitting numeric assembly versions without the `v` prefix.
 
+## Scope
+
+- Stream PLATEAU CityGML datasets from local folders or the official CKAN-backed remote ZIP flow into a running ResoniteLink listener.
+- Preserve deterministic mesh/material ordering, carry `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
+- Build dataset and mesh-code branches incrementally so large imports can start appearing in Resonite before the full request finishes.
+
+## Known Limitations
+
+- The current public surface is the CLI live-send pipeline; no standalone offline exporter or in-Resonite authoring workflow is shipped yet.
+- Remote import currently targets the official PLATEAU catalog / ZIP discovery flow and then reuses the same local importer after extraction.
+- The live adapter currently relies on `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures because that path returns usable asset URLs in the current ResoniteLink runtime.
+
+## Runtime And Prerequisites
+
+- Target runtime: .NET SDK 10.
+- Host assumption: a running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url`.
+- Live testing workflow: see [docs/live-testing.md](docs/live-testing.md).
+- Default material and DEM terrain imagery sources and provenance: see [docs/default-materials.md](docs/default-materials.md), `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`, and `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
+
 ## Usage
 
 Restore dependencies:
@@ -29,7 +48,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --send-metrics
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. The optional `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. The optional `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. The optional `--resonitelink-connections` defaults to `4` and controls how many live ResoniteLink sessions are opened in parallel for mesh and texture sends. The optional `--send-metrics` enables opt-in live send instrumentation using `System.Diagnostics.Metrics`; it emits low-cardinality counters and histograms plus a CLI summary without changing the default hot path. The option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`. The current importer reads mesh-code-scoped local CityGML across official PLATEAU `udx/<package>/` prefixes, preserves deterministic submesh/material ordering, carries `ParameterizedTexture` appearance data from detailed models into live-ready mesh and material payloads, and streams city objects without holding the full live build in memory.
+`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `4`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
 
 Import an official PLATEAU CityGML ZIP online through the default CKAN catalog flow:
 
@@ -69,3 +88,17 @@ Validate formatting, analyzers, and tests:
 dotnet format whitespace . --folder --verify-no-changes
 dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false
 ```
+
+## License Notes
+
+- The repository root is licensed under [MIT](LICENSE).
+- Imported PLATEAU datasets are not re-licensed by this repository. Their use remains subject to the original PLATEAU terms in the [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/), which currently states that published PLATEAU content is generally available under PDL 1.0-compatible terms, requires source attribution, and requires marking edits/derivative use where applicable.
+- PLATEAU SDK for Unity is a separate upstream MIT-licensed project; a local copy of that license is tracked in `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt`.
+- Bundled default material textures under `src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/` are sourced from AmbientCG and tracked as CC0 1.0 in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
+- The default DEM terrain imagery overlay is not a bundled asset. It is generated from the Geospatial Information Authority of Japan (GSI) seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`; provenance and usage notes are tracked in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
+- NuGet and other runtime dependencies keep their own upstream licenses. Before redistributing binaries or vendored assets, review the package metadata and upstream license terms for the exact versions you ship.
+
+PLATEAU guidance:
+
+- The [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) states that PLATEAU 3D city model copyrights belong to the respective local governments and that the datasets are provided as open data under licenses such as PDL 1.0, CC BY 4.0, ODC BY, or ODbL depending on the source dataset.
+- When publishing derived content or redistributed data, keep the original dataset-level attribution and check whether any dataset-specific restrictions or measurement-law constraints apply.

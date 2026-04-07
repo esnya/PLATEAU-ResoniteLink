@@ -32,18 +32,31 @@ Minimal Windows PowerShell pattern for announcement-based discovery:
 
 ```powershell
 $udp = [System.Net.Sockets.UdpClient]::new(12512)
-$remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
-$bytes = $udp.Receive([ref]$remote)
-$json = [System.Text.Encoding]::UTF8.GetString($bytes)
-$json | ConvertFrom-Json
+$udp.Client.ReceiveTimeout = 30000
+
+try {
+  $remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+  $bytes = $udp.Receive([ref]$remote)
+  $json = [System.Text.Encoding]::UTF8.GetString($bytes)
+  $json | ConvertFrom-Json
+}
+finally {
+  $udp.Close()
+}
 ```
 
 The returned object should contain `sessionName`, `sessionID`, and `linkPort`.
 
+Practical notes for discovery:
+
+- Do not assume a single short wait is enough. In practice, give the listener at least a 30 second receive window before treating discovery as failed.
+- If you still do not receive an announcement, keep `Enable Resonite Link` on and retry the same listener check before assuming the port is unavailable.
+- When multiple announcements are expected, capture more than one packet and choose the matching `sessionName` / `sessionID` instead of trusting the first packet blindly.
+
 Failure handling:
 
 - If a live send fails with `SocketException (10061)` or another connection-refused error, assume the listener is not active on that port until proven otherwise.
-- Re-check `Enable Resonite Link`, then re-confirm the port from the in-game Session UI or a fresh UDP `12512` announcement.
+- Re-check `Enable Resonite Link`, then re-confirm the port from the in-game Session UI or a fresh UDP `12512` announcement with the longer receive window above.
 
 ## WSL Notes
 

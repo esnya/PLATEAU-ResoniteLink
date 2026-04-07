@@ -17,6 +17,23 @@
 package から material 方針への対応は `PlateauPackageCatalog` に集約してあり、サポート対象の non-`dem` package が必ずちょうど 1 つの material bucket に入ることをテストで固定している。これにより、Unity SDK 側の package 対応と fallback policy のズレを見つけやすくしている。`frn` は汎用 `other` bucket ではなく、専用の `city-furniture` fallback family に入る。
 2026-03-12 公開の `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0) 時点では、Unity 側の `PredefinedCityModelPackage.CityFurniture` は `PlateauDefaultCityFurniture` に対応し、見た目は generic metal 系になっている。ResoniteLink もその見た目に寄せるが、チェックインする fallback texture data 自体は Unity SDK の asset をコピーせず、AmbientCG から直接取得したものを使う。
 
+## `dem` Terrain Imagery メモ
+
+`dem` は出所管理が必要な special case である。現在の既定 generated terrain overlay は `LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate` に固定しており、Geospatial Information Authority of Japan (GSI, 国土地理院) の seamless photo tile endpoint を使う。
+
+- `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`
+
+この imagery はリポジトリへ同梱していない。CLI が public な GSI tile service から必要時に取得し、DEM terrain texture を生成する。
+
+公開・再配布・派生物の公開では、次を確認すること。
+
+- 正式な利用案内の入口は GSI の tile list: <https://maps.gsi.go.jp/development/>
+- GSI Maps の利用規約では、tile 利用は国土地理院コンテンツ利用規約に従うこと、また tile によっては第三者権利や個別法令上の制約がありうることが明示されている: <https://maps.gsi.go.jp/help/termsofuse.html>
+- seamless photo tile の項目では、データソースを `全国最新写真（シームレス）` とし、元データ構成と承認情報の確認先として公式の caution PDF を案内している: <https://cyberjapandata.gsi.go.jp/legend/seamlessphoto_precaution.pdf>
+- seamless photo の一部範囲には、地方公共団体などが作成したオルソ画像が含まれる。その範囲では追加の出典記載や複製・利用制限がかかることがあるため、実際に出荷・公開する coverage に対して最新の公式注記を確認すること。
+
+この依存関係のローカル追跡メモは `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` に置く。
+
 ## `frn` サンプリングメモ
 
 Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリングすると、詳細な city furniture はかなり texture 主導だった。
