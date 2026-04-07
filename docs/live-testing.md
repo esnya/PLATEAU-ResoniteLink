@@ -32,7 +32,7 @@ Minimal Windows PowerShell pattern for announcement-based discovery:
 
 ```powershell
 $udp = [System.Net.Sockets.UdpClient]::new(12512)
-$udp.Client.ReceiveTimeout = 30000
+$udp.Client.ReceiveTimeout = 20000
 
 try {
   $remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
@@ -49,7 +49,7 @@ The returned object should contain `sessionName`, `sessionID`, and `linkPort`.
 
 Practical notes for discovery:
 
-- Do not assume a single short wait is enough. In practice, give the listener at least a 30 second receive window before treating discovery as failed.
+- Do not assume a single short wait is enough. In practice, give the listener at least a 20 second receive window before treating discovery as failed.
 - If you still do not receive an announcement, keep `Enable Resonite Link` on and retry the same listener check before assuming the port is unavailable.
 - When multiple announcements are expected, capture more than one packet and choose the matching `sessionName` / `sessionID` instead of trusting the first packet blindly.
 
@@ -83,8 +83,8 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   --resonitelink-port <port>
 ```
 
-If `--source local` is used, also pass `--local-source-path <dataset-root>`. The value follows the Unity SDK `LocalSourcePath` naming and may point at either the extracted dataset root or an ancestor directory that contains one nested extracted dataset root with `udx/`.
-If `--source remote` is used, the CLI downloads an official PLATEAU CityGML ZIP/7z archive through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it. The extracted result is cached under `runtime/<os>/resonite/cache/remote/` and can later be reused through `--source local --local-source-path ...`.
+If `--source local` is used, also pass `--local-source-path <dataset-root>`. The value follows the Unity SDK `LocalSourcePath` naming and may point at a dataset directory, a ZIP/7z archive, or an ancestor directory that contains one nested dataset root with `udx/`.
+If `--source remote` is used, the CLI downloads an official PLATEAU CityGML ZIP/7z archive through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it. The downloaded archive is cached under `runtime/<os>/resonite/cache/remote/` and can later be reused through `--source local --local-source-path ...`.
 
 For long-running sends, prefer a small Windows PowerShell wrapper over an inline `cmd.exe /c dotnet ...` command. In this environment, a wrapper that uses `Start-Process -Wait -PassThru` plus redirected stdout/stderr is easier to observe and less likely to get stuck on WSL interop details.
 

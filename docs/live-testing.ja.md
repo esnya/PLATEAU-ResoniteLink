@@ -32,7 +32,7 @@ announce ベースで確認する最小の Windows PowerShell パターン:
 
 ```powershell
 $udp = [System.Net.Sockets.UdpClient]::new(12512)
-$udp.Client.ReceiveTimeout = 30000
+$udp.Client.ReceiveTimeout = 20000
 
 try {
   $remote = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
@@ -49,7 +49,7 @@ finally {
 
 discovery 時の実務上の注意:
 
-- 単発の短い待機で判定しない。実運用では、少なくとも 30 秒の receive window を取ってから失敗扱いにする。
+- 単発の短い待機で判定しない。実運用では、少なくとも 20 秒の receive window を取ってから失敗扱いにする。
 - それでも announce を受け取れない場合でも、すぐに port 無効と決めつけず、`Enable Resonite Link` を維持したまま同じ listener 確認を再試行する。
 - 複数 announce が想定される場合は、最初の 1 packet を盲信せず、複数 packet を取り、対象 world に一致する `sessionName` / `sessionID` を選ぶ。
 
@@ -83,8 +83,8 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   --resonitelink-port <port>
 ```
 
-`--source local` を使う場合は、追加で `--local-source-path <dataset-root>` を渡す。この値は Unity SDK の `LocalSourcePath` 命名に合わせており、展開済み dataset root そのものでも、`udx/` を含む dataset root を 1 つ内包する上位 directory でもよい。
-`--source remote` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP/7z archive を取得する。展開結果は `runtime/<os>/resonite/cache/remote/` に cache され、あとから `--source local --local-source-path ...` で再利用できる。
+`--source local` を使う場合は、`--local-source-path <dataset-root>` も指定する。値は Unity SDK の `LocalSourcePath` 命名に合わせており、dataset directory、ZIP/7z archive、または `udx/` を含む nested dataset root を配下に持つ ancestor directory を指せる。
+`--source remote` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP/7z archive を取得する。download した archive は `runtime/<os>/resonite/cache/remote/` に cache され、あとから `--source local --local-source-path ...` で再利用できる。
 
 長時間の送信では、インラインの `cmd.exe /c dotnet ...` よりも、小さな Windows PowerShell ラッパーを使う方が安定する。この環境では、`Start-Process -Wait -PassThru` と stdout/stderr の redirect を使う形の方が、WSL interop 由来の詰まりを切り分けやすい。
 

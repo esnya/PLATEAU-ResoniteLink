@@ -15,7 +15,7 @@ Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyV
 ## Known Limitations
 
 - The current public surface is the CLI live-send pipeline; no standalone offline exporter or in-Resonite authoring workflow is shipped yet.
-- Remote import currently targets the official PLATEAU catalog / ZIP/7z discovery flow and then reuses the same local importer after extraction.
+- Remote import currently targets the official PLATEAU catalog / ZIP/7z discovery flow and then reuses the same local importer against a downloaded archive-backed source.
 - The live adapter currently relies on `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures because that path returns usable asset URLs in the current ResoniteLink runtime.
 
 ## Runtime And Prerequisites
@@ -44,11 +44,11 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --source local \
   --local-source-path /path/to/plateau \
   --resonitelink-port <port> \
-  --resonitelink-connections 4 \
+  --resonitelink-connections 1 \
   --send-metrics
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `4`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
+`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
 
 Import an official PLATEAU CityGML ZIP/7z archive online through the default CKAN catalog flow:
 
@@ -61,9 +61,9 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP/7z resource, downloads it into `runtime/<os>/resonite/cache/remote/`, extracts it, and then runs the same local importer on the extracted local source path. `--server-url` can override the catalog base URI or point directly to a ZIP/7z archive URL.
+`--source remote` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP/7z resource, downloads it into `runtime/<os>/resonite/cache/remote/`, and then runs the same local importer directly against the cached archive. `--server-url` can override the catalog base URI or point directly to a ZIP/7z archive URL.
 
-To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either the extracted dataset root or an ancestor directory under `runtime/<os>/resonite/cache/remote/`. The importer resolves the nearest descendant that contains `udx/`, so a path such as `runtime/<os>/resonite/cache/remote/tokyo23ku/533944/` is valid even when the extracted dataset root is nested one level below it.
+To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either a dataset directory, a cached ZIP/7z archive, or an ancestor directory under `runtime/<os>/resonite/cache/remote/`. The importer resolves the nearest descendant dataset root that contains `udx/`, and it can also open a cached archive file transparently.
 
 Build live into Resonite through ResoniteLink from Windows:
 
