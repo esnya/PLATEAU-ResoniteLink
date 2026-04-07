@@ -84,7 +84,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
 ```
 
 If `--source local` is used, also pass `--local-source-path <dataset-root>`. The value follows the Unity SDK `LocalSourcePath` naming and may point at either the extracted dataset root or an ancestor directory that contains one nested extracted dataset root with `udx/`.
-If `--source remote` is used, the CLI downloads an official PLATEAU CityGML ZIP through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it. The extracted result is cached under `runtime/<os>/resonite/cache/remote/` and can later be reused through `--source local --local-source-path ...`.
+If `--source remote` is used, the CLI downloads an official PLATEAU CityGML ZIP/7z archive through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it. The extracted result is cached under `runtime/<os>/resonite/cache/remote/` and can later be reused through `--source local --local-source-path ...`.
 
 For long-running sends, prefer a small Windows PowerShell wrapper over an inline `cmd.exe /c dotnet ...` command. In this environment, a wrapper that uses `Start-Process -Wait -PassThru` plus redirected stdout/stderr is easier to observe and less likely to get stuck on WSL interop details.
 

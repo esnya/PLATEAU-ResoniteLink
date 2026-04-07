@@ -25,7 +25,8 @@
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
-          "Plateau.ResoniteLink.Domain": "[1.0.0, )"
+          "Plateau.ResoniteLink.Domain": "[1.0.0, )",
+          "SharpCompress": "[0.47.4, )"
         }
       },
       "plateau.resonitelink.domain": {
@@ -42,6 +43,12 @@
         "requested": "[1.1.15, )",
         "resolved": "1.1.15",
         "contentHash": "KuA7N3Nv/lIeawJdQBQJR6oqWD9KETHLbWzBqapwFs+Tby+R5I4crkKujKMm5bXcSuFZ8LNtflFQVadsWCbBjg=="
+      },
+      "SharpCompress": {
+        "type": "CentralTransitive",
+        "requested": "[0.47.4, )",
+        "resolved": "0.47.4",
+        "contentHash": "0s2rmGFLFQED6ERPUtJiT/KoDsrBzsc+qDoVX1XT4HfAiLZCtV6Z9mHfArBgHVpDErl4Pt9M5VTMVQLPUJw5Kg=="
       }
     }
   }

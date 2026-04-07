@@ -5,6 +5,10 @@ using System.Text.RegularExpressions;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
+using SharpCompress.Archives;
+using SharpCompress.Common;
+using SharpCompress.Readers;
+
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
@@ -36,9 +40,21 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             return request;
         }
 
-        Uri archiveUri = request.ServerUri is not null && LooksLikeArchiveUri(request.ServerUri)
-            ? request.ServerUri
-            : await DiscoverArchiveUriAsync(request, cancellationToken);
+        Uri? archiveUri = null;
+        if (request.ServerUri is not null)
+        {
+            if (LooksLikeSupportedArchiveUri(request.ServerUri))
+            {
+                archiveUri = request.ServerUri;
+            }
+            else if (LooksLikeDirectArchiveUri(request.ServerUri))
+            {
+                throw new PlateauImportValidationException(
+                    [$"The direct archive URL '{request.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
+            }
+        }
+
+        archiveUri ??= await DiscoverArchiveUriAsync(request, cancellationToken);
 
         string cacheRoot = Path.GetFullPath(Path.Combine(
             workRoot,
@@ -142,10 +158,10 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
                 [$"No downloadable CityGML archive could be found online for mesh code '{request.MeshCode}'."]);
         }
 
-        if (!LooksLikeArchiveUri(new Uri(resource.Url, UriKind.Absolute)))
+        if (!LooksLikeSupportedArchiveUri(new Uri(resource.Url, UriKind.Absolute)))
         {
             throw new PlateauImportValidationException(
-                [$"The discovered online resource '{resource.Url}' is not a supported ZIP archive."]);
+                [$"The discovered online resource '{resource.Url}' is not a supported archive."]);
         }
 
         return new Uri(resource.Url, UriKind.Absolute);
@@ -201,7 +217,7 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
 
         Uri resourceUri = new(resource.Url, UriKind.Absolute);
-        if (!LooksLikeArchiveUri(resourceUri))
+        if (!LooksLikeSupportedArchiveUri(resourceUri))
         {
             return 0;
         }
@@ -241,12 +257,23 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             score += 20;
         }
 
+        if (string.Equals(format, "7Z", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(format, "7ZIP", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 20;
+        }
+
         return score;
     }
 
-    private static bool LooksLikeArchiveUri(Uri uri)
+    private static bool LooksLikeSupportedArchiveUri(Uri uri)
     {
-        return uri.AbsolutePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+        return TryGetArchiveKind(uri.AbsolutePath, out _);
+    }
+
+    private static bool LooksLikeDirectArchiveUri(Uri uri)
+    {
+        return !string.IsNullOrEmpty(Path.GetExtension(uri.AbsolutePath));
     }
 
     private static string GetArchiveFileName(Uri archiveUri)
@@ -267,14 +294,26 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(destinationPath);
-        await ZipFile.ExtractToDirectoryAsync(
-            archivePath,
-            destinationPath,
-            overwriteFiles: true,
-            cancellationToken);
+        switch (GetArchiveKind(archivePath))
+        {
+            case SupportedArchiveKind.Zip:
+                await ZipFile.ExtractToDirectoryAsync(
+                    archivePath,
+                    destinationPath,
+                    overwriteFiles: true,
+                    cancellationToken);
+                break;
+            case SupportedArchiveKind.SevenZip:
+                await ExtractSevenZipArchiveAsync(archivePath, destinationPath, cancellationToken);
+                break;
+            default:
+                throw new PlateauImportValidationException(
+                    [$"The archive '{archivePath}' is not a supported archive. Supported extensions: .zip, .7z."]);
+        }
 
         string[] nestedArchives = Directory
-            .EnumerateFiles(destinationPath, "*.zip", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles(destinationPath, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => TryGetArchiveKind(path, out _))
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -289,9 +328,35 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
     }
 
+    private static async Task ExtractSevenZipArchiveAsync(
+        string archivePath,
+        string destinationPath,
+        CancellationToken cancellationToken)
+    {
+        using IArchive archive = ArchiveFactory.OpenArchive(
+            archivePath,
+            new ReaderOptions
+            {
+                LeaveStreamOpen = false,
+            });
+
+        ExtractionOptions extractionOptions = new()
+        {
+            ExtractFullPath = true,
+            Overwrite = true,
+        };
+
+        foreach (IArchiveEntry entry in archive.Entries.Where(static entry => !entry.IsDirectory))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            entry.WriteToDirectory(destinationPath, extractionOptions);
+            await Task.Yield();
+        }
+    }
+
     private static string GetExtractionMarkerContents(Uri archiveUri)
     {
-        return $"v3{Environment.NewLine}{archiveUri}";
+        return $"v4{Environment.NewLine}{archiveUri}";
     }
 
     private static bool IsPlateauPackageName(string value)
@@ -311,6 +376,42 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
     {
         string normalized = value.Trim();
         return string.Concat(normalized.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+    }
+
+    private static SupportedArchiveKind GetArchiveKind(string path)
+    {
+        if (TryGetArchiveKind(path, out SupportedArchiveKind archiveKind))
+        {
+            return archiveKind;
+        }
+
+        throw new PlateauImportValidationException(
+            [$"The archive '{path}' is not a supported archive. Supported extensions: .zip, .7z."]);
+    }
+
+    private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)
+    {
+        string extension = Path.GetExtension(path);
+        if (string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            archiveKind = SupportedArchiveKind.Zip;
+            return true;
+        }
+
+        if (string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase))
+        {
+            archiveKind = SupportedArchiveKind.SevenZip;
+            return true;
+        }
+
+        archiveKind = default;
+        return false;
+    }
+
+    private enum SupportedArchiveKind
+    {
+        Zip,
+        SevenZip,
     }
 
     [GeneratedRegex("[^a-z0-9]+", RegexOptions.Compiled)]

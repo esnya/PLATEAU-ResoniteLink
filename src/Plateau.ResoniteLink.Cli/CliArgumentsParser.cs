@@ -18,7 +18,7 @@ public static class CliArgumentsParser
           --source <value>       Optional. local or remote. Default: local.
           --local-source-path <path>
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
-          --server-url <url>     Optional. Absolute URL for a remote dataset source. Mirrors the Unity SDK ServerUrl naming.
+          --server-url <url>     Optional. Absolute URL for a remote dataset source or direct .zip/.7z archive. Mirrors the Unity SDK ServerUrl naming.
           --work-root <path>     Optional. Working directory for live-generated assets and remote download cache. Default: runtime/<os>/resonite.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.

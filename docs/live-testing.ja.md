@@ -84,7 +84,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
 ```
 
 `--source local` を使う場合は、追加で `--local-source-path <dataset-root>` を渡す。この値は Unity SDK の `LocalSourcePath` 命名に合わせており、展開済み dataset root そのものでも、`udx/` を含む dataset root を 1 つ内包する上位 directory でもよい。
-`--source remote` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP を取得する。展開結果は `runtime/<os>/resonite/cache/remote/` に cache され、あとから `--source local --local-source-path ...` で再利用できる。
+`--source remote` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP/7z archive を取得する。展開結果は `runtime/<os>/resonite/cache/remote/` に cache され、あとから `--source local --local-source-path ...` で再利用できる。
 
 長時間の送信では、インラインの `cmd.exe /c dotnet ...` よりも、小さな Windows PowerShell ラッパーを使う方が安定する。この環境では、`Start-Process -Wait -PassThru` と stdout/stderr の redirect を使う形の方が、WSL interop 由来の詰まりを切り分けやすい。
 

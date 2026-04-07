@@ -24,6 +24,12 @@
         "resolved": "7.0.0",
         "contentHash": "2lMTCQl5bGP4iv0JNkockPnyllC6eHLz+CoK2ICvalvHod+exXSxueu9hq+zNkU7bZBJf8wMfeRC/Edn8AGmEg=="
       },
+      "SharpCompress": {
+        "type": "Direct",
+        "requested": "[0.47.4, )",
+        "resolved": "0.47.4",
+        "contentHash": "0s2rmGFLFQED6ERPUtJiT/KoDsrBzsc+qDoVX1XT4HfAiLZCtV6Z9mHfArBgHVpDErl4Pt9M5VTMVQLPUJw5Kg=="
+      },
       "xunit": {
         "type": "Direct",
         "requested": "[2.9.3, )",
@@ -110,7 +116,8 @@
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
-          "Plateau.ResoniteLink.Domain": "[1.0.0, )"
+          "Plateau.ResoniteLink.Domain": "[1.0.0, )",
+          "SharpCompress": "[0.47.4, )"
         }
       },
       "plateau.resonitelink.cli": {

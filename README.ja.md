@@ -8,14 +8,14 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデー�
 
 ## Scope
 
-- ローカル folder か、公式 CKAN ベースの remote ZIP flow から PLATEAU CityGML データセットを読み取り、起動中の ResoniteLink listener へ送る。
+- ローカル folder か、公式 CKAN ベースの remote ZIP/7z flow から PLATEAU CityGML データセットを読み取り、起動中の ResoniteLink listener へ送る。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は同梱 default material に fallback する。
 - dataset / mesh-code branch を段階的に構築し、大きい import でも全処理完了前から Resonite 側に結果を出し始める。
 
 ## Known Limitations
 
 - 現在公開している表面は CLI の live-send pipeline が中心で、standalone の offline exporter や Resonite 内 authoring workflow はまだない。
-- remote import は現時点で公式 PLATEAU catalog / ZIP discovery flow を前提とし、展開後は同じ local importer を使う。
+- remote import は現時点で公式 PLATEAU catalog / ZIP/7z discovery flow を前提とし、展開後は同じ local importer を使う。
 - live adapter は現在の ResoniteLink runtime に合わせ、mesh には `ImportMesh(ImportMeshRawData)`、texture には `ImportTexture(ImportTexture2DFile)` を使っている。
 
 ## Runtime And Prerequisites
@@ -50,7 +50,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 `--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `4` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
 
-既定の CKAN catalog flow を使って、公式 PLATEAU CityGML ZIP をオンライン取得しつつ Resonite に取り込む例:
+既定の CKAN catalog flow を使って、公式 PLATEAU CityGML ZIP/7z archive をオンライン取得しつつ Resonite に取り込む例:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
@@ -61,7 +61,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` は既定で公式の `search.ckan.jp` catalog を使い、対応する CityGML ZIP resource を探索して `runtime/<os>/resonite/cache/remote/` にダウンロードし、展開した上で同じ local importer に渡します。`--server-url` で catalog base URI を上書きすることも、ZIP archive URL を直接指定することもできます。
+`--source remote` は既定で公式の `search.ckan.jp` catalog を使い、対応する CityGML ZIP/7z resource を探索して `runtime/<os>/resonite/cache/remote/` にダウンロードし、展開した上で同じ local importer に渡します。`--server-url` で catalog base URI を上書きすることも、ZIP/7z archive URL を直接指定することもできます。
 
 DL 済みデータを再利用する場合は、`--source local --local-source-path ...` に切り替え、`runtime/<os>/resonite/cache/remote/` 配下の展開済み dataset root か、その上位 directory を指定します。importer 側で `udx/` を含む最も近い descendant を自動解決するため、展開先がさらに 1 階層深い場合でも `runtime/<os>/resonite/cache/remote/tokyo23ku/533944/` のような指定で再利用できます。
 
