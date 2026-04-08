@@ -802,7 +802,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotDuplicateSharedDemWhenSiblingRunUsesDifferentDemSourceKeyRedTest()
+    public async Task BuildAsyncDoesNotDuplicateSharedDemWhenSiblingRunUsesDifferentDemSourceKey()
     {
         FakeResoniteLinkSession session = new();
         using FakeResoniteLinkClient firstClient = new(session);
@@ -858,7 +858,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotDuplicateSplitDemChunksWhenSiblingRunUsesDifferentDemSlotKeysRedTest()
+    public async Task BuildAsyncDoesNotDuplicateSplitDemChunksWhenSiblingRunUsesDifferentDemSlotKeys()
     {
         FakeResoniteLinkSession session = new();
         using FakeResoniteLinkClient firstClient = new(session);

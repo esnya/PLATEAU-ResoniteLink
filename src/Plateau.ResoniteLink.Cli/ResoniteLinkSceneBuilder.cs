@@ -587,17 +587,39 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private static string GetDemStructuralIdentity(ResoniteConstructionCityObject cityObject)
     {
-        StringBuilder identityBuilder = new(capacity: 1024);
-        AppendDemIdentityHeader(identityBuilder, cityObject);
-        AppendDemIdentityMaterials(identityBuilder, cityObject.Materials);
-        AppendDemIdentityVertices(identityBuilder, cityObject.Mesh.Vertices);
-        AppendDemIdentitySubmeshes(identityBuilder, cityObject.Mesh.Submeshes);
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        StringBuilder identityBuilder = new(capacity: 256);
 
-        byte[] identityBytes = Encoding.UTF8.GetBytes(identityBuilder.ToString());
-        byte[] hashBytes = SHA256.HashData(identityBytes);
+        AppendDemIdentityHeader(identityBuilder, cityObject);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        identityBuilder.Clear();
+        AppendDemIdentityMaterials(identityBuilder, cityObject.Materials);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        identityBuilder.Clear();
+        AppendDemIdentityVertices(identityBuilder, cityObject.Mesh.Vertices);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        identityBuilder.Clear();
+        AppendDemIdentitySubmeshes(identityBuilder, cityObject.Mesh.Submeshes);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        byte[] hashBytes = incrementalHash.GetHashAndReset();
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"demshape_{Convert.ToHexString(hashBytes.AsSpan(0, 8))}");
+            $"demshape_{Convert.ToHexString(hashBytes.AsSpan(0, 16))}");
+    }
+
+    private static void AppendUtf8HashChunk(IncrementalHash incrementalHash, StringBuilder identityBuilder)
+    {
+        if (identityBuilder.Length == 0)
+        {
+            return;
+        }
+
+        byte[] identityBytes = Encoding.UTF8.GetBytes(identityBuilder.ToString());
+        incrementalHash.AppendData(identityBytes);
     }
 
     private static void AppendDemIdentityHeader(StringBuilder identityBuilder, ResoniteConstructionCityObject cityObject)
@@ -606,13 +628,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             .Append('|')
             .Append(cityObject.ActualMeshCode)
             .Append('|')
-            .Append(cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "-")
-            .Append('|')
-            .Append(cityObject.Transform.Position.X.ToString("R", CultureInfo.InvariantCulture))
-            .Append(',')
-            .Append(cityObject.Transform.Position.Y.ToString("R", CultureInfo.InvariantCulture))
-            .Append(',')
-            .Append(cityObject.Transform.Position.Z.ToString("R", CultureInfo.InvariantCulture));
+            .Append(cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "-");
     }
 
     private static void AppendDemIdentityMaterials(StringBuilder identityBuilder, IReadOnlyList<ResoniteMaterialBinding> materials)

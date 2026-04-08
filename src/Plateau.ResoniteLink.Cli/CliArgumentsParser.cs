@@ -18,7 +18,7 @@ public static class CliArgumentsParser
           --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
           --exclude-lod-for-package <csv>
                                 Optional. Package-specific LOD exclusions: 'package:lod,package:lod' (e.g., tran:1,bldg:0).
-                                Default: tran:1 (always excluded unless overridden).
+                                Default fallback: tran:1 when this option is omitted. Use 'tran:none' (or 'tran:') to clear tran exclusions explicitly.
           --include-marking <true|false>
                                 Optional. Include generated road markings even when marked for exclusion. Default: true.
           --{package}-pattern <pattern>
@@ -62,10 +62,8 @@ public static class CliArgumentsParser
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = PlateauPackageCatalog.CliDefaultPackageNames;
         IReadOnlySet<int>? globalExcludeLods = null;
-        IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = new Dictionary<string, IReadOnlySet<int>>
-        {
-            { "tran", (IReadOnlySet<int>)new HashSet<int> { 1 } }
-        };
+        IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = null;
+        bool hasPackageExcludeLodsOption = false;
         bool includeMarkingAlways = true;
         Dictionary<string, string>? packagePatterns = null;
 
@@ -200,6 +198,7 @@ public static class CliArgumentsParser
                         }
                     case "--exclude-lod-for-package":
                         {
+                            hasPackageExcludeLodsOption = true;
                             string excludeLodPackageValue = ReadValue(args, ref index, token);
                             if (!TryParsePackageSpecificLodExclusions(excludeLodPackageValue, out packageExcludeLods, out string? packageLodError))
                             {
@@ -251,15 +250,12 @@ public static class CliArgumentsParser
             return CliParseResult.Failure(exception.Message);
         }
 
-        // Merge default exclusions: if user specified --exclude-lod-for-package but didn't mention tran,
-        // ensure tran:1 remains excluded by default
-        if (packageExcludeLods != null && !packageExcludeLods.ContainsKey("tran"))
+        if (!hasPackageExcludeLodsOption)
         {
-            Dictionary<string, IReadOnlySet<int>> merged = new(packageExcludeLods)
+            packageExcludeLods = new Dictionary<string, IReadOnlySet<int>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["tran"] = new HashSet<int> { 1 }
             };
-            packageExcludeLods = merged;
         }
 
         PlateauImportRequest request = new(
@@ -382,7 +378,7 @@ public static class CliArgumentsParser
         string[] pairs = csvValue
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        Dictionary<string, IReadOnlySet<int>> map = new();
+        Dictionary<string, HashSet<int>> map = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (string pair in pairs)
         {
@@ -397,30 +393,41 @@ public static class CliArgumentsParser
             string packageName = parts[0];
             string lodStr = parts[1];
 
-            if (!int.TryParse(lodStr, out int lod) || lod < 0)
-            {
-                error = $"Invalid LOD level '{lodStr}' for package '{packageName}'. Must be a non-negative integer.";
-                return false;
-            }
-
             if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string? normalizedName))
             {
                 error = $"Unsupported package '{packageName}' in --exclude-lod-for-package.";
                 return false;
             }
 
-            if (!map.TryGetValue(normalizedName!, out IReadOnlySet<int>? existing))
+            if (!map.TryGetValue(normalizedName!, out HashSet<int>? lodSet))
             {
-                HashSet<int> lodSet = new();
+                lodSet = new HashSet<int>();
                 map[normalizedName!] = lodSet;
-                existing = lodSet;
             }
 
-            HashSet<int> mutableSet = (HashSet<int>)existing;
-            mutableSet.Add(lod);
+            if (string.IsNullOrWhiteSpace(lodStr)
+                || string.Equals(lodStr, "none", StringComparison.OrdinalIgnoreCase))
+            {
+                lodSet.Clear();
+                continue;
+            }
+
+            if (!int.TryParse(lodStr, out int lod) || lod < 0)
+            {
+                error = $"Invalid LOD level '{lodStr}' for package '{packageName}'. Must be a non-negative integer or 'none'.";
+                return false;
+            }
+
+            lodSet.Add(lod);
         }
 
-        exclusionMap = map.Count > 0 ? map : null;
+        Dictionary<string, IReadOnlySet<int>> normalizedMap = map
+            .ToDictionary(
+                static pair => pair.Key,
+                static pair => (IReadOnlySet<int>)pair.Value,
+                StringComparer.OrdinalIgnoreCase);
+
+        exclusionMap = normalizedMap.Count > 0 ? normalizedMap : null;
         return true;
     }
 

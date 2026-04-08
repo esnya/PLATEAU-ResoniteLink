@@ -25,7 +25,7 @@ public sealed class LodFilteringStrategy
 
     /// <summary>
     /// Determines whether an object with the given LOD level should be excluded.
-    /// Marking objects always bypass exclusion if <see cref="_includeMarkingAlways"/> is true.
+    /// Marking objects always bypass exclusion when the includeMarkingAlways option is true.
     /// </summary>
     public bool ShouldExcludeLod(string packageName, int? lodLevel, bool isMarking)
     {
