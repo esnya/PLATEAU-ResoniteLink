@@ -16,6 +16,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
     private const string CommonAssetsSlotName = "Common";
+    private const string DemPackageName = "dem";
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -568,7 +569,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private static string GetCityObjectIdentity(ResoniteConstructionCityObject cityObject)
     {
+        if (IsDemPackage(cityObject.PackageName))
+        {
+            // DEM objects are shared across sibling mesh sends; keep identity stable even if source keys differ.
+            return cityObject.SlotKey;
+        }
+
         return cityObject.SourceObjectKey ?? cityObject.SlotKey;
+    }
+
+    private static bool IsDemPackage(string packageName)
+    {
+        return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string CreateTextureCacheKey(string? texturePath, ResoniteTextureSourceKind textureSourceKind)
