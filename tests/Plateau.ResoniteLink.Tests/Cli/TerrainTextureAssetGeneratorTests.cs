@@ -81,6 +81,38 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.InRange(image.Height, 127, 128);
     }
 
+    [Fact]
+    public async Task EnsureTextureAsyncSharesConcurrentRequestsForTheSameOverlay()
+    {
+        using FakeMapTileHandler handler = new(delayPerRequest: TimeSpan.FromMilliseconds(50));
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient);
+
+        TerrainTextureOverlay terrainTextureOverlay = new(
+            TexturePath: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 1,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
+
+        Task<ResoniteRawTextureImport>[] requests =
+        [
+            generator.EnsureTextureAsync(terrainTextureOverlay, CancellationToken.None),
+            generator.EnsureTextureAsync(terrainTextureOverlay, CancellationToken.None),
+            generator.EnsureTextureAsync(terrainTextureOverlay, CancellationToken.None),
+        ];
+
+        ResoniteRawTextureImport[] textures = await Task.WhenAll(requests);
+
+        Assert.All(textures, texture => Assert.Same(textures[0], texture));
+        Assert.Equal(4, handler.RequestCount);
+    }
+
     private static void AssertColor(Rgba32 color, byte expectedR, byte expectedG, byte expectedB)
     {
         Assert.Equal(expectedR, color.R);
@@ -89,13 +121,23 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Equal(byte.MaxValue, color.A);
     }
 
-    private sealed class FakeMapTileHandler : HttpMessageHandler
+    private sealed class FakeMapTileHandler(TimeSpan? delayPerRequest = null) : HttpMessageHandler
     {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
+
+            if (delayPerRequest is { } delay)
+            {
+                await Task.Delay(delay, cancellationToken);
+            }
 
             string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
             int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -19,7 +20,7 @@ internal interface ITerrainTextureAssetGenerator
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
-    private readonly Dictionary<string, ResoniteRawTextureImport> cachedTextures = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Lazy<Task<ResoniteRawTextureImport>>> cachedTextures = new(StringComparer.Ordinal);
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -27,11 +28,28 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
         string cacheKey = CreateCacheKey(terrainTextureOverlay);
-        if (cachedTextures.TryGetValue(cacheKey, out ResoniteRawTextureImport? cachedTexture))
-        {
-            return cachedTexture;
-        }
 
+        Lazy<Task<ResoniteRawTextureImport>> cachedTexture = cachedTextures.GetOrAdd(
+            cacheKey,
+            _ => new Lazy<Task<ResoniteRawTextureImport>>(
+                () => CreateTextureAsync(terrainTextureOverlay, cancellationToken),
+                LazyThreadSafetyMode.ExecutionAndPublication));
+
+        try
+        {
+            return await cachedTexture.Value;
+        }
+        catch
+        {
+            cachedTextures.TryRemove(cacheKey, out _);
+            throw;
+        }
+    }
+
+    private async Task<ResoniteRawTextureImport> CreateTextureAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        CancellationToken cancellationToken)
+    {
         TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(terrainTextureOverlay);
 
         using Image<Rgba32> stitchedImage = new(
@@ -59,9 +77,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             layoutPlan.CropHeight)));
 
         using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
-        ResoniteRawTextureImport textureImport = CreateRawTextureImport(outputImage);
-        cachedTextures[cacheKey] = textureImport;
-        return textureImport;
+        return CreateRawTextureImport(outputImage);
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
