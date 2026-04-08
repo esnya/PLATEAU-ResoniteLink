@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 using SharpCompress.Archives;
 using SharpCompress.Readers;
 
@@ -45,6 +48,20 @@ public static class PlateauDatasetContentSourceFactory
         return path.Replace('\\', '/').Trim('/');
     }
 
+    private static string NormalizeSafeRelativePath(string path)
+    {
+        string normalizedPath = NormalizeRelativePath(path);
+        string[] segments = normalizedPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Any(static segment => segment is "." or ".."))
+        {
+            throw new ArgumentException(
+                $"The dataset relative path '{path}' contains path traversal segments.",
+                nameof(path));
+        }
+
+        return normalizedPath;
+    }
+
     internal static string CombineRelativePaths(params string?[] segments)
     {
         return string.Join(
@@ -53,6 +70,34 @@ public static class PlateauDatasetContentSourceFactory
                 .Where(static segment => !string.IsNullOrWhiteSpace(segment))
                 .Select(static segment => NormalizeRelativePath(segment!))
                 .Where(static segment => segment.Length > 0));
+    }
+
+    internal static IReadOnlyList<string> GetMaterializedArchiveCacheKeys(string archivePath)
+    {
+        string fullArchivePath = Path.GetFullPath(archivePath);
+        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
+        List<string> keys = [];
+
+        if (!string.IsNullOrWhiteSpace(fileStem))
+        {
+            string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath))).ToLowerInvariant();
+            keys.Add($"{fileStem}-{digest[..12]}");
+            keys.Add(fileStem);
+        }
+
+        return keys;
+    }
+
+    internal static string GetMaterializedArchiveCacheKey(string archivePath)
+    {
+        IReadOnlyList<string> keys = GetMaterializedArchiveCacheKeys(archivePath);
+        if (keys.Count == 0)
+        {
+            throw new PlateauImportValidationException(
+                [$"The archive path '{archivePath}' must have a non-empty file name before the extension to create a materialized archive cache key."]);
+        }
+
+        return keys[0];
     }
 
     internal static string GetDirectoryPath(string relativePath)
@@ -210,12 +255,13 @@ public static class PlateauDatasetContentSourceFactory
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            string normalizedPath = NormalizeRelativePath(relativePath);
-            string destinationPath = Path.Combine(
+            string normalizedPath = NormalizeSafeRelativePath(relativePath);
+            string archiveCacheRoot = Path.Combine(
                 outputRoot,
                 ".dataset-cache",
-                Path.GetFileNameWithoutExtension(ArchivePath),
-                normalizedPath.Replace('/', Path.DirectorySeparatorChar));
+                GetMaterializedArchiveCacheKey(ArchivePath));
+            string destinationPath = ResolveMaterializedPath(archiveCacheRoot, normalizedPath);
+
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
             if (File.Exists(destinationPath))
@@ -232,6 +278,31 @@ public static class PlateauDatasetContentSourceFactory
                 bufferSize: 16 * 1024,
                 useAsync: true);
             await sourceStream.CopyToAsync(destinationStream, cancellationToken);
+            return destinationPath;
+        }
+
+        private static string ResolveMaterializedPath(string archiveCacheRoot, string normalizedRelativePath)
+        {
+            string normalizedRoot = Path.GetFullPath(archiveCacheRoot);
+            string destinationPath = Path.GetFullPath(
+                Path.Combine(
+                    normalizedRoot,
+                    normalizedRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+
+            string relativePath = Path.GetRelativePath(
+                normalizedRoot,
+                destinationPath)
+                .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+            if (Path.IsPathRooted(relativePath)
+                || string.Equals(relativePath, "..", StringComparison.Ordinal)
+                || relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"The dataset relative path '{normalizedRelativePath}' is outside the dataset cache directory.",
+                    nameof(normalizedRelativePath));
+            }
+
             return destinationPath;
         }
 

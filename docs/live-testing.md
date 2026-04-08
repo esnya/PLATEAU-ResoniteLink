@@ -4,6 +4,18 @@
 
 Use this workflow only for machine-level checks against a running ResoniteLink listener.
 
+## Live Contract Rules
+
+- Treat ResoniteLink component payloads as a strict transport contract, not an open-ended property bag.
+- Do not send members that are not defined on the target Resonite component type. Keep local cache metadata such as source fingerprints outside live component members.
+- When a component uses nullable enum fields on the Resonite side, write them with the matching ResoniteLink field type instead of assuming a plain enum field is interchangeable.
+- Before spending time on a machine-level run, add or update a local test seam that can fail on:
+  - read-after-write lag (`AddComponent` succeeds but a following `GetComponent` still returns `null`)
+  - unexpected component members
+  - field-type mismatches on live-written members
+
+These checks are cheaper and more deterministic than reading Resonite runtime logs after the fact. Use Resonite-side logs only after the local contract and test seams have been exhausted.
+
 ## Constraints
 
 - The ResoniteLink port is session-specific. Do not hard-code it in source control.
@@ -84,7 +96,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
 ```
 
 If `--source local` is used, also pass `--local-source-path <dataset-root>`. The value follows the Unity SDK `LocalSourcePath` naming and may point at a dataset directory, a ZIP/7z archive, or an ancestor directory that contains one nested dataset root with `udx/`.
-If `--source remote` is used, the CLI downloads an official PLATEAU CityGML ZIP/7z archive through the default `search.ckan.jp` catalog flow unless `--server-url` overrides it. The downloaded archive is cached under `runtime/<os>/resonite/cache/remote/` and can later be reused through `--source local --local-source-path ...`.
+If `--source remote` is used, `--server-url` must point directly to an official PLATEAU CityGML ZIP/7z archive. The CLI does not perform dataset search. The downloaded archive is cached under `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/`, and the cache is reused across mesh-code changes as long as the archive URL stays the same. The cached data can later be reused through `--source local --local-source-path ...`.
 
 For long-running sends, prefer a small Windows PowerShell wrapper over an inline `cmd.exe /c dotnet ...` command. In this environment, a wrapper that uses `Start-Process -Wait -PassThru` plus redirected stdout/stderr is easier to observe and less likely to get stuck on WSL interop details.
 

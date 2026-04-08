@@ -22,4 +22,7 @@
 
 - SDK、Analyzer、フォーマット、パッケージバージョンはルートで一元管理する。
 - 各プロジェクトは個別に必要な差分だけを持つ。
-- CI はローカル検証コマンドと同じ流れで `restore -> format -> build -> test` を実行する。
+- CI はローカル検証フローと同じで、以下を実行する。
+  - `dotnet restore`
+  - `dotnet format whitespace . --folder --verify-no-changes`
+  - `dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false`（ビルドとアナライザー検査は test で強制される）

@@ -40,6 +40,10 @@ public sealed class CliApplication
             CreateImportService);
     }
 
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "The CLI entrypoint converts non-cancellation operational failures into a concise error message and exit code.")]
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
     {
         CliParseResult parseResult = CliArgumentsParser.Parse(args);
@@ -85,6 +89,15 @@ public sealed class CliApplication
                 await standardError.WriteLineAsync(error);
             }
 
+            return 1;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            await standardError.WriteLineAsync($"Import failed: {exception.Message}");
             return 1;
         }
     }

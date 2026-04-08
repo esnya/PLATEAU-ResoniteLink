@@ -47,6 +47,65 @@ public sealed class CliApplicationTests
         Assert.Equal(string.Empty, standardError.ToString());
     }
 
+    [Fact]
+    public async Task RunAsyncReturnsFailureForOperationalException()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            _ => throw new InvalidOperationException("Unexpected transport failure."));
+
+        int exitCode = await application.RunAsync(
+            BuildLiveArgs(fixturePath));
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("Import failed: Unexpected transport failure.", standardError.ToString());
+        Assert.Equal(string.Empty, standardOutput.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsyncPropagatesCancellation()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            _ => throw new OperationCanceledException());
+
+        using CancellationTokenSource cancellationTokenSource = new();
+        await cancellationTokenSource.CancelAsync();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => application.RunAsync(
+                BuildLiveArgs(fixturePath),
+                cancellationTokenSource.Token));
+    }
+
+    private static string[] BuildLiveArgs(string fixturePath)
+    {
+        return
+        [
+            "build",
+            "--dataset",
+            "tokyo23ku",
+            "--mesh-code",
+            "53394525",
+            "--source",
+            "local",
+            "--local-source-path",
+            fixturePath,
+            "--resonitelink-port",
+            "12345",
+        ];
+    }
+
     private sealed class StubSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];

@@ -59,12 +59,28 @@ public static class PlateauImportRequestValidator
 
                 break;
             case DatasetSourceKind.Remote:
-                if (request.ServerUri is not null && !request.ServerUri.IsAbsoluteUri)
+                if (request.ServerUri is null)
+                {
+                    errors.Add("The --server-url value is required when --source remote is used.");
+                    break;
+                }
+
+                if (!request.ServerUri.IsAbsoluteUri)
                 {
                     errors.Add("The --server-url value must be an absolute URI.");
                 }
 
                 break;
+        }
+
+        if (request.DemHeightmapMetersPerVertex <= 0)
+        {
+            errors.Add("The DEM heightmap meters-per-vertex value must be greater than zero.");
+        }
+
+        if (request.DemHeightmapMaxResolution < 2)
+        {
+            errors.Add("The DEM heightmap max resolution value must be at least 2.");
         }
 
         return errors;

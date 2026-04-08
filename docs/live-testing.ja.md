@@ -4,6 +4,18 @@
 
 この手順は、起動中の ResoniteLink listener に対する実機レベルの確認だけに使う。
 
+## Live Contract Rules
+
+- ResoniteLink の component payload は、自由な property bag ではなく strict な transport contract として扱う。
+- target の Resonite component type に定義されていない member を送ってはいけない。source fingerprint のような local cache metadata は、live component member とは別に持つ。
+- Resonite 側が nullable enum field を使う component では、単なる enum field で代用せず、対応する ResoniteLink field type を使う。
+- 実機 run に時間を使う前に、少なくとも次を落とせる local test seam を追加または更新する。
+  - `AddComponent` 後に `GetComponent` がまだ `null` を返す read-after-write lag
+  - 想定外の component member
+  - live 書き込み member の field type mismatch
+
+これらの確認は、事後に Resonite runtime log を読むより安価で再現性が高い。Resonite 側の log は、local の contract と test seam を詰め切った後の最後の手段として使う。
+
 ## 制約
 
 - ResoniteLink のポートはセッションごとに変わる。ソース管理に固定値を書かない。
@@ -84,7 +96,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
 ```
 
 `--source local` を使う場合は、`--local-source-path <dataset-root>` も指定する。値は Unity SDK の `LocalSourcePath` 命名に合わせており、dataset directory、ZIP/7z archive、または `udx/` を含む nested dataset root を配下に持つ ancestor directory を指せる。
-`--source remote` を使う場合は、`--server-url` で上書きしない限り、CLI は既定の `search.ckan.jp` catalog flow から公式 PLATEAU CityGML ZIP/7z archive を取得する。download した archive は `runtime/<os>/resonite/cache/remote/` に cache され、あとから `--source local --local-source-path ...` で再利用できる。
+`--source remote` を使う場合は、`--server-url` に official PLATEAU の direct な CityGML ZIP/7z archive URL を指定する必要がある。CLI は dataset search を行わない。download した archive は `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` に cache され、archive URL が同じである限り mesh code が変わっても再利用される。あとから `--source local --local-source-path ...` で再利用することもできる。
 
 長時間の送信では、インラインの `cmd.exe /c dotnet ...` よりも、小さな Windows PowerShell ラッパーを使う方が安定する。この環境では、`Start-Process -Wait -PassThru` と stdout/stderr の redirect を使う形の方が、WSL interop 由来の詰まりを切り分けやすい。
 

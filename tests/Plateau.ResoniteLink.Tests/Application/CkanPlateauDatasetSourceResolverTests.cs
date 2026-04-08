@@ -13,80 +13,26 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class CkanPlateauDatasetSourceResolverTests
 {
     [Fact]
-    public async Task ResolveAsyncDownloadsAndExtractsZipArchiveFromCkan()
+    public async Task ResolveAsyncRejectsMissingServerUrl()
     {
-        byte[] nestedBuildingZipBytes = CreateZipArchive(
-            ("plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"),
-            ("appearance/roof.png", "fake"));
-        byte[] zipBytes = CreateZipArchive(
-            ("bldg.zip", nestedBuildingZipBytes),
-            ("dem.zip", CreateZipArchive(("dummy.gml", "<CityModel />"))));
-        string packageSearchJson =
-            """
-            {
-              "result": {
-                "results": [
-                  {
-                    "name": "plateau-tokyo23ku-citygml-2020",
-                    "title": "3D都市モデル（Project PLATEAU）東京都23区（CityGML 2020年度）",
-                    "resources": [
-                      {
-                        "name": "533944",
-                        "description": "CityGML",
-                        "format": "ZIP",
-                        "url": "https://example.test/533944.zip"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-            """;
-
         using TemporaryDirectory workRoot = new();
-        using StubHttpMessageHandler handler = new(request =>
-        {
-            if (request.RequestUri is null)
-            {
-                return new HttpResponseMessage(HttpStatusCode.BadRequest);
-            }
-
-            if (request.RequestUri.AbsoluteUri.StartsWith("https://search.ckan.jp/backend/api/package_search", StringComparison.Ordinal))
-            {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(packageSearchJson, Encoding.UTF8, "application/json"),
-                };
-            }
-
-            if (string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/533944.zip", StringComparison.Ordinal))
-            {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new ByteArrayContent(zipBytes),
-                };
-            }
-
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
+        using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
         using HttpClient httpClient = new(handler);
-
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: null),
-            workRoot.Path);
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            () => resolver.ResolveAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "533944",
+                    SourceKind: DatasetSourceKind.Remote,
+                    LocalSourcePath: null,
+                    ServerUri: null),
+                workRoot.Path));
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        await AssertResolvedArchiveContainsAsync(
-            resolvedRequest,
-            "533944.zip",
-            "udx/bldg/plateau_tokyo23ku_bldg_533944.gml");
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains("--server-url", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -372,80 +318,26 @@ public sealed class CkanPlateauDatasetSourceResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncDownloadsAndExtractsSevenZipArchiveFromCkan()
+    public async Task ResolveAsyncRejectsNonArchiveRemoteUrl()
     {
-        byte[] nestedBuildingArchiveBytes = CreateSevenZipArchive(
-            ("plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"),
-            ("appearance/roof.png", "fake"));
-        byte[] archiveBytes = CreateSevenZipArchive(
-            ("bldg.7z", nestedBuildingArchiveBytes),
-            ("dem.7z", CreateSevenZipArchive(("dummy.gml", "<CityModel />"))));
-        string packageSearchJson =
-            """
-            {
-              "result": {
-                "results": [
-                  {
-                    "name": "plateau-tokyo23ku-citygml-2020",
-                    "title": "3D都市モデル（Project PLATEAU）東京都23区（CityGML 2020年度）",
-                    "resources": [
-                      {
-                        "name": "533944",
-                        "description": "CityGML",
-                        "format": "7Z",
-                        "url": "https://example.test/533944.7z"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-            """;
-
         using TemporaryDirectory workRoot = new();
-        using StubHttpMessageHandler handler = new(request =>
-        {
-            if (request.RequestUri is null)
-            {
-                return new HttpResponseMessage(HttpStatusCode.BadRequest);
-            }
-
-            if (request.RequestUri.AbsoluteUri.StartsWith("https://search.ckan.jp/backend/api/package_search", StringComparison.Ordinal))
-            {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new StringContent(packageSearchJson, Encoding.UTF8, "application/json"),
-                };
-            }
-
-            if (string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/533944.7z", StringComparison.Ordinal))
-            {
-                return new HttpResponseMessage(HttpStatusCode.OK)
-                {
-                    Content = new ByteArrayContent(archiveBytes),
-                };
-            }
-
-            return new HttpResponseMessage(HttpStatusCode.NotFound);
-        });
+        using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
         using HttpClient httpClient = new(handler);
-
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: null),
-            workRoot.Path);
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            () => resolver.ResolveAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "533944",
+                    SourceKind: DatasetSourceKind.Remote,
+                    LocalSourcePath: null,
+                    ServerUri: new Uri("https://example.test/dataset-page", UriKind.Absolute)),
+                workRoot.Path));
 
-        Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
-        await AssertResolvedArchiveContainsAsync(
-            resolvedRequest,
-            "533944.7z",
-            "udx/bldg/plateau_tokyo23ku_bldg_533944.gml");
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains("not a supported archive", StringComparison.Ordinal));
     }
 
     [Fact]

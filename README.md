@@ -18,7 +18,7 @@ Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyV
 ## Known Limitations
 
 - The current public surface is the CLI live-send pipeline; no standalone offline exporter or in-Resonite authoring workflow is shipped yet.
-- Remote import currently targets the official PLATEAU catalog / ZIP/7z discovery flow and then reuses the same local importer against a downloaded archive-backed source.
+- Remote import requires an explicit direct CityGML ZIP/7z archive URL and then reuses the same local importer against the downloaded archive-backed source.
 - The live adapter currently relies on `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures because that path returns usable asset URLs in the current ResoniteLink runtime.
 
 ## Runtime And Prerequisites
@@ -56,14 +56,17 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
+  --dem-terrain-mode heightmap \
+  --dem-heightmap-meters-per-vertex 2.0 \
+  --dem-heightmap-max-resolution 1024 \
   --resonitelink-port <port> \
   --resonitelink-connections 1 \
   --send-metrics
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
+`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. DEM output stays on the existing mesh path by default; `--dem-terrain-mode heightmap` switches `dem` to a `GridMesh` + height texture path, with `--dem-heightmap-meters-per-vertex` and `--dem-heightmap-max-resolution` controlling sampling density and the safety cap. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
 
-Import an official PLATEAU CityGML ZIP/7z archive online through the default CKAN catalog flow:
+Import an official PLATEAU CityGML ZIP/7z archive online from an explicit archive URL:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
@@ -74,9 +77,17 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP/7z resource, downloads it into `runtime/<os>/resonite/cache/remote/`, and then runs the same local importer directly against the cached archive. `--server-url` can override the catalog base URI or point directly to a ZIP/7z archive URL.
+`--source remote` does not perform any built-in dataset search. Pass `--server-url` as a direct CityGML ZIP/7z archive URL, and the CLI downloads it into `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` before running the same local importer against the cached archive. The cache key is based on the archive URL rather than the requested mesh code, so repeated imports can reuse the same archive even when the detailed mesh code changes.
 
-To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either a dataset directory, a cached ZIP/7z archive, or an ancestor directory under `runtime/<os>/resonite/cache/remote/`. The importer resolves the nearest descendant dataset root that contains `udx/`, and it can also open a cached archive file transparently.
+To find the official identifier and archive URL:
+
+1. Open the official PLATEAU dataset page on `www.geospatial.jp`.
+2. Copy the dataset page slug from the URL path, for example `plateau-20202-matsumoto-shi-2020`. Use that value as the canonical dataset identifier for `--dataset`.
+3. Open the `CityGML` resource on that page and copy the direct `.zip` or `.7z` download URL. Use that value for `--server-url`.
+
+Built-in search is intentionally out of scope so the CLI contract stays deterministic and aligned with explicit user-provided identifiers.
+
+To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either a dataset directory, a cached ZIP/7z archive, or an ancestor directory under `runtime/<os>/resonite/cache/remote/<dataset>/`. The importer resolves the nearest descendant dataset root that contains `udx/`, and it can also open a cached archive file transparently.
 
 Build live into Resonite through ResoniteLink from Windows:
 
@@ -89,7 +100,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-The live path connects to `ws://localhost:<port>/`, opens multiple ResoniteLink sessions by default, imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then builds the required Resonite components for the imported scene. Shared slot and component IDs are initialized once and reused across workers, city objects already placed in the target session are skipped before mesh/material placement, and city-object sends are distributed across the configured connections so large mesh-code imports can overlap live output without requiring a full in-memory batch.
+The live path connects to `ws://localhost:<port>/`, opens as many ResoniteLink sessions as configured by `--resonitelink-connections` (default `1`, so one session by default), imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then builds the required Resonite components for the imported scene. Shared slot and component IDs are initialized once and reused across workers, city objects already placed in the target session are skipped before mesh/material placement, and city-object sends are distributed across the configured connections so large mesh-code imports can overlap live output without requiring a full in-memory batch.
 
 Re-running `build` against the same ResoniteLink session and dataset appends new branches under the existing dataset instead of creating a separate dataset root. Each city object is placed under the mesh-code branch that actually owns its source data, so parent-mesh content can stay under a shorter mesh code such as `533945` while request-specific content stays under `53394525`. Mesh-code roots are positioned by slot offsets so neighboring imports line up, and already-placed objects under an existing mesh-code branch are not re-sent.
 
