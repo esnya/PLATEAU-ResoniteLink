@@ -858,6 +858,49 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncDoesNotDuplicateSplitDemChunksWhenSiblingRunUsesDifferentDemSlotKeysRedTest()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+
+        CapturedResoniteScene firstScene = CreateSplitDemAppendScene(
+            "53394525",
+            "Building 25",
+            demSlotKeySuffix: string.Empty);
+        CapturedResoniteScene secondScene = CreateSplitDemAppendScene(
+            "53394526",
+            "Building 26",
+            demSlotKeySuffix: "_alt");
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            firstScene);
+
+        string demLodSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
+            "tokyo23ku",
+            "533945",
+            "lod",
+            "dem",
+            "LOD0");
+
+        int demChunkCountAfterFirstRun = session.AddedSlots.Count(request =>
+            string.Equals(request.Data.Parent?.TargetID, demLodSlotId, StringComparison.Ordinal));
+        Assert.Equal(2, demChunkCountAfterFirstRun);
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            secondScene);
+
+        int demChunkCountAfterSecondRun = session.AddedSlots.Count(request =>
+            string.Equals(request.Data.Parent?.TargetID, demLodSlotId, StringComparison.Ordinal));
+
+        Assert.Equal(
+            2,
+            demChunkCountAfterSecondRun);
+    }
+
+    [Fact]
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
@@ -1551,6 +1594,106 @@ public sealed class ResoniteLinkSceneBuilderTests
                             SubmeshIndices: [0]),
                     ],
                     SourceObjectKey: sharedDemSourceObjectKey),
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"bldg_{meshCode}",
+                    DisplayName: buildingName,
+                    PackageName: "bldg",
+                    ActualMeshCode: meshCode,
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh($"bldg-{meshCode}"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: $"bldg-{meshCode}",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+    }
+
+    private static CapturedResoniteScene CreateSplitDemAppendScene(
+        string meshCode,
+        string buildingName,
+        string demSlotKeySuffix)
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: $"PLATEAU tokyo23ku {meshCode}",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg", "dem"],
+                SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", $"udx/bldg/{meshCode}/plateau_tokyo23ku_bldg_{meshCode}.gml"],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: meshCode switch
+            {
+                "53394525" => new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+                "53394526" => new ResoniteLocalOrigin(35.6875, 139.70625, 0.0),
+                _ => throw new InvalidOperationException($"Unexpected mesh code '{meshCode}'."),
+            });
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"dem_chunk_west{demSlotKeySuffix}",
+                    DisplayName: "Shared Terrain West",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-west-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-west-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_chunk_west"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"dem_chunk_east{demSlotKeySuffix}",
+                    DisplayName: "Shared Terrain East",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-east-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-east-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_chunk_east"),
                 new ResoniteConstructionCityObject(
                     SlotKey: $"bldg_{meshCode}",
                     DisplayName: buildingName,
