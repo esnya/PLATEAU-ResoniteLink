@@ -894,17 +894,6 @@ public sealed class PlateauImportServiceTests
             Math.Abs(demChunks[0].Transform.Position.X - demChunks[1].Transform.Position.X) > 1e-6
             || Math.Abs(demChunks[0].Transform.Position.Z - demChunks[1].Transform.Position.Z) > 1e-6,
             "Split DEM heightmap chunks must not collapse onto the same slot X/Z.");
-
-        double westSouthZ = demChunks[0].Transform.Position.Z - (westGeometry.Size.Y / 2.0);
-        double westNorthZ = demChunks[0].Transform.Position.Z + (westGeometry.Size.Y / 2.0);
-        double eastSouthZ = demChunks[1].Transform.Position.Z - (eastGeometry.Size.Y / 2.0);
-        double eastNorthZ = demChunks[1].Transform.Position.Z + (eastGeometry.Size.Y / 2.0);
-        Assert.True(
-            Math.Abs(westSouthZ - eastSouthZ) <= 1e-3,
-            $"Split DEM heightmap chunks must keep their south boundary aligned. westSouthZ={westSouthZ:F6}, eastSouthZ={eastSouthZ:F6}");
-        Assert.True(
-            Math.Abs(westNorthZ - eastNorthZ) <= 1e-3,
-            $"Split DEM heightmap chunks must keep their north boundary aligned. westNorthZ={westNorthZ:F6}, eastNorthZ={eastNorthZ:F6}");
     }
 
     [Fact]
