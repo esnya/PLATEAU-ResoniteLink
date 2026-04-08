@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -104,13 +105,14 @@ internal sealed class ResoniteMaterialAssetManager(
         {
             if (textureSet.NormalPath is not null)
             {
+                string normalFingerprint = ComputeContentFingerprint(textureSet.NormalPath);
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     normalTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.NormalPath, cancellationToken),
-                    textureSet.NormalPath,
+                    normalFingerprint,
                     cancellationToken);
                 materialMembers["NormalMap"] = new Reference
                 {
@@ -125,13 +127,14 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.HeightPath is not null
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
+                string heightFingerprint = ComputeContentFingerprint(textureSet.HeightPath);
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     heightTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.HeightPath, cancellationToken),
-                    textureSet.HeightPath,
+                    heightFingerprint,
                     cancellationToken);
                 materialMembers["HeightMap"] = new Reference
                 {
@@ -145,13 +148,14 @@ internal sealed class ResoniteMaterialAssetManager(
 
             if (textureSet.MetallicPath is not null)
             {
+                string metallicFingerprint = ComputeContentFingerprint(textureSet.MetallicPath);
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     metallicTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.MetallicPath, cancellationToken),
-                    textureSet.MetallicPath,
+                    metallicFingerprint,
                     cancellationToken);
                 Reference metallicReference = new()
                 {
@@ -166,13 +170,14 @@ internal sealed class ResoniteMaterialAssetManager(
 
             if (textureSet.EmissionPath is not null)
             {
+                string emissionFingerprint = ComputeContentFingerprint(textureSet.EmissionPath);
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     emissionTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.EmissionPath, cancellationToken),
-                    textureSet.EmissionPath,
+                    emissionFingerprint,
                     cancellationToken);
                 materialMembers["EmissiveMap"] = new Reference
                 {
@@ -197,5 +202,26 @@ internal sealed class ResoniteMaterialAssetManager(
         return texturePath is null
             ? string.Empty
             : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{textureSourceKind}:{texturePath}");
+    }
+
+    private static string ComputeContentFingerprint(string absolutePath)
+    {
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using FileStream fileStream = new(
+            absolutePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            16 * 1024,
+            useAsync: false);
+        byte[] buffer = new byte[16 * 1024];
+        int bytesRead;
+
+        while ((bytesRead = fileStream.Read(buffer)) > 0)
+        {
+            incrementalHash.AppendData(buffer, 0, bytesRead);
+        }
+
+        return Convert.ToHexString(incrementalHash.GetHashAndReset());
     }
 }

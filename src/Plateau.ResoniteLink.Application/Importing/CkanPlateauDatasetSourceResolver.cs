@@ -131,6 +131,7 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
             response.EnsureSuccessStatusCode();
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
+            InvalidateMaterializedCache(archivePath);
             return true;
         }
         catch (HttpRequestException) when (File.Exists(archivePath))
@@ -154,10 +155,80 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             response.EnsureSuccessStatusCode();
 
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
+            InvalidateMaterializedCache(archivePath);
         }
         catch
         {
             throw;
+        }
+    }
+
+    private static void InvalidateMaterializedCache(string archivePath)
+    {
+        string archiveCacheName = Path.GetFileNameWithoutExtension(archivePath);
+        if (string.IsNullOrWhiteSpace(archiveCacheName))
+        {
+            return;
+        }
+
+        string? cacheDirectory = Path.GetDirectoryName(archivePath);
+        while (!string.IsNullOrWhiteSpace(cacheDirectory))
+        {
+            if (string.Equals(Path.GetFileName(cacheDirectory), "cache", StringComparison.Ordinal))
+            {
+                string? workRoot = Path.GetDirectoryName(cacheDirectory);
+                if (string.IsNullOrWhiteSpace(workRoot))
+                {
+                    return;
+                }
+
+                InvalidateMaterializedCacheUnder(workRoot, archiveCacheName);
+                return;
+            }
+
+            cacheDirectory = Path.GetDirectoryName(cacheDirectory);
+        }
+    }
+
+    private static void InvalidateMaterializedCacheUnder(string workRoot, string archiveCacheName)
+    {
+        TryDeleteDirectory(Path.Combine(workRoot, ".dataset-cache", archiveCacheName));
+        TryDeleteDirectory(Path.Combine(workRoot, ".generated-assets", ".dataset-cache", archiveCacheName));
+
+        try
+        {
+            foreach (string materializedCacheRoot in Directory.EnumerateDirectories(
+                         workRoot,
+                         ".dataset-cache",
+                         SearchOption.AllDirectories))
+            {
+                TryDeleteDirectory(Path.Combine(materializedCacheRoot, archiveCacheName));
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void TryDeleteDirectory(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(path, true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 

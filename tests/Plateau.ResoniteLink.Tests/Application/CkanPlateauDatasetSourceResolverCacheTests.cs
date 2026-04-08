@@ -222,6 +222,11 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
                 ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
             workRoot.Path);
 
+        Assert.NotNull(firstRequest.LocalSourcePath);
+        string materializedCachePath = CreateStaleMaterializedCacheDirectory(
+            workRoot.Path,
+            firstRequest.LocalSourcePath);
+
         PlateauImportRequest secondRequest = await resolver.ResolveAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
@@ -238,6 +243,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             "<CityModel>version-b</CityModel>",
             ReadZipEntry(secondRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
         Assert.Equal(2, requestIndex);
+        Assert.False(Directory.Exists(materializedCachePath));
+        Assert.False(Directory.Exists(Path.Combine(materializedCachePath, "udx")));
     }
 
     [Fact]
@@ -285,6 +292,10 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         string firstArchivePath = firstRequest.LocalSourcePath;
         DateTime firstWriteUtc = File.GetLastWriteTimeUtc(firstArchivePath);
 
+        string materializedCachePath = CreateStaleMaterializedCacheDirectory(
+            workRoot.Path,
+            firstArchivePath);
+
         PlateauImportRequest secondRequest = await resolver.ResolveAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
@@ -302,6 +313,11 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             ReadZipEntry(secondArchivePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
         Assert.Equal(firstWriteUtc, File.GetLastWriteTimeUtc(secondArchivePath));
         Assert.Equal(2, requestIndex);
+        Assert.True(Directory.Exists(materializedCachePath));
+        Assert.True(Directory.Exists(Path.Combine(materializedCachePath, "udx")));
+        Assert.Equal(
+            "stale",
+            await File.ReadAllTextAsync(Path.Combine(materializedCachePath, "udx", "stale.dat")));
     }
 
     private static byte[] CreateZipArchive(params (string path, string content)[] entries)
@@ -329,6 +345,16 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
 
         using StreamReader reader = new(entry!.Open(), Encoding.UTF8);
         return reader.ReadToEnd();
+    }
+
+    private static string CreateStaleMaterializedCacheDirectory(string workRoot, string localArchivePath)
+    {
+        string cacheName = Path.GetFileNameWithoutExtension(localArchivePath);
+        string materializedCachePath = Path.Combine(workRoot, ".generated-assets", ".dataset-cache", cacheName);
+        string staleFilePath = Path.Combine(materializedCachePath, "udx", "stale.dat");
+        Directory.CreateDirectory(Path.GetDirectoryName(staleFilePath)!);
+        File.WriteAllText(staleFilePath, "stale");
+        return materializedCachePath;
     }
 
     private sealed class FailingHttpContent(byte[] content, int failAfterBytes) : HttpContent

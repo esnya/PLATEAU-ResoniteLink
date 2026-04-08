@@ -108,6 +108,62 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
     }
 
+    [Fact]
+    public async Task BuildAsyncReimportsBundledCompanionTexturesWhenContentsChangeInSameSession()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
+        ResoniteMaterialBinding sampleMaterial = new(
+            MaterialKey: "bundle-companion-test",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePath: bundledTexturePath,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+        Assert.True(ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(sampleMaterial, out BundledDefaultMaterialTextureSet? bundledTextureSet));
+        Assert.NotNull(bundledTextureSet);
+        Assert.NotNull(bundledTextureSet.NormalPath);
+        byte[] originalNormalBytes = await File.ReadAllBytesAsync(bundledTextureSet.NormalPath);
+
+        try
+        {
+            ResoniteConstructionCityObject firstCityObject = CreateBundledTriangleCityObject(
+                objectIdentity: "shared-bundled-companion",
+                texturePath: bundledTexturePath,
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
+            CapturedScene firstScene = new(
+                metadata,
+                [firstCityObject]);
+
+            await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+            int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
+
+            await File.WriteAllTextAsync(
+                bundledTextureSet.NormalPath,
+                "modified bundled normal companion bytes");
+
+            ResoniteConstructionCityObject secondCityObject = CreateBundledTriangleCityObject(
+                objectIdentity: "shared-bundled-companion",
+                texturePath: bundledTexturePath,
+                mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"));
+            CapturedScene secondScene = new(
+                metadata,
+                [secondCityObject]);
+
+            await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+            Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
+        }
+        finally
+        {
+            await File.WriteAllBytesAsync(bundledTextureSet.NormalPath, originalNormalBytes);
+        }
+    }
+
     private static async Task BuildSceneOnceAsync(
         CapturedScene scene,
         ReuseSessionSharedClient client,
@@ -208,6 +264,34 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePath: texturePath,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: objectIdentity);
+    }
+
+    private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
+        string objectIdentity,
+        string texturePath,
+        ResoniteImportedMesh mesh)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: mesh,
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "triangle-textured-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: texturePath,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0]),

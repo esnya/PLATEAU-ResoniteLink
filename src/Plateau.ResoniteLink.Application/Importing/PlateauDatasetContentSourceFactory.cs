@@ -258,10 +258,14 @@ public static class PlateauDatasetContentSourceFactory
                     normalizedRoot,
                     normalizedRelativePath.Replace('/', Path.DirectorySeparatorChar)));
 
-            string rootWithSeparator = normalizedRoot.TrimEnd(
-                Path.DirectorySeparatorChar,
-                Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-            if (!destinationPath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+            string relativePath = Path.GetRelativePath(
+                normalizedRoot,
+                destinationPath)
+                .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+            if (Path.IsPathRooted(relativePath)
+                || string.Equals(relativePath, "..", StringComparison.Ordinal)
+                || relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
             {
                 throw new ArgumentException(
                     $"The dataset relative path '{normalizedRelativePath}' is outside the dataset cache directory.",
