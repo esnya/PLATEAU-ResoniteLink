@@ -93,7 +93,11 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         ArchiveMetadata? metadata = await TryReadArchiveMetadataAsync(metadataPath, cancellationToken);
         if (metadata is null || (metadata.ETag is null && metadata.LastModifiedUtc is null))
         {
-            return false;
+            return await TryRefreshCachedArchiveWithoutMetadataAsync(
+                archiveUri,
+                archivePath,
+                metadataPath,
+                cancellationToken);
         }
 
         using HttpRequestMessage request = new(HttpMethod.Get, archiveUri)
@@ -122,6 +126,29 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 return true;
             }
 
+            response.EnsureSuccessStatusCode();
+            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
+            InvalidateMaterializedCache(archivePath);
+            return true;
+        }
+        catch (HttpRequestException) when (File.Exists(archivePath))
+        {
+            return true;
+        }
+    }
+
+    private async Task<bool> TryRefreshCachedArchiveWithoutMetadataAsync(
+        Uri archiveUri,
+        string archivePath,
+        string metadataPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpResponseMessage response = await httpClient.GetAsync(
+                archiveUri,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
             response.EnsureSuccessStatusCode();
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
             InvalidateMaterializedCache(archivePath);

@@ -24,4 +24,45 @@ public sealed class PlateauImportRequestValidatorTests
                 "The --server-url value is required when --source remote is used.",
                 StringComparison.Ordinal));
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-0.01)]
+    public void ValidateRejectsNonPositiveDemHeightmapMetersPerVertex(double metersPerVertex)
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            DemHeightmapMetersPerVertex: metersPerVertex);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => string.Equals(
+                error,
+                "The DEM heightmap meters-per-vertex value must be greater than zero.",
+                StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(0)]
+    [InlineData(-4)]
+    public void ValidateRejectsDemHeightmapMaxResolutionBelowTwo(int maxResolution)
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            DemHeightmapMaxResolution: maxResolution);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => string.Equals(
+                error,
+                "The DEM heightmap max resolution value must be at least 2.",
+                StringComparison.Ordinal));
+    }
 }

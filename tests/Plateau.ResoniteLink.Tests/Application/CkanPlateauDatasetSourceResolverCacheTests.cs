@@ -396,6 +396,35 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             await File.ReadAllTextAsync(Path.Combine(materializedCachePath, "udx", "stale.dat")));
     }
 
+    [Fact]
+    public async Task ResolveAsyncFallsBackToExistingArchiveWhenMetadataIsMissingAndNetworkFails()
+    {
+        byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
+        string archiveHash = CreateArchiveCacheKey(archiveUri);
+        string cacheRoot = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", archiveHash);
+        Directory.CreateDirectory(cacheRoot);
+        string archivePath = Path.Combine(cacheRoot, "533944.zip");
+        await File.WriteAllBytesAsync(archivePath, zipBytes);
+
+        using StubHttpMessageHandler handler = new(_ => throw new HttpRequestException("offline"));
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+
+        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: archiveUri),
+            workRoot.Path);
+
+        Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
+        Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
+    }
+
     private static byte[] CreateZipArchive(params (string path, string content)[] entries)
     {
         using MemoryStream stream = new();
