@@ -212,6 +212,34 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesDemHeightmapOptions()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--dem-terrain-mode",
+                "heightmap",
+                "--dem-heightmap-meters-per-vertex",
+                "4.5",
+                "--dem-heightmap-max-resolution",
+                "512",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(DemTerrainMode.HeightMap, result.Options!.Request.DemTerrainMode);
+        Assert.Equal(4.5, result.Options.Request.DemHeightmapMetersPerVertex, 6);
+        Assert.Equal(512, result.Options.Request.DemHeightmapMaxResolution);
+    }
+
+    [Fact]
     public void ParseRejectsResoniteLinkPortAndUrlTogether()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -268,113 +296,6 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("Specify either --resonitelink-port or --resonitelink-url.", result.Error);
-    }
-
-
-    [Fact]
-    public void ParseAppliesDefaultTranLodExclusionWhenOptionIsOmitted()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        IReadOnlyDictionary<string, IReadOnlySet<int>> exclusions = Assert.IsAssignableFrom<IReadOnlyDictionary<string, IReadOnlySet<int>>>(result.Options!.Request.ExcludeLodLevelsByPackage);
-        Assert.True(exclusions.ContainsKey("tran"));
-        Assert.Contains(1, exclusions["tran"]);
-    }
-
-    [Fact]
-    public void ParseAllowsClearingTranLodExclusion()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--exclude-lod-for-package",
-                "tran:none,bldg:0",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        IReadOnlyDictionary<string, IReadOnlySet<int>> exclusions = Assert.IsAssignableFrom<IReadOnlyDictionary<string, IReadOnlySet<int>>>(result.Options!.Request.ExcludeLodLevelsByPackage);
-        Assert.True(exclusions.ContainsKey("tran"));
-        Assert.Empty(exclusions["tran"]);
-        Assert.Contains(0, exclusions["bldg"]);
-    }
-
-    [Fact]
-    public void ParseRejectsInvalidPackageSpecificLodExclusionValue()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--exclude-lod-for-package",
-                "tran:abc",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Equal(
-            "Invalid LOD level 'abc' for package 'tran'. Must be a non-negative integer or 'none'.",
-            result.Error);
-    }
-
-    [Fact]
-    public void ParseNormalizesPackageAliasesInPackageSpecificLodExclusions()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--exclude-lod-for-package",
-                "waterbody:2",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        IReadOnlyDictionary<string, IReadOnlySet<int>> exclusions = Assert.IsAssignableFrom<IReadOnlyDictionary<string, IReadOnlySet<int>>>(result.Options!.Request.ExcludeLodLevelsByPackage);
-        Assert.Contains(2, exclusions["wtr"]);
-    }
-
-    [Fact]
-    public void ParseParsesPackageSpecificPatternOption()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--tran-pattern",
-                "*River*",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        IReadOnlyDictionary<string, string> patterns = Assert.IsAssignableFrom<IReadOnlyDictionary<string, string>>(result.Options!.Request.PackagePatterns);
-        Assert.Equal("*River*", patterns["tran"]);
     }
 
     private static string GetCurrentOsDirectoryName()

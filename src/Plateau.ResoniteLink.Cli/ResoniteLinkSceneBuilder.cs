@@ -619,11 +619,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         AppendUtf8HashChunk(incrementalHash, identityBuilder);
 
         identityBuilder.Clear();
-        AppendDemIdentityVertices(identityBuilder, cityObject.Mesh.Vertices);
-        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+        switch (cityObject.Geometry)
+        {
+            case ResoniteTriangleMeshGeometry triangleMesh:
+                AppendDemIdentityVertices(identityBuilder, triangleMesh.Mesh.Vertices);
+                AppendUtf8HashChunk(incrementalHash, identityBuilder);
 
-        identityBuilder.Clear();
-        AppendDemIdentitySubmeshes(identityBuilder, cityObject.Mesh.Submeshes);
+                identityBuilder.Clear();
+                AppendDemIdentitySubmeshes(identityBuilder, triangleMesh.Mesh.Submeshes);
+                break;
+            case ResoniteHeightMapGridGeometry heightMap:
+                AppendDemIdentityHeightMap(identityBuilder, heightMap);
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported DEM geometry type '{cityObject.Geometry.GetType().Name}'.");
+        }
+
         AppendUtf8HashChunk(incrementalHash, identityBuilder);
 
         byte[] hashBytes = incrementalHash.GetHashAndReset();
@@ -704,6 +715,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 identityBuilder.Append(',').Append(triangleIndex.ToString(CultureInfo.InvariantCulture));
             }
+        }
+    }
+
+    private static void AppendDemIdentityHeightMap(StringBuilder identityBuilder, ResoniteHeightMapGridGeometry heightMap)
+    {
+        identityBuilder.Append("|g:")
+            .Append(heightMap.Width.ToString(CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(heightMap.Height.ToString(CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(heightMap.Size.X.ToString("R", CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(heightMap.Size.Y.ToString("R", CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(heightMap.MinHeight.ToString("R", CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(heightMap.MaxHeight.ToString("R", CultureInfo.InvariantCulture));
+
+        foreach (ushort sample in heightMap.HeightSamples)
+        {
+            identityBuilder.Append(',').Append(sample.ToString(CultureInfo.InvariantCulture));
         }
     }
 
@@ -911,7 +943,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             for (int x = 0; x < geometry.Width; x++)
             {
-                ushort heightValue = (ushort)(ushort.MaxValue - geometry.HeightSamples[(y * geometry.Width) + x]);
+                ushort heightValue = geometry.HeightSamples[(y * geometry.Width) + x];
                 image[x, y] = new L16(heightValue);
             }
         }

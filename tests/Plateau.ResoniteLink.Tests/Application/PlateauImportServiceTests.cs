@@ -859,6 +859,96 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncKeepsSplitDemHeightMapBoundarySamplesAlignedAcrossChunks()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSplitBoundaryDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject[] demChunks = heightMapScene.CityObjects
+            .Where(static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal))
+            .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(2, demChunks.Length);
+        ResoniteHeightMapGridGeometry westGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[0].Geometry);
+        ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
+
+        Assert.Equal(westGeometry.Height, eastGeometry.Height);
+
+        double[] westEdgeHeights = GetAbsoluteHeightMapEdgeHeights(demChunks[0], westGeometry, westGeometry.Width - 1);
+        double[] eastEdgeHeights = GetAbsoluteHeightMapEdgeHeights(demChunks[1], eastGeometry, 0);
+        Assert.Equal(westEdgeHeights.Length, eastEdgeHeights.Length);
+
+        for (int index = 0; index < westEdgeHeights.Length; index++)
+        {
+            Assert.InRange(westEdgeHeights[index] - eastEdgeHeights[index], -1e-3, 1e-3);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncKeepsSplitDemBoundaryVerticesAlignedAcrossChunks()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSplitBoundaryDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject[] reliefChunks = scene.CityObjects
+            .Where(static cityObject => cityObject.PackageName == "dem")
+            .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(2, reliefChunks.Length);
+
+        ResoniteFloat3[] westBoundaryVertices = CollectWorldVertices(reliefChunks[0])
+            .Where(static vertex => Approximately(vertex.UvX, 1.0))
+            .Select(static vertex => vertex.Position)
+            .OrderBy(static vertex => vertex.Y)
+            .ToArray();
+        ResoniteFloat3[] eastBoundaryVertices = CollectWorldVertices(reliefChunks[1])
+            .Where(static vertex => Approximately(vertex.UvX, 0.0))
+            .Select(static vertex => vertex.Position)
+            .OrderBy(static vertex => vertex.Y)
+            .ToArray();
+
+        Assert.Equal(2, westBoundaryVertices.Length);
+        Assert.Equal(2, eastBoundaryVertices.Length);
+
+        const double tolerance = 1e-6;
+        for (int index = 0; index < westBoundaryVertices.Length; index++)
+        {
+            Assert.InRange(Math.Abs(westBoundaryVertices[index].X - eastBoundaryVertices[index].X), 0.0, tolerance);
+            Assert.InRange(Math.Abs(westBoundaryVertices[index].Y - eastBoundaryVertices[index].Y), 0.0, tolerance);
+            Assert.InRange(Math.Abs(westBoundaryVertices[index].Z - eastBoundaryVertices[index].Z), 0.0, tolerance);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsyncSupportsOfficialPlateauCityObjectPackagePrefixes()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -1938,6 +2028,65 @@ public sealed class PlateauImportServiceTests
 
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_wide.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeSplitBoundaryDemFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        const double westLongitude = 139.0000;
+        const double eastLongitude = 139.0400;
+        double splitLongitude = WebMercatorTileMath.PixelXToLongitude(
+            WebMercatorTileMath.LongitudeToPixelX(westLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel)
+            + LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+
+        string xml =
+            $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3" srsName="EPSG:4326">
+                  <gml:lowerCorner>35.0000 {westLongitude:F12} 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 {eastLongitude:F12} 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-split-boundary">
+                  <gml:name>Split Boundary Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-split-boundary-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-dem-boundary-west">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-boundary-west">
+                                  <gml:posList>35.0000 {splitLongitude:F12} 5 35.0100 {westLongitude:F12} 10 35.0100 {splitLongitude:F12} 20 35.0000 {splitLongitude:F12} 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-dem-boundary-east">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-boundary-east">
+                                  <gml:posList>35.0000 {splitLongitude:F12} 5 35.0100 {splitLongitude:F12} 20 35.0100 {eastLongitude:F12} 25 35.0000 {splitLongitude:F12} 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_split_boundary.gml"),
             xml);
     }
 
@@ -3097,6 +3246,19 @@ public sealed class PlateauImportServiceTests
     private static double Dot(ResoniteFloat3 left, ResoniteFloat3 right)
     {
         return (left.X * right.X) + (left.Y * right.Y) + (left.Z * right.Z);
+    }
+
+    private static IEnumerable<(ResoniteFloat3 Position, double UvX)> CollectWorldVertices(ResoniteConstructionCityObject cityObject)
+    {
+        foreach (ResoniteMeshVertex vertex in cityObject.Mesh.Vertices)
+        {
+            yield return (
+                new ResoniteFloat3(
+                    cityObject.Transform.Position.X + vertex.Position.X,
+                    cityObject.Transform.Position.Y + vertex.Position.Y,
+                    cityObject.Transform.Position.Z + vertex.Position.Z),
+                vertex.UV0.X);
+        }
     }
 
     internal sealed record CapturedResoniteScene(

@@ -1547,6 +1547,11 @@ public static class LocalCityGmlResonitePlanBuilder
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
     {
+        if (cityObject.OriginOverride is not null)
+        {
+            return cityObject.OriginOverride;
+        }
+
         List<GeodeticPoint> allPoints = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
         double minLatitude = allPoints.Min(static point => point.Latitude);
         double maxLatitude = allPoints.Max(static point => point.Latitude);
@@ -2716,22 +2721,39 @@ public static class LocalCityGmlResonitePlanBuilder
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
 
-    private sealed class ConstructionSource(
-        ResoniteConstructionMetadata metadata,
-        PlateauImportRequest request,
-        IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles,
-        IReadOnlyList<SourceFilePipeline> deferredSourceFiles,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        TerrainHeightSampler? terrainHeightSampler)
-        : IResoniteConstructionSource
+    private sealed class ConstructionSource : IResoniteConstructionSource
     {
-        private readonly TerrainTextureOverlay[] demTerrainTextureOverlays = metadata.SourceDataset.TerrainTextureOverlays
-            .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-            .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
-            .ToArray();
+        private readonly PlateauImportRequest request;
+        private readonly IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles;
+        private readonly IReadOnlyList<SourceFilePipeline> deferredSourceFiles;
+        private readonly CoordinateReferenceSystem referenceSystem;
+        private readonly GeodeticPoint globalOriginPoint;
+        private readonly TerrainHeightSampler? terrainHeightSampler;
+        private readonly TerrainTextureOverlay[] demTerrainTextureOverlays;
 
-        public ResoniteConstructionMetadata Metadata { get; } = metadata;
+        public ConstructionSource(
+            ResoniteConstructionMetadata metadata,
+            PlateauImportRequest request,
+            IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles,
+            IReadOnlyList<SourceFilePipeline> deferredSourceFiles,
+            CoordinateReferenceSystem referenceSystem,
+            GeodeticPoint globalOriginPoint,
+            TerrainHeightSampler? terrainHeightSampler)
+        {
+            Metadata = metadata;
+            this.request = request;
+            this.demSourceFiles = demSourceFiles;
+            this.deferredSourceFiles = deferredSourceFiles;
+            this.referenceSystem = referenceSystem;
+            this.globalOriginPoint = globalOriginPoint;
+            this.terrainHeightSampler = terrainHeightSampler;
+            demTerrainTextureOverlays = metadata.SourceDataset.TerrainTextureOverlays
+                .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        public ResoniteConstructionMetadata Metadata { get; }
 
         public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
         {
@@ -3202,11 +3224,6 @@ public static class LocalCityGmlResonitePlanBuilder
             return false;
         }
 
-        ResoniteFloat3 adjustedSlotPosition = slotPosition with
-        {
-            Y = slotPosition.Y + maxHeight,
-        };
-
         heightMapCityObject = new ResoniteConstructionCityObject(
             SlotKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
@@ -3214,7 +3231,7 @@ public static class LocalCityGmlResonitePlanBuilder
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
             Transform: new ResoniteTransform(
-                adjustedSlotPosition,
+                slotPosition,
                 GridMeshTerrainRotation),
             Geometry: new ResoniteHeightMapGridGeometry(
                 Width: width,
@@ -3473,6 +3490,7 @@ public static class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
+        GeodeticPoint sharedOrigin = GetCityObjectOrigin(parsedCityObject);
         ParsedSurface[] generatedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => IsGeneratedDemTexturePath(surface.TexturePath))
             .Select(surface =>
@@ -3503,6 +3521,7 @@ public static class LocalCityGmlResonitePlanBuilder
                 parsedCityObject with
                 {
                     Surfaces = groups[0].ToArray(),
+                    OriginOverride = sharedOrigin,
                 },
                 FindOverlay(groups[0].Key, demTerrainTextureOverlays));
             yield break;
@@ -3522,6 +3541,7 @@ public static class LocalCityGmlResonitePlanBuilder
                         ? $"{parsedCityObject.DisplayName} ({index + 1})"
                         : parsedCityObject.DisplayName,
                     Surfaces = group.ToArray(),
+                    OriginOverride = sharedOrigin,
                 },
                 FindOverlay(group.Key, demTerrainTextureOverlays));
         }
@@ -3531,7 +3551,7 @@ public static class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
-        yield return (parsedCityObject with { Surfaces = nonGeneratedSurfaces }, null);
+        yield return (parsedCityObject with { Surfaces = nonGeneratedSurfaces, OriginOverride = sharedOrigin }, null);
     }
 
     private static TerrainTextureOverlay FindOverlay(
@@ -3589,7 +3609,8 @@ public static class LocalCityGmlResonitePlanBuilder
         CoordinateReferenceSystem ReferenceSystem,
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
-        bool TerrainAligned = false);
+        bool TerrainAligned = false,
+        GeodeticPoint? OriginOverride = null);
 
     private sealed record SourceFileDescriptor(
         string RelativePath,

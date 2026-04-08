@@ -1,4 +1,7 @@
 using System.Net.Http.Json;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -56,23 +59,56 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             "cache",
             "remote",
             CreateSafePathSegment(request.Dataset),
-            CreateSafePathSegment(request.MeshCode)));
+            CreateSafePathSegment(request.MeshCode),
+            CreateArchiveCacheKey(archiveUri)));
 
         Directory.CreateDirectory(cacheRoot);
 
         string archiveFileName = GetArchiveFileName(archiveUri);
         string archivePath = Path.Combine(cacheRoot, archiveFileName);
+
         if (!File.Exists(archivePath))
         {
-            using HttpResponseMessage response = await httpClient.GetAsync(
-                archiveUri,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            response.EnsureSuccessStatusCode();
+            string temporaryArchivePath = Path.Combine(cacheRoot, $"{archiveFileName}.{Guid.NewGuid():N}.tmp");
 
-            await using Stream archiveStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using FileStream archiveFile = File.Create(archivePath);
-            await archiveStream.CopyToAsync(archiveFile, cancellationToken);
+            try
+            {
+                using HttpResponseMessage response = await httpClient.GetAsync(
+                    archiveUri,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken);
+                response.EnsureSuccessStatusCode();
+
+                await using Stream archiveStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                await using FileStream archiveFile = new(
+                    temporaryArchivePath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 16 * 1024,
+                    useAsync: true);
+                await archiveStream.CopyToAsync(archiveFile, cancellationToken);
+
+                archiveFile.Close();
+                try
+                {
+                    File.Move(temporaryArchivePath, archivePath);
+                }
+                catch (IOException exception) when (File.Exists(archivePath))
+                {
+                    File.Delete(temporaryArchivePath);
+                    _ = exception;
+                }
+            }
+            catch
+            {
+                if (File.Exists(temporaryArchivePath))
+                {
+                    File.Delete(temporaryArchivePath);
+                }
+
+                throw;
+            }
         }
 
         return request with
@@ -275,7 +311,38 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
     private static string CreateSafePathSegment(string value)
     {
         string normalized = value.Trim();
-        return string.Concat(normalized.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
+        }
+
+        char[] invalidCharacters = Path.GetInvalidFileNameChars();
+        invalidCharacters = invalidCharacters
+            .Concat(new[] { '/', '\\', Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar })
+            .Distinct()
+            .ToArray();
+
+        if (normalized.IndexOfAny(invalidCharacters) >= 0
+            || normalized.Equals("..", StringComparison.Ordinal)
+            || normalized.Equals(".", StringComparison.Ordinal))
+        {
+            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
+        }
+
+        return normalized;
+    }
+
+    private static string CreateArchiveCacheKey(Uri archiveUri)
+    {
+        byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.ToString()));
+
+        StringBuilder builder = new(capacity: digest.Length * 2);
+        for (int index = 0; index < digest.Length; index++)
+        {
+            _ = builder.Append(digest[index].ToString("x2", CultureInfo.InvariantCulture));
+        }
+
+        return builder.ToString();
     }
 
     private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)
