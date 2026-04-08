@@ -8,7 +8,7 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteMaterialAssetManager(
     string dataset,
-    Func<string, string, string, string, Func<Task<Uri>>, CancellationToken, Task<Uri>> ensureAssetComponentUrlKnownAsync,
+    Func<string, string, string, string, Func<Task<Uri>>, string, CancellationToken, Task<Uri>> ensureAssetComponentUrlKnownAsync,
     Func<string, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> ensureComponentKnownAsync)
 {
     private const float DefaultNormalScale = 1.0f;
@@ -18,7 +18,7 @@ internal sealed class ResoniteMaterialAssetManager(
     public async Task<string> EnsureMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<string, string> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, (string AbsoluteTexturePath, string SourceFingerprint)> preparedTexturePathsByKey,
         string materialAssetSlotId,
         string materialInstanceKey,
         CancellationToken cancellationToken)
@@ -50,7 +50,7 @@ internal sealed class ResoniteMaterialAssetManager(
     private async Task<string> EnsureMaterialComponentCoreAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<string, string> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, (string AbsoluteTexturePath, string SourceFingerprint)> preparedTexturePathsByKey,
         string materialAssetSlotId,
         string materialInstanceKey,
         string materialId,
@@ -83,14 +83,15 @@ internal sealed class ResoniteMaterialAssetManager(
         if (material.TexturePath is not null
             && preparedTexturePathsByKey.TryGetValue(
                 CreateTextureCacheKey(material.TexturePath, material.TextureSourceKind),
-                out string? absoluteTexturePath))
+                out (string AbsoluteTexturePath, string SourceFingerprint) textureAsset))
         {
             await ensureAssetComponentUrlKnownAsync(
                 materialAssetSlotId,
                 textureComponentId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 "URL",
-                () => client.ImportTextureAsync(absoluteTexturePath, cancellationToken),
+                () => client.ImportTextureAsync(textureAsset.AbsoluteTexturePath, cancellationToken),
+                textureAsset.SourceFingerprint,
                 cancellationToken);
             materialMembers["AlbedoTexture"] = new Reference
             {
@@ -109,6 +110,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.NormalPath, cancellationToken),
+                    textureSet.NormalPath,
                     cancellationToken);
                 materialMembers["NormalMap"] = new Reference
                 {
@@ -129,6 +131,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.HeightPath, cancellationToken),
+                    textureSet.HeightPath,
                     cancellationToken);
                 materialMembers["HeightMap"] = new Reference
                 {
@@ -148,6 +151,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.MetallicPath, cancellationToken),
+                    textureSet.MetallicPath,
                     cancellationToken);
                 Reference metallicReference = new()
                 {
@@ -168,6 +172,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(textureSet.EmissionPath, cancellationToken),
+                    textureSet.EmissionPath,
                     cancellationToken);
                 materialMembers["EmissiveMap"] = new Reference
                 {

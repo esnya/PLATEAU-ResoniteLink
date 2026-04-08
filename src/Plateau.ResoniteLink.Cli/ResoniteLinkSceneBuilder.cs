@@ -46,7 +46,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ConcurrentDictionary<string, Lazy<Task>>? slotEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task>>? componentEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task<Uri>>>? assetComponentEnsureTasks;
-    private ConcurrentDictionary<string, Task<string>>? resolvedTexturePathTasks;
+    private ConcurrentDictionary<string, Task<ResolvedTextureImport>>? resolvedTexturePathTasks;
     private Dictionary<string, TerrainTextureOverlay>? terrainTextureOverlaysByPath;
     private Channel<QueuedCityObject>? cityObjectChannel;
     private Task[]? processingTasks;
@@ -134,7 +134,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         assetComponentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task<Uri>>>(StringComparer.Ordinal);
         materialAssetManager = new ResoniteMaterialAssetManager(
             metadata.Request.Dataset,
-            (containerSlotId, componentId, componentType, uriMemberName, importAssetAsync, ct) =>
+            (containerSlotId, componentId, componentType, uriMemberName, importAssetAsync, sourceFingerprint, ct) =>
                 EnsureAssetComponentUrlKnownAsync(
                     setupClient,
                     containerSlotId,
@@ -142,6 +142,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     componentType,
                     uriMemberName,
                     importAssetAsync,
+                    sourceFingerprint,
                     ct),
             (containerSlotId, componentId, componentType, members, ct) =>
                 EnsureComponentKnownAsync(
@@ -151,7 +152,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     componentType,
                     members,
                     ct));
-        resolvedTexturePathTasks = new ConcurrentDictionary<string, Task<string>>(StringComparer.OrdinalIgnoreCase);
+        resolvedTexturePathTasks = new ConcurrentDictionary<string, Task<ResolvedTextureImport>>(StringComparer.OrdinalIgnoreCase);
         datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(metadata.Request.LocalSourcePath!, cancellationToken);
         terrainTextureOverlaysByPath = metadata.SourceDataset.TerrainTextureOverlays.ToDictionary(
             static overlay => overlay.TexturePath,
@@ -327,9 +328,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Task<PreparedTextureReference>[] texturePreparationTasks = distinctTextures
             .Select(async texture =>
             {
-                string absoluteTexturePath = await resolvedTexturePathTasks.GetOrAdd(
+                ResolvedTextureImport resolvedTexture = await resolvedTexturePathTasks.GetOrAdd(
                     CreateTextureCacheKey(texture.TexturePath, texture.TextureSourceKind),
-                    _ => ResolveTextureImportPathAsync(
+                    _ => ResolveTextureImportAsync(
                         datasetContentSource,
                         texture.TexturePath,
                         texture.TextureSourceKind,
@@ -338,18 +339,32 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 return new PreparedTextureReference(
                     texture.TexturePath,
                     texture.TextureSourceKind,
-                    absoluteTexturePath);
+                    resolvedTexture.AbsoluteTexturePath,
+                    resolvedTexture.SourceFingerprint);
             })
             .ToArray();
         Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
         {
             ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedTriangleMeshGeometry(ResoniteMeshImportFactory.Create(triangleMesh.Mesh)),
+                () =>
+                {
+                    string meshFingerprint = CreateTriangleMeshFingerprint(triangleMesh.Mesh);
+                    ImportMeshRawData meshImport = ResoniteMeshImportFactory.Create(triangleMesh.Mesh);
+                    return new PreparedTriangleMeshGeometry(meshImport, meshFingerprint);
+                },
                 cancellationToken),
             ResoniteHeightMapGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedHeightMapGridGeometry(
-                    heightMap,
-                    PrepareHeightMapTexture(heightMap, cityObject, generatedAssetsRoot!)),
+                () =>
+                {
+                    PreparedHeightMapTexture preparedHeightMapTexture = PrepareHeightMapTexture(
+                        heightMap,
+                        cityObject,
+                        generatedAssetsRoot!);
+                    return new PreparedHeightMapGridGeometry(
+                        heightMap,
+                        preparedHeightMapTexture.AbsolutePath,
+                        preparedHeightMapTexture.SourceFingerprint);
+                },
                 cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
@@ -374,7 +389,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             preparedTextures);
     }
 
-    private async Task<string> ResolveTextureImportPathAsync(
+    private async Task<ResolvedTextureImport> ResolveTextureImportAsync(
         IPlateauDatasetContentSource datasetContentSource,
         string texturePath,
         ResoniteTextureSourceKind textureSourceKind,
@@ -386,13 +401,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         if (terrainTextureOverlaysByPath.TryGetValue(texturePath, out TerrainTextureOverlay? terrainTextureOverlay))
         {
-            return await terrainTextureAssetGenerator.EnsureTextureAsync(
+            string overlayAbsoluteTexturePath = await terrainTextureAssetGenerator.EnsureTextureAsync(
                 terrainTextureOverlay,
                 generatedAssetsRoot,
                 cancellationToken);
+            return new ResolvedTextureImport(
+                overlayAbsoluteTexturePath,
+                ComputeContentFingerprint(overlayAbsoluteTexturePath));
         }
 
-        return textureSourceKind switch
+        string absoluteTexturePath = textureSourceKind switch
         {
             ResoniteTextureSourceKind.Dataset => await datasetContentSource.MaterializeFileAsync(
                 texturePath,
@@ -401,6 +419,95 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ResoniteTextureSourceKind.Bundled => BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
             _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
         };
+
+        return new ResolvedTextureImport(
+            absoluteTexturePath,
+            ComputeContentFingerprint(absoluteTexturePath));
+    }
+
+    private static string ComputeContentFingerprint(string absolutePath)
+    {
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        using FileStream fileStream = new(
+            absolutePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            16 * 1024,
+            useAsync: false);
+        byte[] buffer = new byte[16 * 1024];
+        int bytesRead;
+
+        while ((bytesRead = fileStream.Read(buffer)) > 0)
+        {
+            incrementalHash.AppendData(buffer, 0, bytesRead);
+        }
+
+        return Convert.ToHexString(incrementalHash.GetHashAndReset());
+    }
+
+    private static string CreateTriangleMeshFingerprint(ResoniteImportedMesh mesh)
+    {
+        bool hasColors = mesh.Vertices.Any(static vertex => vertex.Color is not null);
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendInt32(incrementalHash, mesh.Vertices.Count);
+        AppendBoolean(incrementalHash, hasColors);
+
+        foreach (ResoniteMeshVertex vertex in mesh.Vertices)
+        {
+            AppendDouble(incrementalHash, vertex.Position.X);
+            AppendDouble(incrementalHash, vertex.Position.Y);
+            AppendDouble(incrementalHash, vertex.Position.Z);
+            AppendDouble(incrementalHash, vertex.Normal.X);
+            AppendDouble(incrementalHash, vertex.Normal.Y);
+            AppendDouble(incrementalHash, vertex.Normal.Z);
+            AppendDouble(incrementalHash, vertex.UV0.X);
+            AppendDouble(incrementalHash, vertex.UV0.Y);
+
+            ResoniteColor color = vertex.Color ?? new ResoniteColor(1.0, 1.0, 1.0, 1.0);
+            AppendDouble(incrementalHash, color.R);
+            AppendDouble(incrementalHash, color.G);
+            AppendDouble(incrementalHash, color.B);
+            AppendDouble(incrementalHash, color.A);
+        }
+
+        foreach (ResoniteMeshSubmesh submesh in mesh.Submeshes.OrderBy(static submesh => submesh.Index))
+        {
+            AppendInt32(incrementalHash, submesh.Index);
+            AppendString(incrementalHash, submesh.MaterialKey);
+            AppendInt32(incrementalHash, submesh.TriangleVertexIndices.Count);
+
+            foreach (int triangleVertexIndex in submesh.TriangleVertexIndices)
+            {
+                AppendInt32(incrementalHash, triangleVertexIndex);
+            }
+        }
+
+        return Convert.ToHexString(incrementalHash.GetHashAndReset());
+    }
+
+    private static void AppendInt32(IncrementalHash incrementalHash, int value)
+    {
+        byte[] bytes = BitConverter.GetBytes(value);
+        incrementalHash.AppendData(bytes);
+    }
+
+    private static void AppendBoolean(IncrementalHash incrementalHash, bool value)
+    {
+        incrementalHash.AppendData(new[] { value ? byte.MaxValue : byte.MinValue });
+    }
+
+    private static void AppendDouble(IncrementalHash incrementalHash, double value)
+    {
+        byte[] bytes = BitConverter.GetBytes(value);
+        incrementalHash.AppendData(bytes);
+    }
+
+    private static void AppendString(IncrementalHash incrementalHash, string value)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        AppendInt32(incrementalHash, bytes.Length);
+        incrementalHash.AppendData(bytes);
     }
 
     private async Task BuildPreparedCityObjectAsync(
@@ -504,11 +611,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             preparedCityObject,
             cancellationToken);
 
-        Dictionary<string, string> preparedTexturePathsByKey = preparedCityObject.Textures.ToDictionary(
+        Dictionary<string, (string AbsoluteTexturePath, string SourceFingerprint)> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureCacheKey(
                 texture.TexturePath,
                 texture.TextureSourceKind),
-            static texture => texture.AbsoluteTexturePath,
+            static texture => (texture.AbsoluteTexturePath, texture.SourceFingerprint),
             StringComparer.OrdinalIgnoreCase);
         List<string> materialIds = [];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
@@ -523,7 +630,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             string materialId = await materialAssetManager.EnsureMaterialComponentAsync(
                 client,
                 material,
-                preparedTexturePathsByKey,
+                preparedTextureDataByKey,
                 meshAssetSlotId,
                 materialInstanceKey,
                 cancellationToken);
@@ -765,6 +872,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 rootMeshCode,
                 objectIdentity,
                 triangleMesh,
+                triangleMesh.MeshSourceFingerprint,
                 cancellationToken),
             PreparedHeightMapGridGeometry heightMap => await EnsureHeightMapGridComponentAsync(
                 client,
@@ -774,6 +882,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 rootMeshCode,
                 objectIdentity,
                 heightMap,
+                heightMap.HeightTextureFingerprint,
                 cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
@@ -787,6 +896,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string rootMeshCode,
         string objectIdentity,
         PreparedTriangleMeshGeometry preparedGeometry,
+        string meshSourceFingerprint,
         CancellationToken cancellationToken)
     {
         string staticMeshId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
@@ -801,6 +911,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             "[FrooxEngine]FrooxEngine.StaticMesh",
             "URL",
             () => client.ImportMeshAsync(preparedGeometry.MeshImport, cancellationToken),
+            meshSourceFingerprint,
             cancellationToken);
         return staticMeshId;
     }
@@ -813,6 +924,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string rootMeshCode,
         string objectIdentity,
         PreparedHeightMapGridGeometry preparedGeometry,
+        string heightMapSourceFingerprint,
         CancellationToken cancellationToken)
     {
         string heightTextureId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
@@ -833,6 +945,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             "URL",
             () => client.ImportTextureAsync(preparedGeometry.HeightTexturePath, cancellationToken),
+            heightMapSourceFingerprint,
             cancellationToken);
         await UpsertComponentMembersAsync(
             client,
@@ -928,7 +1041,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private static string PrepareHeightMapTexture(
+    private static PreparedHeightMapTexture PrepareHeightMapTexture(
         ResoniteHeightMapGridGeometry geometry,
         ResoniteConstructionCityObject cityObject,
         string generatedAssetsRoot)
@@ -949,7 +1062,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         image.Save(absolutePath, HeightMapPngEncoder);
-        return absolutePath;
+        return new PreparedHeightMapTexture(
+            absolutePath,
+            ComputeContentFingerprint(absolutePath));
     }
 
     private static string DescribePreparedGeometry(PreparedConstructionGeometry geometry)
@@ -1139,12 +1254,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string componentType,
         string uriMemberName,
         Func<Task<Uri>> importAssetAsync,
+        string sourceFingerprint,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(assetComponentEnsureTasks is null, this);
         return await GetOrRunOnceAsync(
             assetComponentEnsureTasks,
-            componentId,
+            CreateAssetComponentEnsureKey(componentId, sourceFingerprint),
             () => EnsureAssetComponentUrlAsync(
                 client,
                 containerSlotId,
@@ -1152,8 +1268,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 componentType,
                 uriMemberName,
                 importAssetAsync,
+                sourceFingerprint,
                 cancellationToken),
             cancellationToken);
+    }
+
+    private static string CreateAssetComponentEnsureKey(string componentId, string sourceFingerprint)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{componentId}:{sourceFingerprint}");
     }
 
     private async Task EnsureComponentKnownAsync(
@@ -1275,10 +1399,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string componentType,
         string uriMemberName,
         Func<Task<Uri>> importAssetAsync,
+        string sourceFingerprint,
         CancellationToken cancellationToken)
     {
         Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
-        if (TryGetUri(existingComponent, uriMemberName) is Uri existingUri)
+        string? existingSourceFingerprint = TryGetSourceFingerprint(existingComponent);
+        if (
+            existingSourceFingerprint is not null
+            && string.Equals(existingSourceFingerprint, sourceFingerprint, StringComparison.Ordinal)
+            && TryGetUri(existingComponent, uriMemberName) is Uri existingUri)
         {
             return existingUri;
         }
@@ -1289,6 +1418,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             [uriMemberName] = new Field_Uri
             {
                 Value = assetUri,
+            },
+            ["SourceFingerprint"] = new Field_string
+            {
+                Value = sourceFingerprint,
             },
         };
 
@@ -1386,6 +1519,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return fieldUri.Value;
     }
 
+    private static string? TryGetSourceFingerprint(Component? component)
+    {
+        if (component is null
+            || !component.Members.TryGetValue("SourceFingerprint", out Member? member)
+            || member is not Field_string sourceFingerprint)
+        {
+            return null;
+        }
+
+        return sourceFingerprint.Value;
+    }
+
     private static string FormatLodSlotName(int? lodLevel)
     {
         return lodLevel.HasValue
@@ -1420,12 +1565,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private abstract record PreparedConstructionGeometry;
 
     private sealed record PreparedTriangleMeshGeometry(
-        ImportMeshRawData MeshImport)
+        ImportMeshRawData MeshImport,
+        string MeshSourceFingerprint)
         : PreparedConstructionGeometry;
 
     private sealed record PreparedHeightMapGridGeometry(
         ResoniteHeightMapGridGeometry Geometry,
-        string HeightTexturePath)
+        string HeightTexturePath,
+        string HeightTextureFingerprint)
         : PreparedConstructionGeometry;
 
     private sealed record PreparedCityObject(
@@ -1449,5 +1596,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record PreparedTextureReference(
         string TexturePath,
         ResoniteTextureSourceKind TextureSourceKind,
-        string AbsoluteTexturePath);
+        string AbsoluteTexturePath,
+        string SourceFingerprint);
+
+    private sealed record ResolvedTextureImport(
+        string AbsoluteTexturePath,
+        string SourceFingerprint);
+
+    private sealed record PreparedHeightMapTexture(
+        string AbsolutePath,
+        string SourceFingerprint);
 }
