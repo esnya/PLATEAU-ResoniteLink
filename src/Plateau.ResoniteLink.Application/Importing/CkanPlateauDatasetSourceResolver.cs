@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Net;
+using System.Net.Http.Headers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -66,56 +68,217 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
         string archiveFileName = GetArchiveFileName(archiveUri);
         string archivePath = Path.Combine(cacheRoot, archiveFileName);
+        string archiveMetadataPath = $"{archivePath}.{CreateArchiveMetadataFileName()}";
 
-        if (!File.Exists(archivePath))
+        if (File.Exists(archivePath))
         {
-            string temporaryArchivePath = Path.Combine(cacheRoot, $"{archiveFileName}.{Guid.NewGuid():N}.tmp");
-
-            try
+            if (await TryReuseCachedArchiveAsync(archiveUri, archivePath, archiveMetadataPath, cancellationToken))
             {
-                using HttpResponseMessage response = await httpClient.GetAsync(
-                    archiveUri,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken);
-                response.EnsureSuccessStatusCode();
-
-                await using Stream archiveStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                await using FileStream archiveFile = new(
-                    temporaryArchivePath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 16 * 1024,
-                    useAsync: true);
-                await archiveStream.CopyToAsync(archiveFile, cancellationToken);
-
-                archiveFile.Close();
-                try
+                return request with
                 {
-                    File.Move(temporaryArchivePath, archivePath);
-                }
-                catch (IOException exception) when (File.Exists(archivePath))
-                {
-                    File.Delete(temporaryArchivePath);
-                    _ = exception;
-                }
-            }
-            catch
-            {
-                if (File.Exists(temporaryArchivePath))
-                {
-                    File.Delete(temporaryArchivePath);
-                }
-
-                throw;
+                    SourceKind = DatasetSourceKind.Local,
+                    LocalSourcePath = archivePath,
+                };
             }
         }
+
+        await DownloadArchiveAsync(archiveUri, archivePath, archiveMetadataPath, cancellationToken);
 
         return request with
         {
             SourceKind = DatasetSourceKind.Local,
             LocalSourcePath = archivePath,
         };
+    }
+
+    private async Task<bool> TryReuseCachedArchiveAsync(
+        Uri archiveUri,
+        string archivePath,
+        string metadataPath,
+        CancellationToken cancellationToken)
+    {
+        ArchiveMetadata? metadata = await TryReadArchiveMetadataAsync(metadataPath, cancellationToken);
+        if (metadata is null || (metadata.ETag is null && metadata.LastModifiedUtc is null))
+        {
+            return false;
+        }
+
+        using HttpRequestMessage request = new(HttpMethod.Get, archiveUri)
+        {
+            Version = HttpVersion.Version11,
+        };
+        if (EntityTagHeaderValue.TryParse(metadata.ETag, out EntityTagHeaderValue? etag))
+        {
+            request.Headers.IfNoneMatch.Add(etag);
+        }
+
+        if (metadata.LastModifiedUtc is not null)
+        {
+            request.Headers.IfModifiedSince = metadata.LastModifiedUtc;
+        }
+
+        try
+        {
+            using HttpResponseMessage response = await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            if (response.StatusCode == HttpStatusCode.NotModified)
+            {
+                return true;
+            }
+
+            response.EnsureSuccessStatusCode();
+            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
+            return true;
+        }
+        catch (HttpRequestException) when (File.Exists(archivePath))
+        {
+            return true;
+        }
+    }
+
+    private async Task DownloadArchiveAsync(
+        Uri archiveUri,
+        string archivePath,
+        string metadataPath,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using HttpResponseMessage response = await httpClient.GetAsync(
+                archiveUri,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
+        }
+        catch
+        {
+            throw;
+        }
+    }
+
+    private static async Task WriteCachedArchiveResponseAsync(
+        HttpResponseMessage response,
+        string archivePath,
+        string metadataPath,
+        CancellationToken cancellationToken)
+    {
+        string temporaryArchivePath = $"{archivePath}.{Guid.NewGuid():N}.tmp";
+        string temporaryMetadataPath = $"{metadataPath}.{Guid.NewGuid():N}.tmp";
+
+        try
+        {
+            await using Stream archiveStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            await using FileStream archiveFile = new(
+                temporaryArchivePath,
+                FileMode.Create,
+                FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 16 * 1024,
+                    useAsync: true);
+            await archiveStream.CopyToAsync(archiveFile, cancellationToken);
+
+            await archiveFile.FlushAsync(cancellationToken);
+            archiveFile.Close();
+            File.Move(temporaryArchivePath, archivePath, overwrite: true);
+
+            ArchiveMetadata metadata = CreateArchiveMetadataFromResponse(response);
+            await WriteArchiveMetadataAsync(metadataPath, temporaryMetadataPath, metadata, cancellationToken);
+        }
+        catch
+        {
+            if (File.Exists(temporaryArchivePath))
+            {
+                File.Delete(temporaryArchivePath);
+            }
+
+            if (File.Exists(temporaryMetadataPath))
+            {
+                File.Delete(temporaryMetadataPath);
+            }
+
+            throw;
+        }
+    }
+
+    private static ArchiveMetadata CreateArchiveMetadataFromResponse(HttpResponseMessage response)
+    {
+        return new ArchiveMetadata(
+            response.Headers.ETag?.Tag,
+            response.Content.Headers.LastModified);
+    }
+
+    private static async Task<ArchiveMetadata?> TryReadArchiveMetadataAsync(
+        string metadataPath,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(metadataPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            await using FileStream metadataFile = new(
+                metadataPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 16 * 1024,
+                useAsync: true);
+
+            return await JsonSerializer.DeserializeAsync<ArchiveMetadata>(metadataFile, JsonOptions, cancellationToken);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task WriteArchiveMetadataAsync(
+        string metadataPath,
+        string temporaryMetadataPath,
+        ArchiveMetadata metadata,
+        CancellationToken cancellationToken)
+    {
+        await using (FileStream metadataFile = new(
+            temporaryMetadataPath,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 16 * 1024,
+            useAsync: true))
+        {
+            await JsonSerializer.SerializeAsync(metadataFile, metadata, JsonOptions, cancellationToken);
+            await metadataFile.FlushAsync(cancellationToken);
+        }
+
+        try
+        {
+            File.Move(temporaryMetadataPath, metadataPath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(temporaryMetadataPath))
+            {
+                File.Delete(temporaryMetadataPath);
+            }
+
+            throw;
+        }
+    }
+
+    private static string CreateArchiveMetadataFileName()
+    {
+        return "meta.json";
     }
 
     private async Task<Uri> DiscoverArchiveUriAsync(
@@ -387,4 +550,8 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         string Description,
         string Format,
         string Url);
+
+    private sealed record ArchiveMetadata(
+        string? ETag,
+        DateTimeOffset? LastModifiedUtc);
 }

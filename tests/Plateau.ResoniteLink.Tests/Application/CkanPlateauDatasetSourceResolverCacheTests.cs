@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 
 using Plateau.ResoniteLink.Application.Importing;
@@ -158,6 +159,151 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         Assert.Empty(Directory.EnumerateFiles(workRoot.Path, "*.tmp", SearchOption.AllDirectories));
     }
 
+    [Fact]
+    public async Task ResolveAsyncRefreshesCachedArchiveWhenSourceChangesAtSameUri()
+    {
+        byte[] firstZipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>version-a</CityModel>"));
+        byte[] secondZipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>version-b</CityModel>"));
+
+        const string eTagA = "\"v1\"";
+        const string eTagB = "\"v2\"";
+        DateTimeOffset lastModifiedA = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        DateTimeOffset lastModifiedB = new(2026, 1, 1, 1, 0, 0, TimeSpan.Zero);
+        int requestIndex = 0;
+
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            if (request.RequestUri is null
+                || !string.Equals(
+                    request.RequestUri.AbsoluteUri,
+                    "https://example.test/533944.zip",
+                    StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            requestIndex++;
+            if (requestIndex == 1)
+            {
+                Assert.Empty(request.Headers.IfNoneMatch);
+                HttpResponseMessage firstResponse = new(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(firstZipBytes),
+                };
+                firstResponse.Headers.ETag = new EntityTagHeaderValue(eTagA);
+                firstResponse.Content.Headers.LastModified = lastModifiedA;
+                return firstResponse;
+            }
+
+            Assert.NotEmpty(request.Headers.IfNoneMatch);
+            Assert.Equal(eTagA, request.Headers.IfNoneMatch.First().Tag);
+            Assert.Equal(lastModifiedA, request.Headers.IfModifiedSince);
+
+            HttpResponseMessage secondResponse = new(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(secondZipBytes),
+            };
+            secondResponse.Headers.ETag = new EntityTagHeaderValue(eTagB);
+            secondResponse.Content.Headers.LastModified = lastModifiedB;
+            return secondResponse;
+        });
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        Assert.NotNull(firstRequest.LocalSourcePath);
+        Assert.NotNull(secondRequest.LocalSourcePath);
+        Assert.Equal(firstRequest.LocalSourcePath, secondRequest.LocalSourcePath);
+        Assert.Equal(
+            "<CityModel>version-b</CityModel>",
+            ReadZipEntry(secondRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
+        Assert.Equal(2, requestIndex);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncReusesCachedArchiveWhenServerReturnsNotModified()
+    {
+        byte[] zipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>version-a</CityModel>"));
+
+        const string eTag = "\"v1\"";
+        DateTimeOffset lastModified = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        int requestIndex = 0;
+
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            requestIndex++;
+            if (requestIndex == 1)
+            {
+                HttpResponseMessage firstResponse = new(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(zipBytes),
+                };
+                firstResponse.Headers.ETag = new EntityTagHeaderValue(eTag);
+                firstResponse.Content.Headers.LastModified = lastModified;
+                return firstResponse;
+            }
+
+            Assert.Equal(eTag, request.Headers.IfNoneMatch.Single().Tag);
+            Assert.Equal(lastModified, request.Headers.IfModifiedSince);
+            return new HttpResponseMessage(HttpStatusCode.NotModified);
+        });
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        Assert.NotNull(firstRequest.LocalSourcePath);
+        string firstArchivePath = firstRequest.LocalSourcePath;
+        DateTime firstWriteUtc = File.GetLastWriteTimeUtc(firstArchivePath);
+
+        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        Assert.Equal(firstArchivePath, secondRequest.LocalSourcePath);
+        Assert.NotNull(secondRequest.LocalSourcePath);
+        string secondArchivePath = secondRequest.LocalSourcePath;
+        Assert.Equal(
+            "<CityModel>version-a</CityModel>",
+            ReadZipEntry(secondArchivePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
+        Assert.Equal(firstWriteUtc, File.GetLastWriteTimeUtc(secondArchivePath));
+        Assert.Equal(2, requestIndex);
+    }
+
     private static byte[] CreateZipArchive(params (string path, string content)[] entries)
     {
         using MemoryStream stream = new();
@@ -172,6 +318,17 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         }
 
         return stream.ToArray();
+    }
+
+    private static string ReadZipEntry(string archivePath, string entryPath)
+    {
+        using FileStream archiveStream = File.OpenRead(archivePath);
+        using ZipArchive zip = new(archiveStream, ZipArchiveMode.Read);
+        ZipArchiveEntry? entry = zip.GetEntry(entryPath);
+        Assert.NotNull(entry);
+
+        using StreamReader reader = new(entry!.Open(), Encoding.UTF8);
+        return reader.ReadToEnd();
     }
 
     private sealed class FailingHttpContent(byte[] content, int failAfterBytes) : HttpContent
