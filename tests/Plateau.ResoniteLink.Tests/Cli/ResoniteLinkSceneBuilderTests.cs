@@ -27,11 +27,13 @@ public sealed class ResoniteLinkSceneBuilderTests
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            () => fakeClient);
+            () => fakeClient,
+            terrainTextureAssetGenerator);
 
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
@@ -203,11 +205,13 @@ public sealed class ResoniteLinkSceneBuilderTests
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            () => fakeClient);
+            () => fakeClient,
+            terrainTextureAssetGenerator);
 
         await RunBuilderAsync(builder, scene);
 
@@ -802,6 +806,105 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncDoesNotDuplicateSharedDemWhenSiblingRunUsesDifferentDemSourceKey()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+
+        CapturedResoniteScene firstScene = CreateAppendScene(
+            "53394525",
+            "Building 25",
+            sharedDemSourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared");
+        CapturedResoniteScene secondScene = CreateAppendScene(
+            "53394526",
+            "Building 26",
+            sharedDemSourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared_alt",
+            sharedDemDisplayName: "Shared Terrain (1)");
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            firstScene);
+
+        string demLodSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
+            "tokyo23ku",
+            "533945",
+            "lod",
+            "dem",
+            "LOD0");
+
+        int demCityObjectCountAfterFirstRun = 0;
+        foreach (AddSlot addedSlot in session.AddedSlots)
+        {
+            if (string.Equals(addedSlot.Data.Parent?.TargetID, demLodSlotId, StringComparison.Ordinal))
+            {
+                demCityObjectCountAfterFirstRun++;
+            }
+        }
+        Assert.Equal(1, demCityObjectCountAfterFirstRun);
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            secondScene);
+
+        int demCityObjectCountAfterSecondRun = 0;
+        foreach (AddSlot addedSlot in session.AddedSlots)
+        {
+            if (string.Equals(addedSlot.Data.Parent?.TargetID, demLodSlotId, StringComparison.Ordinal))
+            {
+                demCityObjectCountAfterSecondRun++;
+            }
+        }
+
+        Assert.Equal(
+            1,
+            demCityObjectCountAfterSecondRun);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotDuplicateSplitDemChunksWhenSiblingRunUsesDifferentDemSlotKeys()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+
+        CapturedResoniteScene firstScene = CreateSplitDemAppendScene(
+            "53394525",
+            "Building 25",
+            demSlotKeySuffix: string.Empty);
+        CapturedResoniteScene secondScene = CreateSplitDemAppendScene(
+            "53394526",
+            "Building 26",
+            demSlotKeySuffix: "_alt");
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            firstScene);
+
+        string demLodSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
+            "tokyo23ku",
+            "533945",
+            "lod",
+            "dem",
+            "LOD0");
+
+        int demChunkCountAfterFirstRun = session.AddedSlots.Count(request =>
+            string.Equals(request.Data.Parent?.TargetID, demLodSlotId, StringComparison.Ordinal));
+        Assert.Equal(2, demChunkCountAfterFirstRun);
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            secondScene);
+
+        int demChunkCountAfterSecondRun = session.AddedSlots.Count(request =>
+            string.Equals(request.Data.Parent?.TargetID, demLodSlotId, StringComparison.Ordinal));
+
+        Assert.Equal(
+            2,
+            demChunkCountAfterSecondRun);
+    }
+
+    [Fact]
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
@@ -853,8 +956,14 @@ public sealed class ResoniteLinkSceneBuilderTests
             static cityObject => cityObject.DisplayName == "Parent Tile Building");
 
         using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => fakeClient,
+                terrainTextureAssetGenerator),
             scene);
 
         string demSlotId = fakeClient.BuildingSlotIds["Parent Tile Relief"];
@@ -880,6 +989,49 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(
             AreNear(builtDelta.Z, sourceDelta.Z, tolerance),
             $"Z delta mismatch. built={builtDelta.Z}, source={sourceDelta.Z}");
+    }
+
+    [Fact]
+    public async Task BuildAsyncKeepsSplitDemGlobalVertexHeightsAlignedWithSourceScene()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeWideDemFixture(datasetRoot.Path);
+
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null));
+
+        ResoniteConstructionCityObject[] sourceDemChunks = scene.CityObjects
+            .Where(static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal))
+            .ToArray();
+        Assert.True(sourceDemChunks.Length > 1);
+
+        List<double> sourceGlobalHeights = sourceDemChunks
+            .SelectMany(static cityObject => cityObject.Mesh.Vertices.Select(vertex => vertex.Position.Y + cityObject.Transform.Position.Y))
+            .OrderBy(static height => height)
+            .ToList();
+
+        using FakeResoniteLinkClient fakeClient = new();
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
+            scene);
+
+        List<double> builtGlobalHeights = CollectBuiltDemGlobalVertexHeights(fakeClient)
+            .OrderBy(static height => height)
+            .ToList();
+
+        Assert.Equal(sourceGlobalHeights.Count, builtGlobalHeights.Count);
+        const double tolerance = 1e-3;
+        for (int i = 0; i < sourceGlobalHeights.Count; i++)
+        {
+            Assert.True(
+                AreNear(sourceGlobalHeights[i], builtGlobalHeights[i], tolerance),
+                $"DEM global height mismatch at index {i}. source={sourceGlobalHeights[i]}, built={builtGlobalHeights[i]}");
+        }
     }
 
     [Fact]
@@ -947,7 +1099,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
 
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
-        Assert.True(clients.All(client => client.ImportedMeshCount > 0));
+        Assert.Contains(clients, static client => client.ImportedMeshCount > 0);
+        Assert.Equal(scene.CityObjects.Count, clients.Sum(static client => client.ImportedMeshCount));
     }
 
     [Fact]
@@ -1314,6 +1467,50 @@ public sealed class ResoniteLinkSceneBuilderTests
         return client.SlotPaths.Values.Contains(expectedPath, StringComparer.Ordinal);
     }
 
+    private static List<double> CollectBuiltDemGlobalVertexHeights(FakeResoniteLinkClient client)
+    {
+        Dictionary<string, Component> componentsById = client.AddedComponents
+            .Select(static request => request.Data)
+            .ToDictionary(static component => component.ID, StringComparer.Ordinal);
+
+        List<double> heights = [];
+        AddComponent[] demRenderers = client.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .Where(request =>
+            {
+                string slotPath = client.SlotPaths[request.ContainerSlotId];
+                return slotPath.Contains("/dem/", StringComparison.Ordinal)
+                    && !slotPath.Contains("/Assets/", StringComparison.Ordinal);
+            })
+            .ToArray();
+        Assert.NotEmpty(demRenderers);
+
+        foreach (AddComponent rendererRequest in demRenderers)
+        {
+            Reference meshReference = Assert.IsType<Reference>(rendererRequest.Data.Members["Mesh"]);
+            Component staticMesh = componentsById[meshReference.TargetID];
+            Field_Uri meshUrl = Assert.IsType<Field_Uri>(staticMesh.Members["URL"]);
+            int meshIndex = ParseMeshIndex(meshUrl.Value);
+            ImportMeshRawData importedMesh = client.ImportedMeshes[meshIndex];
+
+            ResoniteFloat3 worldSlotPosition = GetWorldSlotPosition(client, rendererRequest.ContainerSlotId);
+            for (int positionIndex = 0; positionIndex < importedMesh.Positions.Length; positionIndex++)
+            {
+                heights.Add(worldSlotPosition.Y + importedMesh.Positions[positionIndex].y);
+            }
+        }
+
+        return heights;
+    }
+
+    private static int ParseMeshIndex(Uri meshUrl)
+    {
+        string[] segments = meshUrl.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string indexText = segments[^1];
+        Assert.True(int.TryParse(indexText, out int meshIndex));
+        return meshIndex;
+    }
+
     private static string FormatLodSlotName(int? lodLevel)
     {
         return lodLevel.HasValue
@@ -1351,7 +1548,11 @@ public sealed class ResoniteLinkSceneBuilderTests
         ResoniteConstructionMetadata Metadata,
         IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
 
-    private static CapturedResoniteScene CreateAppendScene(string meshCode, string buildingName)
+    private static CapturedResoniteScene CreateAppendScene(
+        string meshCode,
+        string buildingName,
+        string sharedDemSourceObjectKey = "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared",
+        string sharedDemDisplayName = "Shared Terrain")
     {
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -1385,7 +1586,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             [
                 new ResoniteConstructionCityObject(
                     SlotKey: "dem_shared",
-                    DisplayName: "Shared Terrain",
+                    DisplayName: sharedDemDisplayName,
                     PackageName: "dem",
                     ActualMeshCode: "533945",
                     LodLevel: null,
@@ -1403,7 +1604,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                             DepthOffset: null,
                             SubmeshIndices: [0]),
                     ],
-                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared"),
+                    SourceObjectKey: sharedDemSourceObjectKey),
                 new ResoniteConstructionCityObject(
                     SlotKey: $"bldg_{meshCode}",
                     DisplayName: buildingName,
@@ -1425,6 +1626,158 @@ public sealed class ResoniteLinkSceneBuilderTests
                             SubmeshIndices: [0]),
                     ]),
             ]);
+    }
+
+    private static CapturedResoniteScene CreateSplitDemAppendScene(
+        string meshCode,
+        string buildingName,
+        string demSlotKeySuffix)
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: $"PLATEAU tokyo23ku {meshCode}",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg", "dem"],
+                SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", $"udx/bldg/{meshCode}/plateau_tokyo23ku_bldg_{meshCode}.gml"],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: meshCode switch
+            {
+                "53394525" => new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+                "53394526" => new ResoniteLocalOrigin(35.6875, 139.70625, 0.0),
+                _ => throw new InvalidOperationException($"Unexpected mesh code '{meshCode}'."),
+            });
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"dem_chunk_west{demSlotKeySuffix}",
+                    DisplayName: "Shared Terrain West",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-west-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-west-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_chunk_west"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"dem_chunk_east{demSlotKeySuffix}",
+                    DisplayName: "Shared Terrain East",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-east-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-east-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_chunk_east"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: $"bldg_{meshCode}",
+                    DisplayName: buildingName,
+                    PackageName: "bldg",
+                    ActualMeshCode: meshCode,
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh($"bldg-{meshCode}"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: $"bldg-{meshCode}",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+    }
+
+    private static void CreateRuntimeWideDemFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+                <gml:boundedBy>
+                    <gml:Envelope srsDimension="3" srsName="EPSG:4326">
+                        <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                        <gml:upperCorner>35.0100 139.0400 20</gml:upperCorner>
+                    </gml:Envelope>
+                </gml:boundedBy>
+                <core:cityObjectMember>
+                    <dem:ReliefFeature gml:id="dem-wide">
+                        <gml:name>Wide Relief</gml:name>
+                        <dem:reliefComponent>
+                            <dem:TINRelief gml:id="dem-wide-component">
+                                <dem:tin>
+                                    <gml:TriangulatedSurface>
+                                        <gml:trianglePatches>
+                                            <gml:Triangle gml:id="tri-dem-west">
+                                                <gml:exterior>
+                                                    <gml:LinearRing gml:id="ring-dem-west">
+                                                        <gml:posList>35.0000 139.0000 0 35.0100 139.0000 5 35.0100 139.0180 10 35.0000 139.0000 0</gml:posList>
+                                                    </gml:LinearRing>
+                                                </gml:exterior>
+                                            </gml:Triangle>
+                                            <gml:Triangle gml:id="tri-dem-east">
+                                                <gml:exterior>
+                                                    <gml:LinearRing gml:id="ring-dem-east">
+                                                        <gml:posList>35.0000 139.0220 0 35.0100 139.0220 8 35.0100 139.0400 12 35.0000 139.0220 0</gml:posList>
+                                                    </gml:LinearRing>
+                                                </gml:exterior>
+                                            </gml:Triangle>
+                                        </gml:trianglePatches>
+                                    </gml:TriangulatedSurface>
+                                </dem:tin>
+                            </dem:TINRelief>
+                        </dem:reliefComponent>
+                    </dem:ReliefFeature>
+                </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_wide.gml"),
+            xml);
     }
 
     private static ResoniteImportedMesh CreateTriangleMesh(string materialKey)

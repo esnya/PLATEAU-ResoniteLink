@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Channels;
 
 using GeographicLib;
@@ -16,6 +18,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
     private const string CommonAssetsSlotName = "Common";
+    private const string DemPackageName = "dem";
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -568,7 +571,119 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private static string GetCityObjectIdentity(ResoniteConstructionCityObject cityObject)
     {
+        if (IsDemPackage(cityObject.PackageName))
+        {
+            // Keep DEM identity stable even if slot/source keys vary across sibling mesh sends.
+            return GetDemStructuralIdentity(cityObject);
+        }
+
         return cityObject.SourceObjectKey ?? cityObject.SlotKey;
+    }
+
+    private static bool IsDemPackage(string packageName)
+    {
+        return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetDemStructuralIdentity(ResoniteConstructionCityObject cityObject)
+    {
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        StringBuilder identityBuilder = new(capacity: 256);
+
+        AppendDemIdentityHeader(identityBuilder, cityObject);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        identityBuilder.Clear();
+        AppendDemIdentityMaterials(identityBuilder, cityObject.Materials);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        identityBuilder.Clear();
+        AppendDemIdentityVertices(identityBuilder, cityObject.Mesh.Vertices);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        identityBuilder.Clear();
+        AppendDemIdentitySubmeshes(identityBuilder, cityObject.Mesh.Submeshes);
+        AppendUtf8HashChunk(incrementalHash, identityBuilder);
+
+        byte[] hashBytes = incrementalHash.GetHashAndReset();
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"demshape_{Convert.ToHexString(hashBytes.AsSpan(0, 16))}");
+    }
+
+    private static void AppendUtf8HashChunk(IncrementalHash incrementalHash, StringBuilder identityBuilder)
+    {
+        if (identityBuilder.Length == 0)
+        {
+            return;
+        }
+
+        byte[] identityBytes = Encoding.UTF8.GetBytes(identityBuilder.ToString());
+        incrementalHash.AppendData(identityBytes);
+    }
+
+    private static void AppendDemIdentityHeader(StringBuilder identityBuilder, ResoniteConstructionCityObject cityObject)
+    {
+        identityBuilder.Append(cityObject.PackageName)
+            .Append('|')
+            .Append(cityObject.ActualMeshCode)
+            .Append('|')
+            .Append(cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "-");
+    }
+
+    private static void AppendDemIdentityMaterials(StringBuilder identityBuilder, IReadOnlyList<ResoniteMaterialBinding> materials)
+    {
+        foreach (ResoniteMaterialBinding material in materials)
+        {
+            identityBuilder.Append("|m:")
+                .Append(material.MaterialKey)
+                .Append(',')
+                .Append(material.MaterialType)
+                .Append(',')
+                .Append(material.Projection)
+                .Append(',')
+                .Append(material.TextureSourceKind)
+                .Append(',')
+                .Append(material.TexturePath ?? string.Empty);
+
+            foreach (int submeshIndex in material.SubmeshIndices)
+            {
+                identityBuilder.Append(',').Append(submeshIndex.ToString(CultureInfo.InvariantCulture));
+            }
+        }
+    }
+
+    private static void AppendDemIdentityVertices(StringBuilder identityBuilder, IReadOnlyList<ResoniteMeshVertex> vertices)
+    {
+        foreach (ResoniteMeshVertex vertex in vertices)
+        {
+            identityBuilder.Append("|v:")
+                .Append(vertex.Position.X.ToString("R", CultureInfo.InvariantCulture))
+                .Append(',')
+                .Append(vertex.Position.Y.ToString("R", CultureInfo.InvariantCulture))
+                .Append(',')
+                .Append(vertex.Position.Z.ToString("R", CultureInfo.InvariantCulture))
+                .Append(',')
+                .Append(vertex.UV0.X.ToString("R", CultureInfo.InvariantCulture))
+                .Append(',')
+                .Append(vertex.UV0.Y.ToString("R", CultureInfo.InvariantCulture));
+        }
+    }
+
+    private static void AppendDemIdentitySubmeshes(StringBuilder identityBuilder, IReadOnlyList<ResoniteMeshSubmesh> submeshes)
+    {
+        foreach (ResoniteMeshSubmesh submesh in submeshes)
+        {
+            identityBuilder.Append("|s:")
+                .Append(submesh.MaterialKey)
+                .Append(',')
+                .Append(submesh.Index.ToString(CultureInfo.InvariantCulture));
+
+            foreach (int triangleIndex in submesh.TriangleVertexIndices)
+            {
+                identityBuilder.Append(',').Append(triangleIndex.ToString(CultureInfo.InvariantCulture));
+            }
+        }
     }
 
     private static string CreateTextureCacheKey(string? texturePath, ResoniteTextureSourceKind textureSourceKind)

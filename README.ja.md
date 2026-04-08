@@ -25,6 +25,16 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデー�
 - live test 手順: [docs/live-testing.ja.md](docs/live-testing.ja.md) を参照。
 - default material と DEM terrain imagery の出所・追跡情報: [docs/default-materials.ja.md](docs/default-materials.ja.md)、`THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`、`THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` を参照。
 
+## Codex Cloud セットアップ
+
+Codex Cloud のような一時的な CI 近似環境では、次のセットアップ script を実行してください。
+
+```bash
+./scripts/setup-codex-cloud.sh
+```
+
+この script は `dotnet` が未導入なら .NET SDK 10 を bootstrap し、その後にこの repository の CI 方針と同じ形で restore + whitespace format 検証 + test を実行します。
+
 ## 使い方
 
 依存関係を復元します。

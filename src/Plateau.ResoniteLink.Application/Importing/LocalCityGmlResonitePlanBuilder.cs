@@ -20,6 +20,8 @@ public static class LocalCityGmlResonitePlanBuilder
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
+    public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
+    public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
     private static readonly ResoniteColor DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly ResoniteColor DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
@@ -82,11 +84,19 @@ public static class LocalCityGmlResonitePlanBuilder
                 [$"No local PLATEAU CityGML files were found for mesh code '{request.MeshCode}' under udx/<package>/<mesh-code>/."]);
         }
 
+        // Create LOD filtering strategy from the request
+        LodFilteringStrategy lodFilteringStrategy = new(
+            globalExcludeLodLevels: request.GlobalExcludeLodLevels,
+            excludeLodByPackage: request.ExcludeLodLevelsByPackage,
+            packagePatterns: request.PackagePatterns,
+            includeMarkingAlways: request.IncludeMarkingAlways);
+
         SourceFilePipeline[] sourceFilePipelines = await CreateSourceFilePipelinesAsync(
             sourceFiles,
             datasetSource,
             requestedMeshArea,
             progressReporter,
+            lodFilteringStrategy,
             cancellationToken);
 
         List<string> relativeSourceFiles = sourceFilePipelines
@@ -201,6 +211,7 @@ public static class LocalCityGmlResonitePlanBuilder
         IPlateauDatasetContentSource datasetSource,
         MeshCodeArea? requestedMeshArea,
         Action<string>? progressReporter,
+        LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
         return sourceFiles
@@ -212,6 +223,7 @@ public static class LocalCityGmlResonitePlanBuilder
                         datasetSource,
                         requestedMeshArea,
                         progressReporter,
+                        lodFilteringStrategy,
                         cancellationToken)))
             .ToArray();
     }
@@ -221,6 +233,7 @@ public static class LocalCityGmlResonitePlanBuilder
         IPlateauDatasetContentSource datasetSource,
         MeshCodeArea? requestedMeshArea,
         Action<string>? progressReporter,
+        LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -231,6 +244,7 @@ public static class LocalCityGmlResonitePlanBuilder
                            sourceFile,
                            datasetSource,
                            requestedMeshArea,
+                           lodFilteringStrategy,
                            cancellationToken))
         {
             cityObjects.Add(cityObject);
@@ -265,15 +279,18 @@ public static class LocalCityGmlResonitePlanBuilder
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         MeshCodeArea? requestedMeshArea,
+        LodFilteringStrategy? lodFilteringStrategy,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        lodFilteringStrategy ??= new LodFilteringStrategy();
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
         XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
         ParsedCityObject[] cityObjects = ParseCityObjects(
             document,
             sourceFile,
             datasetSource,
-            requestedMeshArea);
+            requestedMeshArea,
+            lodFilteringStrategy);
 
         foreach (ParsedCityObject cityObject in cityObjects)
         {
@@ -308,7 +325,8 @@ public static class LocalCityGmlResonitePlanBuilder
         bool sharedAcrossMeshCodes,
         AppearanceLibrary appearanceLibrary,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        MeshCodeArea? requestedMeshArea)
+        MeshCodeArea? requestedMeshArea,
+        LodFilteringStrategy lodFilteringStrategy)
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
         string objectId = GetAttribute(cityObjectElement, Gml + "id") ?? objectTypeName;
@@ -318,7 +336,28 @@ public static class LocalCityGmlResonitePlanBuilder
             displayName = objectId;
         }
 
-        (XElement[] preferredSurfaceElements, int? lodLevel) = SelectPreferredLodSurfaceElements(cityObjectElement);
+        // Detect if this is a Marking object
+        bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
+            || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
+            || objectId.Contains("_road_marking", StringComparison.Ordinal);
+
+        (XElement[] preferredSurfaceElements, int? lodLevel) = SelectPreferredLodSurfaceElements(
+            cityObjectElement,
+            packageName,
+            isMarking,
+            lodFilteringStrategy);
+
+        // Check if object should be excluded by LOD and pattern filters
+        if (!lodFilteringStrategy.ShouldIncludeByPattern(packageName, objectId, isMarking))
+        {
+            return null;
+        }
+
+        if (preferredSurfaceElements.Length == 0 && lodFilteringStrategy.ShouldExcludeLod(packageName, lodLevel, isMarking))
+        {
+            return null;
+        }
+
         ParsedSurface[] surfaces = preferredSurfaceElements
             .Select(surfaceElement => ParseSurface(surfaceElement, appearanceLibrary))
             .Where(static surface => surface is not null)
@@ -408,7 +447,11 @@ public static class LocalCityGmlResonitePlanBuilder
             MaxTextureSize: DefaultDemTerrainTextureMaxSize);
     }
 
-    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(XElement cityObjectElement)
+    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
+        XElement cityObjectElement,
+        string packageName,
+        bool isMarking,
+        LodFilteringStrategy lodFilteringStrategy)
     {
         (XElement SurfaceElement, int? LodLevel)[] surfaces = cityObjectElement
             .Descendants()
@@ -420,8 +463,14 @@ public static class LocalCityGmlResonitePlanBuilder
             .Where(static surface => surface.LodLevel.HasValue)
             .Select(static surface => surface.LodLevel!.Value)
             .ToArray();
-        int? highestLod = explicitLodLevels.Length > 0
-            ? explicitLodLevels.Max()
+
+        // Filter out excluded LODs before finding the highest
+        int[] validLodLevels = explicitLodLevels
+            .Where(lod => !lodFilteringStrategy.ShouldExcludeLod(packageName, lod, isMarking))
+            .ToArray();
+
+        int? highestLod = validLodLevels.Length > 0
+            ? validLodLevels.Max()
             : null;
 
         XElement[] selectedSurfaces = highestLod.HasValue
@@ -430,6 +479,7 @@ public static class LocalCityGmlResonitePlanBuilder
                 .Select(static surface => surface.SurfaceElement)
                 .ToArray()
             : surfaces
+                .Where(surface => !lodFilteringStrategy.ShouldExcludeLod(packageName, surface.LodLevel, isMarking))
                 .Select(static surface => surface.SurfaceElement)
                 .ToArray();
 
@@ -485,7 +535,8 @@ public static class LocalCityGmlResonitePlanBuilder
         XDocument document,
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        MeshCodeArea? requestedMeshArea)
+        MeshCodeArea? requestedMeshArea,
+        LodFilteringStrategy lodFilteringStrategy)
     {
         string relativeSourceFile = sourceFile.RelativePath;
         CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse(document);
@@ -505,7 +556,8 @@ public static class LocalCityGmlResonitePlanBuilder
                 sourceFile.RequiresMeshAreaFilter,
                 appearanceLibrary,
                 coordinateReferenceSystem,
-                sourceFile.RequiresMeshAreaFilter ? requestedMeshArea : null))
+                sourceFile.RequiresMeshAreaFilter ? requestedMeshArea : null,
+                lodFilteringStrategy))
             .Where(static cityObject => cityObject is not null)
             .Select(static cityObject => cityObject!)
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
@@ -625,11 +677,23 @@ public static class LocalCityGmlResonitePlanBuilder
 
         ParsedCityObject subdividedCityObject = SubdivideTerrainAlignedCityObject(parsedCityObject);
         bool terrainAligned = false;
-        ParsedSurface[] conformedSurfaces = new ParsedSurface[subdividedCityObject.Surfaces.Length];
-        for (int index = 0; index < subdividedCityObject.Surfaces.Length; index++)
-        {
-            conformedSurfaces[index] = ConformSurfaceToTerrain(subdividedCityObject.Surfaces[index], terrainHeightSampler, ref terrainAligned);
-        }
+        GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(subdividedCityObject);
+        LocalCartesian? cityObjectCartesian = subdividedCityObject.ReferenceSystem.IsGeographic
+            ? new LocalCartesian(
+                cityObjectOrigin.Latitude,
+                cityObjectOrigin.Longitude,
+                cityObjectOrigin.Altitude,
+                subdividedCityObject.ReferenceSystem.Geocentric)
+            : null;
+        ParsedSurface[] conformedSurfaces = PlateauPackageCatalog.IsRoadPackage(subdividedCityObject.PackageName)
+            ? ConformRoadSurfacesToTerrainWithFallback(subdividedCityObject.Surfaces, terrainHeightSampler, ref terrainAligned)
+            : ConformSurfacesToTerrain(
+                subdividedCityObject.PackageName,
+                subdividedCityObject.Surfaces,
+                terrainHeightSampler,
+                cityObjectOrigin,
+                cityObjectCartesian,
+                ref terrainAligned);
 
         return terrainAligned
             ? subdividedCityObject with
@@ -660,7 +724,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
     private static bool ShouldSubdivideTerrainAlignedCityObject(ParsedCityObject cityObject)
     {
-        return string.Equals(cityObject.PackageName, "tran", StringComparison.OrdinalIgnoreCase)
+        return PlateauPackageCatalog.IsRoadPackage(cityObject.PackageName)
             && (!cityObject.LodLevel.HasValue || cityObject.LodLevel.Value < 3);
     }
 
@@ -685,59 +749,370 @@ public static class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
-        EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(surface.ExteriorRing, positions);
-        if (edgePair.Length <= DefaultTerrainAlignedTransportationSegmentLengthMeters + 1e-6)
+        if (!IsNearHorizontalSurface(positions))
         {
             return [surface];
         }
 
-        int segmentCount = Math.Max(
-            1,
-            (int)Math.Ceiling(edgePair.Length / DefaultTerrainAlignedTransportationSegmentLengthMeters));
-        List<ParsedSurface> segments = new(segmentCount);
-
-        for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+        EdgePairSelection edgePair = SelectPrimaryRoadEdgePair(surface.ExteriorRing, positions);
+        double segmentLength = ComputeTerrainAlignedSegmentLength(edgePair.Width);
+        if (edgePair.Length <= segmentLength + 1e-6)
         {
-            double startT = (double)segmentIndex / segmentCount;
-            double endT = (double)(segmentIndex + 1) / segmentCount;
-
-            GeodeticPoint side0Start = InterpolateAlongEdge(edgePair.Side0[0], edgePair.Side0[1], startT);
-            GeodeticPoint side0End = InterpolateAlongEdge(edgePair.Side0[0], edgePair.Side0[1], endT);
-            GeodeticPoint side1Start = InterpolateAlongEdge(edgePair.Side1[0], edgePair.Side1[1], startT);
-            GeodeticPoint side1End = InterpolateAlongEdge(edgePair.Side1[0], edgePair.Side1[1], endT);
-
-            ResoniteFloat2[]? uvs = TrySubdivideQuadUvs(edgePair.Side0Uvs, edgePair.Side1Uvs, startT, endT);
-            segments.Add(surface with
-            {
-                PolygonId = $"{surface.PolygonId}_terrain_{segmentIndex:D2}",
-                ExteriorRing = new ParsedRing(
-                    $"{surface.ExteriorRing.RingId}_terrain_{segmentIndex:D2}",
-                    [side0Start, side0End, side1End, side1Start],
-                    uvs),
-            });
+            return [surface];
         }
 
-        return segments;
+        List<ParsedSurface> strips = BuildTerrainAlignedTransportationStrips(surface, positions, edgePair, segmentLength);
+        return strips.Count > 0 ? strips : [surface];
     }
 
-    private static ResoniteFloat2[]? TrySubdivideQuadUvs(
-        ResoniteFloat2[]? side0Uvs,
-        ResoniteFloat2[]? side1Uvs,
-        double startT,
-        double endT)
+    private static double ComputeTerrainAlignedSegmentLength(double roadWidth)
     {
-        if (side0Uvs is null || side1Uvs is null)
+        double preferredLength = roadWidth * TerrainAlignedTransportationSegmentLengthByWidthRatio;
+        return Math.Clamp(
+            preferredLength,
+            MinTerrainAlignedTransportationSegmentLengthMeters,
+            DefaultTerrainAlignedTransportationSegmentLengthMeters);
+    }
+
+    private static List<ParsedSurface> BuildTerrainAlignedTransportationStrips(
+        ParsedSurface surface,
+        ResoniteFloat3[] positions,
+        EdgePairSelection edgePair,
+        double segmentLength)
+    {
+        ResoniteFloat3 axis = CreateTransportationSurfaceAxis(edgePair);
+        if (LengthSquared(axis) < 1e-8)
         {
-            return null;
+            return [];
         }
 
-        return
-        [
-            Lerp(side0Uvs[0], side0Uvs[1], startT),
-            Lerp(side0Uvs[0], side0Uvs[1], endT),
-            Lerp(side1Uvs[0], side1Uvs[1], endT),
-            Lerp(side1Uvs[0], side1Uvs[1], startT),
-        ];
+        double minStation = positions.Min(position => DotHorizontal(position, axis));
+        double maxStation = positions.Max(position => DotHorizontal(position, axis));
+        if (maxStation - minStation <= 1e-6)
+        {
+            return [];
+        }
+
+        SortedSet<double> stations = [minStation, maxStation];
+        foreach (ResoniteFloat3 position in positions)
+        {
+            stations.Add(DotHorizontal(position, axis));
+        }
+
+        for (double station = minStation + segmentLength; station < maxStation - 1e-6; station += segmentLength)
+        {
+            stations.Add(station);
+        }
+
+        List<(double Station, SurfaceSliceSample[] Samples)> slices = new(stations.Count);
+        foreach (double station in stations)
+        {
+            SurfaceSliceSample[] samples = IntersectTransportationSurfaceAtStation(surface.ExteriorRing, positions, axis, station);
+            if (samples.Length > 0)
+            {
+                slices.Add((station, samples));
+            }
+        }
+
+        List<ParsedSurface> strips = [];
+        for (int index = 1; index < slices.Count; index++)
+        {
+            SurfaceSliceSample[] previousSamples = slices[index - 1].Samples;
+            SurfaceSliceSample[] currentSamples = slices[index].Samples;
+            if (previousSamples.Length == 2 && currentSamples.Length == 2)
+            {
+                strips.Add(CreateTransportationStripSurface(
+                    surface,
+                    $"terrain_strip_{index - 1:D2}",
+                    previousSamples[0],
+                    previousSamples[1],
+                    currentSamples[1],
+                    currentSamples[0]));
+            }
+            else if (previousSamples.Length == 1 && currentSamples.Length == 2)
+            {
+                strips.Add(CreateTransportationStripSurface(
+                    surface,
+                    $"terrain_fan_start_{index - 1:D2}",
+                    previousSamples[0],
+                    currentSamples[1],
+                    currentSamples[0]));
+            }
+            else if (previousSamples.Length == 2 && currentSamples.Length == 1)
+            {
+                strips.Add(CreateTransportationStripSurface(
+                    surface,
+                    $"terrain_fan_end_{index - 1:D2}",
+                    previousSamples[0],
+                    previousSamples[1],
+                    currentSamples[0]));
+            }
+        }
+
+        return strips;
+    }
+
+    private static ParsedSurface CreateTransportationStripSurface(
+        ParsedSurface sourceSurface,
+        string suffix,
+        params SurfaceSliceSample[] samples)
+    {
+        ResoniteFloat2[]? uvs = null;
+        if (samples.All(static sample => sample.UV is not null))
+        {
+            List<ResoniteFloat2> uvList = new(samples.Length);
+            for (int index = 0; index < samples.Length; index++)
+            {
+                if (samples[index].UV is ResoniteFloat2 uv)
+                {
+                    uvList.Add(uv);
+                }
+            }
+
+            uvs = [.. uvList];
+        }
+
+        return sourceSurface with
+        {
+            PolygonId = $"{sourceSurface.PolygonId}_{suffix}",
+            ExteriorRing = new ParsedRing(
+                $"{sourceSurface.ExteriorRing.RingId}_{suffix}",
+                [.. samples.Select(static sample => sample.Point)],
+                uvs),
+        };
+    }
+
+    private static SurfaceSliceSample[] IntersectTransportationSurfaceAtStation(
+        ParsedRing ring,
+        ResoniteFloat3[] positions,
+        ResoniteFloat3 axis,
+        double station)
+    {
+        ResoniteFloat3 lateralAxis = new(-axis.Z, 0.0, axis.X);
+        List<SurfaceSliceSample> intersections = [];
+        for (int index = 0; index < ring.Vertices.Length; index++)
+        {
+            int nextIndex = (index + 1) % ring.Vertices.Length;
+            double startStation = DotHorizontal(positions[index], axis);
+            double endStation = DotHorizontal(positions[nextIndex], axis);
+            double deltaStation = endStation - startStation;
+            if (Math.Abs(deltaStation) < 1e-8)
+            {
+                if (Math.Abs(station - startStation) > 1e-8)
+                {
+                    continue;
+                }
+
+                TryAddSurfaceSliceSample(intersections, ring, positions, lateralAxis, index, ring.Vertices[index], 0.0);
+                TryAddSurfaceSliceSample(intersections, ring, positions, lateralAxis, nextIndex, ring.Vertices[nextIndex], 0.0);
+                continue;
+            }
+
+            double ratio = (station - startStation) / deltaStation;
+            if (ratio < -1e-8 || ratio > 1.0 + 1e-8)
+            {
+                continue;
+            }
+
+            ratio = Math.Clamp(ratio, 0.0, 1.0);
+            GeodeticPoint point = InterpolateAlongEdge(ring.Vertices[index], ring.Vertices[nextIndex], ratio);
+            TryAddSurfaceSliceSample(intersections, ring, positions, lateralAxis, index, point, ratio);
+        }
+
+        intersections.Sort(static (left, right) => left.LateralPosition.CompareTo(right.LateralPosition));
+        return [.. intersections];
+    }
+
+    private static void TryAddSurfaceSliceSample(
+        List<SurfaceSliceSample> intersections,
+        ParsedRing ring,
+        ResoniteFloat3[] positions,
+        ResoniteFloat3 lateralAxis,
+        int edgeStartIndex,
+        GeodeticPoint point,
+        double ratio)
+    {
+        if (intersections.Any(existing => AreSamePoint(existing.Point, point)))
+        {
+            return;
+        }
+
+        int edgeEndIndex = (edgeStartIndex + 1) % ring.Vertices.Length;
+        ResoniteFloat3 position = Lerp(positions[edgeStartIndex], positions[edgeEndIndex], ratio);
+        ResoniteFloat2? uv = ring.UVs is not null && ring.UVs.Count == ring.Vertices.Length
+            ? Lerp(ring.UVs[edgeStartIndex], ring.UVs[edgeEndIndex], ratio)
+            : null;
+        intersections.Add(new SurfaceSliceSample(point, uv, DotHorizontal(position, lateralAxis)));
+    }
+
+    private static ResoniteFloat3 CreateTransportationSurfaceAxis(EdgePairSelection edgePair)
+    {
+        ResoniteFloat3 side0Vector = NormalizeHorizontal(Subtract(edgePair.Side0Positions[1], edgePair.Side0Positions[0]));
+        ResoniteFloat3 side1Vector = NormalizeHorizontal(Subtract(edgePair.Side1Positions[1], edgePair.Side1Positions[0]));
+        if (LengthSquared(side0Vector) < 1e-8)
+        {
+            return side1Vector;
+        }
+
+        if (LengthSquared(side1Vector) < 1e-8)
+        {
+            return side0Vector;
+        }
+
+        if (DotHorizontal(side0Vector, side1Vector) < 0.0)
+        {
+            side1Vector = new ResoniteFloat3(-side1Vector.X, 0.0, -side1Vector.Z);
+        }
+
+        return NormalizeHorizontal(Add(side0Vector, side1Vector));
+    }
+
+    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+    }
+
+    private static ResoniteFloat3 NormalizeHorizontal(ResoniteFloat3 value)
+    {
+        double length = Math.Sqrt((value.X * value.X) + (value.Z * value.Z));
+        if (length <= 1e-8)
+        {
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        return new ResoniteFloat3(value.X / length, 0.0, value.Z / length);
+    }
+
+    private static double DotHorizontal(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return (left.X * right.X) + (left.Z * right.Z);
+    }
+
+    private static double LengthSquared(ResoniteFloat3 value)
+    {
+        return (value.X * value.X) + (value.Y * value.Y) + (value.Z * value.Z);
+    }
+
+    private static ParsedSurface[] ConformSurfacesToTerrain(
+        string packageName,
+        IReadOnlyList<ParsedSurface> surfaces,
+        TerrainHeightSampler terrainHeightSampler,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        ref bool terrainAligned)
+    {
+        ParsedSurface[] conformedSurfaces = new ParsedSurface[surfaces.Count];
+        for (int index = 0; index < surfaces.Count; index++)
+        {
+            ParsedSurface surface = surfaces[index];
+            conformedSurfaces[index] = ShouldConformSurfaceToTerrain(
+                    packageName,
+                    surface,
+                    cityObjectOrigin,
+                    cityObjectCartesian)
+                ? ConformSurfaceToTerrain(surface, terrainHeightSampler, ref terrainAligned)
+                : surface;
+        }
+
+        return conformedSurfaces;
+    }
+
+    private static ParsedSurface[] ConformRoadSurfacesToTerrainWithFallback(
+        IReadOnlyList<ParsedSurface> surfaces,
+        TerrainHeightSampler terrainHeightSampler,
+        ref bool terrainAligned)
+    {
+        List<TerrainSampleAnchor> anchors = [];
+        foreach (ParsedSurface surface in surfaces)
+        {
+            foreach (GeodeticPoint point in surface.Vertices)
+            {
+                if (terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude))
+                {
+                    anchors.Add(new TerrainSampleAnchor(point.Latitude, point.Longitude, altitude));
+                }
+            }
+        }
+
+        if (anchors.Count == 0)
+        {
+            return [.. surfaces];
+        }
+
+        ParsedSurface[] conformedSurfaces = new ParsedSurface[surfaces.Count];
+        for (int index = 0; index < surfaces.Count; index++)
+        {
+            conformedSurfaces[index] = ConformRoadSurfaceToTerrainWithFallback(
+                surfaces[index],
+                terrainHeightSampler,
+                anchors,
+                ref terrainAligned);
+        }
+
+        return conformedSurfaces;
+    }
+
+    private static ParsedSurface ConformRoadSurfaceToTerrainWithFallback(
+        ParsedSurface surface,
+        TerrainHeightSampler terrainHeightSampler,
+        IReadOnlyList<TerrainSampleAnchor> anchors,
+        ref bool terrainAligned)
+    {
+        ParsedRing exteriorRing = ConformRoadRingToTerrainWithFallback(surface.ExteriorRing, terrainHeightSampler, anchors, ref terrainAligned);
+        ParsedRing[] interiorRings = new ParsedRing[surface.InteriorRings.Length];
+        for (int index = 0; index < surface.InteriorRings.Length; index++)
+        {
+            interiorRings[index] = ConformRoadRingToTerrainWithFallback(surface.InteriorRings[index], terrainHeightSampler, anchors, ref terrainAligned);
+        }
+
+        return surface with
+        {
+            ExteriorRing = exteriorRing,
+            InteriorRings = interiorRings,
+        };
+    }
+
+    private static ParsedRing ConformRoadRingToTerrainWithFallback(
+        ParsedRing ring,
+        TerrainHeightSampler terrainHeightSampler,
+        IReadOnlyList<TerrainSampleAnchor> anchors,
+        ref bool terrainAligned)
+    {
+        GeodeticPoint[] vertices = new GeodeticPoint[ring.Vertices.Length];
+        for (int index = 0; index < ring.Vertices.Length; index++)
+        {
+            GeodeticPoint point = ring.Vertices[index];
+            double altitude = terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double sampledAltitude)
+                ? sampledAltitude
+                : FindNearestAnchorAltitude(point, anchors);
+            if (Math.Abs(point.Altitude - altitude) > 1e-6)
+            {
+                terrainAligned = true;
+            }
+
+            vertices[index] = new GeodeticPoint(point.Latitude, point.Longitude, altitude);
+        }
+
+        return ring with { Vertices = vertices };
+    }
+
+    private static double FindNearestAnchorAltitude(GeodeticPoint point, IReadOnlyList<TerrainSampleAnchor> anchors)
+    {
+        double nearestDistanceSquared = double.MaxValue;
+        double altitude = point.Altitude;
+        foreach (TerrainSampleAnchor anchor in anchors)
+        {
+            double deltaLatitude = point.Latitude - anchor.Latitude;
+            double deltaLongitude = point.Longitude - anchor.Longitude;
+            double distanceSquared = (deltaLatitude * deltaLatitude) + (deltaLongitude * deltaLongitude);
+            if (distanceSquared < nearestDistanceSquared)
+            {
+                nearestDistanceSquared = distanceSquared;
+                altitude = anchor.Altitude;
+            }
+        }
+
+        return altitude;
     }
 
     private static ParsedSurface ConformSurfaceToTerrain(
@@ -765,9 +1140,31 @@ public static class LocalCityGmlResonitePlanBuilder
         ref bool terrainAligned)
     {
         GeodeticPoint[] vertices = new GeodeticPoint[ring.Vertices.Length];
+        bool[] sampled = new bool[ring.Vertices.Length];
+        int sampledCount = 0;
+
         for (int index = 0; index < ring.Vertices.Length; index++)
         {
-            vertices[index] = ConformPointToTerrain(ring.Vertices[index], terrainHeightSampler, ref terrainAligned);
+            GeodeticPoint point = ring.Vertices[index];
+            if (!terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude))
+            {
+                vertices[index] = point;
+                continue;
+            }
+
+            sampled[index] = true;
+            sampledCount++;
+            if (Math.Abs(point.Altitude - altitude) > 1e-6)
+            {
+                terrainAligned = true;
+            }
+
+            vertices[index] = new GeodeticPoint(point.Latitude, point.Longitude, altitude);
+        }
+
+        if (sampledCount > 0 && sampledCount < vertices.Length)
+        {
+            InterpolateUnsampledTerrainVertices(vertices, sampled, ref terrainAligned);
         }
 
         return ring with
@@ -776,22 +1173,81 @@ public static class LocalCityGmlResonitePlanBuilder
         };
     }
 
-    private static GeodeticPoint ConformPointToTerrain(
-        GeodeticPoint point,
-        TerrainHeightSampler terrainHeightSampler,
+    private static void InterpolateUnsampledTerrainVertices(
+        GeodeticPoint[] vertices,
+        bool[] sampled,
         ref bool terrainAligned)
     {
-        if (!terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude))
+        for (int index = 0; index < vertices.Length; index++)
         {
-            return point;
+            if (sampled[index])
+            {
+                continue;
+            }
+
+            int previousSampledIndex = FindPreviousSampledIndex(sampled, index);
+            int nextSampledIndex = FindNextSampledIndex(sampled, index);
+            double altitude = ResolveInterpolatedAltitude(vertices, index, previousSampledIndex, nextSampledIndex);
+            if (Math.Abs(vertices[index].Altitude - altitude) > 1e-6)
+            {
+                terrainAligned = true;
+            }
+
+            vertices[index] = new GeodeticPoint(vertices[index].Latitude, vertices[index].Longitude, altitude);
+            sampled[index] = true;
+        }
+    }
+
+    private static double ResolveInterpolatedAltitude(
+        GeodeticPoint[] vertices,
+        int index,
+        int previousSampledIndex,
+        int nextSampledIndex)
+    {
+        if (previousSampledIndex >= 0 && nextSampledIndex >= 0 && previousSampledIndex != nextSampledIndex)
+        {
+            int previousToIndexSteps = (index - previousSampledIndex + vertices.Length) % vertices.Length;
+            int previousToNextSteps = (nextSampledIndex - previousSampledIndex + vertices.Length) % vertices.Length;
+            if (previousToNextSteps > 0)
+            {
+                double ratio = (double)previousToIndexSteps / previousToNextSteps;
+                return vertices[previousSampledIndex].Altitude
+                    + ((vertices[nextSampledIndex].Altitude - vertices[previousSampledIndex].Altitude) * ratio);
+            }
         }
 
-        if (Math.Abs(point.Altitude - altitude) > 1e-6)
+        int fallbackIndex = previousSampledIndex >= 0
+            ? previousSampledIndex
+            : nextSampledIndex;
+        return vertices[fallbackIndex].Altitude;
+    }
+
+    private static int FindPreviousSampledIndex(bool[] sampled, int index)
+    {
+        for (int offset = 1; offset < sampled.Length; offset++)
         {
-            terrainAligned = true;
+            int candidate = (index - offset + sampled.Length) % sampled.Length;
+            if (sampled[candidate])
+            {
+                return candidate;
+            }
         }
 
-        return new GeodeticPoint(point.Latitude, point.Longitude, altitude);
+        return -1;
+    }
+
+    private static int FindNextSampledIndex(bool[] sampled, int index)
+    {
+        for (int offset = 1; offset < sampled.Length; offset++)
+        {
+            int candidate = (index + offset) % sampled.Length;
+            if (sampled[candidate])
+            {
+                return candidate;
+            }
+        }
+
+        return -1;
     }
 
     private static bool IsTerrainDependentCityObject(ParsedCityObject cityObject)
@@ -803,12 +1259,39 @@ public static class LocalCityGmlResonitePlanBuilder
     private static bool ShouldTerrainAlignCityObject(ParsedCityObject cityObject)
     {
         string packageName = cityObject.PackageName.ToLowerInvariant();
+        if (PlateauPackageCatalog.IsRoadPackage(packageName))
+        {
+            return !cityObject.LodLevel.HasValue || cityObject.LodLevel.Value < 3;
+        }
+
         return packageName switch
         {
-            "tran" or "rwy" or "squr" or "trk" => !cityObject.LodLevel.HasValue || cityObject.LodLevel.Value < 3,
             "fld" or "ifld" or "lsld" or "luse" or "rfld" or "tnm" or "urf" or "wtr" or "wwy" => true,
             _ => false,
         };
+    }
+
+    private static bool ShouldConformSurfaceToTerrain(
+        string packageName,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!PlateauPackageCatalog.IsRoadPackage(packageName))
+        {
+            return true;
+        }
+
+        ResoniteFloat3[] positions = surface.ExteriorRing.Vertices
+            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        return IsNearHorizontalSurface(positions);
+    }
+
+    private static bool IsNearHorizontalSurface(ResoniteFloat3[] positions)
+    {
+        ResoniteFloat3? normal = ComputePolygonNormal(positions);
+        return normal is not null && Math.Abs(normal.Y) >= 0.7;
     }
 
     private static ParsedSurface? ParseSurface(XElement polygonElement, AppearanceLibrary appearanceLibrary)
@@ -1291,17 +1774,25 @@ public static class LocalCityGmlResonitePlanBuilder
             ? new EdgePairSelection(
                 [vertices[0], vertices[1]],
                 [vertices[3], vertices[2]],
+                [positions[0], positions[1]],
+                [positions[3], positions[2]],
                 Side0Uvs: null,
                 Side1Uvs: null,
                 pair01Length,
-                (Distance(positions[0], positions[3]) + Distance(positions[1], positions[2])) * 0.5)
+                (Distance(positions[0], positions[3]) + Distance(positions[1], positions[2])) * 0.5,
+                edge01,
+                edge23)
             : new EdgePairSelection(
                 [vertices[1], vertices[2]],
                 [vertices[0], vertices[3]],
+                [positions[1], positions[2]],
+                [positions[0], positions[3]],
                 Side0Uvs: null,
                 Side1Uvs: null,
                 pair12Length,
-                (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5);
+                (Distance(positions[1], positions[0]) + Distance(positions[2], positions[3])) * 0.5,
+                edge12,
+                edge30);
     }
 
     private static EdgePairSelection SelectPrimaryRoadEdgePair(
@@ -1330,8 +1821,8 @@ public static class LocalCityGmlResonitePlanBuilder
             };
     }
 
-    // Adapted from the "move toward counterpart edge" idea in
-    // PLATEAU-SDK-for-Unity Runtime/RoadAdjust/RnmModelAdjuster.cs.
+    // Adapted from PLATEAU-SDK-for-Unity Runtime/RoadAdjust/RnmModelAdjuster.cs.
+    // Each source point moves toward the nearest target point, matching upstream behavior.
     // Upstream MIT license text is stored in THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt.
     private static GeodeticPoint[] MoveTowardCrossSection(
         IReadOnlyList<GeodeticPoint> sourceWay,
@@ -1353,8 +1844,23 @@ public static class LocalCityGmlResonitePlanBuilder
         for (int index = 0; index < 2; index++)
         {
             GeodeticPoint source = sourceWay[index];
-            GeodeticPoint target = targetWay[index];
-            double actualDistance = Distance(sourcePositions[index], targetPositions[index]);
+            int nearestTargetIndex = 0;
+            double nearestDistanceSquared = double.MaxValue;
+            for (int targetIndex = 0; targetIndex < targetPositions.Length; targetIndex++)
+            {
+                double deltaX = sourcePositions[index].X - targetPositions[targetIndex].X;
+                double deltaY = sourcePositions[index].Y - targetPositions[targetIndex].Y;
+                double deltaZ = sourcePositions[index].Z - targetPositions[targetIndex].Z;
+                double distanceSquared = (deltaX * deltaX) + (deltaY * deltaY) + (deltaZ * deltaZ);
+                if (distanceSquared < nearestDistanceSquared)
+                {
+                    nearestDistanceSquared = distanceSquared;
+                    nearestTargetIndex = targetIndex;
+                }
+            }
+
+            GeodeticPoint target = targetWay[nearestTargetIndex];
+            double actualDistance = Math.Sqrt(nearestDistanceSquared);
             if (actualDistance <= 1e-8)
             {
                 moved[index] = source;
@@ -2165,6 +2671,14 @@ public static class LocalCityGmlResonitePlanBuilder
         return Lerp(start, end, ratio);
     }
 
+    private static ResoniteFloat3 Lerp(ResoniteFloat3 source, ResoniteFloat3 target, double ratio)
+    {
+        return new ResoniteFloat3(
+            source.X + ((target.X - source.X) * ratio),
+            source.Y + ((target.Y - source.Y) * ratio),
+            source.Z + ((target.Z - source.Z) * ratio));
+    }
+
     private static ResoniteFloat2 Lerp(ResoniteFloat2 source, ResoniteFloat2 target, double ratio)
     {
         return new ResoniteFloat2(
@@ -2751,13 +3265,27 @@ public static class LocalCityGmlResonitePlanBuilder
         GeodeticPoint[] Vertices,
         IReadOnlyList<ResoniteFloat2>? UVs);
 
+    private readonly record struct TerrainSampleAnchor(
+        double Latitude,
+        double Longitude,
+        double Altitude);
+
     private sealed record EdgePairSelection(
         GeodeticPoint[] Side0,
         GeodeticPoint[] Side1,
+        ResoniteFloat3[] Side0Positions,
+        ResoniteFloat3[] Side1Positions,
         ResoniteFloat2[]? Side0Uvs,
         ResoniteFloat2[]? Side1Uvs,
         double Length,
-        double Width);
+        double Width,
+        double Side0EdgeLength,
+        double Side1EdgeLength);
+
+    private readonly record struct SurfaceSliceSample(
+        GeodeticPoint Point,
+        ResoniteFloat2? UV,
+        double LateralPosition);
 
     private sealed record ParsedSurface(
         string PolygonId,
