@@ -11,6 +11,8 @@ Before opening a PR:
 - Update the matching `.ja.md` file when you change an English Markdown document.
 - Add or update tests when behavior changes.
 
+For Codex Cloud / ephemeral agents where `dotnet` is missing, run `./scripts/setup-codex-cloud.sh` to bootstrap SDK 10 and execute the standard checks.
+
 If you can, run:
 
 ```bash
