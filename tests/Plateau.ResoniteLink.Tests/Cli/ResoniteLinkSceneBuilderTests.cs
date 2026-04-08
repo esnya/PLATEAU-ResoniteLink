@@ -39,7 +39,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
         Assert.Single(destinations);
-        Assert.Equal(7, fakeClient.ImportedTexturePaths.Count);
+        Assert.Equal(6, fakeClient.ImportedTexturePaths.Count);
         Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
@@ -82,7 +82,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] staticTextureRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(7, staticTextureRequests.Length);
+        Assert.Equal(6, staticTextureRequests.Length);
 
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
@@ -146,11 +146,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
                 && request.ContainerSlotId != fakeClient.BuildingSlotIds["Building One"])
             .ToArray();
-        Assert.Equal(3, materialRequests.Length);
+        Assert.Equal(2, materialRequests.Length);
         Assert.All(materialRequests, request =>
         {
             Assert.StartsWith(
-                "PLATEAU tokyo23ku/Assets/",
+                "PLATEAU tokyo23ku/Assets/Common",
                 fakeClient.SlotPaths[request.ContainerSlotId],
                 StringComparison.Ordinal);
         });

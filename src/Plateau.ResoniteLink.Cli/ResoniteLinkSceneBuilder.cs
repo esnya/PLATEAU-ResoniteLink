@@ -557,6 +557,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(datasetSlotId is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
         ObjectDisposedException.ThrowIf(datasetAssetsSlotId is null, this);
+        ObjectDisposedException.ThrowIf(commonAssetsSlotId is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
 
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
@@ -664,17 +665,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ReportBuildStep(
                 cityObject,
                 $"Ensuring material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
-            string materialInstanceKey = ResoniteLinkEntityIdFactory.CreateStableEntityId(
-                metadata.Request.Dataset,
-                rootMeshCode,
-                objectIdentity,
-                "material",
-                material.MaterialKey);
+            string materialInstanceKey = CreateSharedMaterialInstanceKey(material);
             string materialId = await materialAssetManager.EnsureMaterialComponentAsync(
                 client,
                 material,
                 preparedTextureDataByKey,
-                meshAssetSlotId,
+                commonAssetsSlotId,
                 materialInstanceKey,
                 cancellationToken);
             materialIds.Add(materialId);
@@ -752,6 +748,60 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         return cityObject.SourceObjectKey ?? cityObject.SlotKey;
+    }
+
+    private static string CreateSharedMaterialInstanceKey(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendString(incrementalHash, material.MaterialType.ToString());
+        AppendString(incrementalHash, material.Projection.ToString());
+        AppendString(incrementalHash, material.TextureSourceKind.ToString());
+        AppendString(incrementalHash, material.TexturePath ?? string.Empty);
+        AppendString(incrementalHash, material.Family ?? string.Empty);
+        AppendDouble(incrementalHash, material.BaseColor.R);
+        AppendDouble(incrementalHash, material.BaseColor.G);
+        AppendDouble(incrementalHash, material.BaseColor.B);
+        AppendDouble(incrementalHash, material.BaseColor.A);
+
+        if (material.TextureScale is not null)
+        {
+            AppendBoolean(incrementalHash, true);
+            AppendDouble(incrementalHash, material.TextureScale.X);
+            AppendDouble(incrementalHash, material.TextureScale.Y);
+        }
+        else
+        {
+            AppendBoolean(incrementalHash, false);
+        }
+
+        if (material.TextureOffset is not null)
+        {
+            AppendBoolean(incrementalHash, true);
+            AppendDouble(incrementalHash, material.TextureOffset.X);
+            AppendDouble(incrementalHash, material.TextureOffset.Y);
+        }
+        else
+        {
+            AppendBoolean(incrementalHash, false);
+        }
+
+        if (material.DepthOffset is not null)
+        {
+            AppendBoolean(incrementalHash, true);
+            AppendDouble(incrementalHash, material.DepthOffset.Factor);
+            AppendDouble(incrementalHash, material.DepthOffset.Units);
+        }
+        else
+        {
+            AppendBoolean(incrementalHash, false);
+        }
+
+        string materialFingerprint = Convert.ToHexString(incrementalHash.GetHashAndReset());
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{material.MaterialKey}_{materialFingerprint[..16]}");
     }
 
     private static bool IsDemPackage(string packageName)
