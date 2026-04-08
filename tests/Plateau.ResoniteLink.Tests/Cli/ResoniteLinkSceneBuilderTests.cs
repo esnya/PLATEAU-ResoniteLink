@@ -107,37 +107,16 @@ public sealed class ResoniteLinkSceneBuilderTests
             fakeClient.ImportedTexturePaths,
             static path => path.EndsWith("_Emission.jpg", StringComparison.Ordinal));
 
-        AddComponent datasetTextureRequest = Assert.Single(
-            staticTextureRequests,
-            request =>
-            {
-                Field_Uri candidateUrl = Assert.IsType<Field_Uri>(request.Data.Members["URL"]);
-                return string.Equals(candidateUrl.Value.ToString(), "resdb:///texture/0", StringComparison.Ordinal);
-            });
-        Slot textureAssetSlot = fakeClient.SlotsById[datasetTextureRequest.ContainerSlotId];
-        Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/",
-            fakeClient.SlotPaths[textureAssetSlot.ID],
-            StringComparison.Ordinal);
-        Component datasetTexture = datasetTextureRequest.Data;
-        Field_Uri datasetTextureUrl = Assert.IsType<Field_Uri>(datasetTexture.Members["URL"]);
-        Assert.Equal("resdb:///texture/0", datasetTextureUrl.Value.ToString());
-
-        AddComponent bundledTextureRequest = Assert.Single(
-            staticTextureRequests,
-            request =>
-            {
-                Field_Uri candidateUrl = Assert.IsType<Field_Uri>(request.Data.Members["URL"]);
-                return string.Equals(candidateUrl.Value.ToString(), "resdb:///texture/1", StringComparison.Ordinal);
-            });
-        Slot bundledTextureAssetSlot = fakeClient.SlotsById[bundledTextureRequest.ContainerSlotId];
-        Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/",
-            fakeClient.SlotPaths[bundledTextureAssetSlot.ID],
-            StringComparison.Ordinal);
-        Component bundledTexture = bundledTextureRequest.Data;
-        Field_Uri bundledTextureUrl = Assert.IsType<Field_Uri>(bundledTexture.Members["URL"]);
-        Assert.Equal("resdb:///texture/1", bundledTextureUrl.Value.ToString());
+        Assert.All(staticTextureRequests, request =>
+        {
+            Slot textureAssetSlot = fakeClient.SlotsById[request.ContainerSlotId];
+            Assert.StartsWith(
+                "PLATEAU tokyo23ku/Assets/",
+                fakeClient.SlotPaths[textureAssetSlot.ID],
+                StringComparison.Ordinal);
+            Field_Uri textureUrl = Assert.IsType<Field_Uri>(request.Data.Members["URL"]);
+            Assert.StartsWith("resdb:///texture/", textureUrl.Value.ToString(), StringComparison.Ordinal);
+        });
 
         Component license = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
@@ -393,7 +372,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncWritesHeightMapTextureWithWhiteLowBlackHigh()
+    public async Task BuildAsyncWritesHeightMapTextureAsHdrRawWithBlueOnlyScaledDisplacement()
     {
         const string dataset = "tokyo23ku";
         const string meshCode = "53394525";
@@ -465,15 +444,28 @@ public sealed class ResoniteLinkSceneBuilderTests
         using TemporaryDirectory workDirectory = new();
         await RunBuilderAsync(builder, scene, workDirectory.Path);
 
-        string heightMapPath = Assert.Single(
-            fakeClient.ImportedTexturePaths,
-            static path => path.EndsWith("_heightmap.png", StringComparison.Ordinal));
-        using Image<L16> image = await Image.LoadAsync<L16>(heightMapPath);
+        ResoniteRawHdrTextureImport heightMapTexture = Assert.Single(fakeClient.ImportedRawHdrTextures);
+        float[] pixels = new float[heightMapTexture.RawRgbaFloatBytes.Length / sizeof(float)];
+        Buffer.BlockCopy(heightMapTexture.RawRgbaFloatBytes, 0, pixels, 0, heightMapTexture.RawRgbaFloatBytes.Length);
 
-        Assert.Equal(ushort.MaxValue, image[0, 0].PackedValue);
-        Assert.Equal((ushort)0, image[1, 0].PackedValue);
-        Assert.Equal(ushort.MaxValue, image[0, 1].PackedValue);
-        Assert.Equal((ushort)0, image[1, 1].PackedValue);
+        Assert.Equal(2, heightMapTexture.Width);
+        Assert.Equal(2, heightMapTexture.Height);
+        Assert.Equal(0.0f, pixels[0]);
+        Assert.Equal(0.0f, pixels[1]);
+        Assert.Equal(3.0f, pixels[2]);
+        Assert.Equal(1.0f, pixels[3]);
+        Assert.Equal(0.0f, pixels[4]);
+        Assert.Equal(0.0f, pixels[5]);
+        Assert.Equal(0.0f, pixels[6]);
+        Assert.Equal(1.0f, pixels[7]);
+        Assert.Equal(0.0f, pixels[8]);
+        Assert.Equal(0.0f, pixels[9]);
+        Assert.Equal(3.0f, pixels[10]);
+        Assert.Equal(1.0f, pixels[11]);
+        Assert.Equal(0.0f, pixels[12]);
+        Assert.Equal(0.0f, pixels[13]);
+        Assert.Equal(0.0f, pixels[14]);
+        Assert.Equal(1.0f, pixels[15]);
     }
 
 
@@ -1001,10 +993,13 @@ public sealed class ResoniteLinkSceneBuilderTests
         TerrainTextureOverlay requestedOverlay = Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, requestedOverlay.TexturePath);
 
-        string builtInTexturePath = Assert.Single(
-            fakeClient.ImportedTexturePaths,
-            static path => string.Equals(Path.GetFileName(path), "dem-overlay.png", StringComparison.OrdinalIgnoreCase));
-        Assert.True(File.Exists(builtInTexturePath));
+        ResoniteRawTextureImport builtInTexture = Assert.Single(
+            fakeClient.ImportedRawTextures,
+            static texture => texture.SourcePath is null);
+        Assert.True(builtInTexture.Width > 0);
+        Assert.True(builtInTexture.Height > 0);
+        Assert.Equal("sRGB", builtInTexture.ColorProfile);
+        Assert.Equal(builtInTexture.Width * builtInTexture.Height * 4, builtInTexture.RawRgba32Bytes.Length);
     }
 
     [Fact]
@@ -1140,6 +1135,10 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public List<string> ImportedTexturePaths => session.ImportedTexturePaths;
 
+        public List<ResoniteRawTextureImport> ImportedRawTextures => session.ImportedRawTextures;
+
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures => session.ImportedRawHdrTextures;
+
         public Dictionary<string, Slot> SlotsById => session.SlotsById;
 
         public Dictionary<string, string> SlotPaths => session.SlotPaths;
@@ -1233,13 +1232,32 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
         }
 
-        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (session.Gate)
             {
-                session.ImportedTexturePaths.Add(filePath);
-                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count - 1}", UriKind.Absolute));
+                switch (textureImport)
+                {
+                    case ResoniteFileTextureImport fileImport:
+                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
+                        break;
+                    case ResoniteRawTextureImport rawImport:
+                        session.ImportedRawTextures.Add(rawImport);
+                        if (rawImport.SourcePath is not null)
+                        {
+                            session.ImportedTexturePaths.Add(rawImport.SourcePath);
+                        }
+
+                        break;
+                    case ResoniteRawHdrTextureImport rawHdrImport:
+                        session.ImportedRawHdrTextures.Add(rawHdrImport);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
+                }
+
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count + session.ImportedRawTextures.Count + session.ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
             }
         }
 
@@ -1288,28 +1306,18 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private sealed class StubTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
     {
-        private static readonly byte[] TextureBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAGklEQVR42mP8z8DQwMDA8J+BkYGBgQEADzYCAjUX0xMAAAAASUVORK5CYII=");
-
         public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
-        public async Task<string> EnsureTextureAsync(
+        public Task<ResoniteRawTextureImport> EnsureTextureAsync(
             TerrainTextureOverlay terrainTextureOverlay,
-            string workRoot,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             RequestedOverlays.Add(terrainTextureOverlay);
-
-            string textureDirectory = Path.Combine(workRoot, "terrain-textures");
-            Directory.CreateDirectory(textureDirectory);
-            string texturePath = Path.Combine(textureDirectory, "dem-overlay.png");
-            if (!File.Exists(texturePath))
-            {
-                await File.WriteAllBytesAsync(texturePath, TextureBytes, cancellationToken);
-            }
-
-            return texturePath;
+            using Image<Rgba32> image = new(2, 2, new Rgba32(255, 255, 255, 255));
+            byte[] rawBytes = new byte[image.Width * image.Height * 4];
+            image.CopyPixelDataTo(rawBytes);
+            return Task.FromResult(new ResoniteRawTextureImport(image.Width, image.Height, "sRGB", rawBytes));
         }
     }
 
@@ -1357,7 +1365,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             return new Uri("resdb:///mesh/0", UriKind.Absolute);
         }
 
-        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
@@ -1383,6 +1391,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         public List<AddComponent> AddedComponents { get; } = [];
 
         public List<string> ImportedTexturePaths { get; } = [];
+
+        public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
+
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
         public List<string> UpdatedComponentIds { get; } = [];
 
@@ -1441,11 +1453,30 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(new Uri("resdb:///mesh/0", UriKind.Absolute));
         }
 
-        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ImportedTexturePaths.Add(filePath);
-            return Task.FromResult(new Uri($"resdb:///texture/{ImportedTexturePaths.Count - 1}", UriKind.Absolute));
+            switch (textureImport)
+            {
+                case ResoniteFileTextureImport fileImport:
+                    ImportedTexturePaths.Add(fileImport.AbsolutePath);
+                    break;
+                case ResoniteRawTextureImport rawImport:
+                    ImportedRawTextures.Add(rawImport);
+                    if (rawImport.SourcePath is not null)
+                    {
+                        ImportedTexturePaths.Add(rawImport.SourcePath);
+                    }
+
+                    break;
+                case ResoniteRawHdrTextureImport rawHdrImport:
+                    ImportedRawHdrTextures.Add(rawHdrImport);
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
+            }
+
+            return Task.FromResult(new Uri($"resdb:///texture/{ImportedTexturePaths.Count + ImportedRawTextures.Count + ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
         }
 
         public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
@@ -1479,6 +1510,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         public List<ImportMeshRawData> ImportedMeshes { get; } = [];
 
         public List<string> ImportedTexturePaths { get; } = [];
+
+        public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
+
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
         public Dictionary<string, string> SlotPaths { get; } = new(StringComparer.Ordinal);
 

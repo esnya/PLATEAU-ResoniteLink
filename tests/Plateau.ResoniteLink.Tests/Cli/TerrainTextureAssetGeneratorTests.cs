@@ -15,7 +15,6 @@ public sealed class TerrainTextureAssetGeneratorTests
     [Fact]
     public async Task EnsureTextureAsyncStitchesTilesAndCachesOutput()
     {
-        using TemporaryDirectory workRoot = new();
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient);
@@ -32,19 +31,19 @@ public sealed class TerrainTextureAssetGeneratorTests
                 MaxLongitude: 180.0),
             MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
 
-        string firstPath = await generator.EnsureTextureAsync(
+        ResoniteRawTextureImport firstTexture = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
-            workRoot.Path,
             CancellationToken.None);
-        string secondPath = await generator.EnsureTextureAsync(
+        ResoniteRawTextureImport secondTexture = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
-            workRoot.Path,
             CancellationToken.None);
 
-        Assert.Equal(firstPath, secondPath);
-        Assert.True(File.Exists(firstPath));
+        Assert.Same(firstTexture, secondTexture);
 
-        using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(firstPath);
+        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(
+            firstTexture.RawRgba32Bytes,
+            firstTexture.Width,
+            firstTexture.Height);
         Assert.Equal(512, image.Width);
         Assert.InRange(image.Height, 256, 257);
         AssertColor(image[128, 128], 255, 0, 0);
@@ -54,7 +53,6 @@ public sealed class TerrainTextureAssetGeneratorTests
     [Fact]
     public async Task EnsureTextureAsyncResizesWhenCroppedTextureExceedsMaxTextureSize()
     {
-        using TemporaryDirectory workRoot = new();
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient);
@@ -71,12 +69,14 @@ public sealed class TerrainTextureAssetGeneratorTests
                 MaxLongitude: 180.0),
             MaxTextureSize: 256);
 
-        string texturePath = await generator.EnsureTextureAsync(
+        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(
             terrainTextureOverlay,
-            workRoot.Path,
             CancellationToken.None);
 
-        using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(texturePath);
+        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(
+            texture.RawRgba32Bytes,
+            texture.Width,
+            texture.Height);
         Assert.Equal(256, image.Width);
         Assert.InRange(image.Height, 127, 128);
     }
