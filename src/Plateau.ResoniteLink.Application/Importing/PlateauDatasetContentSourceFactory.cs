@@ -90,7 +90,14 @@ public static class PlateauDatasetContentSourceFactory
 
     internal static string GetMaterializedArchiveCacheKey(string archivePath)
     {
-        return GetMaterializedArchiveCacheKeys(archivePath)[0];
+        IReadOnlyList<string> keys = GetMaterializedArchiveCacheKeys(archivePath);
+        if (keys.Count == 0)
+        {
+            throw new PlateauImportValidationException(
+                [$"The archive path '{archivePath}' must have a non-empty file name before the extension to create a materialized archive cache key."]);
+        }
+
+        return keys[0];
     }
 
     internal static string GetDirectoryPath(string relativePath)

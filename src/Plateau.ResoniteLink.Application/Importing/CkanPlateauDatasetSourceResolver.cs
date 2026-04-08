@@ -139,21 +139,14 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         string metadataPath,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            using HttpResponseMessage response = await httpClient.GetAsync(
-                archiveUri,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            response.EnsureSuccessStatusCode();
+        using HttpResponseMessage response = await httpClient.GetAsync(
+            archiveUri,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
 
-            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateMaterializedCache(archivePath);
-        }
-        catch
-        {
-            throw;
-        }
+        await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
+        InvalidateMaterializedCache(archivePath);
     }
 
     private static void InvalidateMaterializedCache(string archivePath)
