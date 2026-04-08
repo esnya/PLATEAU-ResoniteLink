@@ -897,7 +897,10 @@ public sealed class PlateauImportServiceTests
 
         for (int index = 0; index < westEdgeHeights.Length; index++)
         {
-            Assert.InRange(westEdgeHeights[index] - eastEdgeHeights[index], -1e-3, 1e-3);
+            double delta = westEdgeHeights[index] - eastEdgeHeights[index];
+            Assert.True(
+                Math.Abs(delta) <= 1e-3,
+                $"Boundary height mismatch at row {index}. west={westEdgeHeights[index]:F6}, east={eastEdgeHeights[index]:F6}, delta={delta:F6}, westGrid={westGeometry.Width}x{westGeometry.Height}, eastGrid={eastGeometry.Width}x{eastGeometry.Height}");
         }
     }
 
@@ -3259,6 +3262,23 @@ public sealed class PlateauImportServiceTests
                     cityObject.Transform.Position.Z + vertex.Position.Z),
                 vertex.UV0.X);
         }
+    }
+
+    private static double[] GetAbsoluteHeightMapEdgeHeights(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteHeightMapGridGeometry geometry,
+        int columnIndex)
+    {
+        double range = geometry.MaxHeight - geometry.MinHeight;
+        double[] heights = new double[geometry.Height];
+        for (int rowIndex = 0; rowIndex < geometry.Height; rowIndex++)
+        {
+            ushort sample = (ushort)geometry.HeightSamples[(rowIndex * geometry.Width) + columnIndex];
+            double normalized = sample / (double)ushort.MaxValue;
+            heights[rowIndex] = cityObject.Transform.Position.Y + geometry.MinHeight + (normalized * range);
+        }
+
+        return heights;
     }
 
     internal sealed record CapturedResoniteScene(

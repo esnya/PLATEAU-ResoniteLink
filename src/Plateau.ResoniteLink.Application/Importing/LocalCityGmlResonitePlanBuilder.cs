@@ -3224,6 +3224,11 @@ public static class LocalCityGmlResonitePlanBuilder
             return false;
         }
 
+        ResoniteFloat3 adjustedSlotPosition = slotPosition with
+        {
+            Y = slotPosition.Y + minHeight,
+        };
+
         heightMapCityObject = new ResoniteConstructionCityObject(
             SlotKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
@@ -3231,7 +3236,7 @@ public static class LocalCityGmlResonitePlanBuilder
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
             Transform: new ResoniteTransform(
-                slotPosition,
+                adjustedSlotPosition,
                 GridMeshTerrainRotation),
             Geometry: new ResoniteHeightMapGridGeometry(
                 Width: width,
