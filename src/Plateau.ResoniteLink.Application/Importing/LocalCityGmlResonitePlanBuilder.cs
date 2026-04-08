@@ -3161,10 +3161,18 @@ public static class LocalCityGmlResonitePlanBuilder
             return false;
         }
 
-        double minX = positions.Min(static position => position.X);
-        double maxX = positions.Max(static position => position.X);
-        double minZ = positions.Min(static position => position.Z);
-        double maxZ = positions.Max(static position => position.Z);
+        DemHeightMapBounds heightMapBounds = CreateDemHeightMapBounds(
+            cityObject,
+            cityObjectOrigin,
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlay,
+            positions);
+        double minX = heightMapBounds.MinX;
+        double maxX = heightMapBounds.MaxX;
+        double minZ = heightMapBounds.MinZ;
+        double maxZ = heightMapBounds.MaxZ;
         double centerX = (minX + maxX) / 2.0;
         double centerZ = (minZ + maxZ) / 2.0;
         double extentX = maxX - minX;
@@ -3330,6 +3338,15 @@ public static class LocalCityGmlResonitePlanBuilder
         }
 
         GeographicRectangle overlayBounds = demTerrainTextureOverlay.GeographicBounds;
+        GeographicRectangle objectBounds = IntersectGeographicBounds(
+            GetCityObjectGeographicBounds(cityObject),
+            overlayBounds);
+        if (objectBounds.MaxLongitude <= objectBounds.MinLongitude
+            || objectBounds.MaxLatitude <= objectBounds.MinLatitude)
+        {
+            return (null, null);
+        }
+
         double overlayWest = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MinLongitude);
         double overlayEast = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MaxLongitude);
         double overlayNorth = WebMercatorTileMath.LatitudeToNormalizedY(overlayBounds.MaxLatitude);
@@ -3341,11 +3358,10 @@ public static class LocalCityGmlResonitePlanBuilder
             return (null, null);
         }
 
-        List<GeodeticPoint> vertices = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
-        double objectWest = WebMercatorTileMath.LongitudeToNormalizedX(vertices.Min(static point => point.Longitude));
-        double objectEast = WebMercatorTileMath.LongitudeToNormalizedX(vertices.Max(static point => point.Longitude));
-        double objectNorth = WebMercatorTileMath.LatitudeToNormalizedY(vertices.Max(static point => point.Latitude));
-        double objectSouth = WebMercatorTileMath.LatitudeToNormalizedY(vertices.Min(static point => point.Latitude));
+        double objectWest = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MinLongitude);
+        double objectEast = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MaxLongitude);
+        double objectNorth = WebMercatorTileMath.LatitudeToNormalizedY(objectBounds.MaxLatitude);
+        double objectSouth = WebMercatorTileMath.LatitudeToNormalizedY(objectBounds.MinLatitude);
 
         double uMin = Math.Clamp((objectWest - overlayWest) / overlayWidth, 0.0, 1.0);
         double uMax = Math.Clamp((objectEast - overlayWest) / overlayWidth, 0.0, 1.0);
@@ -3355,6 +3371,85 @@ public static class LocalCityGmlResonitePlanBuilder
         return (
             new ResoniteFloat2(Math.Max(uMax - uMin, 1e-6), Math.Max(vMax - vMin, 1e-6)),
             new ResoniteFloat2(uMin, vMin));
+    }
+
+    private static DemHeightMapBounds CreateDemHeightMapBounds(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        ResoniteFloat3 slotPosition,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        IReadOnlyList<ResoniteFloat3> positions)
+    {
+        double rawMinX = positions.Min(static position => position.X);
+        double rawMaxX = positions.Max(static position => position.X);
+        double rawMinZ = positions.Min(static position => position.Z);
+        double rawMaxZ = positions.Max(static position => position.Z);
+
+        if (demTerrainTextureOverlay is null)
+        {
+            return new DemHeightMapBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+        }
+
+        GeographicRectangle clippedBounds = IntersectGeographicBounds(
+            GetCityObjectGeographicBounds(cityObject),
+            demTerrainTextureOverlay.GeographicBounds);
+        double centerLatitude = (clippedBounds.MinLatitude + clippedBounds.MaxLatitude) / 2.0;
+        double centerLongitude = (clippedBounds.MinLongitude + clippedBounds.MaxLongitude) / 2.0;
+        ResoniteFloat3 westPosition = CreateGlobalHeightMapLocalPosition(
+            new GeodeticPoint(centerLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian);
+        ResoniteFloat3 eastPosition = CreateGlobalHeightMapLocalPosition(
+            new GeodeticPoint(centerLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian);
+        ResoniteFloat3 southPosition = CreateGlobalHeightMapLocalPosition(
+            new GeodeticPoint(clippedBounds.MinLatitude, centerLongitude, cityObjectOrigin.Altitude),
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian);
+        ResoniteFloat3 northPosition = CreateGlobalHeightMapLocalPosition(
+            new GeodeticPoint(clippedBounds.MaxLatitude, centerLongitude, cityObjectOrigin.Altitude),
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian);
+
+        double clippedMinX = Math.Min(westPosition.X, eastPosition.X);
+        double clippedMaxX = Math.Max(westPosition.X, eastPosition.X);
+        double clippedMinZ = Math.Min(southPosition.Z, northPosition.Z);
+        double clippedMaxZ = Math.Max(southPosition.Z, northPosition.Z);
+
+        if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
+        {
+            return new DemHeightMapBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+        }
+
+        return new DemHeightMapBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
+    }
+
+    private static GeographicRectangle GetCityObjectGeographicBounds(ParsedCityObject cityObject)
+    {
+        List<GeodeticPoint> vertices = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
+        return new GeographicRectangle(
+            MinLatitude: vertices.Min(static point => point.Latitude),
+            MaxLatitude: vertices.Max(static point => point.Latitude),
+            MinLongitude: vertices.Min(static point => point.Longitude),
+            MaxLongitude: vertices.Max(static point => point.Longitude));
+    }
+
+    private static GeographicRectangle IntersectGeographicBounds(
+        GeographicRectangle left,
+        GeographicRectangle right)
+    {
+        return new GeographicRectangle(
+            MinLatitude: Math.Max(left.MinLatitude, right.MinLatitude),
+            MaxLatitude: Math.Min(left.MaxLatitude, right.MaxLatitude),
+            MinLongitude: Math.Max(left.MinLongitude, right.MinLongitude),
+            MaxLongitude: Math.Min(left.MaxLongitude, right.MaxLongitude));
     }
 
     private static bool HasRenderableGeometry(ResoniteConstructionCityObject cityObject)
@@ -3725,6 +3820,12 @@ public static class LocalCityGmlResonitePlanBuilder
         double X,
         double Z,
         double Height);
+
+    private sealed record DemHeightMapBounds(
+        double MinX,
+        double MaxX,
+        double MinZ,
+        double MaxZ);
 
     private sealed class HeightMapSpatialIndex
     {

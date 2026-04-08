@@ -895,17 +895,53 @@ public sealed class PlateauImportServiceTests
             || Math.Abs(demChunks[0].Transform.Position.Z - demChunks[1].Transform.Position.Z) > 1e-6,
             "Split DEM heightmap chunks must not collapse onto the same slot X/Z.");
 
-        double[] westEdgeHeights = GetAbsoluteHeightMapEdgeHeights(demChunks[0], westGeometry, westGeometry.Width - 1);
-        double[] eastEdgeHeights = GetAbsoluteHeightMapEdgeHeights(demChunks[1], eastGeometry, 0);
-        Assert.Equal(westEdgeHeights.Length, eastEdgeHeights.Length);
+        double westSouthZ = demChunks[0].Transform.Position.Z - (westGeometry.Size.Y / 2.0);
+        double westNorthZ = demChunks[0].Transform.Position.Z + (westGeometry.Size.Y / 2.0);
+        double eastSouthZ = demChunks[1].Transform.Position.Z - (eastGeometry.Size.Y / 2.0);
+        double eastNorthZ = demChunks[1].Transform.Position.Z + (eastGeometry.Size.Y / 2.0);
+        Assert.True(
+            Math.Abs(westSouthZ - eastSouthZ) <= 1e-3,
+            $"Split DEM heightmap chunks must keep their south boundary aligned. westSouthZ={westSouthZ:F6}, eastSouthZ={eastSouthZ:F6}");
+        Assert.True(
+            Math.Abs(westNorthZ - eastNorthZ) <= 1e-3,
+            $"Split DEM heightmap chunks must keep their north boundary aligned. westNorthZ={westNorthZ:F6}, eastNorthZ={eastNorthZ:F6}");
+    }
 
-        for (int index = 0; index < westEdgeHeights.Length; index++)
-        {
-            double delta = westEdgeHeights[index] - eastEdgeHeights[index];
-            Assert.True(
-                Math.Abs(delta) <= 1e-3,
-                $"Boundary height mismatch at row {index}. west={westEdgeHeights[index]:F6}, east={eastEdgeHeights[index]:F6}, delta={delta:F6}, westGrid={westGeometry.Width}x{westGeometry.Height}, eastGrid={eastGeometry.Width}x{eastGeometry.Height}");
-        }
+    [Fact]
+    public async Task ExecuteAsyncTilesSplitDemHeightMapChunkBoundsWithoutHorizontalOverlapOrGap()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeStraddledSplitBoundaryDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject[] demChunks = heightMapScene.CityObjects
+            .Where(static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal))
+            .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(2, demChunks.Length);
+        ResoniteHeightMapGridGeometry westGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[0].Geometry);
+        ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
+        double westMaxX = demChunks[0].Transform.Position.X + (westGeometry.Size.X / 2.0);
+        double eastMinX = demChunks[1].Transform.Position.X - (eastGeometry.Size.X / 2.0);
+        Assert.True(
+            Math.Abs(westMaxX - eastMinX) <= 1e-3,
+            $"Split DEM heightmap chunks must tile on the overlay boundary without X overlap/gap. westMaxX={westMaxX:F6}, eastMinX={eastMinX:F6}, delta={westMaxX - eastMinX:F6}");
     }
 
     [Fact]
@@ -2049,7 +2085,6 @@ public sealed class PlateauImportServiceTests
             WebMercatorTileMath.LongitudeToPixelX(westLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel)
             + LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
             LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
-
         string xml =
             $"""
             <?xml version="1.0" encoding="UTF-8"?>
@@ -2057,7 +2092,7 @@ public sealed class PlateauImportServiceTests
               <gml:boundedBy>
                 <gml:Envelope srsDimension="3" srsName="EPSG:4326">
                   <gml:lowerCorner>35.0000 {westLongitude:F12} 0</gml:lowerCorner>
-                  <gml:upperCorner>35.0100 {eastLongitude:F12} 20</gml:upperCorner>
+                  <gml:upperCorner>35.0010 {eastLongitude:F12} 20</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <core:cityObjectMember>
@@ -2071,14 +2106,14 @@ public sealed class PlateauImportServiceTests
                             <gml:Triangle gml:id="tri-dem-boundary-west">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-boundary-west">
-                                  <gml:posList>35.0000 {splitLongitude:F12} 5 35.0100 {westLongitude:F12} 10 35.0100 {splitLongitude:F12} 20 35.0000 {splitLongitude:F12} 5</gml:posList>
+                                  <gml:posList>35.0000 {splitLongitude:F12} 5 35.0010 {westLongitude:F12} 10 35.0010 {splitLongitude:F12} 20 35.0000 {splitLongitude:F12} 5</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-boundary-east">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-boundary-east">
-                                  <gml:posList>35.0000 {splitLongitude:F12} 5 35.0100 {splitLongitude:F12} 20 35.0100 {eastLongitude:F12} 25 35.0000 {splitLongitude:F12} 5</gml:posList>
+                                  <gml:posList>35.0000 {splitLongitude:F12} 5 35.0010 {splitLongitude:F12} 20 35.0010 {eastLongitude:F12} 25 35.0000 {splitLongitude:F12} 5</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
@@ -2094,6 +2129,66 @@ public sealed class PlateauImportServiceTests
 
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_split_boundary.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeStraddledSplitBoundaryDemFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        const double westLongitude = 139.0000;
+        const double eastLongitude = 139.0400;
+        const double straddleDeltaLongitude = 0.00005;
+        double splitLongitude = WebMercatorTileMath.PixelXToLongitude(
+            WebMercatorTileMath.LongitudeToPixelX(westLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel)
+            + LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+
+        string xml =
+            $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3" srsName="EPSG:4326">
+                  <gml:lowerCorner>35.0000 {westLongitude:F12} 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 {eastLongitude:F12} 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-straddled-split-boundary">
+                  <gml:name>Straddled Split Boundary Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-straddled-split-boundary-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-dem-straddled-west">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-straddled-west">
+                                  <gml:posList>35.0000 {(splitLongitude + straddleDeltaLongitude):F12} 5 35.0100 {westLongitude:F12} 10 35.0100 {(splitLongitude - straddleDeltaLongitude):F12} 20 35.0000 {(splitLongitude + straddleDeltaLongitude):F12} 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-dem-straddled-east">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-straddled-east">
+                                  <gml:posList>35.0000 {(splitLongitude - straddleDeltaLongitude):F12} 5 35.0100 {(splitLongitude + straddleDeltaLongitude):F12} 20 35.0100 {eastLongitude:F12} 25 35.0000 {(splitLongitude - straddleDeltaLongitude):F12} 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_straddled_split_boundary.gml"),
             xml);
     }
 
@@ -3266,23 +3361,6 @@ public sealed class PlateauImportServiceTests
                     cityObject.Transform.Position.Z + vertex.Position.Z),
                 vertex.UV0.X);
         }
-    }
-
-    private static double[] GetAbsoluteHeightMapEdgeHeights(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteHeightMapGridGeometry geometry,
-        int columnIndex)
-    {
-        double range = geometry.MaxHeight - geometry.MinHeight;
-        double[] heights = new double[geometry.Height];
-        for (int rowIndex = 0; rowIndex < geometry.Height; rowIndex++)
-        {
-            ushort sample = (ushort)geometry.HeightSamples[(rowIndex * geometry.Width) + columnIndex];
-            double normalized = sample / (double)ushort.MaxValue;
-            heights[rowIndex] = cityObject.Transform.Position.Y - ((1.0 - normalized) * range);
-        }
-
-        return heights;
     }
 
     internal sealed record CapturedResoniteScene(
