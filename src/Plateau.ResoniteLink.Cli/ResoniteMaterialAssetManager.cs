@@ -10,7 +10,8 @@ namespace Plateau.ResoniteLink.Cli;
 internal sealed class ResoniteMaterialAssetManager(
     string dataset,
     Func<string, string, string, string, Func<Task<Uri>>, string, CancellationToken, Task<Uri>> ensureAssetComponentUrlKnownAsync,
-    Func<string, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> ensureComponentKnownAsync)
+    Func<string, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> ensureComponentKnownAsync,
+    Action<string>? progressReporter = null)
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
@@ -34,6 +35,7 @@ internal sealed class ResoniteMaterialAssetManager(
             dataset,
             "materialasset",
             materialInstanceKey);
+        ReportProgress($"[live] Material '{material.MaterialKey}' queued.");
         return await materialComponentTasks.GetOrAdd(
             materialInstanceKey,
             _ => new Lazy<Task<string>>(
@@ -80,12 +82,17 @@ internal sealed class ResoniteMaterialAssetManager(
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
         string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
+        ReportProgress(
+            $"[live] Material '{material.MaterialKey}' resolving as '{materialComponentType}' "
+            + $"(projection={material.Projection}, texture={material.TexturePath ?? "none"}).");
 
         if (material.TexturePath is not null
             && preparedTexturePathsByKey.TryGetValue(
                 CreateTextureCacheKey(material.TexturePath, material.TextureSourceKind),
                 out (string AbsoluteTexturePath, string SourceFingerprint) textureAsset))
         {
+            ReportProgress(
+                $"[live] Material '{material.MaterialKey}' importing albedo texture from '{textureAsset.AbsoluteTexturePath}'.");
             await ensureAssetComponentUrlKnownAsync(
                 materialAssetSlotId,
                 textureComponentId,
@@ -106,6 +113,8 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.NormalPath is not null)
             {
                 string normalFingerprint = ComputeContentFingerprint(textureSet.NormalPath);
+                ReportProgress(
+                    $"[live] Material '{material.MaterialKey}' importing bundled normal map from '{textureSet.NormalPath}'.");
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     normalTextureComponentId,
@@ -128,6 +137,8 @@ internal sealed class ResoniteMaterialAssetManager(
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
                 string heightFingerprint = ComputeContentFingerprint(textureSet.HeightPath);
+                ReportProgress(
+                    $"[live] Material '{material.MaterialKey}' importing bundled height map from '{textureSet.HeightPath}'.");
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     heightTextureComponentId,
@@ -149,6 +160,8 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.MetallicPath is not null)
             {
                 string metallicFingerprint = ComputeContentFingerprint(textureSet.MetallicPath);
+                ReportProgress(
+                    $"[live] Material '{material.MaterialKey}' importing bundled metallic map from '{textureSet.MetallicPath}'.");
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     metallicTextureComponentId,
@@ -171,6 +184,8 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.EmissionPath is not null)
             {
                 string emissionFingerprint = ComputeContentFingerprint(textureSet.EmissionPath);
+                ReportProgress(
+                    $"[live] Material '{material.MaterialKey}' importing bundled emission map from '{textureSet.EmissionPath}'.");
                 await ensureAssetComponentUrlKnownAsync(
                     materialAssetSlotId,
                     emissionTextureComponentId,
@@ -188,12 +203,16 @@ internal sealed class ResoniteMaterialAssetManager(
             }
         }
 
+        ReportProgress(
+            $"[live] Material '{material.MaterialKey}' ensuring component '{materialComponentType}' "
+            + $"with {materialMembers.Count} members.");
         await ensureComponentKnownAsync(
             materialAssetSlotId,
             materialId,
             materialComponentType,
             materialMembers,
             cancellationToken);
+        ReportProgress($"[live] Material '{material.MaterialKey}' ready.");
         return materialId;
     }
 
@@ -223,5 +242,10 @@ internal sealed class ResoniteMaterialAssetManager(
         }
 
         return Convert.ToHexString(incrementalHash.GetHashAndReset());
+    }
+
+    private void ReportProgress(string message)
+    {
+        progressReporter?.Invoke(message);
     }
 }

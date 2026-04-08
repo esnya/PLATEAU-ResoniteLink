@@ -33,6 +33,9 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null,
             DemHeightmapMetersPerVertex: metersPerVertex);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -54,6 +57,9 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null,
             DemHeightmapMaxResolution: maxResolution);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);

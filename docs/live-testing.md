@@ -4,6 +4,18 @@
 
 Use this workflow only for machine-level checks against a running ResoniteLink listener.
 
+## Live Contract Rules
+
+- Treat ResoniteLink component payloads as a strict transport contract, not an open-ended property bag.
+- Do not send members that are not defined on the target Resonite component type. Keep local cache metadata such as source fingerprints outside live component members.
+- When a component uses nullable enum fields on the Resonite side, write them with the matching ResoniteLink field type instead of assuming a plain enum field is interchangeable.
+- Before spending time on a machine-level run, add or update a local test seam that can fail on:
+  - read-after-write lag (`AddComponent` succeeds but a following `GetComponent` still returns `null`)
+  - unexpected component members
+  - field-type mismatches on live-written members
+
+These checks are cheaper and more deterministic than reading Resonite runtime logs after the fact. Use Resonite-side logs only after the local contract and test seams have been exhausted.
+
 ## Constraints
 
 - The ResoniteLink port is session-specific. Do not hard-code it in source control.

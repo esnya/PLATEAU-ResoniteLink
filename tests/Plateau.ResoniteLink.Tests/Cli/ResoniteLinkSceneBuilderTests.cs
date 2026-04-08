@@ -320,9 +320,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["Uncompressed"]).Value);
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["DirectLoad"]).Value);
         Assert.False(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["MipMaps"]).Value);
-        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["WrapModeU"]).Value);
-        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["WrapModeV"]).Value);
-        Assert.Equal("Point", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["FilterMode"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["WrapModeU"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["WrapModeV"]).Value);
+        Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["FilterMode"]).Value);
+        Assert.DoesNotContain("SourceFingerprint", heightTextureRequest.Data.Members.Keys);
 
         string reliefSlotId = fakeClient.BuildingSlotIds["Relief One"];
         Slot reliefSlot = fakeClient.SlotsById[reliefSlotId];
@@ -347,6 +348,48 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal(
             gridMeshRequest.Data.ID,
             Assert.IsType<Reference>(collider.Members["Mesh"]).TargetID);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotReAddHeightMapTextureWhenComponentReadBackLags()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 16));
+
+        using LaggyHeightTextureReadClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            terrainTextureAssetGenerator);
+
+        await RunBuilderAsync(builder, scene);
+
+        AddComponent[] heightTextureAdds = fakeClient.AddedComponents
+            .Where(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && request.Data.Members.ContainsKey("Readable"))
+            .ToArray();
+        AddComponent heightTextureAdd = Assert.Single(heightTextureAdds);
+        Assert.Equal(
+            1,
+            fakeClient.AddedComponents.Count(request => string.Equals(request.Data.ID, heightTextureAdd.Data.ID, StringComparison.Ordinal)));
+        Assert.Contains(
+            fakeClient.UpdatedComponentIds,
+            componentId => string.Equals(componentId, heightTextureAdd.Data.ID, StringComparison.Ordinal));
+        Assert.DoesNotContain("SourceFingerprint", heightTextureAdd.Data.Members.Keys);
     }
 
     [Fact]
@@ -419,7 +462,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
-        await RunBuilderAsync(builder, scene);
+        using TemporaryDirectory workDirectory = new();
+        await RunBuilderAsync(builder, scene, workDirectory.Path);
 
         string heightMapPath = Assert.Single(
             fakeClient.ImportedTexturePaths,
@@ -900,12 +944,19 @@ public sealed class ResoniteLinkSceneBuilderTests
         CapturedResoniteScene firstScene = CreateAppendScene("53394525", "Building 25");
         CapturedResoniteScene secondScene = CreateAppendScene("53394526", "Building 26");
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), firstScene);
+        using TemporaryDirectory sharedWorkDirectory = new();
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            firstScene,
+            sharedWorkDirectory.Path);
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
         int addedParentMeshSlotsAfterFirstRun = firstClient.AddedSlots.Count(request =>
             GetSlotPath(firstClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal));
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), secondScene);
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            secondScene,
+            sharedWorkDirectory.Path);
 
         Assert.Contains("PLATEAU tokyo23ku/53394525", secondClient.SlotPaths.Values);
         Assert.Contains("PLATEAU tokyo23ku/53394526", secondClient.SlotPaths.Values);
@@ -944,7 +995,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             () => fakeClient,
             terrainTextureAssetGenerator);
 
-        await RunBuilderAsync(builder, scene);
+        using TemporaryDirectory workDirectory = new();
+        await RunBuilderAsync(builder, scene, workDirectory.Path);
 
         TerrainTextureOverlay requestedOverlay = Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, requestedOverlay.TexturePath);
@@ -971,11 +1023,18 @@ public sealed class ResoniteLinkSceneBuilderTests
         using FakeResoniteLinkClient firstClient = new(session);
         using FakeResoniteLinkClient secondClient = new(session);
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), scene);
+        using TemporaryDirectory sharedWorkDirectory = new();
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            scene,
+            sharedWorkDirectory.Path);
         int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
 
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), scene);
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            scene,
+            sharedWorkDirectory.Path);
 
         Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
         Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
@@ -1316,6 +1375,95 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
     }
 
+    private sealed class LaggyHeightTextureReadClient : IResoniteLinkClient
+    {
+        private readonly Dictionary<string, Component> componentsById = new(StringComparer.Ordinal);
+        private readonly HashSet<string> laggyTextureComponentIds = new(StringComparer.Ordinal);
+
+        public List<AddComponent> AddedComponents { get; } = [];
+
+        public List<string> ImportedTexturePaths { get; } = [];
+
+        public List<string> UpdatedComponentIds { get; } = [];
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddedComponents.Add(request);
+            componentsById[request.Data.ID] = request.Data;
+
+            if (string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && request.Data.Members.ContainsKey("URL"))
+            {
+                laggyTextureComponentIds.Add(request.Data.ID);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (laggyTextureComponentIds.Contains(componentId))
+            {
+                return Task.FromResult<Component?>(null);
+            }
+
+            componentsById.TryGetValue(componentId, out Component? component);
+            return Task.FromResult(component);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(null);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///mesh/0", UriKind.Absolute));
+        }
+
+        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ImportedTexturePaths.Add(filePath);
+            return Task.FromResult(new Uri($"resdb:///texture/{ImportedTexturePaths.Count - 1}", UriKind.Absolute));
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            UpdatedComponentIds.Add(request.Data.ID);
+            if (componentsById.TryGetValue(request.Data.ID, out Component? existing))
+            {
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakeResoniteLinkSession
     {
         public object Gate { get; } = new();
@@ -1367,11 +1515,13 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private static async Task<IReadOnlyList<string>> RunBuilderAsync(
         ResoniteLinkSceneBuilder builder,
-        CapturedResoniteScene scene)
+        CapturedResoniteScene scene,
+        string? workRoot = null)
     {
+        using TemporaryDirectory? workDirectory = workRoot is null ? new TemporaryDirectory() : null;
         try
         {
-            await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+            await builder.BeginAsync(scene.Metadata, workRoot ?? workDirectory!.Path);
             foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects)
             {
                 await builder.ProcessCityObjectAsync(cityObject);

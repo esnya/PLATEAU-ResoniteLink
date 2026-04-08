@@ -4,6 +4,18 @@
 
 この手順は、起動中の ResoniteLink listener に対する実機レベルの確認だけに使う。
 
+## Live Contract Rules
+
+- ResoniteLink の component payload は、自由な property bag ではなく strict な transport contract として扱う。
+- target の Resonite component type に定義されていない member を送ってはいけない。source fingerprint のような local cache metadata は、live component member とは別に持つ。
+- Resonite 側が nullable enum field を使う component では、単なる enum field で代用せず、対応する ResoniteLink field type を使う。
+- 実機 run に時間を使う前に、少なくとも次を落とせる local test seam を追加または更新する。
+  - `AddComponent` 後に `GetComponent` がまだ `null` を返す read-after-write lag
+  - 想定外の component member
+  - live 書き込み member の field type mismatch
+
+これらの確認は、事後に Resonite runtime log を読むより安価で再現性が高い。Resonite 側の log は、local の contract と test seam を詰め切った後の最後の手段として使う。
+
 ## 制約
 
 - ResoniteLink のポートはセッションごとに変わる。ソース管理に固定値を書かない。

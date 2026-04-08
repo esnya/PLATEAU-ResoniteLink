@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Channels;
 
 using GeographicLib;
@@ -23,6 +25,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const int MaxQueuedCityObjects = 4;
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
+    private const string LiveAssetStateFileName = "resonite-live-asset-state.json";
     private const double SlotPositionTolerance = 0.0001;
     private static readonly PngEncoder HeightMapPngEncoder = new()
     {
@@ -35,6 +38,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly Action<string>? progressReporter;
+    private readonly SemaphoreSlim assetStateWriteLock = new(1, 1);
     private List<IResoniteLinkClient>? clients;
     private ResoniteConstructionMetadata? metadata;
     private string? datasetSlotId;
@@ -44,9 +48,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ResoniteMaterialAssetManager? materialAssetManager;
     private ResoniteLicenseManager? licenseManager;
     private string? generatedAssetsRoot;
+    private string? liveAssetStatePath;
     private ConcurrentDictionary<string, Lazy<Task>>? slotEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task>>? componentEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task<Uri>>>? assetComponentEnsureTasks;
+    private ConcurrentDictionary<string, string>? assetSourceFingerprints;
     private ConcurrentDictionary<string, Task<ResolvedTextureImport>>? resolvedTexturePathTasks;
     private Dictionary<string, TerrainTextureOverlay>? terrainTextureOverlaysByPath;
     private Channel<QueuedCityObject>? cityObjectChannel;
@@ -102,7 +108,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
         this.metadata = metadata;
-        generatedAssetsRoot = Path.Combine(Path.GetFullPath(workRoot), ".generated-assets");
+        string resolvedWorkRoot = Path.GetFullPath(workRoot);
+        generatedAssetsRoot = Path.Combine(resolvedWorkRoot, ".generated-assets");
+        liveAssetStatePath = Path.Combine(resolvedWorkRoot, LiveAssetStateFileName);
         datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "dataset");
@@ -133,6 +141,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         slotEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         componentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         assetComponentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task<Uri>>>(StringComparer.Ordinal);
+        assetSourceFingerprints = await LoadAssetSourceFingerprintsAsync(liveAssetStatePath, cancellationToken);
         materialAssetManager = new ResoniteMaterialAssetManager(
             metadata.Request.Dataset,
             (containerSlotId, componentId, componentType, uriMemberName, importAssetAsync, sourceFingerprint, ct) =>
@@ -152,7 +161,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     componentId,
                     componentType,
                     members,
-                    ct));
+                    ct),
+            ReportProgress);
         resolvedTexturePathTasks = new ConcurrentDictionary<string, Task<ResolvedTextureImport>>(StringComparer.OrdinalIgnoreCase);
         datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(metadata.Request.LocalSourcePath!, cancellationToken);
         terrainTextureOverlaysByPath = metadata.SourceDataset.TerrainTextureOverlays.ToDictionary(
@@ -249,6 +259,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         cityObjectChannel.Writer.TryComplete();
         await Task.WhenAll(processingTasks).WaitAsync(cancellationToken);
         diagnostics.CompleteSendWindow();
+        await PersistAssetSourceFingerprintsAsync(cancellationToken);
         ReportProgress($"[live] Completed {processedCityObjectCount} city objects.");
         return [$"{endpoint}#{meshCodeSlotId}"];
     }
@@ -285,9 +296,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         materialAssetManager = null;
         licenseManager = null;
         generatedAssetsRoot = null;
+        liveAssetStatePath = null;
         slotEnsureTasks = null;
         componentEnsureTasks = null;
         assetComponentEnsureTasks = null;
+        assetSourceFingerprints = null;
         resolvedTexturePathTasks = null;
         terrainTextureOverlaysByPath = null;
         cityObjectChannel = null;
@@ -576,6 +589,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string assetLodSlotId = GetAssetLodSlotId(metadata.Request.Dataset, rootMeshCode, cityObject.PackageName, cityObject.LodLevel);
 
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
+        ReportBuildStep(cityObject, "Ensuring package and LOD slots.");
 
         await EnsureSlotKnownAsync(
             client,
@@ -609,6 +623,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             assetLodSlotId,
             cancellationToken);
 
+        ReportBuildStep(cityObject, $"Ensuring geometry component ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
         string geometryComponentId = await EnsureGeometryComponentAsync(
             client,
             meshAssetSlotId,
@@ -629,6 +644,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
             ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
+            ReportBuildStep(
+                cityObject,
+                $"Ensuring material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
             string materialInstanceKey = ResoniteLinkEntityIdFactory.CreateStableEntityId(
                 metadata.Request.Dataset,
                 rootMeshCode,
@@ -645,6 +663,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             materialIds.Add(materialId);
         }
 
+        ReportBuildStep(cityObject, "Ensuring MeshRenderer component.");
         await EnsureComponentKnownAsync(
             client,
             cityObjectSlotId,
@@ -668,6 +687,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             },
             cancellationToken);
 
+        ReportBuildStep(cityObject, "Ensuring MeshCollider component.");
         await EnsureComponentKnownAsync(
             client,
             cityObjectSlotId,
@@ -690,6 +710,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             },
             cancellationToken);
 
+        ReportBuildStep(cityObject, "Live build completed.");
         sendScope.MarkSent();
 
         if (Interlocked.CompareExchange(ref firstBuiltCityObjectLogged, 1, 0) == 0)
@@ -946,6 +967,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             rootMeshCode,
             objectIdentity);
 
+        ReportProgress(
+            $"[live] HeightMap '{preparedGeometry.Geometry.Width}x{preparedGeometry.Geometry.Height}' importing displacement texture "
+            + $"from '{preparedGeometry.HeightTexturePath}'.");
         await EnsureAssetComponentUrlKnownAsync(
             client,
             meshAssetSlotId,
@@ -955,9 +979,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             () => client.ImportTextureAsync(preparedGeometry.HeightTexturePath, cancellationToken),
             heightMapSourceFingerprint,
             cancellationToken);
-        await UpsertComponentMembersAsync(
+        ReportProgress(
+            $"[live] HeightMap texture imported for '{objectIdentity}'. Updating StaticTexture2D settings.");
+        await UpdateComponentMembersAsync(
             client,
-            meshAssetSlotId,
             heightTextureId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             new Dictionary<string, Member>(StringComparer.Ordinal)
@@ -966,15 +991,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 ["Uncompressed"] = new Field_bool { Value = true },
                 ["DirectLoad"] = new Field_bool { Value = true },
                 ["MipMaps"] = new Field_bool { Value = false },
-                ["WrapModeU"] = new Field_Enum { Value = "Clamp" },
-                ["WrapModeV"] = new Field_Enum { Value = "Clamp" },
-                ["FilterMode"] = new Field_Enum { Value = "Point" },
+                ["WrapModeU"] = new Field_Nullable_Enum { Value = "Clamp" },
+                ["WrapModeV"] = new Field_Nullable_Enum { Value = "Clamp" },
+                ["FilterMode"] = new Field_Nullable_Enum { Value = "Point" },
             },
             cancellationToken);
 
         double displacementMagnitude = Math.Max(
             preparedGeometry.Geometry.MaxHeight - preparedGeometry.Geometry.MinHeight,
             0.0);
+        ReportProgress(
+            $"[live] HeightMap texture ready for '{objectIdentity}'. Updating GridMesh "
+            + $"({preparedGeometry.Geometry.Width}x{preparedGeometry.Geometry.Height}, displacement={displacementMagnitude:F3}).");
         await UpsertComponentMembersAsync(
             client,
             cityObjectSlotId,
@@ -1008,10 +1036,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
             },
             cancellationToken);
+        ReportProgress($"[live] GridMesh ready for '{objectIdentity}'.");
         return gridMeshId;
     }
 
-    private static async Task UpsertComponentMembersAsync(
+    private async Task UpsertComponentMembersAsync(
         IResoniteLinkClient client,
         string containerSlotId,
         string componentId,
@@ -1022,6 +1051,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
         if (existingComponent is null)
         {
+            ReportProgress(
+                $"[live] Adding component '{componentId}' ({componentType}) to slot '{containerSlotId}'.");
             await client.AddComponentAsync(
                 new AddComponent
                 {
@@ -1037,6 +1068,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return;
         }
 
+        await UpdateComponentMembersAsync(client, componentId, componentType, members, cancellationToken);
+    }
+
+    private async Task UpdateComponentMembersAsync(
+        IResoniteLinkClient client,
+        string componentId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members,
+        CancellationToken cancellationToken)
+    {
+        ReportProgress(
+            $"[live] Updating component '{componentId}' ({componentType}).");
         await client.UpdateComponentAsync(
             new UpdateComponent
             {
@@ -1080,6 +1123,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         byte[] slotKeyBytes = Encoding.UTF8.GetBytes(slotKey);
         byte[] hash = SHA256.HashData(slotKeyBytes);
         return Convert.ToHexString(hash);
+    }
+
+    private void ReportBuildStep(ResoniteConstructionCityObject cityObject, string step)
+    {
+        ReportProgress(
+            $"[live] Building '{cityObject.DisplayName}' ({cityObject.PackageName}/{cityObject.SlotKey}): {step}");
     }
 
     private static string DescribePreparedGeometry(PreparedConstructionGeometry geometry)
@@ -1456,7 +1505,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private static async Task<Uri> EnsureAssetComponentUrlAsync(
+    private async Task<Uri> EnsureAssetComponentUrlAsync(
         IResoniteLinkClient client,
         string containerSlotId,
         string componentId,
@@ -1466,31 +1515,36 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string sourceFingerprint,
         CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(assetSourceFingerprints is null, this);
         Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
-        string? existingSourceFingerprint = TryGetSourceFingerprint(existingComponent);
+        assetSourceFingerprints.TryGetValue(componentId, out string? existingSourceFingerprint);
         if (
             existingSourceFingerprint is not null
             && string.Equals(existingSourceFingerprint, sourceFingerprint, StringComparison.Ordinal)
             && TryGetUri(existingComponent, uriMemberName) is Uri existingUri)
         {
+            ReportProgress(
+                $"[live] Reusing asset component '{componentId}' ({componentType}) with matching fingerprint.");
             return existingUri;
         }
 
+        ReportProgress(
+            $"[live] Importing asset for component '{componentId}' ({componentType}, fingerprint={sourceFingerprint[..Math.Min(12, sourceFingerprint.Length)]}).");
         Uri assetUri = await importAssetAsync();
+        ReportProgress(
+            $"[live] Asset import completed for component '{componentId}' ({componentType}) -> '{assetUri}'.");
         Dictionary<string, Member> members = new(StringComparer.Ordinal)
         {
             [uriMemberName] = new Field_Uri
             {
                 Value = assetUri,
             },
-            ["SourceFingerprint"] = new Field_string
-            {
-                Value = sourceFingerprint,
-            },
         };
 
         if (existingComponent is null)
         {
+            ReportProgress(
+                $"[live] Adding asset component '{componentId}' ({componentType}) to slot '{containerSlotId}'.");
             await client.AddComponentAsync(
                 new AddComponent
                 {
@@ -1506,6 +1560,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
         else
         {
+            ReportProgress(
+                $"[live] Updating asset component '{componentId}' ({componentType}) on slot '{containerSlotId}'.");
             await client.UpdateComponentAsync(
                 new UpdateComponent
                 {
@@ -1518,10 +1574,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 cancellationToken);
         }
 
+        assetSourceFingerprints[componentId] = sourceFingerprint;
+        await PersistAssetSourceFingerprintsAsync(cancellationToken);
         return assetUri;
     }
 
-    private static async Task EnsureComponentAsync(
+    private async Task EnsureComponentAsync(
         IResoniteLinkClient client,
         string containerSlotId,
         string componentId,
@@ -1532,9 +1590,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
         if (existingComponent is not null)
         {
+            ReportProgress($"[live] Reusing existing component '{componentId}' ({componentType}).");
             return;
         }
 
+        ReportProgress(
+            $"[live] Adding component '{componentId}' ({componentType}) to slot '{containerSlotId}'.");
         await client.AddComponentAsync(
             new AddComponent
             {
@@ -1583,16 +1644,62 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return fieldUri.Value;
     }
 
-    private static string? TryGetSourceFingerprint(Component? component)
+    private async Task PersistAssetSourceFingerprintsAsync(CancellationToken cancellationToken)
     {
-        if (component is null
-            || !component.Members.TryGetValue("SourceFingerprint", out Member? member)
-            || member is not Field_string sourceFingerprint)
+        if (liveAssetStatePath is null || assetSourceFingerprints is null)
         {
-            return null;
+            return;
         }
 
-        return sourceFingerprint.Value;
+        await assetStateWriteLock.WaitAsync(cancellationToken);
+        try
+        {
+            string directory = Path.GetDirectoryName(liveAssetStatePath) ?? ".";
+            Directory.CreateDirectory(directory);
+            string temporaryPath = $"{liveAssetStatePath}.tmp";
+            LiveAssetState state = new(
+                assetSourceFingerprints.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                    .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal));
+            string json = JsonSerializer.Serialize(state, LiveAssetStateJsonContext.Default.LiveAssetState);
+            await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
+            File.Move(temporaryPath, liveAssetStatePath, overwrite: true);
+        }
+        finally
+        {
+            assetStateWriteLock.Release();
+        }
+    }
+
+    private async Task<ConcurrentDictionary<string, string>> LoadAssetSourceFingerprintsAsync(
+        string statePath,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(statePath))
+        {
+            return new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        try
+        {
+            await using FileStream stream = File.OpenRead(statePath);
+            LiveAssetState? state = await JsonSerializer.DeserializeAsync(
+                stream,
+                LiveAssetStateJsonContext.Default.LiveAssetState,
+                cancellationToken);
+            return new ConcurrentDictionary<string, string>(
+                state?.AssetSourceFingerprints ?? [],
+                StringComparer.Ordinal);
+        }
+        catch (JsonException)
+        {
+            ReportProgress($"[live] Ignoring unreadable asset state cache '{statePath}'.");
+            return new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+        }
+        catch (IOException)
+        {
+            ReportProgress($"[live] Ignoring unavailable asset state cache '{statePath}'.");
+            return new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
+        }
     }
 
     private static string FormatLodSlotName(int? lodLevel)
@@ -1670,4 +1777,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record PreparedHeightMapTexture(
         string AbsolutePath,
         string SourceFingerprint);
+}
+
+internal sealed record LiveAssetState(
+    Dictionary<string, string> AssetSourceFingerprints);
+
+[JsonSerializable(typeof(LiveAssetState))]
+internal sealed partial class LiveAssetStateJsonContext : JsonSerializerContext
+{
 }
