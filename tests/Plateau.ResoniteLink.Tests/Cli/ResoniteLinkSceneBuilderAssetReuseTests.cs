@@ -3,6 +3,9 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Plateau.ResoniteLink.Tests.Cli;
 
 [Collection(BundledCompanionTextureIsolationGroup.Name)]
@@ -44,11 +47,11 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     public async Task BuildAsyncReimportsRegularTextureWhenContentChangesInSameSession()
     {
         using TemporaryDirectory datasetDirectory = new();
-        string texturePath = "textures/albedo.bin";
+        string texturePath = "textures/albedo.png";
         Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
-        await File.WriteAllTextAsync(
+        await WriteSolidColorTextureAsync(
             Path.Combine(datasetDirectory.Path, texturePath),
-            "initial texture bytes");
+            new Rgba32(255, 0, 0, 255));
 
         ResoniteConstructionMetadata metadata = CreateMetadata(
             datasetDirectory.Path,
@@ -66,9 +69,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
         int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
 
-        await File.WriteAllTextAsync(
+        await WriteSolidColorTextureAsync(
             Path.Combine(datasetDirectory.Path, texturePath),
-            "modified texture bytes");
+            new Rgba32(0, 255, 0, 255));
 
         ResoniteConstructionCityObject secondCityObject = CreateTexturedTriangleCityObject(
             objectIdentity: "shared-regular-texture",
@@ -97,7 +100,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             [firstCityObject]);
 
         await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
+        int importedTexturesAfterFirstRun = sharedClient.ImportedRawHdrTextures.Count;
 
         ResoniteConstructionCityObject secondCityObject = CreateHeightMapCityObject(
             objectIdentity: "shared-heightmap",
@@ -107,7 +110,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             [secondCityObject]);
 
         await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
+        Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedRawHdrTextures.Count);
     }
 
     [Fact]
@@ -149,9 +152,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                 await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
                 int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
 
-                await File.WriteAllTextAsync(
+                await WriteSolidColorTextureAsync(
                     bundledTextureSet.NormalPath,
-                    "modified bundled normal companion bytes");
+                    new Rgba32(0, 0, 255, 255));
 
                 ResoniteConstructionCityObject secondCityObject = CreateBundledTriangleCityObject(
                     objectIdentity: "shared-bundled-companion",
@@ -193,6 +196,21 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         }
 
         await builder.CompleteAsync();
+    }
+
+    private static async Task WriteSolidColorTextureAsync(string path, Rgba32 color)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using Image<Rgba32> image = new(2, 2, color);
+        string extension = Path.GetExtension(path);
+        if (string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            await image.SaveAsJpegAsync(path);
+            return;
+        }
+
+        await image.SaveAsPngAsync(path);
     }
 
     private static ResoniteConstructionMetadata CreateMetadata(
@@ -376,6 +394,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public List<AddSlot> AddedSlots => session.AddedSlots;
         public List<ImportMeshRawData> ImportedMeshes => session.ImportedMeshes;
         public List<string> ImportedTexturePaths => session.ImportedTexturePaths;
+        public List<ResoniteRawTextureImport> ImportedRawTextures => session.ImportedRawTextures;
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures => session.ImportedRawHdrTextures;
         public Dictionary<string, Component> ComponentsById => session.ComponentsById;
         public Dictionary<string, Slot> SlotsById => session.SlotsById;
 
@@ -448,13 +468,32 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             }
         }
 
-        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (session.Gate)
             {
-                session.ImportedTexturePaths.Add(filePath);
-                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count - 1}", UriKind.Absolute));
+                switch (textureImport)
+                {
+                    case ResoniteFileTextureImport fileImport:
+                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
+                        break;
+                    case ResoniteRawTextureImport rawImport:
+                        session.ImportedRawTextures.Add(rawImport);
+                        if (rawImport.SourcePath is not null)
+                        {
+                            session.ImportedTexturePaths.Add(rawImport.SourcePath);
+                        }
+
+                        break;
+                    case ResoniteRawHdrTextureImport rawHdrImport:
+                        session.ImportedRawHdrTextures.Add(rawHdrImport);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
+                }
+
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count + session.ImportedRawTextures.Count + session.ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
             }
         }
 
@@ -509,6 +548,10 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public List<ImportMeshRawData> ImportedMeshes { get; } = [];
 
         public List<string> ImportedTexturePaths { get; } = [];
+
+        public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
+
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
         public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
 

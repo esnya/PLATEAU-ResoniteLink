@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -11,33 +12,44 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal interface ITerrainTextureAssetGenerator
 {
-    Task<string> EnsureTextureAsync(
+    Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
-        string workRoot,
         CancellationToken cancellationToken);
 }
 
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
+    private readonly ConcurrentDictionary<string, Lazy<Task<ResoniteRawTextureImport>>> cachedTextures = new(StringComparer.Ordinal);
 
-    public async Task<string> EnsureTextureAsync(
+    public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
-        string workRoot,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
-        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
+        string cacheKey = CreateCacheKey(terrainTextureOverlay);
 
-        string textureDirectory = Path.Combine(Path.GetFullPath(workRoot), "terrain-textures");
-        Directory.CreateDirectory(textureDirectory);
+        Lazy<Task<ResoniteRawTextureImport>> cachedTexture = cachedTextures.GetOrAdd(
+            cacheKey,
+            _ => new Lazy<Task<ResoniteRawTextureImport>>(
+                () => CreateTextureAsync(terrainTextureOverlay, cancellationToken),
+                LazyThreadSafetyMode.ExecutionAndPublication));
 
-        string texturePath = Path.Combine(textureDirectory, CreateFileName(terrainTextureOverlay));
-        if (File.Exists(texturePath))
+        try
         {
-            return texturePath;
+            return await cachedTexture.Value;
         }
+        catch
+        {
+            cachedTextures.TryRemove(cacheKey, out _);
+            throw;
+        }
+    }
 
+    private async Task<ResoniteRawTextureImport> CreateTextureAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        CancellationToken cancellationToken)
+    {
         TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(terrainTextureOverlay);
 
         using Image<Rgba32> stitchedImage = new(
@@ -65,8 +77,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             layoutPlan.CropHeight)));
 
         using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
-        await outputImage.SaveAsPngAsync(texturePath, cancellationToken);
-        return texturePath;
+        return CreateRawTextureImport(outputImage);
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
@@ -107,7 +118,14 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         return await Image.LoadAsync<Rgba32>(responseStream, cancellationToken);
     }
 
-    private static string CreateFileName(TerrainTextureOverlay terrainTextureOverlay)
+    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image)
+    {
+        byte[] rawBytes = new byte[image.Width * image.Height * 4];
+        image.CopyPixelDataTo(rawBytes);
+        return new ResoniteRawTextureImport(image.Width, image.Height, "sRGB", rawBytes);
+    }
+
+    private static string CreateCacheKey(TerrainTextureOverlay terrainTextureOverlay)
     {
         string fingerprint = string.Join(
             "|",
@@ -121,7 +139,6 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             terrainTextureOverlay.GeographicBounds.MaxLongitude,
             terrainTextureOverlay.MaxTextureSize);
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
-        string suffix = Convert.ToHexString(hash[..8]).ToLowerInvariant();
-        return $"{terrainTextureOverlay.PackageName}-z{terrainTextureOverlay.ZoomLevel}-{suffix}.png";
+        return Convert.ToHexString(hash);
     }
 }

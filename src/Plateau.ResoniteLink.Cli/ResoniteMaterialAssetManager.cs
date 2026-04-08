@@ -20,7 +20,7 @@ internal sealed class ResoniteMaterialAssetManager(
     public async Task<string> EnsureMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<string, (string AbsoluteTexturePath, string SourceFingerprint)> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTexturePathsByKey,
         string materialAssetSlotId,
         string materialInstanceKey,
         CancellationToken cancellationToken)
@@ -53,7 +53,7 @@ internal sealed class ResoniteMaterialAssetManager(
     private async Task<string> EnsureMaterialComponentCoreAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<string, (string AbsoluteTexturePath, string SourceFingerprint)> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTexturePathsByKey,
         string materialAssetSlotId,
         string materialInstanceKey,
         string materialId,
@@ -89,16 +89,15 @@ internal sealed class ResoniteMaterialAssetManager(
         if (material.TexturePath is not null
             && preparedTexturePathsByKey.TryGetValue(
                 CreateTextureCacheKey(material.TexturePath, material.TextureSourceKind),
-                out (string AbsoluteTexturePath, string SourceFingerprint) textureAsset))
+                out (ResoniteTextureImport TextureImport, string SourceFingerprint) textureAsset))
         {
-            ReportProgress(
-                $"[live] Material '{material.MaterialKey}' importing albedo texture from '{textureAsset.AbsoluteTexturePath}'.");
+            ReportProgress($"[live] Material '{material.MaterialKey}' importing albedo texture.");
             await ensureAssetComponentUrlKnownAsync(
                 materialAssetSlotId,
                 textureComponentId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 "URL",
-                () => client.ImportTextureAsync(textureAsset.AbsoluteTexturePath, cancellationToken),
+                () => client.ImportTextureAsync(textureAsset.TextureImport, cancellationToken),
                 textureAsset.SourceFingerprint,
                 cancellationToken);
             materialMembers["AlbedoTexture"] = new Reference
@@ -120,7 +119,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     normalTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(textureSet.NormalPath, cancellationToken),
+                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath), cancellationToken),
                     normalFingerprint,
                     cancellationToken);
                 materialMembers["NormalMap"] = new Reference
@@ -144,7 +143,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     heightTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(textureSet.HeightPath, cancellationToken),
+                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath), cancellationToken),
                     heightFingerprint,
                     cancellationToken);
                 materialMembers["HeightMap"] = new Reference
@@ -167,7 +166,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     metallicTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(textureSet.MetallicPath, cancellationToken),
+                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath), cancellationToken),
                     metallicFingerprint,
                     cancellationToken);
                 Reference metallicReference = new()
@@ -191,7 +190,7 @@ internal sealed class ResoniteMaterialAssetManager(
                     emissionTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(textureSet.EmissionPath, cancellationToken),
+                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath), cancellationToken),
                     emissionFingerprint,
                     cancellationToken);
                 materialMembers["EmissiveMap"] = new Reference

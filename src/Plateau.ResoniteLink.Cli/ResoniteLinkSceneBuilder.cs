@@ -14,10 +14,6 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Png;
-using SixLabors.ImageSharp.PixelFormats;
-
 namespace Plateau.ResoniteLink.Cli;
 
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
@@ -27,11 +23,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const string DemPackageName = "dem";
     private const string LiveAssetStateFileName = "resonite-live-asset-state.json";
     private const double SlotPositionTolerance = 0.0001;
-    private static readonly PngEncoder HeightMapPngEncoder = new()
-    {
-        BitDepth = PngBitDepth.Bit16,
-        ColorType = PngColorType.Grayscale,
-    };
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -360,7 +351,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 return new PreparedTextureReference(
                     texture.TexturePath,
                     texture.TextureSourceKind,
-                    resolvedTexture.AbsoluteTexturePath,
+                    resolvedTexture.TextureImport,
                     resolvedTexture.SourceFingerprint);
             })
             .ToArray();
@@ -377,13 +368,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ResoniteHeightMapGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
                 () =>
                 {
-                    PreparedHeightMapTexture preparedHeightMapTexture = PrepareHeightMapTexture(
-                        heightMap,
-                        cityObject,
-                        generatedAssetsRoot!);
+                    PreparedHeightMapTexture preparedHeightMapTexture = PrepareHeightMapTexture(heightMap);
                     return new PreparedHeightMapGridGeometry(
                         heightMap,
-                        preparedHeightMapTexture.AbsolutePath,
+                        preparedHeightMapTexture.TextureImport,
                         preparedHeightMapTexture.SourceFingerprint);
                 },
                 cancellationToken),
@@ -422,13 +410,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         if (terrainTextureOverlaysByPath.TryGetValue(texturePath, out TerrainTextureOverlay? terrainTextureOverlay))
         {
-            string overlayAbsoluteTexturePath = await terrainTextureAssetGenerator.EnsureTextureAsync(
+            ResoniteRawTextureImport overlayTextureImport = await terrainTextureAssetGenerator.EnsureTextureAsync(
                 terrainTextureOverlay,
-                generatedAssetsRoot,
                 cancellationToken);
             return new ResolvedTextureImport(
-                overlayAbsoluteTexturePath,
-                ComputeContentFingerprint(overlayAbsoluteTexturePath));
+                overlayTextureImport,
+                ComputeTextureImportFingerprint(overlayTextureImport));
         }
 
         string absoluteTexturePath = textureSourceKind switch
@@ -442,8 +429,38 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
 
         return new ResolvedTextureImport(
-            absoluteTexturePath,
+            ResoniteTextureImportFactory.CreateFromFile(absoluteTexturePath),
             ComputeContentFingerprint(absoluteTexturePath));
+    }
+
+    private static string ComputeTextureImportFingerprint(ResoniteTextureImport textureImport)
+    {
+        return textureImport switch
+        {
+            ResoniteFileTextureImport fileTextureImport => ComputeContentFingerprint(fileTextureImport.AbsolutePath),
+            ResoniteRawTextureImport rawTextureImport => CreateRawTextureFingerprint(rawTextureImport),
+            ResoniteRawHdrTextureImport rawHdrTextureImport => CreateRawHdrTextureFingerprint(rawHdrTextureImport),
+            _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
+        };
+    }
+
+    private static string CreateRawTextureFingerprint(ResoniteRawTextureImport textureImport)
+    {
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Width));
+        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Height));
+        incrementalHash.AppendData(Encoding.UTF8.GetBytes(textureImport.ColorProfile));
+        incrementalHash.AppendData(textureImport.RawRgba32Bytes);
+        return Convert.ToHexString(incrementalHash.GetHashAndReset());
+    }
+
+    private static string CreateRawHdrTextureFingerprint(ResoniteRawHdrTextureImport textureImport)
+    {
+        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Width));
+        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Height));
+        incrementalHash.AppendData(textureImport.RawRgbaFloatBytes);
+        return Convert.ToHexString(incrementalHash.GetHashAndReset());
     }
 
     private static string ComputeContentFingerprint(string absolutePath)
@@ -634,11 +651,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             preparedCityObject,
             cancellationToken);
 
-        Dictionary<string, (string AbsoluteTexturePath, string SourceFingerprint)> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
+        Dictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureCacheKey(
                 texture.TexturePath,
                 texture.TextureSourceKind),
-            static texture => (texture.AbsoluteTexturePath, texture.SourceFingerprint),
+            static texture => (texture.TextureImport, texture.SourceFingerprint),
             StringComparer.OrdinalIgnoreCase);
         List<string> materialIds = [];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
@@ -969,14 +986,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ReportProgress(
             $"[live] HeightMap '{preparedGeometry.Geometry.Width}x{preparedGeometry.Geometry.Height}' importing displacement texture "
-            + $"from '{preparedGeometry.HeightTexturePath}'.");
+            + $"via {(preparedGeometry.HeightTextureImport is ResoniteFileTextureImport fileImport ? $"file '{fileImport.AbsolutePath}'" : "raw payload")}.");
         await EnsureAssetComponentUrlKnownAsync(
             client,
             meshAssetSlotId,
             heightTextureId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             "URL",
-            () => client.ImportTextureAsync(preparedGeometry.HeightTexturePath, cancellationToken),
+            () => client.ImportTextureAsync(preparedGeometry.HeightTextureImport, cancellationToken),
             heightMapSourceFingerprint,
             cancellationToken);
         ReportProgress(
@@ -1092,38 +1109,30 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private static PreparedHeightMapTexture PrepareHeightMapTexture(
-        ResoniteHeightMapGridGeometry geometry,
-        ResoniteConstructionCityObject cityObject,
-        string generatedAssetsRoot)
+    private static PreparedHeightMapTexture PrepareHeightMapTexture(ResoniteHeightMapGridGeometry geometry)
     {
-        string directory = Path.Combine(generatedAssetsRoot, "heightmaps");
-        Directory.CreateDirectory(directory);
-        string fileName = $"{cityObject.ActualMeshCode}_{CreateHeightMapFileNameSegment(cityObject.SlotKey)}_heightmap.png";
-        string absolutePath = Path.Combine(directory, fileName);
-        using Image<L16> image = new(geometry.Width, geometry.Height);
+        float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
 
         for (int y = 0; y < geometry.Height; y++)
         {
             for (int x = 0; x < geometry.Width; x++)
             {
-                // GridMesh moves brighter samples along local +Z, which becomes downward in world Y after our terrain rotation.
-                ushort heightValue = (ushort)(ushort.MaxValue - geometry.HeightSamples[(y * geometry.Width) + x]);
-                image[x, y] = new L16(heightValue);
+                // FrooxEngine.GridMesh uses `color.r + color.g + color.b / 3` for displacement.
+                // Encode the inverted height into blue only (scaled by 3) so the effective sampled height stays 1x.
+                float heightValue = (ushort.MaxValue - geometry.HeightSamples[(y * geometry.Width) + x]) / (float)ushort.MaxValue;
+                int pixelIndex = (y * geometry.Width * 4) + (x * 4);
+                rawPixels[pixelIndex] = 0.0f;
+                rawPixels[pixelIndex + 1] = 0.0f;
+                rawPixels[pixelIndex + 2] = heightValue * 3.0f;
+                rawPixels[pixelIndex + 3] = 1.0f;
             }
         }
 
-        image.Save(absolutePath, HeightMapPngEncoder);
+        byte[] rawBytes = new byte[rawPixels.Length * sizeof(float)];
+        Buffer.BlockCopy(rawPixels, 0, rawBytes, 0, rawBytes.Length);
         return new PreparedHeightMapTexture(
-            absolutePath,
-            ComputeContentFingerprint(absolutePath));
-    }
-
-    private static string CreateHeightMapFileNameSegment(string slotKey)
-    {
-        byte[] slotKeyBytes = Encoding.UTF8.GetBytes(slotKey);
-        byte[] hash = SHA256.HashData(slotKeyBytes);
-        return Convert.ToHexString(hash);
+            new ResoniteRawHdrTextureImport(geometry.Width, geometry.Height, rawBytes),
+            ComputeTextureImportFingerprint(new ResoniteRawHdrTextureImport(geometry.Width, geometry.Height, rawBytes)));
     }
 
     private void ReportBuildStep(ResoniteConstructionCityObject cityObject, string step)
@@ -1743,7 +1752,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private sealed record PreparedHeightMapGridGeometry(
         ResoniteHeightMapGridGeometry Geometry,
-        string HeightTexturePath,
+        ResoniteTextureImport HeightTextureImport,
         string HeightTextureFingerprint)
         : PreparedConstructionGeometry;
 
@@ -1752,15 +1761,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         PreparedConstructionGeometry Geometry,
         IReadOnlyList<PreparedTextureReference> Textures)
     {
-        public bool TryGetTexturePath(
+        public bool TryGetTextureImport(
             string texturePath,
             ResoniteTextureSourceKind textureSourceKind,
-            out string? absoluteTexturePath)
+            out ResoniteTextureImport? textureImport)
         {
             PreparedTextureReference? preparedTexture = Textures.FirstOrDefault(texture =>
                 string.Equals(texture.TexturePath, texturePath, StringComparison.Ordinal)
                 && texture.TextureSourceKind == textureSourceKind);
-            absoluteTexturePath = preparedTexture?.AbsoluteTexturePath;
+            textureImport = preparedTexture?.TextureImport;
             return preparedTexture is not null;
         }
     }
@@ -1768,15 +1777,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record PreparedTextureReference(
         string TexturePath,
         ResoniteTextureSourceKind TextureSourceKind,
-        string AbsoluteTexturePath,
+        ResoniteTextureImport TextureImport,
         string SourceFingerprint);
 
     private sealed record ResolvedTextureImport(
-        string AbsoluteTexturePath,
+        ResoniteTextureImport TextureImport,
         string SourceFingerprint);
 
     private sealed record PreparedHeightMapTexture(
-        string AbsolutePath,
+        ResoniteTextureImport TextureImport,
         string SourceFingerprint);
 }
 

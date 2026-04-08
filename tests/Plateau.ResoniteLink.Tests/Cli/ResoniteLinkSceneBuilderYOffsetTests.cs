@@ -90,7 +90,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
     }
 
     [Fact]
-    public async Task BuildAsyncSanitizesHeightMapTextureFileNameFromSlotKey()
+    public async Task BuildAsyncSendsHeightMapAsHdrRawTexture()
     {
         const string dataset = "tokyo23ku";
         const string meshCode = "53394525";
@@ -131,10 +131,10 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             await builder.ProcessCityObjectAsync(cityObject);
             _ = await builder.CompleteAsync();
 
-            string importedTexturePath = Assert.Single(fakeClient.ImportedTexturePaths);
-            Assert.Equal(".png", Path.GetExtension(importedTexturePath));
-            Assert.DoesNotContain("/", Path.GetFileName(importedTexturePath), StringComparison.Ordinal);
-            Assert.DoesNotContain("\\", Path.GetFileName(importedTexturePath), StringComparison.Ordinal);
+            ResoniteRawHdrTextureImport importedTexture = Assert.Single(fakeClient.ImportedRawHdrTextures);
+            Assert.Equal(2, importedTexture.Width);
+            Assert.Equal(2, importedTexture.Height);
+            Assert.Empty(fakeClient.ImportedTexturePaths);
         }
         finally
         {
@@ -230,6 +230,8 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         public Dictionary<string, Slot> SlotsById { get; } = [];
         public Dictionary<string, Component> ComponentsById { get; } = [];
         public List<string> ImportedTexturePaths { get; } = [];
+        public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
         public void Dispose()
         {
@@ -293,12 +295,30 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             return Task.FromResult(new Uri("resdb:///mesh/0", UriKind.Absolute));
         }
 
-        public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (gate)
             {
-                ImportedTexturePaths.Add(filePath);
+                switch (textureImport)
+                {
+                    case ResoniteFileTextureImport fileImport:
+                        ImportedTexturePaths.Add(fileImport.AbsolutePath);
+                        break;
+                    case ResoniteRawTextureImport rawImport:
+                        ImportedRawTextures.Add(rawImport);
+                        if (rawImport.SourcePath is not null)
+                        {
+                            ImportedTexturePaths.Add(rawImport.SourcePath);
+                        }
+
+                        break;
+                    case ResoniteRawHdrTextureImport rawHdrImport:
+                        ImportedRawHdrTextures.Add(rawHdrImport);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
+                }
             }
 
             return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
