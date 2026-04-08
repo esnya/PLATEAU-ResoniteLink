@@ -15,6 +15,14 @@ public static class CliArgumentsParser
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
+          --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
+          --exclude-lod-for-package <csv>
+                                Optional. Package-specific LOD exclusions: 'package:lod,package:lod' (e.g., tran:1,bldg:0).
+          --include-marking <true|false>
+                                Optional. Include generated road markings even when marked for exclusion. Default: true.
+          --{package}-pattern <pattern>
+                                Optional. Pattern filter for specific package (e.g., --tran-pattern "*Marking").
+                                Supports: "*suffix", "prefix*", "*middle*", "exact".
           --source <value>       Optional. local or remote. Default: local.
           --local-source-path <path>
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
@@ -52,6 +60,10 @@ public static class CliArgumentsParser
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = PlateauPackageCatalog.CliDefaultPackageNames;
+        IReadOnlySet<int>? globalExcludeLods = null;
+        IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = null;
+        bool includeMarkingAlways = true;
+        Dictionary<string, string>? packagePatterns = null;
 
         try
         {
@@ -172,8 +184,61 @@ public static class CliArgumentsParser
 
                             break;
                         }
+                    case "--exclude-lod":
+                        {
+                            string excludeLodValue = ReadValue(args, ref index, token);
+                            if (!TryParseLodExclusionRules(excludeLodValue, out globalExcludeLods, out string? lodError))
+                            {
+                                return CliParseResult.Failure(lodError!);
+                            }
+
+                            break;
+                        }
+                    case "--exclude-lod-for-package":
+                        {
+                            string excludeLodPackageValue = ReadValue(args, ref index, token);
+                            if (!TryParsePackageSpecificLodExclusions(excludeLodPackageValue, out packageExcludeLods, out string? packageLodError))
+                            {
+                                return CliParseResult.Failure(packageLodError!);
+                            }
+
+                            break;
+                        }
+                    case "--include-marking":
+                        {
+                            string markingValue = ReadValue(args, ref index, token);
+                            if (!bool.TryParse(markingValue, out includeMarkingAlways))
+                            {
+                                return CliParseResult.Failure(
+                                    $"The value '{markingValue}' is not a valid boolean. Use 'true' or 'false'.");
+                            }
+
+                            break;
+                        }
                     default:
-                        return CliParseResult.Failure($"Unknown option '{token}'.");
+                        {
+                            // Check for package-specific pattern options like --tran-pattern
+                            bool foundPatternOption = false;
+                            foreach (string pkg in PlateauPackageCatalog.SupportedPackageNames)
+                            {
+                                string optionPrefix = $"--{pkg}-pattern";
+                                if (token.Equals(optionPrefix, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    string patternValue = ReadValue(args, ref index, token);
+                                    packagePatterns ??= new();
+                                    packagePatterns[pkg] = patternValue;
+                                    foundPatternOption = true;
+                                    break;
+                                }
+                            }
+
+                            if (!foundPatternOption)
+                            {
+                                return CliParseResult.Failure($"Unknown option '{token}'.");
+                            }
+
+                            break;
+                        }
                 }
             }
         }
@@ -188,7 +253,11 @@ public static class CliArgumentsParser
             SourceKind: sourceKind,
             LocalSourcePath: localSourcePath,
             ServerUri: serverUri,
-            PackageNames: packageNames);
+            PackageNames: packageNames,
+            GlobalExcludeLodLevels: globalExcludeLods,
+            ExcludeLodLevelsByPackage: packageExcludeLods,
+            PackagePatterns: packagePatterns,
+            IncludeMarkingAlways: includeMarkingAlways);
 
         if (resoniteLinkUri is null)
         {
@@ -246,6 +315,97 @@ public static class CliArgumentsParser
         }
 
         packageNames = PlateauPackageCatalog.NormalizeRequestedPackageNames(parsedValues);
+        return true;
+    }
+
+    private static bool TryParseLodExclusionRules(
+        string? csvValue,
+        out IReadOnlySet<int>? lodLevels,
+        out string? error)
+    {
+        lodLevels = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(csvValue))
+        {
+            return true;
+        }
+
+        string[] values = csvValue
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        HashSet<int> parsedLods = new();
+
+        foreach (string value in values)
+        {
+            if (!int.TryParse(value, out int lod) || lod < 0)
+            {
+                error = $"Invalid LOD level '{value}'. Must be a non-negative integer.";
+                return false;
+            }
+
+            parsedLods.Add(lod);
+        }
+
+        lodLevels = parsedLods.Count > 0 ? parsedLods : null;
+        return true;
+    }
+
+    private static bool TryParsePackageSpecificLodExclusions(
+        string? csvValue,
+        out IReadOnlyDictionary<string, IReadOnlySet<int>>? exclusionMap,
+        out string? error)
+    {
+        exclusionMap = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(csvValue))
+        {
+            return true;
+        }
+
+        string[] pairs = csvValue
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        Dictionary<string, IReadOnlySet<int>> map = new();
+
+        foreach (string pair in pairs)
+        {
+            string[] parts = pair.Split(':', StringSplitOptions.TrimEntries);
+
+            if (parts.Length != 2)
+            {
+                error = $"Invalid package:lod format '{pair}'. Expected 'package:lod'.";
+                return false;
+            }
+
+            string packageName = parts[0];
+            string lodStr = parts[1];
+
+            if (!int.TryParse(lodStr, out int lod) || lod < 0)
+            {
+                error = $"Invalid LOD level '{lodStr}' for package '{packageName}'. Must be a non-negative integer.";
+                return false;
+            }
+
+            if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string? normalizedName))
+            {
+                error = $"Unsupported package '{packageName}' in --exclude-lod-for-package.";
+                return false;
+            }
+
+            if (!map.TryGetValue(normalizedName!, out IReadOnlySet<int>? existing))
+            {
+                HashSet<int> lodSet = new();
+                map[normalizedName!] = lodSet;
+                existing = lodSet;
+            }
+
+            HashSet<int> mutableSet = (HashSet<int>)existing;
+            mutableSet.Add(lod);
+        }
+
+        exclusionMap = map.Count > 0 ? map : null;
         return true;
     }
 

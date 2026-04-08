@@ -84,11 +84,19 @@ public static class LocalCityGmlResonitePlanBuilder
                 [$"No local PLATEAU CityGML files were found for mesh code '{request.MeshCode}' under udx/<package>/<mesh-code>/."]);
         }
 
+        // Create LOD filtering strategy from the request
+        LodFilteringStrategy lodFilteringStrategy = new(
+            globalExcludeLodLevels: request.GlobalExcludeLodLevels,
+            excludeLodByPackage: request.ExcludeLodLevelsByPackage,
+            packagePatterns: request.PackagePatterns,
+            includeMarkingAlways: request.IncludeMarkingAlways);
+
         SourceFilePipeline[] sourceFilePipelines = await CreateSourceFilePipelinesAsync(
             sourceFiles,
             datasetSource,
             requestedMeshArea,
             progressReporter,
+            lodFilteringStrategy,
             cancellationToken);
 
         List<string> relativeSourceFiles = sourceFilePipelines
@@ -203,6 +211,7 @@ public static class LocalCityGmlResonitePlanBuilder
         IPlateauDatasetContentSource datasetSource,
         MeshCodeArea? requestedMeshArea,
         Action<string>? progressReporter,
+        LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
         return sourceFiles
@@ -214,6 +223,7 @@ public static class LocalCityGmlResonitePlanBuilder
                         datasetSource,
                         requestedMeshArea,
                         progressReporter,
+                        lodFilteringStrategy,
                         cancellationToken)))
             .ToArray();
     }
@@ -223,6 +233,7 @@ public static class LocalCityGmlResonitePlanBuilder
         IPlateauDatasetContentSource datasetSource,
         MeshCodeArea? requestedMeshArea,
         Action<string>? progressReporter,
+        LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -233,6 +244,7 @@ public static class LocalCityGmlResonitePlanBuilder
                            sourceFile,
                            datasetSource,
                            requestedMeshArea,
+                           lodFilteringStrategy,
                            cancellationToken))
         {
             cityObjects.Add(cityObject);
@@ -267,15 +279,18 @@ public static class LocalCityGmlResonitePlanBuilder
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         MeshCodeArea? requestedMeshArea,
+        LodFilteringStrategy? lodFilteringStrategy,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        lodFilteringStrategy ??= new LodFilteringStrategy();
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
         XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
         ParsedCityObject[] cityObjects = ParseCityObjects(
             document,
             sourceFile,
             datasetSource,
-            requestedMeshArea);
+            requestedMeshArea,
+            lodFilteringStrategy);
 
         foreach (ParsedCityObject cityObject in cityObjects)
         {
@@ -310,7 +325,8 @@ public static class LocalCityGmlResonitePlanBuilder
         bool sharedAcrossMeshCodes,
         AppearanceLibrary appearanceLibrary,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        MeshCodeArea? requestedMeshArea)
+        MeshCodeArea? requestedMeshArea,
+        LodFilteringStrategy lodFilteringStrategy)
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
         string objectId = GetAttribute(cityObjectElement, Gml + "id") ?? objectTypeName;
@@ -320,7 +336,28 @@ public static class LocalCityGmlResonitePlanBuilder
             displayName = objectId;
         }
 
-        (XElement[] preferredSurfaceElements, int? lodLevel) = SelectPreferredLodSurfaceElements(cityObjectElement);
+        // Detect if this is a Marking object
+        bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
+            || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
+            || objectId.Contains("_road_marking", StringComparison.Ordinal);
+
+        (XElement[] preferredSurfaceElements, int? lodLevel) = SelectPreferredLodSurfaceElements(
+            cityObjectElement,
+            packageName,
+            isMarking,
+            lodFilteringStrategy);
+
+        // Check if object should be excluded by LOD and pattern filters
+        if (!lodFilteringStrategy.ShouldIncludeByPattern(packageName, objectId, isMarking))
+        {
+            return null;
+        }
+
+        if (preferredSurfaceElements.Length == 0 && lodFilteringStrategy.ShouldExcludeLod(packageName, lodLevel, isMarking))
+        {
+            return null;
+        }
+
         ParsedSurface[] surfaces = preferredSurfaceElements
             .Select(surfaceElement => ParseSurface(surfaceElement, appearanceLibrary))
             .Where(static surface => surface is not null)
@@ -410,7 +447,11 @@ public static class LocalCityGmlResonitePlanBuilder
             MaxTextureSize: DefaultDemTerrainTextureMaxSize);
     }
 
-    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(XElement cityObjectElement)
+    private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
+        XElement cityObjectElement,
+        string packageName,
+        bool isMarking,
+        LodFilteringStrategy lodFilteringStrategy)
     {
         (XElement SurfaceElement, int? LodLevel)[] surfaces = cityObjectElement
             .Descendants()
@@ -422,8 +463,14 @@ public static class LocalCityGmlResonitePlanBuilder
             .Where(static surface => surface.LodLevel.HasValue)
             .Select(static surface => surface.LodLevel!.Value)
             .ToArray();
-        int? highestLod = explicitLodLevels.Length > 0
-            ? explicitLodLevels.Max()
+
+        // Filter out excluded LODs before finding the highest
+        int[] validLodLevels = explicitLodLevels
+            .Where(lod => !lodFilteringStrategy.ShouldExcludeLod(packageName, lod, isMarking))
+            .ToArray();
+
+        int? highestLod = validLodLevels.Length > 0
+            ? validLodLevels.Max()
             : null;
 
         XElement[] selectedSurfaces = highestLod.HasValue
@@ -432,6 +479,7 @@ public static class LocalCityGmlResonitePlanBuilder
                 .Select(static surface => surface.SurfaceElement)
                 .ToArray()
             : surfaces
+                .Where(surface => !lodFilteringStrategy.ShouldExcludeLod(packageName, surface.LodLevel, isMarking))
                 .Select(static surface => surface.SurfaceElement)
                 .ToArray();
 
@@ -487,7 +535,8 @@ public static class LocalCityGmlResonitePlanBuilder
         XDocument document,
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        MeshCodeArea? requestedMeshArea)
+        MeshCodeArea? requestedMeshArea,
+        LodFilteringStrategy lodFilteringStrategy)
     {
         string relativeSourceFile = sourceFile.RelativePath;
         CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse(document);
@@ -507,7 +556,8 @@ public static class LocalCityGmlResonitePlanBuilder
                 sourceFile.RequiresMeshAreaFilter,
                 appearanceLibrary,
                 coordinateReferenceSystem,
-                sourceFile.RequiresMeshAreaFilter ? requestedMeshArea : null))
+                sourceFile.RequiresMeshAreaFilter ? requestedMeshArea : null,
+                lodFilteringStrategy))
             .Where(static cityObject => cityObject is not null)
             .Select(static cityObject => cityObject!)
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)

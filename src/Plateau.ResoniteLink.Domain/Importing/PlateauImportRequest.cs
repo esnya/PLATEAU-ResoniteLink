@@ -6,4 +6,8 @@ public sealed record PlateauImportRequest(
     DatasetSourceKind SourceKind,
     string? LocalSourcePath,
     Uri? ServerUri,
-    IReadOnlyList<string>? PackageNames = null);
+    IReadOnlyList<string>? PackageNames = null,
+    IReadOnlySet<int>? GlobalExcludeLodLevels = null,
+    IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
+    IReadOnlyDictionary<string, string>? PackagePatterns = null,
+    bool IncludeMarkingAlways = true);
