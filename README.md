@@ -28,6 +28,16 @@ Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyV
 - Live testing workflow: see [docs/live-testing.md](docs/live-testing.md).
 - Default material and DEM terrain imagery sources and provenance: see [docs/default-materials.md](docs/default-materials.md), `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`, and `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
 
+## Codex Cloud Setup
+
+For Codex Cloud / CI-like ephemeral environments, run the repository setup script:
+
+```bash
+./scripts/setup-codex-cloud.sh
+```
+
+The script bootstraps .NET SDK 10 when `dotnet` is missing, then runs restore + whitespace format verification + tests using the same command shape as this repository's CI policy.
+
 ## Usage
 
 Restore dependencies:

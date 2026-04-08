@@ -11,6 +11,8 @@ PR を出す前に、次を確認してください。
 - English Markdown を変更した場合は、対応する `.ja.md` も更新する。
 - 挙動が変わる場合は、test を追加または更新する。
 
+`dotnet` がない Codex Cloud / 一時環境では、`./scripts/setup-codex-cloud.sh` を実行すると SDK 10 の bootstrap と標準チェックをまとめて実行できます。
+
 可能なら次を実行してください。
 
 ```bash

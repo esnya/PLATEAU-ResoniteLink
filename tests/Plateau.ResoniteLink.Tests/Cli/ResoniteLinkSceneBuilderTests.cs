@@ -27,11 +27,13 @@ public sealed class ResoniteLinkSceneBuilderTests
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            () => fakeClient);
+            () => fakeClient,
+            terrainTextureAssetGenerator);
 
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
@@ -203,11 +205,13 @@ public sealed class ResoniteLinkSceneBuilderTests
                 ServerUri: null));
 
         using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteLinkSceneBuilder builder = new(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            () => fakeClient);
+            () => fakeClient,
+            terrainTextureAssetGenerator);
 
         await RunBuilderAsync(builder, scene);
 
@@ -853,8 +857,14 @@ public sealed class ResoniteLinkSceneBuilderTests
             static cityObject => cityObject.DisplayName == "Parent Tile Building");
 
         using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => fakeClient,
+                terrainTextureAssetGenerator),
             scene);
 
         string demSlotId = fakeClient.BuildingSlotIds["Parent Tile Relief"];
@@ -947,7 +957,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
 
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
-        Assert.True(clients.All(client => client.ImportedMeshCount > 0));
+        Assert.Contains(clients, static client => client.ImportedMeshCount > 0);
+        Assert.Equal(scene.CityObjects.Count, clients.Sum(static client => client.ImportedMeshCount));
     }
 
     [Fact]
