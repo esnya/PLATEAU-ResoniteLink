@@ -1587,7 +1587,7 @@ public sealed class PlateauImportServiceTests
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Remote,
                 LocalSourcePath: null,
-                ServerUri: new Uri("https://search.ckan.jp/backend/api/", UriKind.Absolute)),
+                ServerUri: new Uri("https://example.invalid/tokyo23ku-citygml.zip", UriKind.Absolute)),
             workRoot: "runtime/resonite");
 
         Assert.Equal(DatasetSourceKind.Remote, Assert.Single(resolver.Requests).SourceKind);

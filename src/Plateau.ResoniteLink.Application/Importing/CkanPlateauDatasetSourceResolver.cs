@@ -1,19 +1,16 @@
-using System.Net.Http.Json;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
+public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
 {
-    private static readonly Uri DefaultCatalogApiBaseUri = new("https://search.ckan.jp/backend/api/", UriKind.Absolute);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
 
@@ -40,21 +37,19 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             return request;
         }
 
-        Uri? archiveUri = null;
-        if (request.ServerUri is not null)
+        if (request.ServerUri is null)
         {
-            if (LooksLikeSupportedArchiveUri(request.ServerUri))
-            {
-                archiveUri = request.ServerUri;
-            }
-            else if (LooksLikeDirectArchiveUri(request.ServerUri))
-            {
-                throw new PlateauImportValidationException(
-                    [$"The direct archive URL '{request.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
-            }
+            throw new PlateauImportValidationException(
+                ["Remote import requires --server-url to point directly to a .zip or .7z CityGML archive. Built-in dataset search is not supported."]);
         }
 
-        archiveUri ??= await DiscoverArchiveUriAsync(request, cancellationToken);
+        if (!LooksLikeSupportedArchiveUri(request.ServerUri))
+        {
+            throw new PlateauImportValidationException(
+                [$"The direct archive URL '{request.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
+        }
+
+        Uri archiveUri = request.ServerUri;
 
         string safeDataset = CreateSafePathSegment(request.Dataset);
         string safeMeshCode = CreateSafePathSegment(request.MeshCode);
@@ -342,268 +337,11 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
     }
 
-    private static string CreateArchiveMetadataFileName()
-    {
-        return "meta.json";
-    }
-
-    private async Task<Uri> DiscoverArchiveUriAsync(
-        PlateauImportRequest request,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<string> datasetSlugVariants = GetDatasetSlugVariants(request.Dataset);
-        IReadOnlyList<CkanPackage> packages = await SearchPackagesAsync(
-            request.ServerUri ?? DefaultCatalogApiBaseUri,
-            request.Dataset,
-            datasetSlugVariants,
-            cancellationToken);
-        string meshPrefix = request.MeshCode.Length >= 6 ? request.MeshCode[..6] : request.MeshCode;
-        CkanPackage? package = packages
-            .Select(candidate => new
-            {
-                Package = candidate,
-                Score = ScorePackage(candidate, request.Dataset, datasetSlugVariants, meshPrefix),
-            })
-            .Where(static candidate => candidate.Score > 0)
-            .OrderByDescending(static candidate => candidate.Score)
-            .ThenBy(static candidate => candidate.Package.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(static candidate => candidate.Package)
-            .FirstOrDefault();
-
-        if (package is null)
-        {
-            throw new PlateauImportValidationException(
-                [$"No official PLATEAU CityGML dataset could be found online for '{request.Dataset}'."]);
-        }
-
-        CkanResource? resource = package.Resources
-            .Select(candidate => new
-            {
-                Resource = candidate,
-                Score = ScoreResource(candidate, meshPrefix),
-                Version = ExtractCityGmlVersion(candidate),
-            })
-            .Where(static candidate => candidate.Score > 0)
-            .OrderByDescending(static candidate => candidate.Score)
-            .ThenByDescending(static candidate => candidate.Version)
-            .ThenBy(static candidate => candidate.Resource.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(static candidate => candidate.Resource)
-            .FirstOrDefault();
-
-        if (resource is null || string.IsNullOrWhiteSpace(resource.Url))
-        {
-            throw new PlateauImportValidationException(
-                [$"No downloadable CityGML archive could be found online for mesh code '{request.MeshCode}'."]);
-        }
-
-        if (!LooksLikeSupportedArchiveUri(new Uri(resource.Url, UriKind.Absolute)))
-        {
-            throw new PlateauImportValidationException(
-                [$"The discovered online resource '{resource.Url}' is not a supported archive."]);
-        }
-
-        return new Uri(resource.Url, UriKind.Absolute);
-    }
-
-    private async Task<IReadOnlyList<CkanPackage>> SearchPackagesAsync(
-        Uri apiBaseUri,
-        string rawDataset,
-        IReadOnlyList<string> datasetSlugVariants,
-        CancellationToken cancellationToken)
-    {
-        List<CkanPackage> packages = [];
-        foreach (string query in BuildPackageSearchQueries(rawDataset, datasetSlugVariants))
-        {
-            Uri packageSearchUri = BuildPackageSearchUri(apiBaseUri, query);
-            using HttpResponseMessage response = await httpClient.GetAsync(packageSearchUri, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            CkanPackageSearchResponse payload =
-                await response.Content.ReadFromJsonAsync<CkanPackageSearchResponse>(JsonOptions, cancellationToken)
-                ?? throw new PlateauImportValidationException(["The CKAN package search response was empty."]);
-
-            packages.AddRange(payload.Result.Results);
-        }
-
-        return packages
-            .DistinctBy(static package => package.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-    }
-
-    private static IEnumerable<string> BuildPackageSearchQueries(
-        string rawDataset,
-        IReadOnlyList<string> datasetSlugVariants)
-    {
-        foreach (string datasetSlug in datasetSlugVariants)
-        {
-            yield return $"name:plateau-*{datasetSlug}*";
-            yield return $"plateau-{datasetSlug}";
-        }
-
-        if (rawDataset.Any(static character => character > 127))
-        {
-            yield return $"title:{rawDataset} AND tags:PLATEAU";
-        }
-    }
-
-    private static Uri BuildPackageSearchUri(Uri apiBaseUri, string query)
-    {
-        return new Uri(
-            $"{EnsureTrailingSlash(apiBaseUri)}package_search?q={Uri.EscapeDataString(query)}&rows=200",
-            UriKind.Absolute);
-    }
-
-    private static string EnsureTrailingSlash(Uri apiBaseUri)
-    {
-        string baseUri = apiBaseUri.ToString();
-        return baseUri.EndsWith('/') ? baseUri : $"{baseUri}/";
-    }
-
-    private static int ScorePackage(
-        CkanPackage package,
-        string rawDataset,
-        IReadOnlyList<string> datasetSlugVariants,
-        string meshPrefix)
-    {
-        int score = 0;
-        string normalizedName = package.Name ?? string.Empty;
-        string normalizedTitle = package.Title ?? string.Empty;
-
-        if (normalizedName.Contains("citygml", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 50;
-        }
-
-        if (normalizedTitle.Contains("CityGML", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 25;
-        }
-
-        if (package.Resources.Any(resource => ScoreResource(resource, meshPrefix) > 0))
-        {
-            score += 25;
-        }
-
-        if (rawDataset.Any(static character => character > 127)
-            && normalizedTitle.Contains(rawDataset, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 150;
-        }
-
-        foreach (string datasetSlug in datasetSlugVariants)
-        {
-            if (normalizedName.Contains($"plateau-{datasetSlug}", StringComparison.OrdinalIgnoreCase))
-            {
-                score += 150;
-            }
-            else if (normalizedName.Contains(datasetSlug, StringComparison.OrdinalIgnoreCase))
-            {
-                score += 60;
-            }
-        }
-
-        return score;
-    }
-
-    private static int ScoreResource(CkanResource resource, string meshPrefix)
-    {
-        if (string.IsNullOrWhiteSpace(resource.Url))
-        {
-            return 0;
-        }
-
-        Uri resourceUri = new(resource.Url, UriKind.Absolute);
-        if (!LooksLikeSupportedArchiveUri(resourceUri))
-        {
-            return 0;
-        }
-
-        string name = resource.Name ?? string.Empty;
-        string description = resource.Description ?? string.Empty;
-        string format = resource.Format ?? string.Empty;
-
-        int score = 0;
-        if (string.Equals(name, meshPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 200;
-        }
-
-        if (name.Contains(meshPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 120;
-        }
-
-        if (description.Contains(meshPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            score += 80;
-        }
-
-        if (name.Contains("CityGML", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 60;
-        }
-
-        if (description.Contains("CityGML", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 40;
-        }
-
-        if (string.Equals(format, "ZIP", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 20;
-        }
-
-        if (string.Equals(format, "7Z", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(format, "7ZIP", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 20;
-        }
-
-        int version = ExtractCityGmlVersion(resource);
-        if (version > 0)
-        {
-            score += version * 10;
-        }
-        else if (name.Contains("CityGML", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 5;
-        }
-
-        return score;
-    }
-
-    private static int ExtractCityGmlVersion(CkanResource resource)
-    {
-        return Math.Max(
-            Math.Max(
-                ExtractVersion(resource.Name ?? string.Empty),
-                ExtractVersion(resource.Description ?? string.Empty)),
-            ExtractVersion(resource.Url ?? string.Empty));
-    }
-
-    private static int ExtractVersion(string value)
-    {
-        MatchCollection matches = DatasetVersionRegex().Matches(value);
-        int version = 0;
-        foreach (Match match in matches.Cast<Match>())
-        {
-            if (int.TryParse(match.Groups["version"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int parsedVersion))
-            {
-                version = Math.Max(version, parsedVersion);
-            }
-        }
-
-        return version;
-    }
+    private static string CreateArchiveMetadataFileName() => "meta.json";
 
     private static bool LooksLikeSupportedArchiveUri(Uri uri)
     {
         return TryGetArchiveKind(uri.AbsolutePath, out _);
-    }
-
-    private static bool LooksLikeDirectArchiveUri(Uri uri)
-    {
-        return !string.IsNullOrEmpty(Path.GetExtension(uri.AbsolutePath));
     }
 
     private static string GetArchiveFileName(Uri archiveUri)
@@ -616,35 +354,6 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
 
         return fileName;
-    }
-
-    private static string NormalizeDatasetSlug(string dataset)
-    {
-        string normalized = dataset.Trim().ToLowerInvariant();
-        normalized = DatasetSlugSeparatorRegex().Replace(normalized, "-");
-        normalized = normalized.Trim('-');
-        return normalized;
-    }
-
-    private static string[] GetDatasetSlugVariants(string dataset)
-    {
-        HashSet<string> variants = new(StringComparer.OrdinalIgnoreCase);
-        string normalized = NormalizeDatasetSlug(dataset);
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            variants.Add(normalized);
-            foreach (string suffix in MunicipalitySuffixes)
-            {
-                if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
-                    && !normalized.EndsWith($"-{suffix}", StringComparison.OrdinalIgnoreCase)
-                    && normalized.Length > suffix.Length)
-                {
-                    variants.Add($"{normalized[..^suffix.Length]}-{suffix}");
-                }
-            }
-        }
-
-        return variants.ToArray();
     }
 
     private static string CreateSafePathSegment(string value)
@@ -756,42 +465,6 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         Zip,
         SevenZip,
     }
-
-    [GeneratedRegex("[^a-z0-9]+", RegexOptions.Compiled)]
-    private static partial Regex DatasetSlugSeparatorRegex();
-
-    [GeneratedRegex(@"(?:^|[^a-z0-9])v(?<version>\d+)(?:[^a-z0-9]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
-    private static partial Regex DatasetVersionRegex();
-
-    private static readonly string[] MunicipalitySuffixes =
-    [
-        "shi",
-        "ku",
-        "cho",
-        "machi",
-        "son",
-        "mura",
-        "gun",
-        "to",
-        "do",
-        "fu",
-        "ken",
-    ];
-
-    private sealed record CkanPackageSearchResponse(CkanSearchResult Result);
-
-    private sealed record CkanSearchResult(IReadOnlyList<CkanPackage> Results);
-
-    private sealed record CkanPackage(
-        string Name,
-        string Title,
-        IReadOnlyList<CkanResource> Resources);
-
-    private sealed record CkanResource(
-        string Name,
-        string Description,
-        string Format,
-        string Url);
 
     private sealed record ArchiveMetadata(
         string? ETag,

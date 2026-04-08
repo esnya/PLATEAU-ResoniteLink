@@ -15,7 +15,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデー�
 ## Known Limitations
 
 - 現在公開している表面は CLI の live-send pipeline が中心で、standalone の offline exporter や Resonite 内 authoring workflow はまだない。
-- remote import は現時点で公式 PLATEAU catalog / ZIP/7z discovery flow を前提とし、download した archive を透過的な source として同じ local importer を使う。
+- remote import は direct な CityGML ZIP/7z archive URL を明示指定する前提とし、download した archive を透過的な source として同じ local importer を使う。
 - live adapter は現在の ResoniteLink runtime に合わせ、mesh には `ImportMesh(ImportMeshRawData)`、texture には `ImportTexture(ImportTexture2DFile)` を使っている。
 
 ## Runtime And Prerequisites
@@ -63,7 +63,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 `--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `1` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。DEM の既定出力は従来どおり mesh 経路で、`--dem-terrain-mode heightmap` を指定すると `dem` を `GridMesh` + 高さテクスチャ経路へ切り替えます。`--dem-heightmap-meters-per-vertex` と `--dem-heightmap-max-resolution` はサンプル密度と安全上限の制御に使います。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
 
-既定の CKAN catalog flow を使って、公式 PLATEAU CityGML ZIP/7z archive をオンライン取得しつつ Resonite に取り込む例:
+公式 PLATEAU の CityGML ZIP/7z archive URL を明示指定してオンライン取得しつつ Resonite に取り込む例:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
@@ -74,7 +74,15 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` は既定で公式の `search.ckan.jp` catalog を使い、対応する CityGML ZIP/7z resource を探索して `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` にダウンロードし、その cached archive を透過的に読んで同じ local importer に渡します。cache key は要求した mesh code ではなく archive URL に基づくため、詳細 mesh code が変わっても同じ archive を再利用できます。`--server-url` で catalog base URI を上書きすることも、ZIP/7z archive URL を直接指定することもできます。
+`--source remote` は組み込みの dataset search を行いません。`--server-url` に direct な CityGML ZIP/7z archive URL を渡すと、その archive を `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` に download し、その cached archive を透過的に読んで同じ local importer に渡します。cache key は要求した mesh code ではなく archive URL に基づくため、詳細 mesh code が変わっても同じ archive を再利用できます。
+
+正規の identifier と archive URL を調べる手順:
+
+1. `www.geospatial.jp` の公式 PLATEAU dataset page を開く。
+2. URL path の slug、例えば `plateau-20202-matsumoto-shi-2020` を確認し、canonical な dataset identifier として `--dataset` に使う。
+3. その page の `CityGML` resource を開き、direct な `.zip` または `.7z` の download URL を `--server-url` に使う。
+
+CLI の契約を決定的に保つため、組み込み search は意図的にスコープ外にしています。
 
 DL 済みデータを再利用する場合は、`--source local --local-source-path ...` に切り替え、dataset directory、cached ZIP/7z archive、または `runtime/<os>/resonite/cache/remote/<dataset>/` 配下のその上位 directory を指定します。importer 側で `udx/` を含む最も近い descendant dataset root を自動解決でき、cached archive file も透過的に開けます。
 
