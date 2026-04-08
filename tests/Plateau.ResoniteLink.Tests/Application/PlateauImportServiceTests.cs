@@ -426,6 +426,202 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncSubdividesLowLodSquareTransportationBeforeTerrainAlignment()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSegmentedSquareTerrainAlignmentFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject square = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Segmented Aligned Square");
+        Assert.Equal("squr", square.PackageName);
+        Assert.True(square.Mesh.Vertices.Count > 6);
+        Assert.Contains(square.Mesh.Vertices, static vertex => vertex.Position.Y >= -0.001 && vertex.Position.Y <= 0.001);
+        Assert.Contains(square.Mesh.Vertices, static vertex => vertex.Position.Y >= 19.9 && vertex.Position.Y <= 20.1);
+        Assert.Contains(square.Mesh.Vertices, static vertex => vertex.Position.Y >= 9.0 && vertex.Position.Y <= 11.0);
+
+        ResoniteMaterialBinding squareMaterial = Assert.Single(square.Materials);
+        Assert.Equal("udx/squr/53394525/appearance/segment-square.png", squareMaterial.TexturePath);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, squareMaterial.DepthOffset);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesWidthAwareSubdivisionDensityForLowLodTransportation()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject narrowRoad = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Narrow Segmented Road");
+        ResoniteConstructionCityObject wideRoad = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Wide Segmented Road");
+
+        Assert.True(
+            narrowRoad.Mesh.Vertices.Count > wideRoad.Mesh.Vertices.Count,
+            $"Expected narrower road to be subdivided more densely. narrow={narrowRoad.Mesh.Vertices.Count}, wide={wideRoad.Mesh.Vertices.Count}");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncDensifiesSkewedLowLodRoadUsingContourStyleSubdivision()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSkewedTransportationFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject road = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Skewed Segmented Road");
+        Assert.True(
+            road.Mesh.Vertices.Count > 6,
+            $"Expected skewed road to be densified before tessellation. vertices={road.Mesh.Vertices.Count}");
+
+        double minHeight = road.Mesh.Vertices.Min(static vertex => vertex.Position.Y);
+        double maxHeight = road.Mesh.Vertices.Max(static vertex => vertex.Position.Y);
+        Assert.InRange(minHeight, -0.1, 0.1);
+        Assert.True(maxHeight >= 12.0, $"Expected skewed road to retain multiple sampled elevations. maxHeight={maxHeight:F3}");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncAvoidsLargeLongitudinalHeightStepsOnNarrowLowLodRoad()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject narrowRoad = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Narrow Segmented Road");
+        double[] heights = narrowRoad.Mesh.Vertices
+            .Select(static vertex => Math.Round(vertex.Position.Y, 3))
+            .Distinct()
+            .OrderBy(static height => height)
+            .ToArray();
+        Assert.True(heights.Length >= 6, $"Expected multiple height samples along the road, but got {heights.Length}.");
+
+        double maxStep = 0.0;
+        for (int index = 1; index < heights.Length; index++)
+        {
+            maxStep = Math.Max(maxStep, heights[index] - heights[index - 1]);
+        }
+
+        Assert.True(maxStep <= 3.5, $"Detected a large longitudinal height step: {maxStep:F3}m");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncKeepsLowLodRoadVerticesWithinDemHeightEnvelope()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject narrowRoad = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Narrow Segmented Road");
+        ResoniteConstructionCityObject wideRoad = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Wide Segmented Road");
+
+        Assert.All(
+            narrowRoad.Mesh.Vertices,
+            static vertex => Assert.InRange(vertex.Position.Y, -0.1, 20.1));
+        Assert.All(
+            wideRoad.Mesh.Vertices,
+            static vertex => Assert.InRange(vertex.Position.Y, -0.1, 20.1));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncInterpolatesUnsampledRoadVerticesWhenDemCoverageIsPartial()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimePartialDemCoverageRoadFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject road = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.DisplayName == "Partial Coverage Road");
+        double maxHeight = road.Mesh.Vertices.Max(static vertex => vertex.Position.Y);
+        double minHeight = road.Mesh.Vertices.Min(static vertex => vertex.Position.Y);
+        Assert.InRange(minHeight, -0.1, 1.0);
+        Assert.InRange(maxHeight, -0.1, 20.1);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncGeneratesUvProjectedFallbackMaterialForTexturelessTransportation()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -2104,6 +2300,360 @@ public sealed class PlateauImportServiceTests
                           <gml:exterior>
                             <gml:LinearRing gml:id="ring-road-segmented-fit">
                               <gml:posList>35.0000 139.0000 0 35.0000 139.0020 0 35.0003 139.0020 0 35.0003 139.0000 0 35.0000 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod1MultiSurface>
+                </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeSegmentedSquareTerrainAlignmentFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(demDirectory);
+        File.WriteAllText(
+            Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 10</gml:lowerCorner>
+                  <gml:upperCorner>35.0003 139.0020 30</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-segmented-square-fit">
+                  <gml:name>Segmented Square Alignment Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-segmented-square-fit-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-segmented-square-fit-0">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-segmented-square-fit-0">
+                                  <gml:posList>35.0000 139.0000 10 35.0000 139.0020 30 35.0003 139.0000 10 35.0000 139.0000 10</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-segmented-square-fit-1">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-segmented-square-fit-1">
+                                  <gml:posList>35.0003 139.0000 10 35.0000 139.0020 30 35.0003 139.0020 30 35.0003 139.0000 10</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        string squrDirectory = Path.Combine(datasetRoot, "udx", "squr", "53394525");
+        Directory.CreateDirectory(Path.Combine(squrDirectory, "appearance"));
+        File.WriteAllText(Path.Combine(squrDirectory, "appearance", "segment-square.png"), "fixture-segment-square-texture");
+        File.WriteAllText(
+            Path.Combine(squrDirectory, "plateau_tokyo23ku_squr_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0003 139.0020 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:ParameterizedTexture>
+                      <app:imageURI>appearance/segment-square.png</app:imageURI>
+                      <app:target uri="#poly-square-segmented-fit">
+                        <app:TexCoordList>
+                          <app:textureCoordinates ring="#ring-square-segmented-fit">0 0 4 0 4 1 0 1 0 0</app:textureCoordinates>
+                        </app:TexCoordList>
+                      </app:target>
+                    </app:ParameterizedTexture>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+              <core:cityObjectMember>
+                <tran:Square gml:id="squr-segmented-fit">
+                  <gml:name>Segmented Aligned Square</gml:name>
+                  <tran:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-square-segmented-fit">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-square-segmented-fit">
+                              <gml:posList>35.0000 139.0000 0 35.0000 139.0020 0 35.0003 139.0020 0 35.0003 139.0000 0 35.0000 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod1MultiSurface>
+                </tran:Square>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeSegmentDensityComparisonFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(demDirectory);
+        File.WriteAllText(
+            Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 10</gml:lowerCorner>
+                  <gml:upperCorner>35.0005 139.0020 30</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-segment-density">
+                  <gml:name>Segment Density Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-segment-density-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-segment-density-0">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-segment-density-0">
+                                  <gml:posList>35.0000 139.0000 10 35.0000 139.0020 30 35.0005 139.0000 10 35.0000 139.0000 10</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-segment-density-1">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-segment-density-1">
+                                  <gml:posList>35.0005 139.0000 10 35.0000 139.0020 30 35.0005 139.0020 30 35.0005 139.0000 10</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        string tranDirectory = Path.Combine(datasetRoot, "udx", "tran", "53394525");
+        Directory.CreateDirectory(tranDirectory);
+        File.WriteAllText(
+            Path.Combine(tranDirectory, "plateau_tokyo23ku_tran_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0005 139.0020 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-segment-density-narrow">
+                  <gml:name>Narrow Segmented Road</gml:name>
+                  <tran:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-road-segment-density-narrow">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-road-segment-density-narrow">
+                              <gml:posList>35.000000 139.0000 0 35.000000 139.0020 0 35.000018 139.0020 0 35.000018 139.0000 0 35.000000 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod1MultiSurface>
+                </tran:Road>
+              </core:cityObjectMember>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-segment-density-wide">
+                  <gml:name>Wide Segmented Road</gml:name>
+                  <tran:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-road-segment-density-wide">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-road-segment-density-wide">
+                              <gml:posList>35.000200 139.0000 0 35.000200 139.0020 0 35.000300 139.0020 0 35.000300 139.0000 0 35.000200 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod1MultiSurface>
+                </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimeSkewedTransportationFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(demDirectory);
+        File.WriteAllText(
+            Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0006 139.0020 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-skewed-road">
+                  <gml:name>Skewed Road Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-skewed-road-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-skewed-road-0">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-skewed-road-0">
+                                  <gml:posList>35.0000 139.0000 0 35.0000 139.0020 20 35.0006 139.0000 0 35.0000 139.0000 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-skewed-road-1">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-skewed-road-1">
+                                  <gml:posList>35.0006 139.0000 0 35.0000 139.0020 20 35.0006 139.0020 20 35.0006 139.0000 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        string tranDirectory = Path.Combine(datasetRoot, "udx", "tran", "53394525");
+        Directory.CreateDirectory(tranDirectory);
+        File.WriteAllText(
+            Path.Combine(tranDirectory, "plateau_tokyo23ku_tran_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0003 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0005 139.0020 0</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-skewed-road">
+                  <gml:name>Skewed Segmented Road</gml:name>
+                  <tran:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-skewed-road">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-skewed-road">
+                              <gml:posList>35.000350 139.0000 0 35.000350 139.0020 0 35.000420 139.0014 0 35.000420 139.0008 0 35.000350 139.0000 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </tran:lod1MultiSurface>
+                </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+    }
+
+    private static void CreateRuntimePartialDemCoverageRoadFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(demDirectory);
+        File.WriteAllText(
+            Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0001 139.0010 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-partial-coverage">
+                  <gml:name>Partial Coverage Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-partial-coverage-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-partial-coverage">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-partial-coverage">
+                                  <gml:posList>35.0000 139.0000 0 35.0000 139.0010 20 35.0001 139.0000 0 35.0000 139.0000 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        string tranDirectory = Path.Combine(datasetRoot, "udx", "tran", "53394525");
+        Directory.CreateDirectory(tranDirectory);
+        File.WriteAllText(
+            Path.Combine(tranDirectory, "plateau_tokyo23ku_tran_53394525.gml"),
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 50</gml:lowerCorner>
+                  <gml:upperCorner>35.0001 139.0020 50</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <tran:Road gml:id="tran-partial-coverage-road">
+                  <gml:name>Partial Coverage Road</gml:name>
+                  <tran:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="poly-partial-coverage-road">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="ring-partial-coverage-road">
+                              <gml:posList>35.000010 139.0002 50 35.000010 139.0020 50 35.000025 139.0020 50 35.000025 139.0002 50 35.000010 139.0002 50</gml:posList>
                             </gml:LinearRing>
                           </gml:exterior>
                         </gml:Polygon>
