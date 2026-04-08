@@ -393,7 +393,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncWritesHeightMapTextureWithBlackLowWhiteHigh()
+    public async Task BuildAsyncWritesHeightMapTextureWithWhiteLowBlackHigh()
     {
         const string dataset = "tokyo23ku";
         const string meshCode = "53394525";
@@ -470,10 +470,10 @@ public sealed class ResoniteLinkSceneBuilderTests
             static path => path.EndsWith("_heightmap.png", StringComparison.Ordinal));
         using Image<L16> image = await Image.LoadAsync<L16>(heightMapPath);
 
-        Assert.Equal((ushort)0, image[0, 0].PackedValue);
-        Assert.Equal(ushort.MaxValue, image[1, 0].PackedValue);
-        Assert.Equal((ushort)0, image[0, 1].PackedValue);
-        Assert.Equal(ushort.MaxValue, image[1, 1].PackedValue);
+        Assert.Equal(ushort.MaxValue, image[0, 0].PackedValue);
+        Assert.Equal((ushort)0, image[1, 0].PackedValue);
+        Assert.Equal(ushort.MaxValue, image[0, 1].PackedValue);
+        Assert.Equal((ushort)0, image[1, 1].PackedValue);
     }
 
 

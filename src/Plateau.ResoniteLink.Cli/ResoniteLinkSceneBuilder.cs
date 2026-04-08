@@ -1107,7 +1107,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             for (int x = 0; x < geometry.Width; x++)
             {
-                ushort heightValue = geometry.HeightSamples[(y * geometry.Width) + x];
+                // GridMesh moves brighter samples along local +Z, which becomes downward in world Y after our terrain rotation.
+                ushort heightValue = (ushort)(ushort.MaxValue - geometry.HeightSamples[(y * geometry.Width) + x]);
                 image[x, y] = new L16(heightValue);
             }
         }
