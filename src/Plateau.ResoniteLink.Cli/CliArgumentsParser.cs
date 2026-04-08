@@ -18,6 +18,7 @@ public static class CliArgumentsParser
           --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
           --exclude-lod-for-package <csv>
                                 Optional. Package-specific LOD exclusions: 'package:lod,package:lod' (e.g., tran:1,bldg:0).
+                                Default: tran:1 (always excluded unless overridden).
           --include-marking <true|false>
                                 Optional. Include generated road markings even when marked for exclusion. Default: true.
           --{package}-pattern <pattern>
@@ -61,7 +62,10 @@ public static class CliArgumentsParser
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = PlateauPackageCatalog.CliDefaultPackageNames;
         IReadOnlySet<int>? globalExcludeLods = null;
-        IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = null;
+        IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = new Dictionary<string, IReadOnlySet<int>>
+        {
+            { "tran", (IReadOnlySet<int>)new HashSet<int> { 1 } }
+        };
         bool includeMarkingAlways = true;
         Dictionary<string, string>? packagePatterns = null;
 
@@ -245,6 +249,17 @@ public static class CliArgumentsParser
         catch (ArgumentException exception)
         {
             return CliParseResult.Failure(exception.Message);
+        }
+
+        // Merge default exclusions: if user specified --exclude-lod-for-package but didn't mention tran,
+        // ensure tran:1 remains excluded by default
+        if (packageExcludeLods != null && !packageExcludeLods.ContainsKey("tran"))
+        {
+            Dictionary<string, IReadOnlySet<int>> merged = new(packageExcludeLods)
+            {
+                ["tran"] = new HashSet<int> { 1 }
+            };
+            packageExcludeLods = merged;
         }
 
         PlateauImportRequest request = new(
