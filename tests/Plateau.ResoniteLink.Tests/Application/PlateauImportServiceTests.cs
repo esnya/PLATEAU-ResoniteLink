@@ -890,6 +890,10 @@ public sealed class PlateauImportServiceTests
         ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
 
         Assert.Equal(westGeometry.Height, eastGeometry.Height);
+        Assert.True(
+            Math.Abs(demChunks[0].Transform.Position.X - demChunks[1].Transform.Position.X) > 1e-6
+            || Math.Abs(demChunks[0].Transform.Position.Z - demChunks[1].Transform.Position.Z) > 1e-6,
+            "Split DEM heightmap chunks must not collapse onto the same slot X/Z.");
 
         double[] westEdgeHeights = GetAbsoluteHeightMapEdgeHeights(demChunks[0], westGeometry, westGeometry.Width - 1);
         double[] eastEdgeHeights = GetAbsoluteHeightMapEdgeHeights(demChunks[1], eastGeometry, 0);
@@ -3275,7 +3279,7 @@ public sealed class PlateauImportServiceTests
         {
             ushort sample = (ushort)geometry.HeightSamples[(rowIndex * geometry.Width) + columnIndex];
             double normalized = sample / (double)ushort.MaxValue;
-            heights[rowIndex] = cityObject.Transform.Position.Y + geometry.MinHeight + (normalized * range);
+            heights[rowIndex] = cityObject.Transform.Position.Y - ((1.0 - normalized) * range);
         }
 
         return heights;

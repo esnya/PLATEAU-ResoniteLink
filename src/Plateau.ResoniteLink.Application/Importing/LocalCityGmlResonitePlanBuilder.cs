@@ -3165,6 +3165,8 @@ public static class LocalCityGmlResonitePlanBuilder
         double maxX = positions.Max(static position => position.X);
         double minZ = positions.Min(static position => position.Z);
         double maxZ = positions.Max(static position => position.Z);
+        double centerX = (minX + maxX) / 2.0;
+        double centerZ = (minZ + maxZ) / 2.0;
         double extentX = maxX - minX;
         double extentZ = maxZ - minZ;
         if (extentX <= 1e-6 || extentZ <= 1e-6)
@@ -3233,7 +3235,11 @@ public static class LocalCityGmlResonitePlanBuilder
 
         ResoniteFloat3 adjustedSlotPosition = slotPosition with
         {
-            Y = slotPosition.Y + minHeight,
+            // Elements.Assets.Grid centers vertices in-plane, so split DEM chunks need their own bbox-center offset here.
+            X = slotPosition.X + centerX,
+            // GridMesh displaces the inverted heightmap downward in world Y, so the slot must start at the patch-local maximum height.
+            Y = slotPosition.Y + maxHeight,
+            Z = slotPosition.Z + centerZ,
         };
 
         heightMapCityObject = new ResoniteConstructionCityObject(
