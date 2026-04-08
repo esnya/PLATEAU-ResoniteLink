@@ -121,7 +121,7 @@ public static class CliArgumentsParser
                                     "Specify either --resonitelink-port or --resonitelink-url, not both.");
                             }
 
-                            string portValue = ReadValue(args, ref index, token);
+                            string portValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
                             if (!int.TryParse(portValue, out int port) || port is < 1 or > 65535)
                             {
                                 return CliParseResult.Failure(
@@ -160,7 +160,7 @@ public static class CliArgumentsParser
                         }
                     case "--resonitelink-connections":
                         {
-                            string connectionCountValue = ReadValue(args, ref index, token);
+                            string connectionCountValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
                             if (!int.TryParse(connectionCountValue, out resoniteLinkConnectionCount)
                                 || resoniteLinkConnectionCount < 1)
                             {
@@ -197,7 +197,7 @@ public static class CliArgumentsParser
                         }
                     case "--dem-heightmap-meters-per-vertex":
                         {
-                            string metersPerVertexValue = ReadValue(args, ref index, token);
+                            string metersPerVertexValue = ReadValue(args, ref index, token, IsSignedDecimalValue);
                             if (!double.TryParse(
                                     metersPerVertexValue,
                                     System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
@@ -213,7 +213,7 @@ public static class CliArgumentsParser
                         }
                     case "--dem-heightmap-max-resolution":
                         {
-                            string maxResolutionValue = ReadValue(args, ref index, token);
+                            string maxResolutionValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
                             if (!int.TryParse(maxResolutionValue, out demHeightmapMaxResolution)
                                 || demHeightmapMaxResolution < 2)
                             {
@@ -336,15 +336,43 @@ public static class CliArgumentsParser
                 enableSendMetrics));
     }
 
-    private static string ReadValue(string[] args, ref int index, string optionName)
+    private static string ReadValue(
+        string[] args,
+        ref int index,
+        string optionName,
+        Func<string, bool>? isClearlyNumericValue = null)
     {
         if (index + 1 >= args.Length)
         {
             throw new ArgumentException($"A value is required after '{optionName}'.");
         }
 
+        string value = args[index + 1];
+        if (value.StartsWith('-') && (isClearlyNumericValue is null || !isClearlyNumericValue(value)))
+        {
+            throw new ArgumentException($"A value is required after '{optionName}'.");
+        }
+
         index++;
-        return args[index];
+        return value;
+    }
+
+    private static bool IsSignedIntegerValue(string value)
+    {
+        return int.TryParse(
+            value,
+            System.Globalization.NumberStyles.Integer,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out _);
+    }
+
+    private static bool IsSignedDecimalValue(string value)
+    {
+        return double.TryParse(
+            value,
+            System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out _);
     }
 
     private static bool TryParsePackageNames(

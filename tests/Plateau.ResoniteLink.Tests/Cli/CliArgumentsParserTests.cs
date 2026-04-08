@@ -100,6 +100,64 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseRejectsMissingOptionValueBeforeAnotherOption()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "--mesh-code",
+                "53394525",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Equal("A value is required after '--dataset'.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsMissingValueForResoniteLinkConnections()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-connections",
+                "--send-metrics",
+            ]);
+
+        Assert.Equal("A value is required after '--resonitelink-connections'.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsNegativeResoniteLinkPortValueAsInvalid()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "remote",
+                "--server-url",
+                "https://example.invalid/plateau",
+                "--resonitelink-port",
+                "-1",
+            ]);
+
+        Assert.Equal("The value '-1' is not a valid TCP port.", result.Error);
+    }
+
+    [Fact]
     public void ParseParsesRemoteCommand()
     {
         CliParseResult result = CliArgumentsParser.Parse(
