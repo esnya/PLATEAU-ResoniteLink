@@ -178,6 +178,36 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         }
     }
 
+    [Fact]
+    public async Task BuildAsyncSharesCommonMaterialAssetsAcrossCityObjectsInSameSession()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-material-one",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material")),
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-material-two",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material")),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            1,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+        Assert.Equal(5, sharedClient.ImportedTexturePaths.Count);
+    }
+
     private static async Task BuildSceneOnceAsync(
         CapturedScene scene,
         ReuseSessionSharedClient client,
