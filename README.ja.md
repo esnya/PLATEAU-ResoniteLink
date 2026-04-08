@@ -74,9 +74,9 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` は既定で公式の `search.ckan.jp` catalog を使い、対応する CityGML ZIP/7z resource を探索して `runtime/<os>/resonite/cache/remote/` にダウンロードし、その cached archive を透過的に読んで同じ local importer に渡します。`--server-url` で catalog base URI を上書きすることも、ZIP/7z archive URL を直接指定することもできます。
+`--source remote` は既定で公式の `search.ckan.jp` catalog を使い、対応する CityGML ZIP/7z resource を探索して `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` にダウンロードし、その cached archive を透過的に読んで同じ local importer に渡します。cache key は要求した mesh code ではなく archive URL に基づくため、詳細 mesh code が変わっても同じ archive を再利用できます。`--server-url` で catalog base URI を上書きすることも、ZIP/7z archive URL を直接指定することもできます。
 
-DL 済みデータを再利用する場合は、`--source local --local-source-path ...` に切り替え、dataset directory、cached ZIP/7z archive、または `runtime/<os>/resonite/cache/remote/` 配下のその上位 directory を指定します。importer 側で `udx/` を含む最も近い descendant dataset root を自動解決でき、cached archive file も透過的に開けます。
+DL 済みデータを再利用する場合は、`--source local --local-source-path ...` に切り替え、dataset directory、cached ZIP/7z archive、または `runtime/<os>/resonite/cache/remote/<dataset>/` 配下のその上位 directory を指定します。importer 側で `udx/` を含む最も近い descendant dataset root を自動解決でき、cached archive file も透過的に開けます。
 
 Windows から ResoniteLink 経由で Resonite にライブ構築する例:
 

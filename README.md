@@ -77,9 +77,9 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP/7z resource, downloads it into `runtime/<os>/resonite/cache/remote/`, and then runs the same local importer directly against the cached archive. `--server-url` can override the catalog base URI or point directly to a ZIP/7z archive URL.
+`--source remote` uses the official `search.ckan.jp` catalog by default, discovers a matching CityGML ZIP/7z resource, downloads it into `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/`, and then runs the same local importer directly against the cached archive. The cache key is based on the archive URL rather than the requested mesh code, so repeated imports can reuse the same archive even when the detailed mesh code changes. `--server-url` can override the catalog base URI or point directly to a ZIP/7z archive URL.
 
-To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either a dataset directory, a cached ZIP/7z archive, or an ancestor directory under `runtime/<os>/resonite/cache/remote/`. The importer resolves the nearest descendant dataset root that contains `udx/`, and it can also open a cached archive file transparently.
+To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either a dataset directory, a cached ZIP/7z archive, or an ancestor directory under `runtime/<os>/resonite/cache/remote/<dataset>/`. The importer resolves the nearest descendant dataset root that contains `udx/`, and it can also open a cached archive file transparently.
 
 Build live into Resonite through ResoniteLink from Windows:
 

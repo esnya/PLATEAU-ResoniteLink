@@ -56,13 +56,11 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
         archiveUri ??= await DiscoverArchiveUriAsync(request, cancellationToken);
 
-        string cacheRoot = Path.GetFullPath(Path.Combine(
-            workRoot,
-            "cache",
-            "remote",
-            CreateSafePathSegment(request.Dataset),
-            CreateSafePathSegment(request.MeshCode),
-            CreateArchiveCacheKey(archiveUri)));
+        string safeDataset = CreateSafePathSegment(request.Dataset);
+        string safeMeshCode = CreateSafePathSegment(request.MeshCode);
+        string archiveCacheKey = CreateArchiveCacheKey(archiveUri);
+        string cacheRoot = GetArchiveCacheRoot(workRoot, safeDataset, archiveCacheKey);
+        TryMigrateLegacyArchiveCache(workRoot, safeDataset, safeMeshCode, archiveCacheKey, cacheRoot);
 
         Directory.CreateDirectory(cacheRoot);
 
@@ -165,12 +163,6 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
     private static void InvalidateMaterializedCache(string archivePath)
     {
-        string archiveCacheName = Path.GetFileNameWithoutExtension(archivePath);
-        if (string.IsNullOrWhiteSpace(archiveCacheName))
-        {
-            return;
-        }
-
         string? cacheDirectory = Path.GetDirectoryName(archivePath);
         while (!string.IsNullOrWhiteSpace(cacheDirectory))
         {
@@ -182,7 +174,7 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
                     return;
                 }
 
-                InvalidateMaterializedCacheUnder(workRoot, archiveCacheName);
+                InvalidateMaterializedCacheUnder(workRoot, archivePath);
                 return;
             }
 
@@ -190,26 +182,29 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         }
     }
 
-    private static void InvalidateMaterializedCacheUnder(string workRoot, string archiveCacheName)
+    private static void InvalidateMaterializedCacheUnder(string workRoot, string archivePath)
     {
-        TryDeleteDirectory(Path.Combine(workRoot, ".dataset-cache", archiveCacheName));
-        TryDeleteDirectory(Path.Combine(workRoot, ".generated-assets", ".dataset-cache", archiveCacheName));
+        foreach (string archiveCacheName in PlateauDatasetContentSourceFactory.GetMaterializedArchiveCacheKeys(archivePath))
+        {
+            TryDeleteDirectory(Path.Combine(workRoot, ".dataset-cache", archiveCacheName));
+            TryDeleteDirectory(Path.Combine(workRoot, ".generated-assets", ".dataset-cache", archiveCacheName));
 
-        try
-        {
-            foreach (string materializedCacheRoot in Directory.EnumerateDirectories(
-                         workRoot,
-                         ".dataset-cache",
-                         SearchOption.AllDirectories))
+            try
             {
-                TryDeleteDirectory(Path.Combine(materializedCacheRoot, archiveCacheName));
+                foreach (string materializedCacheRoot in Directory.EnumerateDirectories(
+                             workRoot,
+                             ".dataset-cache",
+                             SearchOption.AllDirectories))
+                {
+                    TryDeleteDirectory(Path.Combine(materializedCacheRoot, archiveCacheName));
+                }
             }
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
     }
 
@@ -356,23 +351,18 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         PlateauImportRequest request,
         CancellationToken cancellationToken)
     {
-        string datasetSlug = NormalizeDatasetSlug(request.Dataset);
-        string query = $"plateau-{datasetSlug}";
-        Uri packageSearchUri = BuildPackageSearchUri(request.ServerUri ?? DefaultCatalogApiBaseUri, query);
-
-        using HttpResponseMessage response = await httpClient.GetAsync(packageSearchUri, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        CkanPackageSearchResponse payload =
-            await response.Content.ReadFromJsonAsync<CkanPackageSearchResponse>(JsonOptions, cancellationToken)
-            ?? throw new PlateauImportValidationException(["The CKAN package search response was empty."]);
-
+        IReadOnlyList<string> datasetSlugVariants = GetDatasetSlugVariants(request.Dataset);
+        IReadOnlyList<CkanPackage> packages = await SearchPackagesAsync(
+            request.ServerUri ?? DefaultCatalogApiBaseUri,
+            request.Dataset,
+            datasetSlugVariants,
+            cancellationToken);
         string meshPrefix = request.MeshCode.Length >= 6 ? request.MeshCode[..6] : request.MeshCode;
-        CkanPackage? package = payload.Result.Results
+        CkanPackage? package = packages
             .Select(candidate => new
             {
                 Package = candidate,
-                Score = ScorePackage(candidate, datasetSlug, meshPrefix),
+                Score = ScorePackage(candidate, request.Dataset, datasetSlugVariants, meshPrefix),
             })
             .Where(static candidate => candidate.Score > 0)
             .OrderByDescending(static candidate => candidate.Score)
@@ -391,9 +381,11 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             {
                 Resource = candidate,
                 Score = ScoreResource(candidate, meshPrefix),
+                Version = ExtractCityGmlVersion(candidate),
             })
             .Where(static candidate => candidate.Score > 0)
             .OrderByDescending(static candidate => candidate.Score)
+            .ThenByDescending(static candidate => candidate.Version)
             .ThenBy(static candidate => candidate.Resource.Name, StringComparer.OrdinalIgnoreCase)
             .Select(static candidate => candidate.Resource)
             .FirstOrDefault();
@@ -413,29 +405,69 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         return new Uri(resource.Url, UriKind.Absolute);
     }
 
-    private static Uri BuildPackageSearchUri(Uri apiBaseUri, string query)
+    private async Task<IReadOnlyList<CkanPackage>> SearchPackagesAsync(
+        Uri apiBaseUri,
+        string rawDataset,
+        IReadOnlyList<string> datasetSlugVariants,
+        CancellationToken cancellationToken)
     {
-        string baseUri = apiBaseUri.ToString();
-        if (!baseUri.EndsWith('/'))
+        List<CkanPackage> packages = [];
+        foreach (string query in BuildPackageSearchQueries(rawDataset, datasetSlugVariants))
         {
-            baseUri += "/";
+            Uri packageSearchUri = BuildPackageSearchUri(apiBaseUri, query);
+            using HttpResponseMessage response = await httpClient.GetAsync(packageSearchUri, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            CkanPackageSearchResponse payload =
+                await response.Content.ReadFromJsonAsync<CkanPackageSearchResponse>(JsonOptions, cancellationToken)
+                ?? throw new PlateauImportValidationException(["The CKAN package search response was empty."]);
+
+            packages.AddRange(payload.Result.Results);
         }
 
+        return packages
+            .DistinctBy(static package => package.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IEnumerable<string> BuildPackageSearchQueries(
+        string rawDataset,
+        IReadOnlyList<string> datasetSlugVariants)
+    {
+        foreach (string datasetSlug in datasetSlugVariants)
+        {
+            yield return $"name:plateau-*{datasetSlug}*";
+            yield return $"plateau-{datasetSlug}";
+        }
+
+        if (rawDataset.Any(static character => character > 127))
+        {
+            yield return $"title:{rawDataset} AND tags:PLATEAU";
+        }
+    }
+
+    private static Uri BuildPackageSearchUri(Uri apiBaseUri, string query)
+    {
         return new Uri(
-            $"{baseUri}package_search?q={Uri.EscapeDataString(query)}&rows=50",
+            $"{EnsureTrailingSlash(apiBaseUri)}package_search?q={Uri.EscapeDataString(query)}&rows=200",
             UriKind.Absolute);
     }
 
-    private static int ScorePackage(CkanPackage package, string datasetSlug, string meshPrefix)
+    private static string EnsureTrailingSlash(Uri apiBaseUri)
+    {
+        string baseUri = apiBaseUri.ToString();
+        return baseUri.EndsWith('/') ? baseUri : $"{baseUri}/";
+    }
+
+    private static int ScorePackage(
+        CkanPackage package,
+        string rawDataset,
+        IReadOnlyList<string> datasetSlugVariants,
+        string meshPrefix)
     {
         int score = 0;
         string normalizedName = package.Name ?? string.Empty;
         string normalizedTitle = package.Title ?? string.Empty;
-
-        if (normalizedName.Contains($"plateau-{datasetSlug}", StringComparison.OrdinalIgnoreCase))
-        {
-            score += 100;
-        }
 
         if (normalizedName.Contains("citygml", StringComparison.OrdinalIgnoreCase))
         {
@@ -450,6 +482,24 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         if (package.Resources.Any(resource => ScoreResource(resource, meshPrefix) > 0))
         {
             score += 25;
+        }
+
+        if (rawDataset.Any(static character => character > 127)
+            && normalizedTitle.Contains(rawDataset, StringComparison.OrdinalIgnoreCase))
+        {
+            score += 150;
+        }
+
+        foreach (string datasetSlug in datasetSlugVariants)
+        {
+            if (normalizedName.Contains($"plateau-{datasetSlug}", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 150;
+            }
+            else if (normalizedName.Contains(datasetSlug, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 60;
+            }
         }
 
         return score;
@@ -509,7 +559,41 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
             score += 20;
         }
 
+        int version = ExtractCityGmlVersion(resource);
+        if (version > 0)
+        {
+            score += version * 10;
+        }
+        else if (name.Contains("CityGML", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 5;
+        }
+
         return score;
+    }
+
+    private static int ExtractCityGmlVersion(CkanResource resource)
+    {
+        return Math.Max(
+            Math.Max(
+                ExtractVersion(resource.Name ?? string.Empty),
+                ExtractVersion(resource.Description ?? string.Empty)),
+            ExtractVersion(resource.Url ?? string.Empty));
+    }
+
+    private static int ExtractVersion(string value)
+    {
+        MatchCollection matches = DatasetVersionRegex().Matches(value);
+        int version = 0;
+        foreach (Match match in matches.Cast<Match>())
+        {
+            if (int.TryParse(match.Groups["version"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out int parsedVersion))
+            {
+                version = Math.Max(version, parsedVersion);
+            }
+        }
+
+        return version;
     }
 
     private static bool LooksLikeSupportedArchiveUri(Uri uri)
@@ -540,6 +624,27 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         normalized = DatasetSlugSeparatorRegex().Replace(normalized, "-");
         normalized = normalized.Trim('-');
         return normalized;
+    }
+
+    private static string[] GetDatasetSlugVariants(string dataset)
+    {
+        HashSet<string> variants = new(StringComparer.OrdinalIgnoreCase);
+        string normalized = NormalizeDatasetSlug(dataset);
+        if (!string.IsNullOrWhiteSpace(normalized))
+        {
+            variants.Add(normalized);
+            foreach (string suffix in MunicipalitySuffixes)
+            {
+                if (normalized.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                    && !normalized.EndsWith($"-{suffix}", StringComparison.OrdinalIgnoreCase)
+                    && normalized.Length > suffix.Length)
+                {
+                    variants.Add($"{normalized[..^suffix.Length]}-{suffix}");
+                }
+            }
+        }
+
+        return variants.ToArray();
     }
 
     private static string CreateSafePathSegment(string value)
@@ -579,6 +684,54 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
         return builder.ToString();
     }
 
+    private static string GetArchiveCacheRoot(string workRoot, string safeDataset, string archiveCacheKey)
+    {
+        return Path.GetFullPath(Path.Combine(
+            workRoot,
+            "cache",
+            "remote",
+            safeDataset,
+            archiveCacheKey));
+    }
+
+    private static string GetLegacyArchiveCacheRoot(
+        string workRoot,
+        string safeDataset,
+        string safeMeshCode,
+        string archiveCacheKey)
+    {
+        return Path.GetFullPath(Path.Combine(
+            workRoot,
+            "cache",
+            "remote",
+            safeDataset,
+            safeMeshCode,
+            archiveCacheKey));
+    }
+
+    private static void TryMigrateLegacyArchiveCache(
+        string workRoot,
+        string safeDataset,
+        string safeMeshCode,
+        string archiveCacheKey,
+        string cacheRoot)
+    {
+        if (Directory.Exists(cacheRoot))
+        {
+            return;
+        }
+
+        string legacyCacheRoot = GetLegacyArchiveCacheRoot(workRoot, safeDataset, safeMeshCode, archiveCacheKey);
+        if (!Directory.Exists(legacyCacheRoot))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(cacheRoot)!);
+        Directory.Move(legacyCacheRoot, cacheRoot);
+        TryDeleteDirectory(Path.GetDirectoryName(legacyCacheRoot));
+    }
+
     private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)
     {
         string extension = Path.GetExtension(path);
@@ -606,6 +759,24 @@ public sealed partial class CkanPlateauDatasetSourceResolver : IPlateauDatasetSo
 
     [GeneratedRegex("[^a-z0-9]+", RegexOptions.Compiled)]
     private static partial Regex DatasetSlugSeparatorRegex();
+
+    [GeneratedRegex(@"(?:^|[^a-z0-9])v(?<version>\d+)(?:[^a-z0-9]|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled)]
+    private static partial Regex DatasetVersionRegex();
+
+    private static readonly string[] MunicipalitySuffixes =
+    [
+        "shi",
+        "ku",
+        "cho",
+        "machi",
+        "son",
+        "mura",
+        "gun",
+        "to",
+        "do",
+        "fu",
+        "ken",
+    ];
 
     private sealed record CkanPackageSearchResponse(CkanSearchResult Result);
 

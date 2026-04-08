@@ -23,6 +23,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const int MaxQueuedCityObjects = 4;
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
+    private const double SlotPositionTolerance = 0.0001;
     private static readonly PngEncoder HeightMapPngEncoder = new()
     {
         BitDepth = PngBitDepth.Bit16,
@@ -184,6 +185,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             $"PLATEAU {metadata.Request.Dataset}",
             new ResoniteFloat3(0.0, 0.0, 0.0),
             null,
+            cancellationToken);
+        await EnsureSlotYPositionAsync(
+            setupClient,
+            datasetSlotId,
+            "Root",
+            $"PLATEAU {metadata.Request.Dataset}",
+            new ResoniteFloat3(0.0, 0.0, 0.0),
             cancellationToken);
         await licenseManager.EnsureDatasetLicenseAsync(setupClient, datasetSlotId, datasetLicenseComponentId, cancellationToken);
         ResoniteFloat3 meshCodeRootPosition = await ResolveMeshCodeRootPositionAsync(
@@ -1048,7 +1056,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         string directory = Path.Combine(generatedAssetsRoot, "heightmaps");
         Directory.CreateDirectory(directory);
-        string fileName = $"{cityObject.ActualMeshCode}_{cityObject.SlotKey}_heightmap.png";
+        string fileName = $"{cityObject.ActualMeshCode}_{CreateHeightMapFileNameSegment(cityObject.SlotKey)}_heightmap.png";
         string absolutePath = Path.Combine(directory, fileName);
         using Image<L16> image = new(geometry.Width, geometry.Height);
 
@@ -1065,6 +1073,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return new PreparedHeightMapTexture(
             absolutePath,
             ComputeContentFingerprint(absolutePath));
+    }
+
+    private static string CreateHeightMapFileNameSegment(string slotKey)
+    {
+        byte[] slotKeyBytes = Encoding.UTF8.GetBytes(slotKey);
+        byte[] hash = SHA256.HashData(slotKeyBytes);
+        return Convert.ToHexString(hash);
     }
 
     private static string DescribePreparedGeometry(PreparedConstructionGeometry geometry)
@@ -1144,6 +1159,55 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         meshCode = slot.Name?.Value ?? string.Empty;
         return PlateauMeshCode.TryGetCenter(meshCode, out _);
+    }
+
+    private static async Task EnsureSlotYPositionAsync(
+        IResoniteLinkClient client,
+        string slotId,
+        string parentId,
+        string slotName,
+        ResoniteFloat3 expectedPosition,
+        CancellationToken cancellationToken)
+    {
+        Slot? existingSlot = await client.GetSlotAsync(slotId, 0, cancellationToken);
+        if (existingSlot is null)
+        {
+            return;
+        }
+
+        if (IsApproximatelyEqual(expectedPosition.Y, existingSlot.Position))
+        {
+            return;
+        }
+
+        ResoniteFloat3 nextPosition = new(
+            existingSlot.Position?.Value.x ?? expectedPosition.X,
+            expectedPosition.Y,
+            existingSlot.Position?.Value.z ?? expectedPosition.Z);
+        await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    ID = slotId,
+                    Parent = existingSlot.Parent ?? new Reference
+                    {
+                        TargetID = parentId,
+                    },
+                    Name = string.IsNullOrWhiteSpace(existingSlot.Name?.Value)
+                        ? new Field_string { Value = slotName }
+                        : existingSlot.Name,
+                    Position = CreateFloat3(nextPosition),
+                    Rotation = existingSlot.Rotation,
+                },
+            },
+            cancellationToken);
+    }
+
+    private static bool IsApproximatelyEqual(double expectedY, Field_float3? existingPosition)
+    {
+        return existingPosition is not null
+            && Math.Abs(existingPosition.Value.y - (float)expectedY) < SlotPositionTolerance;
     }
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)

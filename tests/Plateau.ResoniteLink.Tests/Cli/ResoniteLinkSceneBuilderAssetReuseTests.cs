@@ -5,10 +5,12 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
+[Collection(BundledCompanionTextureIsolationGroup.Name)]
 public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 {
     private const string DatasetName = "reuse-test";
     private const string MeshCode = "53394525";
+    private static readonly SemaphoreSlim BundledCompanionTextureIsolationGate = new(1, 1);
 
     [Fact]
     public async Task BuildAsyncReimportsTriangleMeshWhenContentChangesInSameSession()
@@ -115,52 +117,61 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
         using ReuseSessionSharedClient sharedClient = new();
 
-        string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
-        ResoniteMaterialBinding sampleMaterial = new(
-            MaterialKey: "bundle-companion-test",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: bundledTexturePath,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0]);
-        Assert.True(ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(sampleMaterial, out BundledDefaultMaterialTextureSet? bundledTextureSet));
-        Assert.NotNull(bundledTextureSet);
-        Assert.NotNull(bundledTextureSet.NormalPath);
-        byte[] originalNormalBytes = await File.ReadAllBytesAsync(bundledTextureSet.NormalPath);
+        await BundledCompanionTextureIsolationGate.WaitAsync();
 
         try
         {
-            ResoniteConstructionCityObject firstCityObject = CreateBundledTriangleCityObject(
-                objectIdentity: "shared-bundled-companion",
-                texturePath: bundledTexturePath,
-                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
-            CapturedScene firstScene = new(
-                metadata,
-                [firstCityObject]);
+            string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
+            ResoniteMaterialBinding sampleMaterial = new(
+                MaterialKey: "bundle-companion-test",
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.Standard,
+                TexturePath: bundledTexturePath,
+                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]);
+            Assert.True(ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(sampleMaterial, out BundledDefaultMaterialTextureSet? bundledTextureSet));
+            Assert.NotNull(bundledTextureSet);
+            Assert.NotNull(bundledTextureSet.NormalPath);
+            byte[] originalNormalBytes = await File.ReadAllBytesAsync(bundledTextureSet.NormalPath);
 
-            await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-            int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
+            try
+            {
+                ResoniteConstructionCityObject firstCityObject = CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-bundled-companion",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
+                CapturedScene firstScene = new(
+                    metadata,
+                    [firstCityObject]);
 
-            await File.WriteAllTextAsync(
-                bundledTextureSet.NormalPath,
-                "modified bundled normal companion bytes");
+                await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+                int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
 
-            ResoniteConstructionCityObject secondCityObject = CreateBundledTriangleCityObject(
-                objectIdentity: "shared-bundled-companion",
-                texturePath: bundledTexturePath,
-                mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"));
-            CapturedScene secondScene = new(
-                metadata,
-                [secondCityObject]);
+                await File.WriteAllTextAsync(
+                    bundledTextureSet.NormalPath,
+                    "modified bundled normal companion bytes");
 
-            await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-            Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
+                ResoniteConstructionCityObject secondCityObject = CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-bundled-companion",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"));
+                CapturedScene secondScene = new(
+                    metadata,
+                    [secondCityObject]);
+
+                await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+                Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
+            }
+            finally
+            {
+                await File.WriteAllBytesAsync(bundledTextureSet.NormalPath, originalNormalBytes);
+            }
         }
         finally
         {
-            await File.WriteAllBytesAsync(bundledTextureSet.NormalPath, originalNormalBytes);
+            BundledCompanionTextureIsolationGate.Release();
         }
     }
 
@@ -507,5 +518,10 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     private sealed record CapturedScene(
         ResoniteConstructionMetadata Metadata,
         IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
+}
 
+[CollectionDefinition(BundledCompanionTextureIsolationGroup.Name, DisableParallelization = true)]
+public sealed class BundledCompanionTextureIsolationGroup
+{
+    public const string Name = "BundledCompanionTextureIsolation";
 }

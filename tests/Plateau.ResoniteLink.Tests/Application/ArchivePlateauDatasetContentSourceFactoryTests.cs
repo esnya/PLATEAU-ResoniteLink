@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 using Plateau.ResoniteLink.Application.Importing;
@@ -26,7 +27,7 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
             Path.Combine(
                 outputRoot,
                 ".dataset-cache",
-                Path.GetFileNameWithoutExtension(archivePath),
+                GetMaterializedArchiveCacheKey(archivePath),
                 safePath.Replace('/', Path.DirectorySeparatorChar)));
 
         string actualSafePath = await datasetSource.MaterializeFileAsync(safePath, outputRoot);
@@ -54,11 +55,43 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
             Path.Combine(
                 outputRoot,
                 ".dataset-cache",
-                Path.GetFileNameWithoutExtension(archivePath),
+                GetMaterializedArchiveCacheKey(archivePath),
                 traversalPath.Replace('/', Path.DirectorySeparatorChar)));
 
         await Assert.ThrowsAsync<ArgumentException>(() => datasetSource.MaterializeFileAsync(traversalPath, outputRoot));
         Assert.False(File.Exists(expectedUnsafePath));
+    }
+
+    [Fact]
+    public async Task MaterializeFileAsyncUsesDistinctCacheDirectoriesForSameNamedArchivesInDifferentPaths()
+    {
+        byte[] archiveBytes = CreateZipArchive(("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        string firstArchivePath = Path.Combine(workRoot.Path, "a", "dataset.zip");
+        string secondArchivePath = Path.Combine(workRoot.Path, "b", "dataset.zip");
+        Directory.CreateDirectory(Path.GetDirectoryName(firstArchivePath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(secondArchivePath)!);
+        await File.WriteAllBytesAsync(firstArchivePath, archiveBytes);
+        await File.WriteAllBytesAsync(secondArchivePath, archiveBytes);
+
+        IPlateauDatasetContentSource firstDatasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(firstArchivePath);
+        IPlateauDatasetContentSource secondDatasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(secondArchivePath);
+
+        string outputRoot = Path.Combine(workRoot.Path, "output");
+        string relativePath = "udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml";
+
+        string firstMaterializedPath = await firstDatasetSource.MaterializeFileAsync(relativePath, outputRoot);
+        string secondMaterializedPath = await secondDatasetSource.MaterializeFileAsync(relativePath, outputRoot);
+
+        Assert.NotEqual(Path.GetDirectoryName(firstMaterializedPath), Path.GetDirectoryName(secondMaterializedPath));
+    }
+
+    private static string GetMaterializedArchiveCacheKey(string archivePath)
+    {
+        string fullArchivePath = Path.GetFullPath(archivePath);
+        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
+        string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath))).ToLowerInvariant();
+        return $"{fileStem}-{digest[..12]}";
     }
 
     private static byte[] CreateZipArchive(params (string Path, string Content)[] entries)

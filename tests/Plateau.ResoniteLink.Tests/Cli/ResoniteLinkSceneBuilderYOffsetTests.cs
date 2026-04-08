@@ -48,14 +48,103 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         Assert.Equal((float)buildingHeight, cityObjectPosition.Value.y);
     }
 
-    private static ResoniteYTestScene CreateScene(
-        string dataset,
-        string meshCode,
-        string sourceObjectKey,
-        double height,
-        string fixturePath)
+    [Fact]
+    public async Task BeginAsyncResetsExistingDatasetRootYOffsetToZero()
     {
-        ResoniteConstructionMetadata metadata = new(
+        const string dataset = "tokyo23ku";
+        const string meshCode = "53394525";
+        const string sourceObjectKey = "plateau_test_building";
+
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        ResoniteYTestScene scene = CreateScene(dataset, meshCode, sourceObjectKey, 15.5, fixturePath);
+        string datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "dataset");
+
+        using YOffsetFakeClient fakeClient = new();
+        fakeClient.SlotsById[datasetSlotId] = new Slot
+        {
+            ID = datasetSlotId,
+            Parent = new Reference { TargetID = "Root" },
+            Name = new Field_string { Value = $"PLATEAU {dataset}" },
+            Position = new Field_float3
+            {
+                Value = new float3
+                {
+                    x = 0.0f,
+                    y = 1.5f,
+                    z = 0.0f,
+                },
+            },
+        };
+
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+
+        Slot datasetSlot = Assert.IsType<Slot>(fakeClient.SlotsById[datasetSlotId]);
+        Field_float3 datasetPosition = Assert.IsType<Field_float3>(datasetSlot.Position);
+        Assert.Equal(0.0f, datasetPosition.Value.y);
+    }
+
+    [Fact]
+    public async Task BuildAsyncSanitizesHeightMapTextureFileNameFromSlotKey()
+    {
+        const string dataset = "tokyo23ku";
+        const string meshCode = "53394525";
+        const string sourceObjectKey = "dangerous/slot:key";
+
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        ResoniteConstructionMetadata metadata = CreateMetadata(dataset, meshCode, fixturePath);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: sourceObjectKey,
+            DisplayName: "Height Test Terrain",
+            PackageName: "dem",
+            ActualMeshCode: meshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: 2,
+                Height: 2,
+                Size: new ResoniteFloat2(10.0, 10.0),
+                MinHeight: 0.0,
+                MaxHeight: 3.0,
+                HeightSamples: [0, 1, 2, 3]),
+            Materials: [CreateWireframeMaterial()],
+            SourceObjectKey: sourceObjectKey);
+
+        using YOffsetFakeClient fakeClient = new();
+        string workRoot = Path.Combine(Path.GetTempPath(), $"resonite-heightmap-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(workRoot);
+
+        try
+        {
+            await using ResoniteLinkSceneBuilder builder = new(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => fakeClient);
+
+            await builder.BeginAsync(metadata, workRoot);
+            await builder.ProcessCityObjectAsync(cityObject);
+            _ = await builder.CompleteAsync();
+
+            string importedTexturePath = Assert.Single(fakeClient.ImportedTexturePaths);
+            Assert.Equal(".png", Path.GetExtension(importedTexturePath));
+            Assert.DoesNotContain("/", Path.GetFileName(importedTexturePath), StringComparison.Ordinal);
+            Assert.DoesNotContain("\\", Path.GetFileName(importedTexturePath), StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(workRoot, recursive: true);
+        }
+    }
+
+    private static ResoniteConstructionMetadata CreateMetadata(string dataset, string meshCode, string fixturePath)
+    {
+        return new ResoniteConstructionMetadata(
             SchemaVersion: "3.0",
             WorldName: $"PLATEAU {dataset} {meshCode}",
             Request: new PlateauImportRequest(
@@ -79,6 +168,16 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
                     LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
                 MaterialLicenses: []),
             LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+    }
+
+    private static ResoniteYTestScene CreateScene(
+        string dataset,
+        string meshCode,
+        string sourceObjectKey,
+        double height,
+        string fixturePath)
+    {
+        ResoniteConstructionMetadata metadata = CreateMetadata(dataset, meshCode, fixturePath);
 
         return new ResoniteYTestScene(
             metadata,
@@ -130,6 +229,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
 
         public Dictionary<string, Slot> SlotsById { get; } = [];
         public Dictionary<string, Component> ComponentsById { get; } = [];
+        public List<string> ImportedTexturePaths { get; } = [];
 
         public void Dispose()
         {
@@ -196,6 +296,11 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         public Task<Uri> ImportTextureAsync(string filePath, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            lock (gate)
+            {
+                ImportedTexturePaths.Add(filePath);
+            }
+
             return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
         }
 

@@ -269,7 +269,7 @@ public sealed class PlateauImportServiceTests
             "cache",
             "remote",
             "tokyo23ku",
-            "53394525",
+            "cached-archive",
             "13100_tokyo23-ku_2022_citygml_1_2_op");
         CreateRuntimePackageFixture(
             datasetRoot,
@@ -286,7 +286,7 @@ public sealed class PlateauImportServiceTests
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
                 SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: Path.Combine(sourceRoot.Path, "cache", "remote", "tokyo23ku", "53394525"),
+                LocalSourcePath: Path.Combine(sourceRoot.Path, "cache", "remote", "tokyo23ku", "cached-archive"),
                 ServerUri: null),
             workRoot: "runtime/resonite");
         CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);

@@ -95,6 +95,82 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     }
 
     [Fact]
+    public async Task ResolveAsyncReusesCachedArchiveAcrossMeshCodeChanges()
+    {
+        byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+        int requestCount = 0;
+
+        using TemporaryDirectory workRoot = new();
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            requestCount++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(zipBytes),
+            };
+        });
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
+
+        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: archiveUri),
+            workRoot.Path);
+
+        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: archiveUri),
+            workRoot.Path);
+
+        Assert.NotNull(firstRequest.LocalSourcePath);
+        Assert.Equal(firstRequest.LocalSourcePath, secondRequest.LocalSourcePath);
+        Assert.Equal(2, requestCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncMigratesLegacyMeshScopedCache()
+    {
+        byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
+        string archiveHash = CreateArchiveCacheKey(archiveUri);
+        string legacyCacheRoot = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", "533944", archiveHash);
+        Directory.CreateDirectory(legacyCacheRoot);
+        string legacyArchivePath = Path.Combine(legacyCacheRoot, "533944.zip");
+        string legacyMetadataPath = $"{legacyArchivePath}.meta.json";
+        await File.WriteAllBytesAsync(legacyArchivePath, zipBytes);
+        await File.WriteAllTextAsync(legacyMetadataPath, """{"etag":"\"v1\"","lastModifiedUtc":"2026-01-01T00:00:00+00:00"}""");
+
+        using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotModified));
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+
+        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: archiveUri),
+            workRoot.Path);
+
+        string newArchivePath = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", archiveHash, "533944.zip");
+        Assert.Equal(newArchivePath, resolvedRequest.LocalSourcePath);
+        Assert.True(File.Exists(newArchivePath));
+        Assert.True(File.Exists($"{newArchivePath}.meta.json"));
+        Assert.False(Directory.Exists(legacyCacheRoot));
+    }
+
+    [Fact]
     public async Task ResolveAsyncRetriesDownloadAfterInterruptionWithoutLeavingArchive()
     {
         byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
@@ -349,12 +425,29 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
 
     private static string CreateStaleMaterializedCacheDirectory(string workRoot, string localArchivePath)
     {
-        string cacheName = Path.GetFileNameWithoutExtension(localArchivePath);
+        string cacheName = GetMaterializedArchiveCacheKey(localArchivePath);
         string materializedCachePath = Path.Combine(workRoot, ".generated-assets", ".dataset-cache", cacheName);
         string staleFilePath = Path.Combine(materializedCachePath, "udx", "stale.dat");
         Directory.CreateDirectory(Path.GetDirectoryName(staleFilePath)!);
         File.WriteAllText(staleFilePath, "stale");
         return materializedCachePath;
+    }
+
+    private static string GetMaterializedArchiveCacheKey(string archivePath)
+    {
+        string fullArchivePath = Path.GetFullPath(archivePath);
+        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
+        string digest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath)))
+            .ToLowerInvariant();
+        return $"{fileStem}-{digest[..12]}";
+    }
+
+    private static string CreateArchiveCacheKey(Uri archiveUri)
+    {
+        return Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.ToString())))
+            .ToLowerInvariant();
     }
 
     private sealed class FailingHttpContent(byte[] content, int failAfterBytes) : HttpContent

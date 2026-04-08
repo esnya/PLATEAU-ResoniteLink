@@ -496,6 +496,173 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             error => error.Contains("not a supported archive", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ResolveAsyncUsesJapaneseTitleQueryFallbackForOfficialPlateauDataset()
+    {
+        byte[] zipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_matsumoto-shi_bldg_533944.gml", "<CityModel />"));
+        const string packageSearchJson =
+            """
+            {
+              "result": {
+                "results": [
+                  {
+                    "name": "plateau-20202-matsumoto-shi-2020",
+                    "title": "3D都市モデル（Project PLATEAU）松本市（2020年度）",
+                    "resources": [
+                      {
+                        "name": "CityGML（v4）",
+                        "description": "CityGML",
+                        "format": "ZIP",
+                        "url": "https://example.test/matsumoto-v4.zip"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+            """;
+
+        using TemporaryDirectory workRoot = new();
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            if (request.RequestUri is null)
+            {
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
+            }
+
+            if (request.RequestUri.AbsoluteUri.Contains("q=title%3A%E6%9D%BE%E6%9C%AC%E5%B8%82%20AND%20tags%3APLATEAU", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(packageSearchJson, Encoding.UTF8, "application/json"),
+                };
+            }
+
+            if (string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/matsumoto-v4.zip", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(zipBytes),
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"result":{"results":[]}}""", Encoding.UTF8, "application/json"),
+            };
+        });
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+
+        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "松本市",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: null),
+            workRoot.Path);
+
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "matsumoto-v4.zip",
+            "udx/bldg/533944/plateau_matsumoto-shi_bldg_533944.gml");
+    }
+
+    [Fact]
+    public async Task ResolveAsyncPrefersLatestVersionedCityGmlResourceWhenMeshSpecificResourceIsUnavailable()
+    {
+        byte[] v4ZipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_matsumoto-shi_bldg_533944_v4.gml", "<CityModel />"));
+        byte[] legacyZipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_matsumoto-shi_bldg_533944_legacy.gml", "<CityModel />"));
+        const string packageSearchJson =
+            """
+            {
+              "result": {
+                "results": [
+                  {
+                    "name": "plateau-20202-matsumoto-shi-2020",
+                    "title": "3D都市モデル（Project PLATEAU）松本市（2020年度）",
+                    "resources": [
+                      {
+                        "name": "CityGML",
+                        "description": "CityGML",
+                        "format": "ZIP",
+                        "url": "https://example.test/matsumoto-legacy.zip"
+                      },
+                      {
+                        "name": "CityGML（v3）",
+                        "description": "CityGML",
+                        "format": "ZIP",
+                        "url": "https://example.test/matsumoto-v3.zip"
+                      },
+                      {
+                        "name": "CityGML（v4）",
+                        "description": "CityGML",
+                        "format": "ZIP",
+                        "url": "https://example.test/matsumoto-v4.zip"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+            """;
+
+        using TemporaryDirectory workRoot = new();
+        using StubHttpMessageHandler handler = new(request =>
+        {
+            if (request.RequestUri is null)
+            {
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
+            }
+
+            if (request.RequestUri.AbsoluteUri.StartsWith("https://search.ckan.jp/backend/api/package_search", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(packageSearchJson, Encoding.UTF8, "application/json"),
+                };
+            }
+
+            if (string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/matsumoto-v4.zip", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(v4ZipBytes),
+                };
+            }
+
+            if (string.Equals(request.RequestUri.AbsoluteUri, "https://example.test/matsumoto-legacy.zip", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(legacyZipBytes),
+                };
+            }
+
+            return new HttpResponseMessage(HttpStatusCode.NotFound);
+        });
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+
+        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "matsumoto-shi",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: null),
+            workRoot.Path);
+
+        await AssertResolvedArchiveContainsAsync(
+            resolvedRequest,
+            "matsumoto-v4.zip",
+            "udx/bldg/533944/plateau_matsumoto-shi_bldg_533944_v4.gml");
+    }
+
     private static byte[] CreateZipArchive(params (string Path, string Content)[] entries)
     {
         using MemoryStream stream = new();

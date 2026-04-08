@@ -249,6 +249,28 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseRejectsNumericDemTerrainMode()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--dem-terrain-mode",
+                "2",
+            ]);
+
+        Assert.Equal("Unsupported DEM terrain mode '2'. Use 'mesh' or 'heightmap'.", result.Error);
+        Assert.Null(result.Options);
+    }
+
+    [Fact]
     public void ParseEnablesSendMetrics()
     {
         CliParseResult result = CliArgumentsParser.Parse(

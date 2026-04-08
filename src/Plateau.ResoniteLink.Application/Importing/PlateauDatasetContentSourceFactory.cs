@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 using SharpCompress.Archives;
 using SharpCompress.Readers;
 
@@ -67,6 +70,27 @@ public static class PlateauDatasetContentSourceFactory
                 .Where(static segment => !string.IsNullOrWhiteSpace(segment))
                 .Select(static segment => NormalizeRelativePath(segment!))
                 .Where(static segment => segment.Length > 0));
+    }
+
+    internal static IReadOnlyList<string> GetMaterializedArchiveCacheKeys(string archivePath)
+    {
+        string fullArchivePath = Path.GetFullPath(archivePath);
+        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
+        List<string> keys = [];
+
+        if (!string.IsNullOrWhiteSpace(fileStem))
+        {
+            string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath))).ToLowerInvariant();
+            keys.Add($"{fileStem}-{digest[..12]}");
+            keys.Add(fileStem);
+        }
+
+        return keys;
+    }
+
+    internal static string GetMaterializedArchiveCacheKey(string archivePath)
+    {
+        return GetMaterializedArchiveCacheKeys(archivePath)[0];
     }
 
     internal static string GetDirectoryPath(string relativePath)
@@ -228,7 +252,7 @@ public static class PlateauDatasetContentSourceFactory
             string archiveCacheRoot = Path.Combine(
                 outputRoot,
                 ".dataset-cache",
-                Path.GetFileNameWithoutExtension(ArchivePath));
+                GetMaterializedArchiveCacheKey(ArchivePath));
             string destinationPath = ResolveMaterializedPath(archiveCacheRoot, normalizedPath);
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);

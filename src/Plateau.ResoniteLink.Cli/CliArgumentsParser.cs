@@ -187,7 +187,15 @@ public static class CliArgumentsParser
                     case "--dem-terrain-mode":
                         {
                             string demTerrainModeValue = ReadValue(args, ref index, token);
-                            if (!Enum.TryParse(demTerrainModeValue, ignoreCase: true, out demTerrainMode))
+                            if (string.Equals(demTerrainModeValue, nameof(DemTerrainMode.Mesh), StringComparison.OrdinalIgnoreCase))
+                            {
+                                demTerrainMode = DemTerrainMode.Mesh;
+                            }
+                            else if (string.Equals(demTerrainModeValue, "heightmap", StringComparison.OrdinalIgnoreCase))
+                            {
+                                demTerrainMode = DemTerrainMode.HeightMap;
+                            }
+                            else
                             {
                                 return CliParseResult.Failure(
                                     $"Unsupported DEM terrain mode '{demTerrainModeValue}'. Use 'mesh' or 'heightmap'.");
