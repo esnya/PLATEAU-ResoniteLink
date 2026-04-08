@@ -55,13 +55,16 @@ internal static class ResoniteMaterialComponentBuilder
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.TextureScale is not null)
         {
-            AddTextureTransformMembers(materialMembers, material.TextureScale);
+            AddTextureTransformMembers(materialMembers, material.TextureScale, material.TextureOffset);
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Triplanar)
         {
-            AddTextureTransformMembers(materialMembers, material.TextureScale ?? DefaultTriplanarTextureScale);
+            AddTextureTransformMembers(
+                materialMembers,
+                material.TextureScale ?? DefaultTriplanarTextureScale,
+                material.TextureOffset);
             materialMembers["Metallic"] = new Field_float
             {
                 Value = 0.0f,
@@ -114,7 +117,8 @@ internal static class ResoniteMaterialComponentBuilder
 
     private static void AddTextureTransformMembers(
         Dictionary<string, Member> materialMembers,
-        ResoniteFloat2 textureScale)
+        ResoniteFloat2 textureScale,
+        ResoniteFloat2? textureOffset)
     {
         materialMembers["TextureScale"] = new Field_float2
         {
@@ -128,8 +132,8 @@ internal static class ResoniteMaterialComponentBuilder
         {
             Value = new float2
             {
-                x = 0.0f,
-                y = 0.0f,
+                x = (float)(textureOffset?.X ?? 0.0),
+                y = (float)(textureOffset?.Y ?? 0.0),
             },
         };
     }

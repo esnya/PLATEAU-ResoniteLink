@@ -10,4 +10,7 @@ public sealed record PlateauImportRequest(
     IReadOnlySet<int>? GlobalExcludeLodLevels = null,
     IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
     IReadOnlyDictionary<string, string>? PackagePatterns = null,
-    bool IncludeMarkingAlways = true);
+    bool IncludeMarkingAlways = true,
+    DemTerrainMode DemTerrainMode = DemTerrainMode.Mesh,
+    double DemHeightmapMetersPerVertex = 2.0,
+    int DemHeightmapMaxResolution = 1024);

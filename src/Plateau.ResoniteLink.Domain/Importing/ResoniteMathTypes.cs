@@ -9,6 +9,12 @@ public sealed record ResoniteFloat3(
     double Y,
     double Z);
 
+public sealed record ResoniteFloatQ(
+    double X,
+    double Y,
+    double Z,
+    double W);
+
 public sealed record ResoniteColor(
     double R,
     double G,
@@ -16,4 +22,5 @@ public sealed record ResoniteColor(
     double A);
 
 public sealed record ResoniteTransform(
-    ResoniteFloat3 Position);
+    ResoniteFloat3 Position,
+    ResoniteFloatQ? Rotation = null);

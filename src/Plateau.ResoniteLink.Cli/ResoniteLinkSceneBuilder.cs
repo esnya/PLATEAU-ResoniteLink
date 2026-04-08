@@ -12,6 +12,10 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Plateau.ResoniteLink.Cli;
 
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
@@ -19,6 +23,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const int MaxQueuedCityObjects = 4;
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
+    private static readonly PngEncoder HeightMapPngEncoder = new()
+    {
+        BitDepth = PngBitDepth.Bit16,
+        ColorType = PngColorType.Grayscale,
+    };
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -172,7 +181,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             datasetSlotId,
             "Root",
             $"PLATEAU {metadata.Request.Dataset}",
-            new ResoniteFloat3(0.0, 1.5, 0.0),
+            new ResoniteFloat3(0.0, 0.0, 0.0),
+            null,
             cancellationToken);
         await licenseManager.EnsureDatasetLicenseAsync(setupClient, datasetSlotId, datasetLicenseComponentId, cancellationToken);
         ResoniteFloat3 meshCodeRootPosition = await ResolveMeshCodeRootPositionAsync(
@@ -186,10 +196,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             datasetSlotId,
             metadata.Request.MeshCode,
             meshCodeRootPosition,
+            null,
             cancellationToken);
 
-        await EnsureSlotKnownAsync(setupClient, datasetAssetsSlotId, datasetSlotId, "Assets", null, cancellationToken);
-        await EnsureSlotKnownAsync(setupClient, commonAssetsSlotId, datasetAssetsSlotId, CommonAssetsSlotName, null, cancellationToken);
+        await EnsureSlotKnownAsync(setupClient, datasetAssetsSlotId, datasetSlotId, "Assets", null, null, cancellationToken);
+        await EnsureSlotKnownAsync(setupClient, commonAssetsSlotId, datasetAssetsSlotId, CommonAssetsSlotName, null, null, cancellationToken);
         ReportProgress("[live] Dataset slots and asset groups are ready.");
     }
 
@@ -330,10 +341,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     absoluteTexturePath);
             })
             .ToArray();
-        Task<ImportMeshRawData> meshImportTask = Task.Run(() => ResoniteMeshImportFactory.Create(cityObject.Mesh), cancellationToken);
+        Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
+        {
+            ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
+                () => new PreparedTriangleMeshGeometry(ResoniteMeshImportFactory.Create(triangleMesh.Mesh)),
+                cancellationToken),
+            ResoniteHeightMapGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
+                () => new PreparedHeightMapGridGeometry(
+                    heightMap,
+                    PrepareHeightMapTexture(heightMap, cityObject, generatedAssetsRoot!)),
+                cancellationToken),
+            _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
+        };
         Stopwatch stopwatch = Stopwatch.StartNew();
         PreparedTextureReference[] preparedTextures = await Task.WhenAll(texturePreparationTasks);
-        ImportMeshRawData meshImport = await meshImportTask;
+        PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
         stopwatch.Stop();
         diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
 
@@ -343,12 +365,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 $"[live] First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
                 + $"after scene start {GetSceneElapsedSeconds():F3}s: "
                 + $"{cityObject.DisplayName} "
-                + $"(textures={preparedTextures.Length}, vertices={cityObject.Mesh.Vertices.Count}, submeshes={cityObject.Mesh.Submeshes.Count})");
+                + $"(textures={preparedTextures.Length}, geometry={DescribePreparedGeometry(preparedGeometry)})");
         }
 
         return new PreparedCityObject(
             cityObject,
-            meshImport,
+            preparedGeometry,
             preparedTextures);
     }
 
@@ -409,6 +431,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             datasetSlotId,
             rootMeshCode,
             rootMeshCodePosition,
+            null,
             cancellationToken);
 
         string objectIdentity = GetCityObjectIdentity(cityObject);
@@ -420,11 +443,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string meshAssetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "meshslot",
-            rootMeshCode,
-            objectIdentity);
-        string staticMeshId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            metadata.Request.Dataset,
-            "staticmesh",
             rootMeshCode,
             objectIdentity);
         string rendererId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
@@ -450,8 +468,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             rootMeshCodeSlotId,
             cityObject.PackageName,
             null,
+            null,
             cancellationToken);
-        await EnsureSlotKnownAsync(client, lodSlotId, packageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
+        await EnsureSlotKnownAsync(client, lodSlotId, packageSlotId, FormatLodSlotName(cityObject.LodLevel), null, null, cancellationToken);
         Slot? existingCityObjectSlot = await client.GetSlotAsync(cityObjectSlotId, 0, cancellationToken);
         if (existingCityObjectSlot is null)
         {
@@ -461,11 +480,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 lodSlotId,
                 cityObject.DisplayName,
                 cityObjectLocalPosition,
+                cityObject.Transform.Rotation,
                 cancellationToken);
         }
 
-        await EnsureSlotKnownAsync(client, assetPackageSlotId, datasetAssetsSlotId, cityObject.PackageName, null, cancellationToken);
-        await EnsureSlotKnownAsync(client, assetLodSlotId, assetPackageSlotId, FormatLodSlotName(cityObject.LodLevel), null, cancellationToken);
+        await EnsureSlotKnownAsync(client, assetPackageSlotId, datasetAssetsSlotId, cityObject.PackageName, null, null, cancellationToken);
+        await EnsureSlotKnownAsync(client, assetLodSlotId, assetPackageSlotId, FormatLodSlotName(cityObject.LodLevel), null, null, cancellationToken);
 
         await EnsureMeshAssetSlotKnownAsync(
             client,
@@ -474,13 +494,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             assetLodSlotId,
             cancellationToken);
 
-        await EnsureAssetComponentUrlKnownAsync(
+        string geometryComponentId = await EnsureGeometryComponentAsync(
             client,
             meshAssetSlotId,
-            staticMeshId,
-            "[FrooxEngine]FrooxEngine.StaticMesh",
-            "URL",
-            () => client.ImportMeshAsync(preparedCityObject.MeshImport, cancellationToken),
+            cityObjectSlotId,
+            metadata.Request.Dataset,
+            rootMeshCode,
+            objectIdentity,
+            preparedCityObject,
             cancellationToken);
 
         Dictionary<string, string> preparedTexturePathsByKey = preparedCityObject.Textures.ToDictionary(
@@ -518,7 +539,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 ["Mesh"] = new Reference
                 {
-                    TargetID = staticMeshId,
+                    TargetID = geometryComponentId,
                 },
                 ["Materials"] = new SyncList
                 {
@@ -549,7 +570,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
                 ["Mesh"] = new Reference
                 {
-                    TargetID = staticMeshId,
+                    TargetID = geometryComponentId,
                 },
             },
             cancellationToken);
@@ -693,6 +714,224 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             : string.Create(CultureInfo.InvariantCulture, $"{textureSourceKind}:{texturePath}");
     }
 
+    private async Task<string> EnsureGeometryComponentAsync(
+        IResoniteLinkClient client,
+        string meshAssetSlotId,
+        string cityObjectSlotId,
+        string dataset,
+        string rootMeshCode,
+        string objectIdentity,
+        PreparedCityObject preparedCityObject,
+        CancellationToken cancellationToken)
+    {
+        return preparedCityObject.Geometry switch
+        {
+            PreparedTriangleMeshGeometry triangleMesh => await EnsureTriangleMeshComponentAsync(
+                client,
+                meshAssetSlotId,
+                dataset,
+                rootMeshCode,
+                objectIdentity,
+                triangleMesh,
+                cancellationToken),
+            PreparedHeightMapGridGeometry heightMap => await EnsureHeightMapGridComponentAsync(
+                client,
+                meshAssetSlotId,
+                cityObjectSlotId,
+                dataset,
+                rootMeshCode,
+                objectIdentity,
+                heightMap,
+                cancellationToken),
+            _ => throw new InvalidOperationException(
+                $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
+        };
+    }
+
+    private async Task<string> EnsureTriangleMeshComponentAsync(
+        IResoniteLinkClient client,
+        string meshAssetSlotId,
+        string dataset,
+        string rootMeshCode,
+        string objectIdentity,
+        PreparedTriangleMeshGeometry preparedGeometry,
+        CancellationToken cancellationToken)
+    {
+        string staticMeshId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            dataset,
+            "staticmesh",
+            rootMeshCode,
+            objectIdentity);
+        await EnsureAssetComponentUrlKnownAsync(
+            client,
+            meshAssetSlotId,
+            staticMeshId,
+            "[FrooxEngine]FrooxEngine.StaticMesh",
+            "URL",
+            () => client.ImportMeshAsync(preparedGeometry.MeshImport, cancellationToken),
+            cancellationToken);
+        return staticMeshId;
+    }
+
+    private async Task<string> EnsureHeightMapGridComponentAsync(
+        IResoniteLinkClient client,
+        string meshAssetSlotId,
+        string cityObjectSlotId,
+        string dataset,
+        string rootMeshCode,
+        string objectIdentity,
+        PreparedHeightMapGridGeometry preparedGeometry,
+        CancellationToken cancellationToken)
+    {
+        string heightTextureId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            dataset,
+            "texture",
+            rootMeshCode,
+            $"{objectIdentity}-heightmap");
+        string gridMeshId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
+            dataset,
+            "gridmesh",
+            rootMeshCode,
+            objectIdentity);
+
+        await EnsureAssetComponentUrlKnownAsync(
+            client,
+            meshAssetSlotId,
+            heightTextureId,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            "URL",
+            () => client.ImportTextureAsync(preparedGeometry.HeightTexturePath, cancellationToken),
+            cancellationToken);
+        await UpsertComponentMembersAsync(
+            client,
+            meshAssetSlotId,
+            heightTextureId,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["Readable"] = new Field_bool { Value = true },
+                ["Uncompressed"] = new Field_bool { Value = true },
+                ["DirectLoad"] = new Field_bool { Value = true },
+                ["MipMaps"] = new Field_bool { Value = false },
+                ["WrapModeU"] = new Field_Enum { Value = "Clamp" },
+                ["WrapModeV"] = new Field_Enum { Value = "Clamp" },
+                ["FilterMode"] = new Field_Enum { Value = "Point" },
+            },
+            cancellationToken);
+
+        double displacementMagnitude = Math.Max(
+            preparedGeometry.Geometry.MaxHeight - preparedGeometry.Geometry.MinHeight,
+            0.0);
+        await UpsertComponentMembersAsync(
+            client,
+            cityObjectSlotId,
+            gridMeshId,
+            "[FrooxEngine]FrooxEngine.GridMesh",
+            new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["Points"] = new Field_int2
+                {
+                    Value = new int2
+                    {
+                        x = preparedGeometry.Geometry.Width,
+                        y = preparedGeometry.Geometry.Height,
+                    },
+                },
+                ["Size"] = new Field_float2
+                {
+                    Value = new float2
+                    {
+                        x = (float)preparedGeometry.Geometry.Size.X,
+                        y = (float)preparedGeometry.Geometry.Size.Y,
+                    },
+                },
+                ["DisplacementMagnitude"] = new Field_float
+                {
+                    Value = (float)displacementMagnitude,
+                },
+                ["DisplacementTexture"] = new Reference
+                {
+                    TargetID = heightTextureId,
+                },
+            },
+            cancellationToken);
+        return gridMeshId;
+    }
+
+    private static async Task UpsertComponentMembersAsync(
+        IResoniteLinkClient client,
+        string containerSlotId,
+        string componentId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members,
+        CancellationToken cancellationToken)
+    {
+        Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
+        if (existingComponent is null)
+        {
+            await client.AddComponentAsync(
+                new AddComponent
+                {
+                    ContainerSlotId = containerSlotId,
+                    Data = new Component
+                    {
+                        ID = componentId,
+                        ComponentType = componentType,
+                        Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
+                    },
+                },
+                cancellationToken);
+            return;
+        }
+
+        await client.UpdateComponentAsync(
+            new UpdateComponent
+            {
+                Data = new Component
+                {
+                    ID = componentId,
+                    Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
+                },
+            },
+            cancellationToken);
+    }
+
+    private static string PrepareHeightMapTexture(
+        ResoniteHeightMapGridGeometry geometry,
+        ResoniteConstructionCityObject cityObject,
+        string generatedAssetsRoot)
+    {
+        string directory = Path.Combine(generatedAssetsRoot, "heightmaps");
+        Directory.CreateDirectory(directory);
+        string fileName = $"{cityObject.ActualMeshCode}_{cityObject.SlotKey}_heightmap.png";
+        string absolutePath = Path.Combine(directory, fileName);
+        using Image<L16> image = new(geometry.Width, geometry.Height);
+
+        for (int y = 0; y < geometry.Height; y++)
+        {
+            for (int x = 0; x < geometry.Width; x++)
+            {
+                ushort heightValue = (ushort)(ushort.MaxValue - geometry.HeightSamples[(y * geometry.Width) + x]);
+                image[x, y] = new L16(heightValue);
+            }
+        }
+
+        image.Save(absolutePath, HeightMapPngEncoder);
+        return absolutePath;
+    }
+
+    private static string DescribePreparedGeometry(PreparedConstructionGeometry geometry)
+    {
+        return geometry switch
+        {
+            PreparedTriangleMeshGeometry triangleMesh =>
+                $"triangle-mesh(vertices={triangleMesh.MeshImport.VertexCount}, submeshes={triangleMesh.MeshImport.Submeshes.Count})",
+            PreparedHeightMapGridGeometry heightMap =>
+                $"heightmap-grid({heightMap.Geometry.Width}x{heightMap.Geometry.Height})",
+            _ => geometry.GetType().Name,
+        };
+    }
+
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)
     {
         return new Field_float3
@@ -702,6 +941,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 x = (float)value.X,
                 y = (float)value.Y,
                 z = (float)value.Z,
+            },
+        };
+    }
+
+    private static Field_floatQ CreateFloatQ(ResoniteFloatQ value)
+    {
+        return new Field_floatQ
+        {
+            Value = new floatQ
+            {
+                x = (float)value.X,
+                y = (float)value.Y,
+                z = (float)value.Z,
+                w = (float)value.W,
             },
         };
     }
@@ -816,13 +1069,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string parentId,
         string slotName,
         ResoniteFloat3? position,
+        ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(slotEnsureTasks is null, this);
         await GetOrRunOnceAsync(
             slotEnsureTasks,
             slotId,
-            () => EnsureSlotAsync(client, slotId, parentId, slotName, position, cancellationToken),
+            () => EnsureSlotAsync(client, slotId, parentId, slotName, position, rotation, cancellationToken),
             cancellationToken);
     }
 
@@ -843,7 +1097,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string slotName,
         CancellationToken cancellationToken)
     {
-        await EnsureSlotKnownAsync(client, slotId, parentId, slotName, null, cancellationToken);
+        await EnsureSlotKnownAsync(client, slotId, parentId, slotName, null, null, cancellationToken);
     }
 
     private async Task<Uri> EnsureAssetComponentUrlKnownAsync(
@@ -922,6 +1176,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string parentId,
         string slotName,
         ResoniteFloat3? position,
+        ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
         Slot? existingSlot = await client.GetSlotAsync(slotId, 0, cancellationToken);
@@ -945,6 +1200,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                         Value = slotName,
                     },
                     Position = position is null ? null : CreateFloat3(position),
+                    Rotation = rotation is null ? null : CreateFloatQ(rotation),
                 },
             },
             cancellationToken);
@@ -956,6 +1212,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string parentId,
         string slotName,
         ResoniteFloat3? position,
+        ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
         await client.AddSlotAsync(
@@ -973,6 +1230,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                         Value = slotName,
                     },
                     Position = position is null ? null : CreateFloat3(position),
+                    Rotation = rotation is null ? null : CreateFloatQ(rotation),
                 },
             },
             cancellationToken);
@@ -1127,9 +1385,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteConstructionCityObject CityObject,
         Task<PreparedCityObject> PreparationTask);
 
+    private abstract record PreparedConstructionGeometry;
+
+    private sealed record PreparedTriangleMeshGeometry(
+        ImportMeshRawData MeshImport)
+        : PreparedConstructionGeometry;
+
+    private sealed record PreparedHeightMapGridGeometry(
+        ResoniteHeightMapGridGeometry Geometry,
+        string HeightTexturePath)
+        : PreparedConstructionGeometry;
+
     private sealed record PreparedCityObject(
         ResoniteConstructionCityObject CityObject,
-        ImportMeshRawData MeshImport,
+        PreparedConstructionGeometry Geometry,
         IReadOnlyList<PreparedTextureReference> Textures)
     {
         public bool TryGetTexturePath(

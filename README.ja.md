@@ -53,12 +53,15 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
+  --dem-terrain-mode heightmap \
+  --dem-heightmap-meters-per-vertex 2.0 \
+  --dem-heightmap-max-resolution 1024 \
   --resonitelink-port <port> \
   --resonitelink-connections 1 \
   --send-metrics
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `1` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset と remote download cache の保存先としてだけ使います。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `1` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。DEM の既定出力は従来どおり mesh 経路で、`--dem-terrain-mode heightmap` を指定すると `dem` を `GridMesh` + 高さテクスチャ経路へ切り替えます。`--dem-heightmap-meters-per-vertex` と `--dem-heightmap-max-resolution` はサンプル密度と安全上限の制御に使います。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
 
 既定の CKAN catalog flow を使って、公式 PLATEAU CityGML ZIP/7z archive をオンライン取得しつつ Resonite に取り込む例:
 

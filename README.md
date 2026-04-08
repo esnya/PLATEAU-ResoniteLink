@@ -56,12 +56,15 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
+  --dem-terrain-mode heightmap \
+  --dem-heightmap-meters-per-vertex 2.0 \
+  --dem-heightmap-max-resolution 1024 \
   --resonitelink-port <port> \
   --resonitelink-connections 1 \
   --send-metrics
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
+`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. DEM output stays on the existing mesh path by default; `--dem-terrain-mode heightmap` switches `dem` to a `GridMesh` + height texture path, with `--dem-heightmap-meters-per-vertex` and `--dem-heightmap-max-resolution` controlling sampling density and the safety cap. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
 
 Import an official PLATEAU CityGML ZIP/7z archive online through the default CKAN catalog flow:
 

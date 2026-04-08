@@ -23,6 +23,11 @@ public static class LocalCityGmlResonitePlanBuilder
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
+    private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
+        X: Math.Sqrt(0.5),
+        Y: 0.0,
+        Z: 0.0,
+        W: Math.Sqrt(0.5));
     private static readonly ResoniteColor DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly ResoniteColor DefaultVegetationMaterialColor = new(0.32, 0.58, 0.24, 1.0);
     private static readonly ResoniteColor DefaultRoadMarkingColor = new(1.0, 1.0, 1.0, 1.0);
@@ -197,6 +202,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
         return new ConstructionSource(
             metadata,
+            request,
             cachedDemSourceFiles,
             sourceFilePipelines
                 .Where(static pipeline => !string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
@@ -2499,7 +2505,8 @@ public static class LocalCityGmlResonitePlanBuilder
         ResoniteMaterialDepthOffset? depthOffset,
         ResoniteFloat2? textureScale,
         string? family,
-        ResoniteColor color)
+        ResoniteColor color,
+        ResoniteFloat2? textureOffset = null)
     {
         string colorKey = string.Create(
             CultureInfo.InvariantCulture,
@@ -2510,14 +2517,17 @@ public static class LocalCityGmlResonitePlanBuilder
         string textureScaleKey = textureScale is null
             ? "none"
             : string.Create(CultureInfo.InvariantCulture, $"{textureScale.X:0.######},{textureScale.Y:0.######}");
+        string textureOffsetKey = textureOffset is null
+            ? "none"
+            : string.Create(CultureInfo.InvariantCulture, $"{textureOffset.X:0.######},{textureOffset.Y:0.######}");
         string familyKey = string.IsNullOrWhiteSpace(family)
             ? "none"
             : family.ToLowerInvariant();
 
         string materialTypeKey = materialType.ToString().ToLowerInvariant();
         return texturePath is null
-            ? $"type:{materialTypeKey}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|color:{colorKey}"
-            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePath.ToLowerInvariant()}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|color:{colorKey}";
+            ? $"type:{materialTypeKey}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}"
+            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePath.ToLowerInvariant()}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}";
     }
 
     private static bool ShouldPreferUvProjection(
@@ -2708,6 +2718,7 @@ public static class LocalCityGmlResonitePlanBuilder
 
     private sealed class ConstructionSource(
         ResoniteConstructionMetadata metadata,
+        PlateauImportRequest request,
         IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles,
         IReadOnlyList<SourceFilePipeline> deferredSourceFiles,
         CoordinateReferenceSystem referenceSystem,
@@ -2744,6 +2755,7 @@ public static class LocalCityGmlResonitePlanBuilder
                     globalCartesian,
                     demTerrainTextureOverlays,
                     terrainHeightSampler,
+                    request,
                     static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject)))
                 {
                     yield return cityObject;
@@ -2758,7 +2770,8 @@ public static class LocalCityGmlResonitePlanBuilder
                     globalOriginPoint,
                     globalCartesian,
                     demTerrainTextureOverlays,
-                    terrainHeightSampler))
+                    terrainHeightSampler,
+                    request))
                 {
                     yield return cityObject;
                 }
@@ -2776,6 +2789,7 @@ public static class LocalCityGmlResonitePlanBuilder
                     globalCartesian,
                     demTerrainTextureOverlays,
                     terrainHeightSampler,
+                    request,
                     IsTerrainDependentCityObject))
                 {
                     yield return cityObject;
@@ -2819,6 +2833,7 @@ public static class LocalCityGmlResonitePlanBuilder
                         globalCartesian,
                         demTerrainTextureOverlays,
                         terrainHeightSampler,
+                        request,
                         static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject),
                         cancellationToken),
                     cancellationToken),
@@ -2831,6 +2846,7 @@ public static class LocalCityGmlResonitePlanBuilder
                         globalCartesian,
                         demTerrainTextureOverlays,
                         terrainHeightSampler,
+                        request,
                         predicate: null,
                         cancellationToken),
                     cancellationToken),
@@ -2843,6 +2859,7 @@ public static class LocalCityGmlResonitePlanBuilder
                         globalCartesian,
                         demTerrainTextureOverlays,
                         terrainHeightSampler,
+                        request,
                         IsTerrainDependentCityObject,
                         cancellationToken),
                     cancellationToken),
@@ -2866,6 +2883,7 @@ public static class LocalCityGmlResonitePlanBuilder
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
         Func<ParsedCityObject, bool>? predicate,
         CancellationToken cancellationToken)
     {
@@ -2880,6 +2898,7 @@ public static class LocalCityGmlResonitePlanBuilder
                                globalCartesian,
                                demTerrainTextureOverlays,
                                terrainHeightSampler,
+                               request,
                                sourceFile.GetParseTask(),
                                predicate,
                                cancellationToken))
@@ -2897,6 +2916,7 @@ public static class LocalCityGmlResonitePlanBuilder
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
         Func<ParsedCityObject, bool>? predicate,
         CancellationToken cancellationToken)
     {
@@ -2911,6 +2931,7 @@ public static class LocalCityGmlResonitePlanBuilder
                          globalCartesian,
                          demTerrainTextureOverlays,
                          terrainHeightSampler,
+                         request,
                          predicate))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -2950,6 +2971,7 @@ public static class LocalCityGmlResonitePlanBuilder
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
         Task<ParsedSourceFileResult>? parseTask,
         Func<ParsedCityObject, bool>? predicate,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -2973,7 +2995,8 @@ public static class LocalCityGmlResonitePlanBuilder
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         terrainHeightSampler))
+                         terrainHeightSampler,
+                         request))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return cityObject;
@@ -2988,6 +3011,7 @@ public static class LocalCityGmlResonitePlanBuilder
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
         Func<ParsedCityObject, bool>? predicate = null)
     {
         ValidateCompatibleReferenceSystem(
@@ -3006,7 +3030,8 @@ public static class LocalCityGmlResonitePlanBuilder
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         terrainHeightSampler))
+                         terrainHeightSampler,
+                         request))
             {
                 yield return cityObject;
             }
@@ -3018,20 +3043,31 @@ public static class LocalCityGmlResonitePlanBuilder
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler)
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
                      demTerrainTextureOverlays))
         {
-            ResoniteConstructionCityObject cityObject = MaterializeCityObject(
-                splitCityObject.CityObject,
-                globalOriginPoint,
-                globalCartesian,
-                splitCityObject.Overlay);
+            ResoniteConstructionCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
+                && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                && TryMaterializeDemHeightMapCityObject(
+                    splitCityObject.CityObject,
+                    globalOriginPoint,
+                    globalCartesian,
+                    splitCityObject.Overlay,
+                    request,
+                    out ResoniteConstructionCityObject? heightMapCityObject)
+                    ? heightMapCityObject!
+                    : MaterializeCityObject(
+                        splitCityObject.CityObject,
+                        globalOriginPoint,
+                        globalCartesian,
+                        splitCityObject.Overlay);
 
-            if (cityObject.Mesh.Submeshes.Count > 0)
+            if (HasRenderableGeometry(cityObject))
             {
                 yield return cityObject;
             }
@@ -3061,11 +3097,356 @@ public static class LocalCityGmlResonitePlanBuilder
             {
                 CollisionEnabled = false,
             };
-            if (markingObject.Mesh.Submeshes.Count > 0)
+            if (HasRenderableGeometry(markingObject))
             {
                 yield return markingObject;
             }
         }
+    }
+
+    private static bool TryMaterializeDemHeightMapCityObject(
+        ParsedCityObject cityObject,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        PlateauImportRequest request,
+        out ResoniteConstructionCityObject? heightMapCityObject)
+    {
+        heightMapCityObject = null;
+
+        GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
+        LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
+            ? new LocalCartesian(
+                cityObjectOrigin.Latitude,
+                cityObjectOrigin.Longitude,
+                cityObjectOrigin.Altitude,
+                cityObject.ReferenceSystem.Geocentric)
+            : null;
+        if (cityObjectCartesian is null)
+        {
+            return false;
+        }
+
+        ResoniteFloat3 slotPosition = CreateResonitePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
+        ResoniteFloat3[] positions = cityObject.Surfaces
+            .SelectMany(static surface => surface.Vertices)
+            .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
+            .ToArray();
+        HeightMapTriangle[] triangles = CreateDemHeightMapTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        HeightMapPoint[] points = CreateDemHeightMapPoints(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        if (positions.Length < 3)
+        {
+            return false;
+        }
+
+        double minX = positions.Min(static position => position.X);
+        double maxX = positions.Max(static position => position.X);
+        double minZ = positions.Min(static position => position.Z);
+        double maxZ = positions.Max(static position => position.Z);
+        double extentX = maxX - minX;
+        double extentZ = maxZ - minZ;
+        if (extentX <= 1e-6 || extentZ <= 1e-6)
+        {
+            return false;
+        }
+
+        int width = Math.Clamp(
+            (int)Math.Ceiling(extentX / request.DemHeightmapMetersPerVertex) + 1,
+            2,
+            request.DemHeightmapMaxResolution);
+        int height = Math.Clamp(
+            (int)Math.Ceiling(extentZ / request.DemHeightmapMetersPerVertex) + 1,
+            2,
+            request.DemHeightmapMaxResolution);
+        ushort[] heightSamples = new ushort[width * height];
+        double minHeight = double.PositiveInfinity;
+        double maxHeight = double.NegativeInfinity;
+        double[] localHeights = new double[heightSamples.Length];
+
+        for (int zIndex = 0; zIndex < height; zIndex++)
+        {
+            double v = height == 1 ? 0.0 : (double)zIndex / (height - 1);
+            double sampleZ = minZ + (extentZ * v);
+            for (int xIndex = 0; xIndex < width; xIndex++)
+            {
+                double u = width == 1 ? 0.0 : (double)xIndex / (width - 1);
+                double sampleX = minX + (extentX * u);
+                if (!TrySampleLocalDemHeight(sampleX, sampleZ, triangles, points, out double localHeight))
+                {
+                    return false;
+                }
+
+                int sampleIndex = (zIndex * width) + xIndex;
+                localHeights[sampleIndex] = localHeight;
+                minHeight = Math.Min(minHeight, localHeight);
+                maxHeight = Math.Max(maxHeight, localHeight);
+            }
+        }
+
+        double heightRange = Math.Max(maxHeight - minHeight, 0.0);
+        for (int index = 0; index < localHeights.Length; index++)
+        {
+            double normalized = heightRange <= 1e-9
+                ? 0.0
+                : Math.Clamp((localHeights[index] - minHeight) / heightRange, 0.0, 1.0);
+            heightSamples[index] = (ushort)Math.Round(normalized * ushort.MaxValue, MidpointRounding.AwayFromZero);
+        }
+
+        ResoniteMaterialBinding[] materials = CreateDemHeightMapMaterials(
+            cityObject,
+            cityObjectOrigin,
+            cityObjectCartesian,
+            demTerrainTextureOverlay);
+        if (materials.Length == 0)
+        {
+            return false;
+        }
+
+        ResoniteFloat3 adjustedSlotPosition = slotPosition with
+        {
+            Y = slotPosition.Y + maxHeight,
+        };
+
+        heightMapCityObject = new ResoniteConstructionCityObject(
+            SlotKey: cityObject.SlotKey,
+            DisplayName: cityObject.DisplayName,
+            PackageName: cityObject.PackageName,
+            ActualMeshCode: cityObject.ActualMeshCode,
+            LodLevel: cityObject.LodLevel,
+            Transform: new ResoniteTransform(
+                adjustedSlotPosition,
+                GridMeshTerrainRotation),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: width,
+                Height: height,
+                Size: new ResoniteFloat2(extentX, extentZ),
+                MinHeight: 0.0,
+                MaxHeight: heightRange,
+                HeightSamples: heightSamples),
+            Materials: materials,
+            SourceObjectKey: cityObject.SourceIdentity);
+        return true;
+    }
+
+    private static ResoniteMaterialBinding[] CreateDemHeightMapMaterials(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        TerrainTextureOverlay? demTerrainTextureOverlay)
+    {
+        List<MaterializedSurface> materializedSurfaces =
+        [
+            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface)),
+        ];
+
+        return materializedSurfaces
+            .GroupBy(
+                static materializedSurface => CreateMaterialKey(
+                    materializedSurface.Material.MaterialType,
+                    materializedSurface.Material.TexturePath,
+                    materializedSurface.Material.TextureSourceKind,
+                    materializedSurface.Material.Projection,
+                    materializedSurface.DepthOffset,
+                    materializedSurface.Material.TextureScale,
+                    materializedSurface.Material.Family,
+                    materializedSurface.Surface.BaseColor),
+                StringComparer.Ordinal)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .Select((group, materialIndex) =>
+            {
+                MaterializedSurface representativeSurface = group.First();
+                (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
+                    TryCreateDemHeightMapTextureTransform(cityObject, representativeSurface, demTerrainTextureOverlay);
+                return new ResoniteMaterialBinding(
+                    MaterialKey: CreateMaterialKey(
+                        representativeSurface.Material.MaterialType,
+                        representativeSurface.Material.TexturePath,
+                        representativeSurface.Material.TextureSourceKind,
+                        representativeSurface.Material.Projection,
+                        representativeSurface.DepthOffset,
+                        textureScale ?? representativeSurface.Material.TextureScale,
+                        representativeSurface.Material.Family,
+                        representativeSurface.Surface.BaseColor,
+                        textureOffset),
+                    BaseColor: representativeSurface.Surface.BaseColor,
+                    MaterialType: representativeSurface.Material.MaterialType,
+                    TexturePath: representativeSurface.Material.TexturePath,
+                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
+                    Projection: representativeSurface.Material.Projection,
+                    DepthOffset: representativeSurface.DepthOffset,
+                    SubmeshIndices: [materialIndex],
+                    TextureScale: textureScale ?? representativeSurface.Material.TextureScale,
+                    Family: representativeSurface.Material.Family,
+                    TextureOffset: textureOffset);
+            })
+            .ToArray();
+    }
+
+    private static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateDemHeightMapTextureTransform(
+        ParsedCityObject cityObject,
+        MaterializedSurface materializedSurface,
+        TerrainTextureOverlay? demTerrainTextureOverlay)
+    {
+        if (demTerrainTextureOverlay is null
+            || !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            || !IsGeneratedDemTexturePath(materializedSurface.Surface.TexturePath))
+        {
+            return (null, null);
+        }
+
+        GeographicRectangle overlayBounds = demTerrainTextureOverlay.GeographicBounds;
+        double overlayWest = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MinLongitude);
+        double overlayEast = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MaxLongitude);
+        double overlayNorth = WebMercatorTileMath.LatitudeToNormalizedY(overlayBounds.MaxLatitude);
+        double overlaySouth = WebMercatorTileMath.LatitudeToNormalizedY(overlayBounds.MinLatitude);
+        double overlayWidth = overlayEast - overlayWest;
+        double overlayHeight = overlaySouth - overlayNorth;
+        if (overlayWidth <= 1e-12 || overlayHeight <= 1e-12)
+        {
+            return (null, null);
+        }
+
+        List<GeodeticPoint> vertices = cityObject.Surfaces.SelectMany(static surface => surface.Vertices).ToList();
+        double objectWest = WebMercatorTileMath.LongitudeToNormalizedX(vertices.Min(static point => point.Longitude));
+        double objectEast = WebMercatorTileMath.LongitudeToNormalizedX(vertices.Max(static point => point.Longitude));
+        double objectNorth = WebMercatorTileMath.LatitudeToNormalizedY(vertices.Max(static point => point.Latitude));
+        double objectSouth = WebMercatorTileMath.LatitudeToNormalizedY(vertices.Min(static point => point.Latitude));
+
+        double uMin = Math.Clamp((objectWest - overlayWest) / overlayWidth, 0.0, 1.0);
+        double uMax = Math.Clamp((objectEast - overlayWest) / overlayWidth, 0.0, 1.0);
+        double vMin = Math.Clamp((overlaySouth - objectSouth) / overlayHeight, 0.0, 1.0);
+        double vMax = Math.Clamp((overlaySouth - objectNorth) / overlayHeight, 0.0, 1.0);
+
+        return (
+            new ResoniteFloat2(Math.Max(uMax - uMin, 1e-6), Math.Max(vMax - vMin, 1e-6)),
+            new ResoniteFloat2(uMin, vMin));
+    }
+
+    private static bool HasRenderableGeometry(ResoniteConstructionCityObject cityObject)
+    {
+        return cityObject.Geometry switch
+        {
+            ResoniteTriangleMeshGeometry triangleMesh => triangleMesh.Mesh.Submeshes.Count > 0,
+            ResoniteHeightMapGridGeometry heightMap => heightMap.Width > 1 && heightMap.Height > 1,
+            _ => false,
+        };
+    }
+
+    private static HeightMapTriangle[] CreateDemHeightMapTriangles(
+        ParsedCityObject cityObject,
+        ResoniteFloat3 slotPosition,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian)
+    {
+        List<HeightMapTriangle> triangles = [];
+        foreach (ParsedSurface surface in cityObject.Surfaces)
+        {
+            ResoniteFloat3[] positions = surface.ExteriorRing.Vertices
+                .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
+                .ToArray();
+            if (positions.Length < 3)
+            {
+                continue;
+            }
+
+            ResoniteFloat3 origin = positions[0];
+            for (int index = 1; index + 1 < positions.Length; index++)
+            {
+                triangles.Add(new HeightMapTriangle(origin, positions[index], positions[index + 1]));
+            }
+        }
+
+        return triangles.ToArray();
+    }
+
+    private static HeightMapPoint[] CreateDemHeightMapPoints(
+        ParsedCityObject cityObject,
+        ResoniteFloat3 slotPosition,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian)
+    {
+        return cityObject.Surfaces
+            .SelectMany(static surface => surface.Vertices)
+            .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
+            .Select(static point => new HeightMapPoint(point.X, point.Z, point.Y))
+            .ToArray();
+    }
+
+    private static ResoniteFloat3 CreateGlobalHeightMapLocalPosition(
+        GeodeticPoint point,
+        ResoniteFloat3 slotPosition,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian)
+    {
+        ResoniteFloat3 globalPosition = CreateResonitePosition(point, globalOriginPoint, globalCartesian);
+        return new ResoniteFloat3(
+            globalPosition.X - slotPosition.X,
+            globalPosition.Y - slotPosition.Y,
+            globalPosition.Z - slotPosition.Z);
+    }
+
+    private static bool TrySampleLocalDemHeight(
+        double x,
+        double z,
+        IReadOnlyList<HeightMapTriangle> triangles,
+        IReadOnlyList<HeightMapPoint> points,
+        out double height)
+    {
+        foreach (HeightMapTriangle triangle in triangles)
+        {
+            if (TryInterpolateLocalTriangleHeight(triangle, x, z, out height))
+            {
+                return true;
+            }
+        }
+
+        if (points.Count == 0)
+        {
+            height = 0.0;
+            return false;
+        }
+
+        HeightMapPoint nearestPoint = points
+            .OrderBy(point => SquaredDistance(point.X, point.Z, x, z))
+            .First();
+        height = nearestPoint.Height;
+        return true;
+    }
+
+    private static bool TryInterpolateLocalTriangleHeight(
+        HeightMapTriangle triangle,
+        double x,
+        double z,
+        out double height)
+    {
+        double denominator = ((triangle.B.Z - triangle.C.Z) * (triangle.A.X - triangle.C.X))
+            + ((triangle.C.X - triangle.B.X) * (triangle.A.Z - triangle.C.Z));
+        if (Math.Abs(denominator) < 1e-8)
+        {
+            height = 0.0;
+            return false;
+        }
+
+        double weight0 = (((triangle.B.Z - triangle.C.Z) * (x - triangle.C.X))
+            + ((triangle.C.X - triangle.B.X) * (z - triangle.C.Z))) / denominator;
+        double weight1 = (((triangle.C.Z - triangle.A.Z) * (x - triangle.C.X))
+            + ((triangle.A.X - triangle.C.X) * (z - triangle.C.Z))) / denominator;
+        double weight2 = 1.0 - weight0 - weight1;
+        if (weight0 < -1e-5 || weight1 < -1e-5 || weight2 < -1e-5)
+        {
+            height = 0.0;
+            return false;
+        }
+
+        height = (triangle.A.Y * weight0) + (triangle.B.Y * weight1) + (triangle.C.Y * weight2);
+        return true;
+    }
+
+    private static double SquaredDistance(double ax, double az, double bx, double bz)
+    {
+        double dx = ax - bx;
+        double dz = az - bz;
+        return (dx * dx) + (dz * dz);
     }
 
     private static void ValidateCompatibleReferenceSystem(
@@ -3092,24 +3473,31 @@ public static class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
-        IReadOnlyList<IGrouping<string, ParsedSurface>> groups = parsedCityObject.Surfaces
+        ParsedSurface[] generatedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => IsGeneratedDemTexturePath(surface.TexturePath))
             .Select(surface =>
             {
                 TerrainTextureOverlay overlay = SelectDemTerrainTextureOverlay(surface, demTerrainTextureOverlays);
                 return surface with { TexturePath = overlay.TexturePath };
             })
-            .GroupBy(static surface => surface.TexturePath!, StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
 
-        if (groups.Count == 0)
+        ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
+            .Where(static surface => !IsGeneratedDemTexturePath(surface.TexturePath))
+            .ToArray();
+
+        if (generatedSurfaces.Length == 0)
         {
             yield return (parsedCityObject, null);
             yield break;
         }
 
-        if (groups.Count == 1 && groups[0].Count() == parsedCityObject.Surfaces.Length)
+        IReadOnlyList<IGrouping<string, ParsedSurface>> groups = generatedSurfaces
+            .GroupBy(static surface => surface.TexturePath!, StringComparer.Ordinal)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .ToArray();
+
+        if (groups.Count == 1 && nonGeneratedSurfaces.Length == 0)
         {
             yield return (
                 parsedCityObject with
@@ -3120,6 +3508,8 @@ public static class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
+        bool suffixGeneratedObjects = groups.Count > 1 || nonGeneratedSurfaces.Length > 0;
+
         for (int index = 0; index < groups.Count; index++)
         {
             IGrouping<string, ParsedSurface> group = groups[index];
@@ -3128,11 +3518,20 @@ public static class LocalCityGmlResonitePlanBuilder
                 {
                     SourceIdentity = $"{parsedCityObject.SourceIdentity}_dem_{index:D2}",
                     SlotKey = $"{parsedCityObject.SlotKey}_dem_{index:D2}",
-                    DisplayName = groups.Count > 1 ? $"{parsedCityObject.DisplayName} ({index + 1})" : parsedCityObject.DisplayName,
+                    DisplayName = suffixGeneratedObjects
+                        ? $"{parsedCityObject.DisplayName} ({index + 1})"
+                        : parsedCityObject.DisplayName,
                     Surfaces = group.ToArray(),
                 },
                 FindOverlay(group.Key, demTerrainTextureOverlays));
         }
+
+        if (nonGeneratedSurfaces.Length == 0)
+        {
+            yield break;
+        }
+
+        yield return (parsedCityObject with { Surfaces = nonGeneratedSurfaces }, null);
     }
 
     private static TerrainTextureOverlay FindOverlay(
@@ -3264,6 +3663,16 @@ public static class LocalCityGmlResonitePlanBuilder
         string RingId,
         GeodeticPoint[] Vertices,
         IReadOnlyList<ResoniteFloat2>? UVs);
+
+    private sealed record HeightMapTriangle(
+        ResoniteFloat3 A,
+        ResoniteFloat3 B,
+        ResoniteFloat3 C);
+
+    private sealed record HeightMapPoint(
+        double X,
+        double Z,
+        double Height);
 
     private readonly record struct TerrainSampleAnchor(
         double Latitude,
