@@ -1353,6 +1353,66 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncRejectsNullStringFieldsWithValidationException()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: null!,
+                    MeshCode: null!,
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null),
+                workRoot: "runtime/resonite"));
+
+        Assert.Contains("The dataset value is required.", exception.Errors);
+        Assert.Contains("The mesh code value is required.", exception.Errors);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsDuplicateNormalizedPackageMapKeysWithValidationException()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null,
+                    ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
+                    {
+                        ["tran"] = new HashSet<int> { 1 },
+                        [" TRAN "] = new HashSet<int> { 2 },
+                    },
+                    PackagePatterns: new Dictionary<string, string>
+                    {
+                        ["waterbody"] = "*Water*",
+                        ["wtr"] = "*River*",
+                    }),
+                workRoot: "runtime/resonite"));
+
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains(
+                "The ExcludeLodLevelsByPackage value contains duplicate package keys after normalization: tran.",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains(
+                "The PackagePatterns value contains duplicate package keys after normalization: wtr.",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncFallsBackToBundledDefaultTextureWhenTextureFileIsMissing()
     {
         StubResoniteSceneBuilder sceneBuilder = new();

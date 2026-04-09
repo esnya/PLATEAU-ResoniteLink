@@ -73,6 +73,40 @@ public sealed class PlateauImportRequestValidatorTests
             error => error.Contains("Unsupported package name(s): another-unknown.", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ValidateRejectsDuplicateNormalizedPackageKeysInPackageMaps()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null,
+            ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
+            {
+                ["tran"] = new HashSet<int> { 1 },
+                [" TRAN "] = new HashSet<int> { 2 },
+            },
+            PackagePatterns: new Dictionary<string, string>
+            {
+                ["waterbody"] = "*Water*",
+                ["wtr"] = "*River*",
+            });
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => error.Contains(
+                "The ExcludeLodLevelsByPackage value contains duplicate package keys after normalization: tran.",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            errors,
+            error => error.Contains(
+                "The PackagePatterns value contains duplicate package keys after normalization: wtr.",
+                StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-0.01)]

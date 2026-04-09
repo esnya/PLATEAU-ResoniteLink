@@ -31,7 +31,8 @@ public static class PlateauImportRequestValidator
             else
             {
                 string[] unsupportedPackageNames = request.PackageNames
-                    .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+                    .Select(static packageName => NormalizePackageNameInput(packageName))
+                    .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(packageName => packageName, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -46,8 +47,14 @@ public static class PlateauImportRequestValidator
 
         if (request.ExcludeLodLevelsByPackage is not null)
         {
+            AddDuplicatePackageMapKeyError(
+                request.ExcludeLodLevelsByPackage.Keys,
+                "ExcludeLodLevelsByPackage",
+                errors);
+
             string[] unsupportedPackageNames = request.ExcludeLodLevelsByPackage.Keys
-                .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+                .Select(static packageName => NormalizePackageNameInput(packageName))
+                .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(packageName => packageName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -61,8 +68,14 @@ public static class PlateauImportRequestValidator
 
         if (request.PackagePatterns is not null)
         {
+            AddDuplicatePackageMapKeyError(
+                request.PackagePatterns.Keys,
+                "PackagePatterns",
+                errors);
+
             string[] unsupportedPackageNames = request.PackagePatterns.Keys
-                .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+                .Select(static packageName => NormalizePackageNameInput(packageName))
+                .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(packageName => packageName, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -137,5 +150,42 @@ public static class PlateauImportRequestValidator
         string extension = Path.GetExtension(serverUri.AbsolutePath);
         return SupportedRemoteArchiveExtensions.Any(
             supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void AddDuplicatePackageMapKeyError(
+        IEnumerable<string> packageKeys,
+        string fieldName,
+        List<string> errors)
+    {
+        string[] duplicateNormalizedPackageNames = packageKeys
+            .Select(TryNormalizePackageNameInput)
+            .Where(static packageName => packageName is not null)
+            .Select(static packageName => packageName!)
+            .GroupBy(static packageName => packageName, StringComparer.OrdinalIgnoreCase)
+            .Where(static group => group.Count() > 1)
+            .Select(static group => group.Key)
+            .OrderBy(static packageName => packageName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (duplicateNormalizedPackageNames.Length == 0)
+        {
+            return;
+        }
+
+        errors.Add(
+            $"The {fieldName} value contains duplicate package keys after normalization: {string.Join(", ", duplicateNormalizedPackageNames)}.");
+    }
+
+    private static string NormalizePackageNameInput(string? packageName)
+    {
+        return packageName?.Trim() ?? string.Empty;
+    }
+
+    private static string? TryNormalizePackageNameInput(string? packageName)
+    {
+        string trimmedPackageName = NormalizePackageNameInput(packageName);
+        return PlateauPackageCatalog.TryNormalizePackageName(trimmedPackageName, out string normalizedPackageName)
+            ? normalizedPackageName
+            : null;
     }
 }

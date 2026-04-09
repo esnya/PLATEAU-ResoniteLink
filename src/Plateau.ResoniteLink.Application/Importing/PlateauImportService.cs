@@ -99,25 +99,18 @@ public sealed class PlateauImportService(
 
         return request with
         {
-            Dataset = request.Dataset.Trim(),
-            MeshCode = request.MeshCode.Trim(),
+            Dataset = TrimToEmpty(request.Dataset),
+            MeshCode = TrimToEmpty(request.MeshCode),
             LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
             PackageNames = request.PackageNames is null
                 ? null
-                : request.PackageNames.Select(static packageName => packageName.Trim()).ToArray(),
-            ExcludeLodLevelsByPackage = request.ExcludeLodLevelsByPackage is null
-                ? null
-                : request.ExcludeLodLevelsByPackage.ToDictionary(
-                    static pair => pair.Key.Trim(),
-                    static pair => pair.Value,
-                    StringComparer.OrdinalIgnoreCase),
-            PackagePatterns = request.PackagePatterns is null
-                ? null
-                : request.PackagePatterns.ToDictionary(
-                    static pair => pair.Key.Trim(),
-                    static pair => pair.Value,
-                    StringComparer.OrdinalIgnoreCase),
+                : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
         };
+    }
+
+    private static string TrimToEmpty(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
     }
 
     private static PlateauImportRequest NormalizeRequest(PlateauImportRequest request)
