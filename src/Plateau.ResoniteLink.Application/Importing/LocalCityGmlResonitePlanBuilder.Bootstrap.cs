@@ -170,7 +170,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                     .ToArray(),
                 SourceFiles: relativeSourceFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray(),
-                TerrainTextureOverlays: terrainTextureOverlays),
+                TerrainTextureOverlays: terrainTextureOverlays,
+                RequestedMeshCodes: discoveryResult.RequestedMeshCodes),
             Attribution: attribution,
             LocalOrigin: new ResoniteLocalOrigin(
                 Latitude: globalOriginPoint.Latitude,

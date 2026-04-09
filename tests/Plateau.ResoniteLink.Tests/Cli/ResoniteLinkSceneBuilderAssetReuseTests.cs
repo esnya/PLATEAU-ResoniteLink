@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -236,6 +238,44 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
         string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
         Assert.True(File.Exists(statePath));
+    }
+
+    [Fact]
+    public async Task BuildAsyncPersistsLiveAssetStateOnlyAfterSceneCompletion()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        CapturedScene scene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "persist-once-after-complete",
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+        using ReuseSessionSharedClient client = new();
+        using CountingLiveAssetStateStore stateStore = new();
+
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => client,
+            liveAssetStateStore: stateStore);
+
+        string workRoot = Path.Combine(datasetDirectory.Path, "work");
+        await builder.BeginAsync(scene.Metadata, workRoot);
+        Assert.Equal(1, stateStore.LoadCallCount);
+        Assert.Equal(0, stateStore.PersistCallCount);
+
+        foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects)
+        {
+            await builder.ProcessCityObjectAsync(cityObject);
+        }
+
+        Assert.Equal(0, stateStore.PersistCallCount);
+
+        await builder.CompleteAsync();
+
+        Assert.Equal(1, stateStore.PersistCallCount);
+        Assert.NotEmpty(stateStore.PersistedAssetSourceFingerprints);
     }
 
     [Fact]
@@ -683,6 +723,42 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     private sealed record CapturedScene(
         ResoniteConstructionMetadata Metadata,
         IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
+
+    private sealed class CountingLiveAssetStateStore : IResoniteLiveAssetStateStore
+    {
+        public int LoadCallCount { get; private set; }
+
+        public int PersistCallCount { get; private set; }
+
+        public IReadOnlyDictionary<string, string> PersistedAssetSourceFingerprints { get; private set; } =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
+        public Task PersistAsync(
+            string? statePath,
+            ConcurrentDictionary<string, string>? assetSourceFingerprints,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            PersistCallCount++;
+            PersistedAssetSourceFingerprints = assetSourceFingerprints is null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(assetSourceFingerprints, StringComparer.Ordinal);
+            return Task.CompletedTask;
+        }
+
+        public Task<ConcurrentDictionary<string, string>> LoadAsync(
+            string statePath,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            LoadCallCount++;
+            return Task.FromResult(new ConcurrentDictionary<string, string>(StringComparer.Ordinal));
+        }
+
+        public void Dispose()
+        {
+        }
+    }
 }
 
 [CollectionDefinition(BundledCompanionTextureIsolationGroup.Name, DisableParallelization = true)]

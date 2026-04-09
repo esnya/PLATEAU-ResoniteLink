@@ -4,7 +4,19 @@ using System.Text.Json.Serialization;
 
 namespace Plateau.ResoniteLink.Cli;
 
-internal sealed class ResoniteLiveAssetStateStore(Action<string>? progressReporter = null) : IDisposable
+internal interface IResoniteLiveAssetStateStore : IDisposable
+{
+    Task PersistAsync(
+        string? statePath,
+        ConcurrentDictionary<string, string>? assetSourceFingerprints,
+        CancellationToken cancellationToken);
+
+    Task<ConcurrentDictionary<string, string>> LoadAsync(
+        string statePath,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class ResoniteLiveAssetStateStore(Action<string>? progressReporter = null) : IResoniteLiveAssetStateStore
 {
     private readonly SemaphoreSlim writeLock = new(1, 1);
     private readonly Action<string>? progressReporter = progressReporter;
@@ -30,8 +42,9 @@ internal sealed class ResoniteLiveAssetStateStore(Action<string>? progressReport
 
             try
             {
+                KeyValuePair<string, string>[] fingerprintSnapshot = assetSourceFingerprints.ToArray();
                 LiveAssetState state = new(
-                    assetSourceFingerprints.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                    fingerprintSnapshot.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
                         .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal));
                 string json = JsonSerializer.Serialize(state, LiveAssetStateJsonContext.Default.LiveAssetState);
                 await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);

@@ -26,7 +26,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly int connectionCount;
     private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
-    private readonly ResoniteLiveAssetStateStore liveAssetStateStore;
+    private readonly IResoniteLiveAssetStateStore liveAssetStateStore;
     private readonly SemaphoreSlim clientInitializationGate = new(1, 1);
     private readonly Action<string>? progressReporter;
     private bool liveAssetStateStoreDisposed;
@@ -52,6 +52,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private int firstQueuedCityObjectLogged;
     private int firstPreparedCityObjectLogged;
     private int firstBuiltCityObjectLogged;
+    private bool liveAssetStateDirty;
     private IPlateauDatasetContentSource? datasetContentSource;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
@@ -79,14 +80,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteLinkSendDiagnostics diagnostics,
         Func<IResoniteLinkClient> clientFactory,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
-        Action<string>? progressReporter = null)
+        Action<string>? progressReporter = null,
+        IResoniteLiveAssetStateStore? liveAssetStateStore = null)
     {
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
         this.diagnostics = diagnostics;
         this.clientFactory = clientFactory;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator();
-        liveAssetStateStore = new ResoniteLiveAssetStateStore(progressReporter);
+        this.liveAssetStateStore = liveAssetStateStore ?? new ResoniteLiveAssetStateStore(progressReporter);
         this.progressReporter = progressReporter;
     }
 
@@ -112,12 +114,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Directory.CreateDirectory(resolvedWorkRoot);
         generatedAssetsRoot = Path.Combine(resolvedWorkRoot, ".generated-assets");
         liveAssetStatePath = Path.Combine(resolvedWorkRoot, LiveAssetStateFileName);
+        string completionMeshCode = ResolveCompletionMeshCode(metadata);
         datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
             "dataset");
         meshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
-            GetRequestMeshSelectorEntityKey(metadata.Request.MeshCode),
+            completionMeshCode,
             "meshcode");
         datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
@@ -138,6 +141,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         componentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         assetComponentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task<Uri>>>(StringComparer.Ordinal);
         assetSourceFingerprints = await liveAssetStateStore.LoadAsync(liveAssetStatePath, cancellationToken);
+        liveAssetStateDirty = false;
         materialAssetManager = new ResoniteMaterialAssetManager(
             metadata.Request.Dataset,
             (containerSlotId, componentId, componentType, uriMemberName, importAssetAsync, sourceFingerprint, ct) =>
@@ -201,30 +205,38 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             new ResoniteFloat3(0.0, 0.0, 0.0),
             cancellationToken);
         await licenseManager.EnsureDatasetLicenseAsync(setupClient, datasetSlotId, datasetLicenseComponentId, cancellationToken);
-        ResoniteFloat3 meshCodeRootPosition = await ResolveMeshCodeRootPositionAsync(
-            setupClient,
-            metadata.Request.Dataset,
-            metadata.Request.MeshCode,
-            metadata.LocalOrigin,
-            cancellationToken);
-        await EnsureSlotKnownAsync(
-            setupClient,
-            meshCodeSlotId,
-            datasetSlotId,
-            metadata.Request.MeshCode,
-            meshCodeRootPosition,
-            null,
-            cancellationToken);
-        await EnsureSlotPositionAsync(
-            setupClient,
-            meshCodeSlotId,
-            datasetSlotId,
-            metadata.Request.MeshCode,
-            meshCodeRootPosition,
-            cancellationToken);
-
         await EnsureSlotKnownAsync(setupClient, datasetAssetsSlotId, datasetSlotId, "Assets", null, null, cancellationToken);
         await EnsureSlotKnownAsync(setupClient, commonAssetsSlotId, datasetAssetsSlotId, CommonAssetsSlotName, null, null, cancellationToken);
+        SceneAnchor? existingAnchor = await ResolveSceneAnchorAsync(setupClient, cancellationToken);
+        if (existingAnchor is null)
+        {
+            await EnsureSlotKnownAsync(
+                setupClient,
+                meshCodeSlotId,
+                datasetSlotId,
+                completionMeshCode,
+                new ResoniteFloat3(0.0, 0.0, 0.0),
+                null,
+                cancellationToken);
+            await EnsureSlotPositionAsync(
+                setupClient,
+                meshCodeSlotId,
+                datasetSlotId,
+                completionMeshCode,
+                new ResoniteFloat3(0.0, 0.0, 0.0),
+                cancellationToken);
+        }
+        else
+        {
+            await EnsureSlotPositionAsync(
+                setupClient,
+                existingAnchor.Value.SlotId,
+                datasetSlotId,
+                existingAnchor.Value.MeshCode,
+                existingAnchor.Value.Position,
+                cancellationToken);
+        }
+
         ReportProgress("[live] Dataset slots and asset groups are ready.");
     }
 
@@ -307,7 +319,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         cityObjectChannel.Writer.TryComplete();
         await Task.WhenAll(processingTasks).WaitAsync(cancellationToken);
         diagnostics.CompleteSendWindow();
-        await liveAssetStateStore.PersistAsync(liveAssetStatePath, assetSourceFingerprints, cancellationToken);
+        await PersistLiveAssetStateAsync(cancellationToken);
         ReportProgress($"[live] Completed {processedCityObjectCount} city objects.");
         return [$"{endpoint}#{meshCodeSlotId}"];
     }
@@ -519,15 +531,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         incrementalHash.AppendData(bytes);
     }
 
-    private static string GetRequestMeshSelectorEntityKey(string meshCode)
+    private static string ResolveCompletionMeshCode(ResoniteConstructionMetadata metadata)
     {
-        if (PlateauMeshCode.TryGetBounds(meshCode, out _))
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        string meshCode = metadata.Request.MeshCode;
+        if (PlateauMeshCode.TryGetCenter(meshCode, out _))
         {
             return meshCode;
         }
 
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(meshCode));
-        return $"regex-{Convert.ToHexStringLower(hash[..8])}";
+        string? requestedMeshCode = metadata.SourceDataset.RequestedMeshCodes?
+            .FirstOrDefault(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _));
+        if (!string.IsNullOrWhiteSpace(requestedMeshCode))
+        {
+            return requestedMeshCode;
+        }
+
+        throw new InvalidOperationException(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Live Offset V2 requires a concrete meshcode anchor, but '{meshCode}' did not resolve to any concrete meshcode."));
     }
 
     private async Task BuildPreparedCityObjectAsync(
@@ -548,12 +572,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             metadata.Request.Dataset,
             rootMeshCode,
             "meshcode");
-        ResoniteFloat3 rootMeshCodePosition = await ResolveMeshCodeRootPositionAsync(
-            client,
-            metadata.Request.Dataset,
-            rootMeshCode,
-            metadata.LocalOrigin,
-            cancellationToken);
+        ResoniteFloat3 rootMeshCodePosition = await ResolveMeshCodeRootPositionAsync(client, rootMeshCode, cancellationToken);
         ResoniteFloat3 cityObjectLocalPosition = ResolveCityObjectLocalPosition(
             metadata.LocalOrigin,
             rootMeshCode,
@@ -1230,6 +1249,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             : new ResoniteFloat3(0.0, 0.0, 0.0);
     }
 
+    private static ResoniteFloat3 NormalizeMeshRootPosition(ResoniteFloat3 position)
+    {
+        return new ResoniteFloat3(position.X, 0.0, position.Z);
+    }
+
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
     {
         return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
@@ -1346,48 +1370,30 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             currentCenter.Altitude);
         return new ResoniteFloat3(
             X: eun.x,
-            Y: eun.z,
+            // Mesh-root offsets should only reposition neighboring imports in-plane.
+            // Keeping the local tangent frame's vertical component here introduces a
+            // false Y drift between DEM parent meshes and detailed meshes.
+            Y: 0.0,
             Z: eun.y);
     }
 
     private async Task<ResoniteFloat3> ResolveMeshCodeRootPositionAsync(
         IResoniteLinkClient client,
-        string dataset,
         string meshCode,
-        ResoniteLocalOrigin requestedOrigin,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(datasetSlotId is null, this);
-
-        string targetMeshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
-            dataset,
-            GetRequestMeshSelectorEntityKey(meshCode),
-            "meshcode");
-        Slot? datasetSlot = await client.GetSlotAsync(datasetSlotId, 1, cancellationToken);
-        Slot? referenceSlot = datasetSlot?.Children?
-            .FirstOrDefault(slot =>
-                !string.Equals(slot.ID, targetMeshCodeSlotId, StringComparison.Ordinal)
-                && TryGetMeshCodeName(slot, out _));
-        if (referenceSlot is null || !TryGetMeshCodeName(referenceSlot, out string referenceMeshCode))
+        SceneAnchor? anchor = await ResolveSceneAnchorAsync(client, cancellationToken);
+        if (anchor is null)
         {
-            if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin meshCenter))
-            {
-                return new ResoniteFloat3(0.0, 0.0, 0.0);
-            }
-
-            return ComputeOriginOffset(requestedOrigin, meshCenter);
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
         }
 
-        if (!PlateauMeshCode.TryGetCenter(meshCode, out _))
+        if (string.Equals(anchor.Value.MeshCode, meshCode, StringComparison.Ordinal))
         {
-            return Add(
-                GetPositionOrDefault(referenceSlot),
-                ComputeOriginOffsetFromMeshCode(referenceMeshCode, requestedOrigin));
+            return anchor.Value.Position;
         }
 
-        return Add(
-            GetPositionOrDefault(referenceSlot),
-            ComputeMeshCodeOffset(referenceMeshCode, meshCode));
+        return Add(anchor.Value.Position, ComputeMeshCodeOffset(anchor.Value.MeshCode, meshCode));
     }
 
     private static async Task EnsureSlotPositionAsync(
@@ -1429,14 +1435,23 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private static ResoniteFloat3 ComputeOriginOffsetFromMeshCode(string referenceMeshCode, ResoniteLocalOrigin targetOrigin)
+    private async Task<SceneAnchor?> ResolveSceneAnchorAsync(
+        IResoniteLinkClient client,
+        CancellationToken cancellationToken)
     {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter))
+        ObjectDisposedException.ThrowIf(datasetSlotId is null, this);
+
+        Slot? datasetSlot = await client.GetSlotAsync(datasetSlotId, 1, cancellationToken);
+        Slot? anchorSlot = datasetSlot?.Children?.FirstOrDefault(static slot => TryGetMeshCodeName(slot, out _));
+        if (anchorSlot is null || !TryGetMeshCodeName(anchorSlot, out string anchorMeshCode))
         {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
+            return null;
         }
 
-        return ComputeOriginOffset(referenceCenter, targetOrigin);
+        return new SceneAnchor(
+            anchorSlot.ID,
+            anchorMeshCode,
+            NormalizeMeshRootPosition(GetPositionOrDefault(anchorSlot)));
     }
 
     private async Task AwaitProcessingTasksIfCompletedAsync()
@@ -1537,6 +1552,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 members,
                 cancellationToken),
             cancellationToken);
+    }
+
+    private async Task PersistLiveAssetStateAsync(CancellationToken cancellationToken)
+    {
+        if (!liveAssetStateDirty)
+        {
+            return;
+        }
+
+        await liveAssetStateStore.PersistAsync(liveAssetStatePath, assetSourceFingerprints, cancellationToken);
+        liveAssetStateDirty = false;
     }
 
     private static async Task GetOrRunOnceAsync(
@@ -1699,10 +1725,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         assetSourceFingerprints[componentId] = sourceFingerprint;
-        if (liveAssetStatePath is not null && assetSourceFingerprints is not null)
-        {
-            await liveAssetStateStore.PersistAsync(liveAssetStatePath, assetSourceFingerprints, cancellationToken);
-        }
+        liveAssetStateDirty = true;
         return assetUri;
     }
 
@@ -1801,6 +1824,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,
         Task<PreparedCityObject> PreparationTask);
+
+    private readonly record struct SceneAnchor(
+        string SlotId,
+        string MeshCode,
+        ResoniteFloat3 Position);
 
     private abstract record PreparedConstructionGeometry;
 

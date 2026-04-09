@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
+using GeographicLib;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -945,6 +947,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
         int addedParentMeshSlotsAfterFirstRun = firstClient.AddedSlots.Count(request =>
             GetSlotPath(firstClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal));
+        Slot firstMeshCodeSlotAfterFirstRun = firstClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Field_float3 firstMeshCodePositionAfterFirstRun = Assert.IsType<Field_float3>(firstMeshCodeSlotAfterFirstRun.Position);
 
         await RunBuilderAsync(
             new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
@@ -954,9 +958,23 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains("PLATEAU tokyo23ku/53394525", secondClient.SlotPaths.Values);
         Assert.Contains("PLATEAU tokyo23ku/53394526", secondClient.SlotPaths.Values);
 
+        Slot firstMeshCodeSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
         Slot appendedMeshCodeSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")];
+        Field_float3 firstPosition = Assert.IsType<Field_float3>(firstMeshCodeSlot.Position);
         Field_float3 appendedPosition = Assert.IsType<Field_float3>(appendedMeshCodeSlot.Position);
-        Assert.NotEqual(0.0f, appendedPosition.Value.x);
+        Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin firstMeshCenter));
+        Assert.True(PlateauMeshCode.TryGetCenter("53394526", out ResoniteLocalOrigin appendedMeshCenter));
+        ResoniteFloat3 expectedOffset = ComputeOriginOffsetForTest(firstMeshCenter, appendedMeshCenter) with { Y = 0.0 };
+
+        Assert.Equal(firstMeshCodePositionAfterFirstRun.Value.x, firstPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, firstPosition.Value.y, precision: 4);
+        Assert.Equal(firstMeshCodePositionAfterFirstRun.Value.z, firstPosition.Value.z, precision: 4);
+        Assert.Equal((float)(firstPosition.Value.x + expectedOffset.X), appendedPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, appendedPosition.Value.y, precision: 4);
+        Assert.Equal((float)(firstPosition.Value.z + expectedOffset.Z), appendedPosition.Value.z, precision: 4);
+        Assert.Equal(
+            ["Assets", "53394525", "533945", "53394526"],
+            await GetDirectChildNamesAsync(secondClient, ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId("tokyo23ku", "dataset")));
 
         Assert.Equal(importedMeshCountAfterFirstRun + 1, secondClient.ImportedMeshes.Count);
         Assert.Equal(
@@ -968,7 +986,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncUsesMetadataLocalOriginWhenRequestMeshCodeIsRegex()
+    public async Task BuildAsyncCreatesConcreteAnchorRootWhenRequestMeshCodeIsRegex()
     {
         using FakeResoniteLinkClient fakeClient = new();
         CapturedResoniteScene scene = CreateRegexRequestScene();
@@ -980,35 +998,80 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         await RunBuilderAsync(builder, scene);
 
-        Slot sharedTerrainSlot = fakeClient.SlotsById[fakeClient.BuildingSlotIds["Shared Terrain"]];
-        Field_float3 sharedTerrainPosition = Assert.IsType<Field_float3>(sharedTerrainSlot.Position);
-        Assert.NotEqual(0.0f, sharedTerrainPosition.Value.x);
+        string datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId("tokyo23ku", "dataset");
+        Assert.Equal(["Assets", "53394525", "533945"], await GetDirectChildNamesAsync(fakeClient, datasetSlotId));
+        Slot anchorSlot = fakeClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Field_float3 anchorPosition = Assert.IsType<Field_float3>(anchorSlot.Position);
+        Assert.Equal(0.0f, anchorPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, anchorPosition.Value.y, precision: 4);
+        Assert.Equal(0.0f, anchorPosition.Value.z, precision: 4);
+        Assert.DoesNotContain(
+            fakeClient.SlotsById.Values,
+            static slot =>
+                !string.IsNullOrWhiteSpace(slot.Name?.Value)
+                && slot.Name.Value.StartsWith("regex-", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task BuildAsyncUpdatesExistingMeshRootPositionWhenRegexOriginChanges()
+    public async Task BuildAsyncKeepsExistingAnchorRootPositionWhenRegexOriginChanges()
     {
         FakeResoniteLinkSession session = new();
         using FakeResoniteLinkClient firstClient = new(session);
         using FakeResoniteLinkClient secondClient = new(session);
+        using TemporaryDirectory sharedWorkDirectory = new();
 
         await RunBuilderAsync(
             new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
-            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)));
-        Slot firstRootSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
-        Field_float3 firstRootPosition = Assert.IsType<Field_float3>(firstRootSlot.Position);
+            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)),
+            sharedWorkDirectory.Path);
+        Slot firstAnchorSlot = firstClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Field_float3 firstAnchorPosition = Assert.IsType<Field_float3>(firstAnchorSlot.Position);
 
         await RunBuilderAsync(
             new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
-            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.70625, 0.0)));
-        Slot updatedRootSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
-        Field_float3 updatedRootPosition = Assert.IsType<Field_float3>(updatedRootSlot.Position);
+            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.70625, 0.0)),
+            sharedWorkDirectory.Path);
+        Slot updatedAnchorSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Field_float3 updatedAnchorPosition = Assert.IsType<Field_float3>(updatedAnchorSlot.Position);
 
-        Assert.NotEqual(firstRootPosition.Value.x, updatedRootPosition.Value.x);
+        Assert.Equal(firstAnchorPosition.Value.x, updatedAnchorPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, updatedAnchorPosition.Value.y, precision: 4);
+        Assert.Equal(firstAnchorPosition.Value.z, updatedAnchorPosition.Value.z, precision: 4);
     }
 
     [Fact]
-    public async Task BuildAsyncKeepsDistinctRequestSlotsForDifferentRegexSelectors()
+    public async Task BuildAsyncPlacesRegexParentMeshRootFromAnchorOffset()
+    {
+        using FakeResoniteLinkClient fakeClient = new();
+        CapturedResoniteScene scene = CreateRegexRequestScene(
+            "5339452[56]",
+            new ResoniteLocalOrigin(35.6875, 139.70625, 0.0));
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Slot anchorMeshRootSlot = fakeClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Slot parentMeshRootSlot = fakeClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
+        Field_float3 anchorMeshRootPosition = Assert.IsType<Field_float3>(anchorMeshRootSlot.Position);
+        Field_float3 parentMeshRootPosition = Assert.IsType<Field_float3>(parentMeshRootSlot.Position);
+        Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin anchorMeshCenter));
+        Assert.True(PlateauMeshCode.TryGetCenter("533945", out ResoniteLocalOrigin parentMeshCenter));
+        ResoniteFloat3 expectedPosition = ComputeOriginOffsetForTest(anchorMeshCenter, parentMeshCenter) with { Y = 0.0 };
+
+        Assert.Equal(0.0f, anchorMeshRootPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, anchorMeshRootPosition.Value.y, precision: 4);
+        Assert.Equal(0.0f, anchorMeshRootPosition.Value.z, precision: 4);
+        Assert.Equal((float)expectedPosition.X, parentMeshRootPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, parentMeshRootPosition.Value.y, precision: 4);
+        Assert.Equal((float)expectedPosition.Z, parentMeshRootPosition.Value.z, precision: 4);
+    }
+
+    [Fact]
+    public async Task BuildAsyncUsesConcreteMeshCodeCompletionForRegexSelectors()
     {
         FakeResoniteLinkSession session = new();
         using FakeResoniteLinkClient firstClient = new(session);
@@ -1019,13 +1082,134 @@ public sealed class ResoniteLinkSceneBuilderTests
             new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
             CreateRegexRequestScene("5339452[56]"),
             sharedWorkDirectory.Path);
-        await RunBuilderAsync(
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
             new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
             CreateRegexRequestScene("5339452(56)"),
             sharedWorkDirectory.Path);
 
-        Assert.Contains("PLATEAU tokyo23ku/5339452[56]", secondClient.SlotPaths.Values);
-        Assert.Contains("PLATEAU tokyo23ku/5339452(56)", secondClient.SlotPaths.Values);
+        Assert.Contains("PLATEAU tokyo23ku/53394525", secondClient.SlotPaths.Values);
+        Assert.Equal(
+            [$"ws://localhost:12345/#{ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")}"],
+            destinations);
+        Assert.DoesNotContain(
+            secondClient.SlotsById.Values,
+            static slot =>
+                !string.IsNullOrWhiteSpace(slot.Name?.Value)
+                && slot.Name.Value.StartsWith("regex-", StringComparison.Ordinal));
+        Assert.DoesNotContain("PLATEAU tokyo23ku/5339452[56]", secondClient.SlotPaths.Values);
+        Assert.DoesNotContain("PLATEAU tokyo23ku/5339452(56)", secondClient.SlotPaths.Values);
+    }
+
+    [Fact]
+    public async Task BuildAsyncKeepsRegexAnchorWhenFollowedByExactDetailedRequest()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+        using TemporaryDirectory sharedWorkDirectory = new();
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            CreateRegexRequestScene("5339452[56]"),
+            sharedWorkDirectory.Path);
+        Slot firstAnchorSlot = firstClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Field_float3 firstAnchorPosition = Assert.IsType<Field_float3>(firstAnchorSlot.Position);
+
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            CreateAppendScene("53394526", "Building 26"),
+            sharedWorkDirectory.Path);
+
+        Slot updatedAnchorSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Slot appendedMeshCodeSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")];
+        Field_float3 updatedAnchorPosition = Assert.IsType<Field_float3>(updatedAnchorSlot.Position);
+        Field_float3 appendedPosition = Assert.IsType<Field_float3>(appendedMeshCodeSlot.Position);
+        Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin anchorMeshCenter));
+        Assert.True(PlateauMeshCode.TryGetCenter("53394526", out ResoniteLocalOrigin appendedMeshCenter));
+        ResoniteFloat3 expectedOffset = ComputeOriginOffsetForTest(anchorMeshCenter, appendedMeshCenter) with { Y = 0.0 };
+
+        Assert.Equal(firstAnchorPosition.Value.x, updatedAnchorPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, updatedAnchorPosition.Value.y, precision: 4);
+        Assert.Equal(firstAnchorPosition.Value.z, updatedAnchorPosition.Value.z, precision: 4);
+        Assert.Equal((float)(updatedAnchorPosition.Value.x + expectedOffset.X), appendedPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, appendedPosition.Value.y, precision: 4);
+        Assert.Equal((float)(updatedAnchorPosition.Value.z + expectedOffset.Z), appendedPosition.Value.z, precision: 4);
+        Assert.Equal(
+            [$"ws://localhost:12345/#{ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")}"],
+            destinations);
+    }
+
+    [Fact]
+    public async Task BuildAsyncKeepsParentAnchorWhenExactParentRunIsFollowedByRegexDetailedRequest()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+        using TemporaryDirectory sharedWorkDirectory = new();
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            CreateExactParentMeshScene(),
+            sharedWorkDirectory.Path);
+
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            CreateRegexRequestScene("5339452[56]"),
+            sharedWorkDirectory.Path);
+
+        Slot parentAnchorSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
+        Slot detailedMeshCodeSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")];
+        Field_float3 parentAnchorPosition = Assert.IsType<Field_float3>(parentAnchorSlot.Position);
+        Field_float3 detailedPosition = Assert.IsType<Field_float3>(detailedMeshCodeSlot.Position);
+        Assert.True(PlateauMeshCode.TryGetCenter("533945", out ResoniteLocalOrigin parentMeshCenter));
+        Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin detailedMeshCenter));
+        ResoniteFloat3 expectedOffset = ComputeOriginOffsetForTest(parentMeshCenter, detailedMeshCenter) with { Y = 0.0 };
+
+        Assert.Equal(0.0f, parentAnchorPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, parentAnchorPosition.Value.y, precision: 4);
+        Assert.Equal(0.0f, parentAnchorPosition.Value.z, precision: 4);
+        Assert.Equal((float)expectedOffset.X, detailedPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, detailedPosition.Value.y, precision: 4);
+        Assert.Equal((float)expectedOffset.Z, detailedPosition.Value.z, precision: 4);
+        Assert.Equal(
+            ["Assets", "533945", "53394525"],
+            await GetDirectChildNamesAsync(secondClient, ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId("tokyo23ku", "dataset")));
+        Assert.Equal(
+            [$"ws://localhost:12345/#{ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")}"],
+            destinations);
+    }
+
+    [Fact]
+    public async Task BuildAsyncMatchesAppendedMeshRootPositionWithColdBuild()
+    {
+        FakeResoniteLinkSession warmSession = new();
+        using FakeResoniteLinkClient warmFirstClient = new(warmSession);
+        using FakeResoniteLinkClient warmSecondClient = new(warmSession);
+        using TemporaryDirectory sharedWorkDirectory = new();
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => warmFirstClient),
+            CreateAppendScene("53394525", "Building 25"),
+            sharedWorkDirectory.Path);
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => warmSecondClient),
+            CreateAppendScene("53394526", "Building 26"),
+            sharedWorkDirectory.Path);
+
+        using FakeResoniteLinkClient coldClient = new();
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => coldClient),
+            CreateCombinedAppendScene());
+
+        AssertEqualSlotPosition(
+            warmSecondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")],
+            coldClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394525", "meshcode")]);
+        AssertEqualSlotPosition(
+            warmSecondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")],
+            coldClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")]);
+        AssertEqualSlotPosition(
+            warmSecondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")],
+            coldClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")]);
     }
 
     [Fact]
@@ -1053,7 +1237,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         await RunBuilderAsync(builder, scene, workDirectory.Path);
 
         TerrainTextureOverlay requestedOverlay = Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, requestedOverlay.TexturePath);
+        Assert.StartsWith(
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            requestedOverlay.TexturePath,
+            StringComparison.Ordinal);
 
         ResoniteRawTextureImport builtInTexture = Assert.Single(
             fakeClient.ImportedRawTextures,
@@ -1599,9 +1786,26 @@ public sealed class ResoniteLinkSceneBuilderTests
         return client.SlotPaths[slotId];
     }
 
+    private static async Task<string[]> GetDirectChildNamesAsync(FakeResoniteLinkClient client, string parentId)
+    {
+        Slot parentSlot = Assert.IsType<Slot>(await client.GetSlotAsync(parentId, 1, CancellationToken.None));
+        return (parentSlot.Children ?? [])
+            .Select(static slot => slot.Name?.Value ?? slot.ID)
+            .ToArray();
+    }
+
     private static bool HasSlotPath(FakeResoniteLinkClient client, string expectedPath)
     {
         return client.SlotPaths.Values.Contains(expectedPath, StringComparer.Ordinal);
+    }
+
+    private static void AssertEqualSlotPosition(Slot expected, Slot actual)
+    {
+        Field_float3 expectedPosition = Assert.IsType<Field_float3>(expected.Position);
+        Field_float3 actualPosition = Assert.IsType<Field_float3>(actual.Position);
+        Assert.Equal(expectedPosition.Value.x, actualPosition.Value.x, precision: 4);
+        Assert.Equal(expectedPosition.Value.y, actualPosition.Value.y, precision: 4);
+        Assert.Equal(expectedPosition.Value.z, actualPosition.Value.z, precision: 4);
     }
 
     private static string FormatLodSlotName(int? lodLevel)
@@ -1719,6 +1923,156 @@ public sealed class ResoniteLinkSceneBuilderTests
             ]);
     }
 
+    private static CapturedResoniteScene CreateCombinedAppendScene()
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU tokyo23ku 53394525",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg", "dem"],
+                SourceFiles:
+                [
+                    "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                    "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                    "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
+                ],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_shared",
+                    DisplayName: "Shared Terrain",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: "bldg_53394525",
+                    DisplayName: "Building 25",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("bldg-53394525"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "bldg-53394525",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+                new ResoniteConstructionCityObject(
+                    SlotKey: "bldg_53394526",
+                    DisplayName: "Building 26",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394526",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("bldg-53394526"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "bldg-53394526",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+    }
+
+    private static CapturedResoniteScene CreateExactParentMeshScene()
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU tokyo23ku 533945",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533945",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["dem"],
+                SourceFiles:
+                [
+                    "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                ],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.6875, 0.0));
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_shared_parent",
+                    DisplayName: "Shared Terrain",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared_parent"),
+            ]);
+    }
+
     private static CapturedResoniteScene CreateRegexRequestScene()
     {
         return CreateRegexRequestScene("5339452[56]", new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
@@ -1748,7 +2102,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: ["bldg", "dem"],
                 SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
-                TerrainTextureOverlays: []),
+                TerrainTextureOverlays: [],
+                RequestedMeshCodes: ["53394525"]),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new ResoniteLicenseComponentMetadata(
                     RequireCredit: true,
@@ -1819,6 +2174,22 @@ public sealed class ResoniteLinkSceneBuilderTests
             [
                 new ResoniteMeshSubmesh(0, materialKey, [0, 1, 2]),
             ]);
+    }
+
+    private static ResoniteFloat3 ComputeOriginOffsetForTest(
+        ResoniteLocalOrigin referenceCenter,
+        ResoniteLocalOrigin currentCenter)
+    {
+        LocalCartesian cartesian = new(
+            referenceCenter.Latitude,
+            referenceCenter.Longitude,
+            referenceCenter.Altitude,
+            Geocentric.WGS84);
+        (double x, double y, double z) eun = cartesian.Forward(
+            currentCenter.Latitude,
+            currentCenter.Longitude,
+            currentCenter.Altitude);
+        return new ResoniteFloat3(eun.x, eun.z, eun.y);
     }
 
 }

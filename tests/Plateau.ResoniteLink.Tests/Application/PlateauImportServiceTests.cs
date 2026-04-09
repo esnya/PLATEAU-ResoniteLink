@@ -179,12 +179,18 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Relief One");
         Assert.Equal("dem", relief.PackageName);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, Assert.Single(relief.Materials).TexturePath);
+        Assert.StartsWith(
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            Assert.Single(relief.Materials).TexturePath,
+            StringComparison.Ordinal);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, Assert.Single(relief.Materials).TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, Assert.Single(relief.Materials).Projection);
         TerrainTextureOverlay demTerrainTexture = Assert.Single(result.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Equal("dem", demTerrainTexture.PackageName);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, demTerrainTexture.TexturePath);
+        Assert.StartsWith(
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            demTerrainTexture.TexturePath,
+            StringComparison.Ordinal);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, demTerrainTexture.UrlTemplate);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, demTerrainTexture.ZoomLevel);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, demTerrainTexture.MaxTextureSize);
@@ -993,6 +999,74 @@ public sealed class PlateauImportServiceTests
         Assert.True(
             Math.Abs(westMaxX - eastMinX) <= 1e-3,
             $"Split DEM heightmap chunks must tile on the overlay boundary without X overlap/gap. westMaxX={westMaxX:F6}, eastMinX={eastMinX:F6}, delta={westMaxX - eastMinX:F6}");
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesDifferentGeneratedDemTexturePathsForDifferentRequestedMeshSelectors()
+    {
+        string firstTexturePath = CreateGeneratedDemTexturePathForMeshCode("53394525");
+        string secondTexturePath = CreateGeneratedDemTexturePathForMeshCode("53394526");
+
+        Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, firstTexturePath, StringComparison.Ordinal);
+        Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, secondTexturePath, StringComparison.Ordinal);
+        Assert.NotEqual(firstTexturePath, secondTexturePath);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesIndependentGeneratedDemTexturesForSplitHeightMapChunks()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeStraddledSplitBoundaryDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject[] demChunks = heightMapScene.CityObjects
+            .Where(static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal))
+            .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(2, demChunks.Length);
+
+        ResoniteMaterialBinding westMaterial = Assert.Single(
+            demChunks[0].Materials,
+            static material => material.TexturePath is not null
+                && material.TexturePath.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    StringComparison.Ordinal));
+        ResoniteMaterialBinding eastMaterial = Assert.Single(
+            demChunks[1].Materials,
+            static material => material.TexturePath is not null
+                && material.TexturePath.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    StringComparison.Ordinal));
+
+        Assert.NotNull(westMaterial.TextureScale);
+        Assert.NotNull(westMaterial.TextureOffset);
+        Assert.NotNull(eastMaterial.TextureScale);
+        Assert.NotNull(eastMaterial.TextureOffset);
+        Assert.NotEqual(westMaterial.TexturePath, eastMaterial.TexturePath);
+        Assert.Equal(1.0, westMaterial.TextureScale!.X, 6);
+        Assert.Equal(1.0, westMaterial.TextureScale.Y, 6);
+        Assert.Equal(0.0, westMaterial.TextureOffset!.X, 6);
+        Assert.Equal(0.0, westMaterial.TextureOffset.Y, 6);
+        Assert.Equal(1.0, eastMaterial.TextureScale!.X, 6);
+        Assert.Equal(1.0, eastMaterial.TextureScale.Y, 6);
+        Assert.Equal(0.0, eastMaterial.TextureOffset!.X, 6);
+        Assert.Equal(0.0, eastMaterial.TextureOffset.Y, 6);
     }
 
     [Fact]
@@ -3906,6 +3980,21 @@ public sealed class PlateauImportServiceTests
                     cityObject.Transform.Position.Z + vertex.Position.Z),
                 vertex.UV0.X);
         }
+    }
+
+    private static string CreateGeneratedDemTexturePathForMeshCode(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
+        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.WestLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.EastLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+        double topPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.NorthLatitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.SouthLatitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+
+        MethodInfo method = typeof(LocalCityGmlResonitePlanBuilder).GetMethod(
+            "CreateDemTerrainTexturePath",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Expected private DEM terrain texture path helper.");
+        return (string)method.Invoke(null, [leftPixel, rightPixel, topPixel, bottomPixel])!;
     }
 
     internal sealed record CapturedResoniteScene(

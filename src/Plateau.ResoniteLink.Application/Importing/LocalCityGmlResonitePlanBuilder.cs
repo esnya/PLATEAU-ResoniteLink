@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Channels;
 using System.Xml.Linq;
 
@@ -142,12 +144,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             overlays.Add(CreateDemTerrainTextureOverlay(row: 0, column: 0, leftPixel, rightPixel, topPixel, bottomPixel));
         }
 
-        return overlays.Count == 1
-            ?
-            [
-                overlays[0] with { TexturePath = DefaultDemTerrainTexturePath },
-            ]
-            : overlays.ToArray();
+        return overlays.ToArray();
     }
 
     private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
@@ -159,7 +156,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double bottomPixel)
     {
         return new TerrainTextureOverlay(
-            TexturePath: $"{DefaultDemTerrainTexturePath}/{row:D2}-{column:D2}",
+            TexturePath: CreateDemTerrainTexturePath(leftPixel, rightPixel, topPixel, bottomPixel),
             PackageName: "dem",
             UrlTemplate: DefaultDemTerrainTextureUrlTemplate,
             ZoomLevel: DefaultDemTerrainTextureZoomLevel,
@@ -169,6 +166,23 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 MinLongitude: WebMercatorTileMath.PixelXToLongitude(leftPixel, DefaultDemTerrainTextureZoomLevel),
                 MaxLongitude: WebMercatorTileMath.PixelXToLongitude(rightPixel, DefaultDemTerrainTextureZoomLevel)),
             MaxTextureSize: DefaultDemTerrainTextureMaxSize);
+    }
+
+    private static string CreateDemTerrainTexturePath(
+        double leftPixel,
+        double rightPixel,
+        double topPixel,
+        double bottomPixel)
+    {
+        int globalRow = (int)Math.Floor(topPixel / DefaultDemTerrainTextureMaxSize);
+        int globalColumn = (int)Math.Floor(leftPixel / DefaultDemTerrainTextureMaxSize);
+        string fingerprintSource = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DefaultDemTerrainTextureZoomLevel}|{leftPixel:R}|{rightPixel:R}|{topPixel:R}|{bottomPixel:R}");
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintSource));
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DefaultDemTerrainTexturePath}/{globalRow:D5}-{globalColumn:D5}-{Convert.ToHexString(hash.AsSpan(0, 8))}");
     }
 
     private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
