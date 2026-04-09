@@ -118,13 +118,15 @@ dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCo
 ## License Notes
 
 - ルートのソースコードは [MIT](LICENSE) で提供する。
-- import 対象の PLATEAU dataset 自体を、この repository が再 license するわけではない。利用条件は元の [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) に従い、現行ポリシーでは、公開コンテンツは概ね PDL 1.0 互換の条件で利用できる一方、出典記載と、加工・編集した場合の明示が必要とされている。
+- import 対象の PLATEAU dataset 自体を、この repository が再 license することはない。この repository の MIT license はコードベースのみに適用され、PLATEAU data には適用されない。各 dataset はそれぞれ固有の著作権者、attribution 要件、license 条件を保持する。
+- import、再配布、派生コンテンツの公開を行う前に、その dataset に同梱された README / metadata、配布ページ、個別の権利表記を、ライセンス、出典表記、加工・編集時の明示義務、再配布条件、その他の利用条件の正本として確認すること。
+- [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) は、PLATEAU website 上で別個の権利表記がないコンテンツに対する portal-level の既定条件であり、個別の 3D都市モデル package に付属する dataset-specific な条件を上書きするものではない。
 - PLATEAU SDK for Unity は別 upstream の MIT project であり、ライセンス控えを `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt` に置いている。
 - `src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/` 配下の同梱 default material texture は AmbientCG 由来で、`THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` に CC0 1.0 と出所を記録している。
 - 既定の DEM terrain imagery overlay は同梱 asset ではない。Geospatial Information Authority of Japan (GSI, 国土地理院) の seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg` から生成しており、出所と利用上の注意は `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` に記録している。
 - NuGet を含む主要依存は、それぞれ upstream のライセンスに従う。binary や同梱 asset を再配布する前に、実際に出荷する version の package metadata と upstream ライセンス条件を確認する。
 
-PLATEAU guidance:
+PLATEAU dataset guidance:
 
-- [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) では、3D都市モデルの著作権は各地方公共団体に帰属し、dataset ごとに PDL 1.0、CC BY 4.0、ODC BY、ODbL などの open license で提供されると案内されている。
-- 派生コンテンツや再配布を行う場合は、元 dataset の attribution を保持し、dataset 個別条件や測量法由来の制約がないかも確認する。
+- [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) では、3D都市モデルの著作権は各地方公共団体に帰属し、PLATEAU dataset は source dataset に応じて PDL 1.0、CC BY 4.0、ODC BY、ODbL などの条件で公開されうると案内している。
+- dataset page、同梱 README、source metadata により、より具体的な条件が示されている場合は、attribution、改変表示、再配布条件、追加制約、測量法その他の法令由来の制約確認を含め、その dataset 個別条件を正とする。
