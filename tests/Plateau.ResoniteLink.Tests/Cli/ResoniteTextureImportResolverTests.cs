@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -26,11 +24,11 @@ public sealed class ResoniteTextureImportResolverTests
             [],
             terrainTextureAssetGenerator);
 
-        ResolvedTextureImport firstResolution = await resolver.ResolveAsync(
+        ResoniteTextureImport firstResolution = await resolver.ResolveAsync(
             relativeTexturePath,
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
-        ResolvedTextureImport secondResolution = await resolver.ResolveAsync(
+        ResoniteTextureImport secondResolution = await resolver.ResolveAsync(
             relativeTexturePath,
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
@@ -39,9 +37,8 @@ public sealed class ResoniteTextureImportResolverTests
         Assert.Equal(1, datasetContentSource.MaterializeCount);
         Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
 
-        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(firstResolution.TextureImport);
+        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(firstResolution);
         Assert.StartsWith(workRoot.Path, fileImport.AbsolutePath, StringComparison.Ordinal);
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(sourceBytes)), firstResolution.SourceFingerprint);
     }
 
     [Fact]
@@ -69,11 +66,11 @@ public sealed class ResoniteTextureImportResolverTests
             [terrainTextureOverlay],
             terrainTextureAssetGenerator);
 
-        ResolvedTextureImport firstResolution = await resolver.ResolveAsync(
+        ResoniteTextureImport firstResolution = await resolver.ResolveAsync(
             terrainTextureOverlay.TexturePath,
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
-        ResolvedTextureImport secondResolution = await resolver.ResolveAsync(
+        ResoniteTextureImport secondResolution = await resolver.ResolveAsync(
             terrainTextureOverlay.TexturePath,
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
@@ -82,7 +79,7 @@ public sealed class ResoniteTextureImportResolverTests
         Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
         Assert.Equal(0, datasetContentSource.MaterializeCount);
 
-        ResoniteRawTextureImport rawTextureImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution.TextureImport);
+        ResoniteRawTextureImport rawTextureImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution);
         Assert.Equal(1, rawTextureImport.Width);
         Assert.Equal(1, rawTextureImport.Height);
         Assert.Equal("sRGB", rawTextureImport.ColorProfile);

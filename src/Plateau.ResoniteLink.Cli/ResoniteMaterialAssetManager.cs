@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -8,7 +7,8 @@ using ResoniteLink;
 namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteMaterialAssetManager(
-    Func<string, string, string, string, Func<Task<Uri>>, string, CancellationToken, Task<Uri>> ensureAssetComponentUrlKnownAsync,
+    Func<string, string, string, string, Func<Task<Uri>>, CancellationToken, Task<Uri>> ensureStaticAssetComponentUrlKnownAsync,
+    Func<string, string, string, string, Func<Task<Uri>>, CancellationToken, Task<Uri>> upsertDedicatedAssetComponentUrlAsync,
     Func<string, string, string, CancellationToken, Task> ensureAssetSlotKnownAsync,
     Func<string, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> ensureComponentKnownAsync,
     Action<string>? progressReporter = null)
@@ -20,7 +20,7 @@ internal sealed class ResoniteMaterialAssetManager(
     public async Task<string> EnsureMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturePathsByKey,
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
@@ -55,7 +55,7 @@ internal sealed class ResoniteMaterialAssetManager(
     private async Task<string> EnsureMaterialComponentCoreAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturePathsByKey,
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
@@ -73,6 +73,10 @@ internal sealed class ResoniteMaterialAssetManager(
         string heightTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "height");
         string metallicTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "metallic");
         string normalTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "normal");
+        Func<string, string, string, string, Func<Task<Uri>>, CancellationToken, Task<Uri>> ensureAssetComponentUrlAsync =
+            materialSlotParentId is null
+                ? upsertDedicatedAssetComponentUrlAsync
+                : ensureStaticAssetComponentUrlKnownAsync;
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
         string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
@@ -83,16 +87,15 @@ internal sealed class ResoniteMaterialAssetManager(
         if (material.TexturePath is not null
             && preparedTexturePathsByKey.TryGetValue(
                 CreateTextureCacheKey(material.TexturePath, material.TextureSourceKind),
-                out (ResoniteTextureImport TextureImport, string SourceFingerprint) textureAsset))
+                out ResoniteTextureImport? textureAsset))
         {
             ReportProgress($"[live] Material '{material.MaterialKey}' importing albedo texture.");
-            await ensureAssetComponentUrlKnownAsync(
+            await ensureAssetComponentUrlAsync(
                 materialSlotId,
                 textureComponentId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 "URL",
-                () => client.ImportTextureAsync(textureAsset.TextureImport, cancellationToken),
-                textureAsset.SourceFingerprint,
+                () => client.ImportTextureAsync(textureAsset, cancellationToken),
                 cancellationToken);
             materialMembers["AlbedoTexture"] = new Reference
             {
@@ -105,16 +108,14 @@ internal sealed class ResoniteMaterialAssetManager(
         {
             if (textureSet.NormalPath is not null)
             {
-                string normalFingerprint = ComputeContentFingerprint(textureSet.NormalPath);
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled normal map from '{textureSet.NormalPath}'.");
-                await ensureAssetComponentUrlKnownAsync(
+                await ensureAssetComponentUrlAsync(
                     materialSlotId,
                     normalTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath), cancellationToken),
-                    normalFingerprint,
                     cancellationToken);
                 materialMembers["NormalMap"] = new Reference
                 {
@@ -129,16 +130,14 @@ internal sealed class ResoniteMaterialAssetManager(
             if (textureSet.HeightPath is not null
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
-                string heightFingerprint = ComputeContentFingerprint(textureSet.HeightPath);
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled height map from '{textureSet.HeightPath}'.");
-                await ensureAssetComponentUrlKnownAsync(
+                await ensureAssetComponentUrlAsync(
                     materialSlotId,
                     heightTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath), cancellationToken),
-                    heightFingerprint,
                     cancellationToken);
                 materialMembers["HeightMap"] = new Reference
                 {
@@ -152,16 +151,14 @@ internal sealed class ResoniteMaterialAssetManager(
 
             if (textureSet.MetallicPath is not null)
             {
-                string metallicFingerprint = ComputeContentFingerprint(textureSet.MetallicPath);
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled metallic map from '{textureSet.MetallicPath}'.");
-                await ensureAssetComponentUrlKnownAsync(
+                await ensureAssetComponentUrlAsync(
                     materialSlotId,
                     metallicTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath), cancellationToken),
-                    metallicFingerprint,
                     cancellationToken);
                 Reference metallicReference = new()
                 {
@@ -176,16 +173,14 @@ internal sealed class ResoniteMaterialAssetManager(
 
             if (textureSet.EmissionPath is not null)
             {
-                string emissionFingerprint = ComputeContentFingerprint(textureSet.EmissionPath);
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled emission map from '{textureSet.EmissionPath}'.");
-                await ensureAssetComponentUrlKnownAsync(
+                await ensureAssetComponentUrlAsync(
                     materialSlotId,
                     emissionTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
                     () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath), cancellationToken),
-                    emissionFingerprint,
                     cancellationToken);
                 materialMembers["EmissiveMap"] = new Reference
                 {
@@ -219,27 +214,6 @@ internal sealed class ResoniteMaterialAssetManager(
         return texturePath is null
             ? string.Empty
             : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{textureSourceKind}:{texturePath}");
-    }
-
-    private static string ComputeContentFingerprint(string absolutePath)
-    {
-        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        using FileStream fileStream = new(
-            absolutePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            16 * 1024,
-            useAsync: false);
-        byte[] buffer = new byte[16 * 1024];
-        int bytesRead;
-
-        while ((bytesRead = fileStream.Read(buffer)) > 0)
-        {
-            incrementalHash.AppendData(buffer, 0, bytesRead);
-        }
-
-        return Convert.ToHexString(incrementalHash.GetHashAndReset());
     }
 
     private void ReportProgress(string message)
