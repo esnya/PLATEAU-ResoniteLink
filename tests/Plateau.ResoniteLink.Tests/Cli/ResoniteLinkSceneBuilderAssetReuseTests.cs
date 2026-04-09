@@ -442,7 +442,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
     private static ResoniteConstructionCityObject CreateHeightMapCityObject(
         string objectIdentity,
-        IReadOnlyList<ushort> heightSamples)
+        IReadOnlyList<double> heightSamples)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",

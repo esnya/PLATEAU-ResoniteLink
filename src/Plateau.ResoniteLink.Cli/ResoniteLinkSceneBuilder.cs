@@ -937,9 +937,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             .Append(',')
             .Append(heightMap.MaxHeight.ToString("R", CultureInfo.InvariantCulture));
 
-        foreach (ushort sample in heightMap.HeightSamples)
+        foreach (double sample in heightMap.HeightSamples)
         {
-            identityBuilder.Append(',').Append(sample.ToString(CultureInfo.InvariantCulture));
+            identityBuilder.Append(',').Append(sample.ToString("R", CultureInfo.InvariantCulture));
         }
     }
 
@@ -1163,6 +1163,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private static PreparedHeightMapTexture PrepareHeightMapTexture(ResoniteHeightMapGridGeometry geometry)
     {
         float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
+        double heightRange = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
 
         for (int y = 0; y < geometry.Height; y++)
         {
@@ -1170,7 +1171,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 // FrooxEngine.GridMesh uses `color.r + color.g + color.b / 3` for displacement.
                 // Encode the inverted height into blue only (scaled by 3) so the effective sampled height stays 1x.
-                float heightValue = (ushort.MaxValue - geometry.HeightSamples[(y * geometry.Width) + x]) / (float)ushort.MaxValue;
+                double heightSample = geometry.HeightSamples[(y * geometry.Width) + x];
+                double normalizedHeight = heightRange <= 1e-9
+                    ? 0.0
+                    : Math.Clamp((heightSample - geometry.MinHeight) / heightRange, 0.0, 1.0);
+                float heightValue = (float)(1.0 - normalizedHeight);
                 int pixelIndex = (y * geometry.Width * 4) + (x * 4);
                 rawPixels[pixelIndex] = 0.0f;
                 rawPixels[pixelIndex + 1] = 0.0f;

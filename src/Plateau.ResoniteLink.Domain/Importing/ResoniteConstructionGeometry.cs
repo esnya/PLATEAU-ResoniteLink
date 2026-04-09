@@ -12,5 +12,5 @@ public sealed record ResoniteHeightMapGridGeometry(
     ResoniteFloat2 Size,
     double MinHeight,
     double MaxHeight,
-    IReadOnlyList<ushort> HeightSamples)
+    IReadOnlyList<double> HeightSamples)
     : ResoniteConstructionGeometry;

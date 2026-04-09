@@ -966,6 +966,52 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncKeepsSplitDemHeightMapBoundaryHeightsAlignedAcrossChunks()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSplitBoundaryDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject[] demChunks = heightMapScene.CityObjects
+            .Where(static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal))
+            .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(2, demChunks.Length);
+        ResoniteHeightMapGridGeometry westGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[0].Geometry);
+        ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
+        Assert.Equal(westGeometry.Height, eastGeometry.Height);
+
+        const double tolerance = 1e-9;
+        for (int row = 0; row < westGeometry.Height; row++)
+        {
+            double westWorldHeight = demChunks[0].Transform.Position.Y
+                - westGeometry.MaxHeight
+                + westGeometry.HeightSamples[(row * westGeometry.Width) + (westGeometry.Width - 1)];
+            double eastWorldHeight = demChunks[1].Transform.Position.Y
+                - eastGeometry.MaxHeight
+                + eastGeometry.HeightSamples[row * eastGeometry.Width];
+
+            Assert.InRange(Math.Abs(westWorldHeight - eastWorldHeight), 0.0, tolerance);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsSplitDemBoundaryVerticesAlignedAcrossChunks()
     {
         using TemporaryDirectory datasetRoot = new();
