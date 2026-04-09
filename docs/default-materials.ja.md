@@ -53,7 +53,8 @@ Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリング�
 リポジトリには次の fallback material を同梱する。
 
 - `facade`:
-  `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
+  `Facade001_2K-JPG_Color.jpg`、`Facade012_2K-JPG_Color.jpg`、`Facade016_2K-JPG_Color.jpg` と、
+  zero-emission の `Facade018A_2K-JPG_Color.jpg`、`Facade019A_2K-JPG_Color.jpg`、`Facade020A_2K-JPG_Color.jpg`
 - `roof`:
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
@@ -65,6 +66,9 @@ Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリング�
 
 Sources:
 
+- `Facade001`: <https://ambientcg.com/view?id=Facade001>
+- `Facade012`: <https://ambientcg.com/view?id=Facade012>
+- `Facade016`: <https://ambientcg.com/view?id=Facade016>
 - `Facade018A`: <https://ambientcg.com/view?id=Facade018A>
 - `Facade019A`: <https://ambientcg.com/view?id=Facade019A>
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
@@ -80,6 +84,9 @@ Sources:
 
 チェックイン済み asset family ごとの取得元:
 
+- `default-materials/facade/Facade001_2K-JPG_*` -> AmbientCG `Facade001` -> <https://ambientcg.com/view?id=Facade001>
+- `default-materials/facade/Facade012_2K-JPG_*` -> AmbientCG `Facade012` -> <https://ambientcg.com/view?id=Facade012>
+- `default-materials/facade/Facade016_2K-JPG_*` -> AmbientCG `Facade016` -> <https://ambientcg.com/view?id=Facade016>
 - `default-materials/facade/Facade018A_2K-JPG_*` -> AmbientCG `Facade018A` -> <https://ambientcg.com/view?id=Facade018A>
 - `default-materials/facade/Facade019A_2K-JPG_*` -> AmbientCG `Facade019A` -> <https://ambientcg.com/view?id=Facade019A>
 - `default-materials/facade/Facade020A_2K-JPG_*` -> AmbientCG `Facade020A` -> <https://ambientcg.com/view?id=Facade020A>
@@ -99,6 +106,6 @@ Sources:
 - `*_NormalGL.jpg`: normal map
 - `*_Height.jpg`: parallax 用の height map
 - `*_Metallic.png`: 元 material に roughness がある場合の Resonite packed metallic map
-- facade fallback では facade 系の `*_Emission.jpg` を残すが、`018A/019A/020A` の各ファミリ内で emissive pixel の面積が最小になるサブバリエーションを選び直している
+- facade fallback では source family が持つ場合だけ `*_Emission.jpg` を残す。active variant set は AmbientCG の facade substance family ごとに見直し、各系統で最も発光の弱い代表だけを残す。採用するのは `FacadeSubstance001` の `Facade001`、`FacadeSubstance002` の `Facade012`、`FacadeSubstance003` の `Facade016`、および emissive pixel coverage がゼロの `Facade018A`、`Facade019A`、`Facade020A`
 
 同梱 metallic map は、Resonite wiki の `PBS_Metallic` に合わせて、R に metallic、G に occlusion または height、A に smoothness を入れる。さらに、同梱 `HeightMap` を割り当てる場合は、parallax が強すぎないように live builder 側で `HeightScale` を `0.002` に下げる。

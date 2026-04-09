@@ -10,6 +10,9 @@ Tracked bundled fallback material sources are documented in:
 - docs/default-materials.ja.md
 
 Bundled default material families currently tracked in this repository:
+- src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade001_2K-JPG_* -> AmbientCG Facade001 -> https://ambientcg.com/view?id=Facade001
+- src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade012_2K-JPG_* -> AmbientCG Facade012 -> https://ambientcg.com/view?id=Facade012
+- src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade016_2K-JPG_* -> AmbientCG Facade016 -> https://ambientcg.com/view?id=Facade016
 - src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade018A_2K-JPG_* -> AmbientCG Facade018A -> https://ambientcg.com/view?id=Facade018A
 - src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade019A_2K-JPG_* -> AmbientCG Facade019A -> https://ambientcg.com/view?id=Facade019A
 - src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade020A_2K-JPG_* -> AmbientCG Facade020A -> https://ambientcg.com/view?id=Facade020A
@@ -22,4 +25,5 @@ Bundled default material families currently tracked in this repository:
 - src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/city-furniture/Metal032_2K-JPG_* -> AmbientCG Metal032 -> https://ambientcg.com/view?id=Metal032
 
 Derived file note:
+- src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/facade/Facade001_2K-JPG_Metallic.png, Facade018A_2K-JPG_Metallic.png, Facade019A_2K-JPG_Metallic.png, and Facade020A_2K-JPG_Metallic.png are repository-generated packed metallic maps derived from AmbientCG metalness and roughness inputs for Resonite PBS_Metallic usage. The source families remain AmbientCG Facade001, Facade018A, Facade019A, and Facade020A under CC0 1.0.
 - src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/city-furniture/Metal032_2K-JPG_Metallic.png is a repository-generated packed metallic map derived from AmbientCG's Metal032 metalness and roughness inputs for Resonite PBS_Metallic usage. The source family remains AmbientCG Metal032 under CC0 1.0.

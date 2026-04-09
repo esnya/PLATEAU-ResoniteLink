@@ -96,7 +96,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
             MaterialKey: "facade",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+            TexturePath: "default-materials/facade/Facade018A_2K-JPG_Color.jpg",
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,

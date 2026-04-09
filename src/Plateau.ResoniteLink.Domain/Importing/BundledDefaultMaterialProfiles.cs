@@ -2,6 +2,7 @@ namespace Plateau.ResoniteLink.Domain.Importing;
 
 public static class BundledDefaultMaterialProfiles
 {
+    public static readonly ResoniteFloat2 FacadeDefaultTilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
     public static readonly ResoniteFloat2 Facade018ATilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
     public static readonly ResoniteFloat2 Facade019ATilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
     public static readonly ResoniteFloat2 Facade020ATilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
@@ -14,6 +15,9 @@ public static class BundledDefaultMaterialProfiles
     {
         return texturePath.ToLowerInvariant() switch
         {
+            "default-materials/facade/facade001_2k-jpg_color.jpg" => FacadeDefaultTilesPerMeter,
+            "default-materials/facade/facade012_2k-jpg_color.jpg" => FacadeDefaultTilesPerMeter,
+            "default-materials/facade/facade016_2k-jpg_color.jpg" => FacadeDefaultTilesPerMeter,
             "default-materials/facade/facade018a_2k-jpg_color.jpg" => Facade018ATilesPerMeter,
             "default-materials/facade/facade019a_2k-jpg_color.jpg" => Facade019ATilesPerMeter,
             "default-materials/facade/facade020a_2k-jpg_color.jpg" => Facade020ATilesPerMeter,

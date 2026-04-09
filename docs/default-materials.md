@@ -54,7 +54,8 @@ That sample supports the current policy:
 The repository bundles the following fallback materials:
 
 - `facade`:
-  `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, `Facade020A_2K-JPG_Color.jpg`
+  `Facade001_2K-JPG_Color.jpg`, `Facade012_2K-JPG_Color.jpg`, `Facade016_2K-JPG_Color.jpg`,
+  plus the zero-emission `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, and `Facade020A_2K-JPG_Color.jpg`
 - `roof`:
   `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
 - `road`:
@@ -66,6 +67,9 @@ The repository bundles the following fallback materials:
 
 Sources:
 
+- `Facade001`: <https://ambientcg.com/view?id=Facade001>
+- `Facade012`: <https://ambientcg.com/view?id=Facade012>
+- `Facade016`: <https://ambientcg.com/view?id=Facade016>
 - `Facade018A`: <https://ambientcg.com/view?id=Facade018A>
 - `Facade019A`: <https://ambientcg.com/view?id=Facade019A>
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
@@ -81,6 +85,9 @@ The local license tracking note is stored in `THIRD_PARTY_LICENSES/ambientCG-CC0
 
 Source tracking by checked-in asset family:
 
+- `default-materials/facade/Facade001_2K-JPG_*` -> AmbientCG `Facade001` -> <https://ambientcg.com/view?id=Facade001>
+- `default-materials/facade/Facade012_2K-JPG_*` -> AmbientCG `Facade012` -> <https://ambientcg.com/view?id=Facade012>
+- `default-materials/facade/Facade016_2K-JPG_*` -> AmbientCG `Facade016` -> <https://ambientcg.com/view?id=Facade016>
 - `default-materials/facade/Facade018A_2K-JPG_*` -> AmbientCG `Facade018A` -> <https://ambientcg.com/view?id=Facade018A>
 - `default-materials/facade/Facade019A_2K-JPG_*` -> AmbientCG `Facade019A` -> <https://ambientcg.com/view?id=Facade019A>
 - `default-materials/facade/Facade020A_2K-JPG_*` -> AmbientCG `Facade020A` -> <https://ambientcg.com/view?id=Facade020A>
@@ -100,6 +107,6 @@ The checked-in files keep only the maps that the live builder consumes directly:
 - `*_NormalGL.jpg` for normal mapping
 - `*_Height.jpg` for parallax height
 - `*_Metallic.png` for Resonite's packed metallic map when the source material exposes roughness data
-- Facade fallback keeps the facade-specific `*_Emission.jpg` maps, but the selected `018A/019A/020A` sub-variants were re-picked by comparing emissive pixel coverage and taking the lowest-emission option in each family
+- Facade fallback keeps `*_Emission.jpg` only when the source family exposes it. The active variant set is curated per AmbientCG facade substance family and keeps the least emissive representative for each group: `Facade001` for `FacadeSubstance001`, `Facade012` for `FacadeSubstance002`, `Facade016` for `FacadeSubstance003`, plus the zero-emission `Facade018A`, `Facade019A`, and `Facade020A` variants
 
 Bundled metallic maps follow the Resonite wiki packing for `PBS_Metallic`: red stores metallic, green stores occlusion or height, and alpha stores smoothness. When a bundled `HeightMap` is assigned, the live builder also writes a reduced `HeightScale` of `0.002` so the parallax effect stays close to one tenth of the material's default strength.
