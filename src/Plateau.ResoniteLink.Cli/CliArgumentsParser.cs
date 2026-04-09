@@ -34,7 +34,7 @@ public static class CliArgumentsParser
           --local-source-path <path>
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
           --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
-          --work-root <path>     Optional. Working directory for live-generated assets and remote download cache. Default: runtime/<os>/resonite.
+          --work-root <path>     Optional. Working directory for live-generated assets, remote download cache, and asset reuse state. Default: runtime/<os>/resonite.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>

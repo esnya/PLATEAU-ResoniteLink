@@ -64,21 +64,21 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --send-metrics
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and is used only for generated live assets and the remote download cache. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. DEM output stays on the existing mesh path by default; `--dem-terrain-mode heightmap` switches `dem` to a `GridMesh` + height texture path, with `--dem-heightmap-meters-per-vertex` and `--dem-heightmap-max-resolution` controlling sampling density and the safety cap. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
+`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and stores generated live assets, the remote download cache, and the live asset reuse state file `resonite-live-asset-state.json`; deleting that directory resets cached downloads and asset dedupe/reuse state. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `1`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Filtering options are also available for global or package-specific LOD exclusion, marking inclusion, and package-specific object patterns; when `--exclude-lod-for-package` is omitted, the CLI applies the current default fallback `tran:1`, and `--exclude-lod-for-package tran:none` clears it explicitly. DEM output stays on the existing mesh path by default; `--dem-terrain-mode heightmap` switches `dem` to a `GridMesh` + height texture path, with `--dem-heightmap-meters-per-vertex` and `--dem-heightmap-max-resolution` controlling sampling density and the safety cap. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
 
 Import an official PLATEAU CityGML ZIP/7z archive online from an explicit archive URL:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
-  --dataset tokyo23ku \
+  --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 533944 \
   --source remote \
-  --server-url https://example.invalid/plateau_tokyo23ku_citygml.zip \
+  --server-url https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
   --resonitelink-port <port>
 ```
 
-`--source remote` does not perform any built-in dataset search. Pass `--server-url` as a direct CityGML ZIP/7z archive URL, and the CLI downloads it into `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` before running the same local importer against the cached archive. The cache key is based on the archive URL rather than the requested mesh code, so repeated imports can reuse the same archive even when the detailed mesh code changes.
+`--source remote` does not perform any built-in dataset search. Use the official `www.geospatial.jp` dataset page slug as `--dataset`, pass `--server-url` as a direct CityGML ZIP/7z archive URL, and the CLI downloads it into `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` before running the same local importer against the cached archive. The cache key is based on the archive URL rather than the requested mesh code, so repeated imports can reuse the same archive even when the detailed mesh code changes while keeping the same canonical dataset namespace.
 
 To find the official identifier and archive URL:
 
@@ -95,10 +95,10 @@ Build live into Resonite through ResoniteLink from Windows:
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
-  --dataset tokyo23ku \
+  --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 533944 \
   --source remote \
-  --server-url https://example.invalid/plateau_tokyo23ku_citygml.zip \
+  --server-url https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
   --resonitelink-port <port>
 ```
 
