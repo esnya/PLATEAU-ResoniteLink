@@ -25,6 +25,88 @@ public sealed class PlateauImportRequestValidatorTests
                 StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ValidateRejectsRemoteServerUrlThatIsNotDirectArchive()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Remote,
+            LocalSourcePath: null,
+            ServerUri: new Uri("https://example.invalid/dataset"));
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => string.Equals(
+                error,
+                "The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidateRejectsUnsupportedPackageKeysInPackageMaps()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null,
+            ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
+            {
+                ["unknown"] = new HashSet<int> { 1 },
+            },
+            PackagePatterns: new Dictionary<string, string>
+            {
+                ["another-unknown"] = "*Road*",
+            });
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => error.Contains("Unsupported package name(s): unknown.", StringComparison.Ordinal));
+        Assert.Contains(
+            errors,
+            error => error.Contains("Unsupported package name(s): another-unknown.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidateRejectsDuplicateNormalizedPackageKeysInPackageMaps()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null,
+            ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
+            {
+                ["tran"] = new HashSet<int> { 1 },
+                [" TRAN "] = new HashSet<int> { 2 },
+            },
+            PackagePatterns: new Dictionary<string, string>
+            {
+                ["waterbody"] = "*Water*",
+                ["wtr"] = "*River*",
+            });
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => error.Contains(
+                "The ExcludeLodLevelsByPackage value contains duplicate package keys after normalization: tran.",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            errors,
+            error => error.Contains(
+                "The PackagePatterns value contains duplicate package keys after normalization: wtr.",
+                StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-0.01)]

@@ -25,7 +25,8 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
-        await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
         foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects)
         {
             await builder.ProcessCityObjectAsync(cityObject);
@@ -82,7 +83,8 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient);
 
-        await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
 
         Slot datasetSlot = Assert.IsType<Slot>(fakeClient.SlotsById[datasetSlotId]);
         Field_float3 datasetPosition = Assert.IsType<Field_float3>(datasetSlot.Position);

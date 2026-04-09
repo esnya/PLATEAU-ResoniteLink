@@ -201,6 +201,38 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncNormalizesWhitespacePaddedLocalPathAndPackageMaps()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: $"  {fixturePath}  ",
+                ServerUri: null,
+                PackageNames: [" waterbody ", " tran "],
+                ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
+                {
+                    ["waterbody"] = new HashSet<int> { 1 },
+                },
+                PackagePatterns: new Dictionary<string, string>
+                {
+                    ["waterbody"] = "*Water*",
+                }),
+            workRoot: "runtime/resonite");
+
+        Assert.Equal(["wtr", "tran"], result.Metadata.Request.PackageNames);
+        Assert.NotNull(result.Metadata.Request.ExcludeLodLevelsByPackage);
+        Assert.True(result.Metadata.Request.ExcludeLodLevelsByPackage.ContainsKey("wtr"));
+        Assert.NotNull(result.Metadata.Request.PackagePatterns);
+        Assert.Equal("*Water*", result.Metadata.Request.PackagePatterns["wtr"]);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncFiltersRequestedPackages()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -1295,6 +1327,92 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncRejectsUnsupportedPackagePatternWithValidationException()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null,
+                    PackagePatterns: new Dictionary<string, string>
+                    {
+                        ["unknown"] = "*Road*",
+                    }),
+                workRoot: "runtime/resonite"));
+
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains("Unsupported package name(s): unknown.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsNullStringFieldsWithValidationException()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: null!,
+                    MeshCode: null!,
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null),
+                workRoot: "runtime/resonite"));
+
+        Assert.Contains("The dataset value is required.", exception.Errors);
+        Assert.Contains("The mesh code value is required.", exception.Errors);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsDuplicateNormalizedPackageMapKeysWithValidationException()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null,
+                    ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
+                    {
+                        ["tran"] = new HashSet<int> { 1 },
+                        [" TRAN "] = new HashSet<int> { 2 },
+                    },
+                    PackagePatterns: new Dictionary<string, string>
+                    {
+                        ["waterbody"] = "*Water*",
+                        ["wtr"] = "*River*",
+                    }),
+                workRoot: "runtime/resonite"));
+
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains(
+                "The ExcludeLodLevelsByPackage value contains duplicate package keys after normalization: tran.",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains(
+                "The PackagePatterns value contains duplicate package keys after normalization: wtr.",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncFallsBackToBundledDefaultTextureWhenTextureFileIsMissing()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -1674,7 +1792,7 @@ public sealed class PlateauImportServiceTests
                 MeshCode: " 53394525 ",
                 SourceKind: DatasetSourceKind.Remote,
                 LocalSourcePath: null,
-                ServerUri: new Uri("https://example.invalid/source", UriKind.Absolute)),
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
             workRoot: "runtime/resonite");
 
         PlateauImportRequest factoryRequest = Assert.Single(constructionSourceFactory.Requests);

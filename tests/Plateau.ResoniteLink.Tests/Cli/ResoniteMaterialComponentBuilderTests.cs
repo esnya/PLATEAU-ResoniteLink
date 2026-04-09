@@ -5,6 +5,7 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
+[Collection(BundledCompanionTextureIsolationGroup.Name)]
 public sealed class ResoniteMaterialComponentBuilderTests
 {
     [Fact]

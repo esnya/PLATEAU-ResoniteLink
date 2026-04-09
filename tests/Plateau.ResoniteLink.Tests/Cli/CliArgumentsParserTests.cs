@@ -149,7 +149,7 @@ public sealed class CliArgumentsParserTests
                 "--source",
                 "remote",
                 "--server-url",
-                "https://example.invalid/plateau",
+                "https://example.invalid/plateau.zip",
                 "--resonitelink-port",
                 "-1",
             ]);
@@ -170,7 +170,7 @@ public sealed class CliArgumentsParserTests
                 "--source",
                 "remote",
                 "--server-url",
-                "https://example.invalid/plateau",
+                "https://example.invalid/plateau.zip",
                 "--resonitelink-url",
                 "ws://localhost:12345/",
             ]);
@@ -178,9 +178,56 @@ public sealed class CliArgumentsParserTests
         Assert.Null(result.Error);
         Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.SourceKind);
         Assert.Equal(
-            new Uri("https://example.invalid/plateau"),
+            new Uri("https://example.invalid/plateau.zip"),
             result.Options.Request.ServerUri);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseRejectsRemoteCommandWhenServerUrlIsNotDirectArchive()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "remote",
+                "--server-url",
+                "https://example.invalid/plateau",
+                "--resonitelink-url",
+                "ws://localhost:12345/",
+            ]);
+
+        Assert.Equal(
+            "The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.",
+            result.Error);
+    }
+
+    [Fact]
+    public void ParseAcceptsPackagePatternOptionForAliasPackageName()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--waterbody-pattern",
+                "*Water*",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.NotNull(result.Options);
+        Assert.NotNull(result.Options.Request.PackagePatterns);
+        Assert.Equal("*Water*", result.Options.Request.PackagePatterns["wtr"]);
     }
 
     [Fact]

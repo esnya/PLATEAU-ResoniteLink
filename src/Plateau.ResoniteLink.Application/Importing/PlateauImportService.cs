@@ -24,21 +24,14 @@ public sealed class PlateauImportService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        IReadOnlyList<string> validationErrors = PlateauImportRequestValidator.Validate(request);
+        PlateauImportRequest validationRequest = NormalizeRequestForValidation(request);
+        IReadOnlyList<string> validationErrors = PlateauImportRequestValidator.Validate(validationRequest);
         if (validationErrors.Count > 0)
         {
             throw new PlateauImportValidationException(validationErrors);
         }
 
-        PlateauImportRequest normalizedRequest = request with
-        {
-            Dataset = request.Dataset.Trim(),
-            MeshCode = request.MeshCode.Trim(),
-            LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
-            PackageNames = request.PackageNames is null
-                ? null
-                : PlateauPackageCatalog.NormalizeRequestedPackageNames(request.PackageNames),
-        };
+        PlateauImportRequest normalizedRequest = NormalizeRequest(validationRequest);
 
         PlateauImportRequest resolvedRequest =
             await datasetSourceResolver.ResolveAsync(normalizedRequest, workRoot, cancellationToken);
@@ -98,5 +91,81 @@ public sealed class PlateauImportService(
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
+    }
+
+    private static PlateauImportRequest NormalizeRequestForValidation(PlateauImportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request with
+        {
+            Dataset = TrimToEmpty(request.Dataset),
+            MeshCode = TrimToEmpty(request.MeshCode),
+            LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
+            PackageNames = request.PackageNames is null
+                ? null
+                : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
+        };
+    }
+
+    private static string TrimToEmpty(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
+    }
+
+    private static PlateauImportRequest NormalizeRequest(PlateauImportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request with
+        {
+            PackageNames = request.PackageNames is null
+                ? null
+                : PlateauPackageCatalog.NormalizeRequestedPackageNames(request.PackageNames),
+            ExcludeLodLevelsByPackage = request.ExcludeLodLevelsByPackage is null
+                ? null
+                : NormalizePackageExclusionMap(request.ExcludeLodLevelsByPackage),
+            PackagePatterns = request.PackagePatterns is null
+                ? null
+                : NormalizePackagePatternMap(request.PackagePatterns),
+        };
+    }
+
+    private static Dictionary<string, IReadOnlySet<int>> NormalizePackageExclusionMap(
+        IReadOnlyDictionary<string, IReadOnlySet<int>> exclusionsByPackage)
+    {
+        Dictionary<string, IReadOnlySet<int>> normalized = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string packageName, IReadOnlySet<int> excludedLods) in exclusionsByPackage)
+        {
+            if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName))
+            {
+                throw new ArgumentException(
+                    $"Unsupported package '{packageName}'. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+
+            normalized[normalizedPackageName] = excludedLods;
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string> NormalizePackagePatternMap(
+        IReadOnlyDictionary<string, string> patternsByPackage)
+    {
+        Dictionary<string, string> normalized = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string packageName, string pattern) in patternsByPackage)
+        {
+            if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName))
+            {
+                throw new ArgumentException(
+                    $"Unsupported package '{packageName}'. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+
+            normalized[normalizedPackageName] = pattern;
+        }
+
+        return normalized;
     }
 }

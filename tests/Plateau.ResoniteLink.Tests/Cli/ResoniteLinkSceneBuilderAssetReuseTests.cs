@@ -124,6 +124,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
         try
         {
+            using IDisposable extractionRootScope = BundledDefaultMaterialAssetStore.PushExtractionRootOverride(
+                Path.Combine(datasetDirectory.Path, "bundled-assets"));
             string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
             ResoniteMaterialBinding sampleMaterial = new(
                 MaterialKey: "bundle-companion-test",
@@ -206,6 +208,86 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             sharedClient.AddedComponents.Count(static request =>
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
         Assert.Equal(5, sharedClient.ImportedTexturePaths.Count);
+    }
+
+    [Fact]
+    public async Task BuildAsyncAllowsConcurrentBuildersToPersistLiveAssetStateInSameWorkRoot()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        CapturedScene firstScene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "shared-work-root-one",
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+        CapturedScene secondScene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "shared-work-root-two",
+                mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"))]);
+        string workRoot = Path.Combine(datasetDirectory.Path, "work");
+
+        using ReuseSessionSharedClient firstClient = new();
+        using ReuseSessionSharedClient secondClient = new();
+
+        await Task.WhenAll(
+            BuildSceneOnceAsync(firstScene, firstClient, workRoot),
+            BuildSceneOnceAsync(secondScene, secondClient, workRoot));
+
+        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
+        Assert.True(File.Exists(statePath));
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesPersistedLiveAssetStateAcrossBuilderRuns()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
+        string workRoot = Path.Combine(datasetDirectory.Path, "work");
+        string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
+        CapturedScene scene = new(
+            metadata,
+            [CreateBundledTriangleCityObject(
+                objectIdentity: "persisted-live-state",
+                texturePath: bundledTexturePath,
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+
+        ReuseFakeSession session = new();
+        using ReuseSessionSharedClient firstClient = new(session);
+        using ReuseSessionSharedClient secondClient = new(session);
+
+        await BuildSceneOnceAsync(scene, firstClient, workRoot);
+        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
+        Assert.True(File.Exists(statePath));
+
+        int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
+        int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
+
+        await BuildSceneOnceAsync(scene, secondClient, workRoot);
+
+        Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
+        Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
+    }
+
+    [Fact]
+    public async Task BuildAsyncCleansTemporaryLiveAssetStateFileWhenPersistMoveFails()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        CapturedScene scene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "persist-failure-cleanup",
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+        string workRoot = Path.Combine(datasetDirectory.Path, "work");
+        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
+        Directory.CreateDirectory(statePath);
+        using ReuseSessionSharedClient client = new();
+
+        await Assert.ThrowsAnyAsync<IOException>(() => BuildSceneOnceAsync(scene, client, workRoot));
+        Assert.DoesNotContain(
+            Directory.EnumerateFiles(workRoot, "resonite-live-asset-state.json.*.tmp"),
+            static path => File.Exists(path));
     }
 
     private static async Task BuildSceneOnceAsync(
@@ -417,7 +499,17 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
     private sealed class ReuseSessionSharedClient : IResoniteLinkClient
     {
-        private readonly ReuseFakeSession session = new();
+        private readonly ReuseFakeSession session;
+
+        public ReuseSessionSharedClient()
+            : this(new ReuseFakeSession())
+        {
+        }
+
+        public ReuseSessionSharedClient(ReuseFakeSession session)
+        {
+            this.session = session;
+        }
 
         public int ConnectCallCount { get; private set; }
         public List<AddComponent> AddedComponents => session.AddedComponents;
