@@ -5,6 +5,8 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal abstract record ResoniteTextureImport;
 
+internal sealed record ResoniteFileTextureImport(string AbsolutePath) : ResoniteTextureImport;
+
 internal static class ResoniteTextureColorProfiles
 {
     public const string Linear = "Linear";
@@ -25,6 +27,12 @@ internal sealed record ResoniteRawHdrTextureImport(
 
 internal static class ResoniteTextureImportFactory
 {
+    public static ResoniteFileTextureImport CreateFromFile(string absolutePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
+        return new ResoniteFileTextureImport(absolutePath);
+    }
+
     public static async Task<ResoniteRawTextureImport> CreateRawFromFileAsync(
         string absolutePath,
         string colorProfile = ResoniteTextureColorProfiles.Srgb,

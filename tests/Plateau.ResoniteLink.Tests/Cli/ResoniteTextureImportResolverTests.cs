@@ -39,9 +39,8 @@ public sealed class ResoniteTextureImportResolverTests
         Assert.Equal(1, datasetContentSource.MaterializeCount);
         Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
 
-        ResoniteRawTextureImport rawImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution);
-        Assert.StartsWith(workRoot.Path, rawImport.SourcePath, StringComparison.Ordinal);
-        Assert.Equal(ResoniteTextureColorProfiles.Srgb, rawImport.ColorProfile);
+        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(firstResolution);
+        Assert.StartsWith(workRoot.Path, fileImport.AbsolutePath, StringComparison.Ordinal);
     }
 
     [Fact]
