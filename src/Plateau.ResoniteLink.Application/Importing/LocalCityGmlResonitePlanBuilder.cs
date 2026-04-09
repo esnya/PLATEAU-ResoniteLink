@@ -3100,7 +3100,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
             .ToArray();
         HeightMapTriangle[] triangles = CreateDemHeightMapTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
-        HeightMapPoint[] points = CreateDemHeightMapPoints(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        double seaLevelLocalHeight = CreateGlobalHeightMapLocalPosition(
+            new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian).Y;
         if (positions.Length < 3)
         {
             return false;
@@ -3154,7 +3158,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             {
                 double u = width == 1 ? 0.0 : (double)xIndex / (width - 1);
                 double sampleX = minX + (extentX * u);
-                if (!TrySampleLocalDemHeight(sampleX, sampleZ, triangles, points, spatialIndex, out double localHeight))
+                if (!TrySampleLocalDemHeight(sampleX, sampleZ, triangles, spatialIndex, seaLevelLocalHeight, out double localHeight))
                 {
                     return false;
                 }
@@ -3424,19 +3428,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return triangles.ToArray();
     }
 
-    private static HeightMapPoint[] CreateDemHeightMapPoints(
-        ParsedCityObject cityObject,
-        ResoniteFloat3 slotPosition,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian)
-    {
-        return cityObject.Surfaces
-            .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
-            .Select(static point => new HeightMapPoint(point.X, point.Z, point.Y))
-            .ToArray();
-    }
-
     private static ResoniteFloat3 CreateGlobalHeightMapLocalPosition(
         GeodeticPoint point,
         ResoniteFloat3 slotPosition,
@@ -3454,8 +3445,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double x,
         double z,
         IReadOnlyList<HeightMapTriangle> triangles,
-        IReadOnlyList<HeightMapPoint> points,
         HeightMapSpatialIndex spatialIndex,
+        double fallbackHeight,
         out double height)
     {
         foreach (int triangleIndex in spatialIndex.GetCandidateTriangleIndices(x, z))
@@ -3467,27 +3458,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             }
         }
 
-        if (points.Count == 0)
-        {
-            height = 0.0;
-            return false;
-        }
-
-        double nearestDistance = double.PositiveInfinity;
-        double nearestHeight = 0.0;
-        foreach (HeightMapPoint point in points)
-        {
-            double distance = SquaredDistance(point.X, point.Z, x, z);
-            if (distance >= nearestDistance)
-            {
-                continue;
-            }
-
-            nearestDistance = distance;
-            nearestHeight = point.Height;
-        }
-
-        height = nearestHeight;
+        height = fallbackHeight;
         return true;
     }
 
@@ -3518,13 +3489,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         height = (triangle.A.Y * weight0) + (triangle.B.Y * weight1) + (triangle.C.Y * weight2);
         return true;
-    }
-
-    private static double SquaredDistance(double ax, double az, double bx, double bz)
-    {
-        double dx = ax - bx;
-        double dz = az - bz;
-        return (dx * dx) + (dz * dz);
     }
 
     private static void ValidateCompatibleReferenceSystem(
@@ -3787,11 +3751,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 A,
         ResoniteFloat3 B,
         ResoniteFloat3 C);
-
-    private sealed record HeightMapPoint(
-        double X,
-        double Z,
-        double Height);
 
     private sealed record DemHeightMapBounds(
         double MinX,
