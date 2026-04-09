@@ -208,6 +208,34 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.Equal(5, sharedClient.ImportedTexturePaths.Count);
     }
 
+    [Fact]
+    public async Task BuildAsyncAllowsConcurrentBuildersToPersistLiveAssetStateInSameWorkRoot()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        CapturedScene firstScene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "shared-work-root-one",
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+        CapturedScene secondScene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "shared-work-root-two",
+                mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"))]);
+        string workRoot = Path.Combine(datasetDirectory.Path, "work");
+
+        using ReuseSessionSharedClient firstClient = new();
+        using ReuseSessionSharedClient secondClient = new();
+
+        await Task.WhenAll(
+            BuildSceneOnceAsync(firstScene, firstClient, workRoot),
+            BuildSceneOnceAsync(secondScene, secondClient, workRoot));
+
+        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
+        Assert.True(File.Exists(statePath));
+    }
+
     private static async Task BuildSceneOnceAsync(
         CapturedScene scene,
         ReuseSessionSharedClient client,

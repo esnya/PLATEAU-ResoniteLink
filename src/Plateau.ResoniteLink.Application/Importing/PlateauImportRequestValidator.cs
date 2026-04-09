@@ -4,6 +4,8 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public static class PlateauImportRequestValidator
 {
+    private static readonly string[] SupportedRemoteArchiveExtensions = [".zip", ".7z"];
+
     public static IReadOnlyList<string> Validate(PlateauImportRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -42,6 +44,36 @@ public static class PlateauImportRequestValidator
             }
         }
 
+        if (request.ExcludeLodLevelsByPackage is not null)
+        {
+            string[] unsupportedPackageNames = request.ExcludeLodLevelsByPackage.Keys
+                .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(packageName => packageName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (unsupportedPackageNames.Length > 0)
+            {
+                errors.Add(
+                    $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+        }
+
+        if (request.PackagePatterns is not null)
+        {
+            string[] unsupportedPackageNames = request.PackagePatterns.Keys
+                .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(packageName => packageName, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (unsupportedPackageNames.Length > 0)
+            {
+                errors.Add(
+                    $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+        }
+
         switch (request.SourceKind)
         {
             case DatasetSourceKind.Local:
@@ -68,6 +100,12 @@ public static class PlateauImportRequestValidator
                 if (!request.ServerUri.IsAbsoluteUri)
                 {
                     errors.Add("The --server-url value must be an absolute URI.");
+                    break;
+                }
+
+                if (!LooksLikeSupportedArchiveUri(request.ServerUri))
+                {
+                    errors.Add("The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
                 }
 
                 break;
@@ -84,5 +122,20 @@ public static class PlateauImportRequestValidator
         }
 
         return errors;
+    }
+
+    internal static bool LooksLikeSupportedArchiveUri(Uri serverUri)
+    {
+        ArgumentNullException.ThrowIfNull(serverUri);
+
+        if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string extension = Path.GetExtension(serverUri.AbsolutePath);
+        return SupportedRemoteArchiveExtensions.Any(
+            supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
     }
 }
