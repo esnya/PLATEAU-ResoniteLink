@@ -24,12 +24,14 @@ public sealed class PlateauImportService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        PlateauImportRequest normalizedRequest = NormalizeRequest(request);
-        IReadOnlyList<string> validationErrors = PlateauImportRequestValidator.Validate(normalizedRequest);
+        PlateauImportRequest validationRequest = NormalizeRequestForValidation(request);
+        IReadOnlyList<string> validationErrors = PlateauImportRequestValidator.Validate(validationRequest);
         if (validationErrors.Count > 0)
         {
             throw new PlateauImportValidationException(validationErrors);
         }
+
+        PlateauImportRequest normalizedRequest = NormalizeRequest(validationRequest);
 
         PlateauImportRequest resolvedRequest =
             await datasetSourceResolver.ResolveAsync(normalizedRequest, workRoot, cancellationToken);
@@ -91,7 +93,7 @@ public sealed class PlateauImportService(
         progressReporter?.Invoke(message);
     }
 
-    private static PlateauImportRequest NormalizeRequest(PlateauImportRequest request)
+    private static PlateauImportRequest NormalizeRequestForValidation(PlateauImportRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -100,6 +102,30 @@ public sealed class PlateauImportService(
             Dataset = request.Dataset.Trim(),
             MeshCode = request.MeshCode.Trim(),
             LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
+            PackageNames = request.PackageNames is null
+                ? null
+                : request.PackageNames.Select(static packageName => packageName.Trim()).ToArray(),
+            ExcludeLodLevelsByPackage = request.ExcludeLodLevelsByPackage is null
+                ? null
+                : request.ExcludeLodLevelsByPackage.ToDictionary(
+                    static pair => pair.Key.Trim(),
+                    static pair => pair.Value,
+                    StringComparer.OrdinalIgnoreCase),
+            PackagePatterns = request.PackagePatterns is null
+                ? null
+                : request.PackagePatterns.ToDictionary(
+                    static pair => pair.Key.Trim(),
+                    static pair => pair.Value,
+                    StringComparer.OrdinalIgnoreCase),
+        };
+    }
+
+    private static PlateauImportRequest NormalizeRequest(PlateauImportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request with
+        {
             PackageNames = request.PackageNames is null
                 ? null
                 : PlateauPackageCatalog.NormalizeRequestedPackageNames(request.PackageNames),
