@@ -54,10 +54,11 @@ That sample supports the current policy:
 The repository bundles the following fallback materials:
 
 - `facade`:
-  `Facade001_2K-JPG_Color.jpg`, `Facade012_2K-JPG_Color.jpg`, `Facade016_2K-JPG_Color.jpg`,
+  `Facade001_2K-JPG_Color.jpg`,
   plus the zero-emission `Facade018A_2K-JPG_Color.jpg`, `Facade019A_2K-JPG_Color.jpg`, and `Facade020A_2K-JPG_Color.jpg`
 - `roof`:
-  `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
+  `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`,
+  `RoofingTiles012A_2K-JPG_Color.jpg`, `RoofingTiles014B_2K-JPG_Color.jpg`
 - `road`:
   `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
 - `city-furniture`:
@@ -68,13 +69,13 @@ The repository bundles the following fallback materials:
 Sources:
 
 - `Facade001`: <https://ambientcg.com/view?id=Facade001>
-- `Facade012`: <https://ambientcg.com/view?id=Facade012>
-- `Facade016`: <https://ambientcg.com/view?id=Facade016>
 - `Facade018A`: <https://ambientcg.com/view?id=Facade018A>
 - `Facade019A`: <https://ambientcg.com/view?id=Facade019A>
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
 - `Concrete012`: <https://ambientcg.com/view?id=Concrete012>
 - `Concrete033`: <https://ambientcg.com/view?id=Concrete033>
+- `RoofingTiles012A`: <https://ambientcg.com/view?id=RoofingTiles012A>
+- `RoofingTiles014B`: <https://ambientcg.com/view?id=RoofingTiles014B>
 - `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
 - `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
@@ -86,13 +87,13 @@ The local license tracking note is stored in `THIRD_PARTY_LICENSES/ambientCG-CC0
 Source tracking by checked-in asset family:
 
 - `default-materials/facade/Facade001_2K-JPG_*` -> AmbientCG `Facade001` -> <https://ambientcg.com/view?id=Facade001>
-- `default-materials/facade/Facade012_2K-JPG_*` -> AmbientCG `Facade012` -> <https://ambientcg.com/view?id=Facade012>
-- `default-materials/facade/Facade016_2K-JPG_*` -> AmbientCG `Facade016` -> <https://ambientcg.com/view?id=Facade016>
 - `default-materials/facade/Facade018A_2K-JPG_*` -> AmbientCG `Facade018A` -> <https://ambientcg.com/view?id=Facade018A>
 - `default-materials/facade/Facade019A_2K-JPG_*` -> AmbientCG `Facade019A` -> <https://ambientcg.com/view?id=Facade019A>
 - `default-materials/facade/Facade020A_2K-JPG_*` -> AmbientCG `Facade020A` -> <https://ambientcg.com/view?id=Facade020A>
 - `default-materials/roof/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
 - `default-materials/roof/Concrete033_2K-JPG_*` -> AmbientCG `Concrete033` -> <https://ambientcg.com/view?id=Concrete033>
+- `default-materials/roof/RoofingTiles012A_2K-JPG_*` -> AmbientCG `RoofingTiles012A` -> <https://ambientcg.com/view?id=RoofingTiles012A>
+- `default-materials/roof/RoofingTiles014B_2K-JPG_*` -> AmbientCG `RoofingTiles014B` -> <https://ambientcg.com/view?id=RoofingTiles014B>
 - `default-materials/road/Asphalt020L_2K-JPG_*` -> AmbientCG `Asphalt020L` -> <https://ambientcg.com/view?id=Asphalt020L>
 - `default-materials/road/Asphalt023L_2K-JPG_*` -> AmbientCG `Asphalt023L` -> <https://ambientcg.com/view?id=Asphalt023L>
 - `default-materials/other/Ground054_2K-JPG_*` -> AmbientCG `Ground054` -> <https://ambientcg.com/view?id=Ground054>
@@ -107,6 +108,7 @@ The checked-in files keep only the maps that the live builder consumes directly:
 - `*_NormalGL.jpg` for normal mapping
 - `*_Height.jpg` for parallax height
 - `*_Metallic.png` for Resonite's packed metallic map when the source material exposes roughness data
-- Facade fallback keeps `*_Emission.jpg` only when the source family exposes it. The active variant set is curated per AmbientCG facade substance family and keeps the least emissive representative for each group: `Facade001` for `FacadeSubstance001`, `Facade012` for `FacadeSubstance002`, `Facade016` for `FacadeSubstance003`, plus the zero-emission `Facade018A`, `Facade019A`, and `Facade020A` variants
+- Facade fallback keeps `*_Emission.jpg` only when the source family exposes it. `Facade012` and `Facade016` were also removed after review because their lit window pitch reads too small in-scene. The active variant set therefore keeps `Facade001` plus the zero-emission `Facade018A`, `Facade019A`, and `Facade020A` variants
+- Repeating bundled roof materials now use explicit scale profiles as well. `RoofingTiles012A` and `RoofingTiles014B` use AmbientCG's published `ca. 2.9 m x 2.9 m` dimensions, while the existing concrete roof fallbacks keep the repository's established generic repeat size
 
-Bundled metallic maps follow the Resonite wiki packing for `PBS_Metallic`: red stores metallic, green stores occlusion or height, and alpha stores smoothness. When a bundled `HeightMap` is assigned, the live builder also writes a reduced `HeightScale` of `0.002` so the parallax effect stays close to one tenth of the material's default strength.
+Bundled metallic maps follow the Resonite wiki packing for `PBS_Metallic`: red stores metallic, green stores ambient occlusion, and alpha stores smoothness. When an upstream material does not provide an ambient occlusion map, the repository-generated packed metallic map writes a neutral green channel value of `255` instead of reusing displacement or height. Height stays on the separate bundled `HeightMap`, and the live builder writes a reduced `HeightScale` of `0.002` so the parallax effect stays close to one tenth of the material's default strength.

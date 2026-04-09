@@ -53,10 +53,11 @@ Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリング�
 リポジトリには次の fallback material を同梱する。
 
 - `facade`:
-  `Facade001_2K-JPG_Color.jpg`、`Facade012_2K-JPG_Color.jpg`、`Facade016_2K-JPG_Color.jpg` と、
+  `Facade001_2K-JPG_Color.jpg` と、
   zero-emission の `Facade018A_2K-JPG_Color.jpg`、`Facade019A_2K-JPG_Color.jpg`、`Facade020A_2K-JPG_Color.jpg`
 - `roof`:
-  `Concrete012_2K-JPG_Color.jpg`, `Concrete033_2K-JPG_Color.jpg`
+  `Concrete012_2K-JPG_Color.jpg`、`Concrete033_2K-JPG_Color.jpg`、
+  `RoofingTiles012A_2K-JPG_Color.jpg`、`RoofingTiles014B_2K-JPG_Color.jpg`
 - `road`:
   `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
 - `city-furniture`:
@@ -67,13 +68,13 @@ Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリング�
 Sources:
 
 - `Facade001`: <https://ambientcg.com/view?id=Facade001>
-- `Facade012`: <https://ambientcg.com/view?id=Facade012>
-- `Facade016`: <https://ambientcg.com/view?id=Facade016>
 - `Facade018A`: <https://ambientcg.com/view?id=Facade018A>
 - `Facade019A`: <https://ambientcg.com/view?id=Facade019A>
 - `Facade020A`: <https://ambientcg.com/view?id=Facade020A>
 - `Concrete012`: <https://ambientcg.com/view?id=Concrete012>
 - `Concrete033`: <https://ambientcg.com/view?id=Concrete033>
+- `RoofingTiles012A`: <https://ambientcg.com/view?id=RoofingTiles012A>
+- `RoofingTiles014B`: <https://ambientcg.com/view?id=RoofingTiles014B>
 - `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
 - `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
@@ -85,13 +86,13 @@ Sources:
 チェックイン済み asset family ごとの取得元:
 
 - `default-materials/facade/Facade001_2K-JPG_*` -> AmbientCG `Facade001` -> <https://ambientcg.com/view?id=Facade001>
-- `default-materials/facade/Facade012_2K-JPG_*` -> AmbientCG `Facade012` -> <https://ambientcg.com/view?id=Facade012>
-- `default-materials/facade/Facade016_2K-JPG_*` -> AmbientCG `Facade016` -> <https://ambientcg.com/view?id=Facade016>
 - `default-materials/facade/Facade018A_2K-JPG_*` -> AmbientCG `Facade018A` -> <https://ambientcg.com/view?id=Facade018A>
 - `default-materials/facade/Facade019A_2K-JPG_*` -> AmbientCG `Facade019A` -> <https://ambientcg.com/view?id=Facade019A>
 - `default-materials/facade/Facade020A_2K-JPG_*` -> AmbientCG `Facade020A` -> <https://ambientcg.com/view?id=Facade020A>
 - `default-materials/roof/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
 - `default-materials/roof/Concrete033_2K-JPG_*` -> AmbientCG `Concrete033` -> <https://ambientcg.com/view?id=Concrete033>
+- `default-materials/roof/RoofingTiles012A_2K-JPG_*` -> AmbientCG `RoofingTiles012A` -> <https://ambientcg.com/view?id=RoofingTiles012A>
+- `default-materials/roof/RoofingTiles014B_2K-JPG_*` -> AmbientCG `RoofingTiles014B` -> <https://ambientcg.com/view?id=RoofingTiles014B>
 - `default-materials/road/Asphalt020L_2K-JPG_*` -> AmbientCG `Asphalt020L` -> <https://ambientcg.com/view?id=Asphalt020L>
 - `default-materials/road/Asphalt023L_2K-JPG_*` -> AmbientCG `Asphalt023L` -> <https://ambientcg.com/view?id=Asphalt023L>
 - `default-materials/other/Ground054_2K-JPG_*` -> AmbientCG `Ground054` -> <https://ambientcg.com/view?id=Ground054>
@@ -106,6 +107,7 @@ Sources:
 - `*_NormalGL.jpg`: normal map
 - `*_Height.jpg`: parallax 用の height map
 - `*_Metallic.png`: 元 material に roughness がある場合の Resonite packed metallic map
-- facade fallback では source family が持つ場合だけ `*_Emission.jpg` を残す。active variant set は AmbientCG の facade substance family ごとに見直し、各系統で最も発光の弱い代表だけを残す。採用するのは `FacadeSubstance001` の `Facade001`、`FacadeSubstance002` の `Facade012`、`FacadeSubstance003` の `Facade016`、および emissive pixel coverage がゼロの `Facade018A`、`Facade019A`、`Facade020A`
+- facade fallback では source family が持つ場合だけ `*_Emission.jpg` を残す。`Facade012` と `Facade016` も、scene 上で lit window pitch が細かすぎて小さく見えるため active set から外した。採用するのは `Facade001` と、emissive pixel coverage がゼロの `Facade018A`、`Facade019A`、`Facade020A`
+- 繰り返し系の roof material も explicit な scale profile に寄せた。`RoofingTiles012A` と `RoofingTiles014B` は AmbientCG の公開寸法 `ca. 2.9 m x 2.9 m` に合わせ、既存の concrete roof fallback は従来の汎用 repeat サイズを維持する
 
-同梱 metallic map は、Resonite wiki の `PBS_Metallic` に合わせて、R に metallic、G に occlusion または height、A に smoothness を入れる。さらに、同梱 `HeightMap` を割り当てる場合は、parallax が強すぎないように live builder 側で `HeightScale` を `0.002` に下げる。
+同梱 metallic map は、Resonite wiki の `PBS_Metallic` に合わせて、R に metallic、G に ambient occlusion、A に smoothness を入れる。upstream material に ambient occlusion map がない場合、repository で再生成する packed metallic map の G は displacement や height を流用せず、neutral な `255` を書く。height は別の bundled `HeightMap` 側だけに残し、さらに parallax が強すぎないように live builder 側で `HeightScale` を `0.002` に下げる。

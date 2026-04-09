@@ -1070,6 +1070,57 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncFallsBackToSeaLevelOutsideDemTrianglesInHeightMapMode()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSingleTriangleDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject demChunk = Assert.Single(
+            heightMapScene.CityObjects,
+            static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal));
+        ResoniteHeightMapGridGeometry geometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunk.Geometry);
+
+        double minX = demChunk.Transform.Position.X - (geometry.Size.X / 2.0);
+        double minZ = demChunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
+        double outsideHeight0 = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.10),
+            minZ + (geometry.Size.Y * 0.10));
+        double outsideHeight1 = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.20),
+            minZ + (geometry.Size.Y * 0.20));
+        double insideHeight = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.90),
+            minZ + (geometry.Size.Y * 0.90));
+
+        Assert.InRange(Math.Abs(outsideHeight0 - outsideHeight1), 0.0, 1e-6);
+        Assert.True(
+            outsideHeight0 < insideHeight,
+            $"Expected heightmap samples outside the DEM triangle to fall below the interior terrain surface. outside={outsideHeight0:F6}, inside={insideHeight:F6}");
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsSplitDemHeightMapBoundaryHeightsAlignedAcrossChunks()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -1717,6 +1768,14 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).X,
+            material.TextureScale!.X,
+            6);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).Y,
+            material.TextureScale!.Y,
+            6);
         Assert.Equal(0.52, material.BaseColor.R, 6);
         Assert.Equal(0.62, material.BaseColor.G, 6);
         Assert.Equal(0.72, material.BaseColor.B, 6);
@@ -1753,6 +1812,14 @@ public sealed class PlateauImportServiceTests
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+                Assert.Equal(
+                    BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).X,
+                    material.TextureScale!.X,
+                    6);
+                Assert.Equal(
+                    BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).Y,
+                    material.TextureScale!.Y,
+                    6);
             });
 
         ResoniteConstructionCityObject road = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "Road One");
@@ -2693,6 +2760,51 @@ public sealed class PlateauImportServiceTests
             xml);
     }
 
+    private static void CreateRuntimeSingleTriangleDemFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3" srsName="EPSG:4326">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0010 139.0010 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-single-triangle">
+                  <gml:name>Single Triangle Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-single-triangle-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-dem-single">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-single">
+                                  <gml:posList>35.0000 139.0010 5 35.0010 139.0000 10 35.0010 139.0010 20 35.0000 139.0010 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_single_triangle.gml"),
+            xml);
+    }
+
     private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
         params ResoniteConstructionCityObject[] cityObjects)
     {
@@ -2760,6 +2872,31 @@ public sealed class PlateauImportServiceTests
 
         return rows
             .SelectMany(row => columns.Select(column =>
+            {
+                double x = minX + (column * stepX);
+                double z = minZ + (row * stepZ);
+                double distanceSquared = Math.Pow(x - targetX, 2.0) + Math.Pow(z - targetZ, 2.0);
+                double height = GetHeightMapWorldHeight(chunk, geometry, row, column);
+                return (distanceSquared, height);
+            }))
+            .OrderBy(static candidate => candidate.distanceSquared)
+            .First()
+            .height;
+    }
+
+    private static double GetNearestHeightMapWorldHeight(
+        ResoniteConstructionCityObject chunk,
+        ResoniteHeightMapGridGeometry geometry,
+        double targetX,
+        double targetZ)
+    {
+        double minX = chunk.Transform.Position.X - (geometry.Size.X / 2.0);
+        double minZ = chunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
+        double stepX = geometry.Width <= 1 ? 0.0 : geometry.Size.X / (geometry.Width - 1);
+        double stepZ = geometry.Height <= 1 ? 0.0 : geometry.Size.Y / (geometry.Height - 1);
+
+        return Enumerable.Range(0, geometry.Height)
+            .SelectMany(row => Enumerable.Range(0, geometry.Width).Select(column =>
             {
                 double x = minX + (column * stepX);
                 double z = minZ + (row * stepZ);
