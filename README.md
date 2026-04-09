@@ -121,13 +121,15 @@ dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCo
 ## License Notes
 
 - The repository root is licensed under [MIT](LICENSE).
-- Imported PLATEAU datasets are not re-licensed by this repository. Their use remains subject to the original PLATEAU terms in the [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/), which currently states that published PLATEAU content is generally available under PDL 1.0-compatible terms, requires source attribution, and requires marking edits/derivative use where applicable.
+- Imported PLATEAU datasets are not re-licensed by this repository. The MIT license for this repository applies to this codebase only, not to PLATEAU data, and each dataset keeps its own copyright holder, attribution requirements, and license terms.
+- Before importing, redistributing, or publishing derived content, treat the dataset's own README, metadata, download page, and attached rights notices as the authoritative source for its license, attribution text, edit-marking obligations, redistribution rules, and any other use conditions.
+- The [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) is only the portal-level default for PLATEAU website content when no separate rights statement is shown there; it does not override dataset-specific terms attached to a particular 3D city model package.
 - PLATEAU SDK for Unity is a separate upstream MIT-licensed project; a local copy of that license is tracked in `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt`.
 - Bundled default material textures under `src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/` are sourced from AmbientCG and tracked as CC0 1.0 in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
 - The default DEM terrain imagery overlay is not a bundled asset. It is generated from the Geospatial Information Authority of Japan (GSI) seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`; provenance and usage notes are tracked in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
 - NuGet and other runtime dependencies keep their own upstream licenses. Before redistributing binaries or vendored assets, review the package metadata and upstream license terms for the exact versions you ship.
 
-PLATEAU guidance:
+PLATEAU dataset guidance:
 
-- The [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) states that PLATEAU 3D city model copyrights belong to the respective local governments and that the datasets are provided as open data under licenses such as PDL 1.0, CC BY 4.0, ODC BY, or ODbL depending on the source dataset.
-- When publishing derived content or redistributed data, keep the original dataset-level attribution and check whether any dataset-specific restrictions or measurement-law constraints apply.
+- The [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) states that 3D city model copyrights belong to the respective local governments, and PLATEAU datasets may be published under terms such as PDL 1.0, CC BY 4.0, ODC BY, or ODbL depending on the source dataset.
+- If a dataset page, bundled README, or source metadata states more specific conditions, treat those dataset-specific conditions as authoritative for attribution, edit-marking, redistribution, and any additional restrictions, including possible measurement-law or other statutory constraints.
