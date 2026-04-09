@@ -2788,6 +2788,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
         PlateauImportRequest request)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        List<ResoniteConstructionCityObject> materializedCityObjects = [];
+        List<ResoniteConstructionCityObject> generatedRoadMarkings = [];
+
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
                      demTerrainTextureOverlays))
@@ -2810,7 +2813,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
             if (HasRenderableGeometry(cityObject))
             {
-                yield return cityObject;
+                materializedCityObjects.Add(cityObject);
             }
 
             GeodeticPoint markingOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
@@ -2840,7 +2843,257 @@ public static partial class LocalCityGmlResonitePlanBuilder
             };
             if (HasRenderableGeometry(markingObject))
             {
-                yield return markingObject;
+                generatedRoadMarkings.Add(markingObject);
+            }
+        }
+
+        ResoniteConstructionCityObject[] alignedCityObjects =
+            request.DemTerrainMode == DemTerrainMode.HeightMap
+            && string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                ? AlignAdjacentDemHeightMapChunkBoundaries(materializedCityObjects)
+                : [.. materializedCityObjects];
+
+        foreach (ResoniteConstructionCityObject cityObject in alignedCityObjects)
+        {
+            yield return cityObject;
+        }
+
+        foreach (ResoniteConstructionCityObject markingObject in generatedRoadMarkings)
+        {
+            yield return markingObject;
+        }
+    }
+
+    private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    {
+        HeightMapChunkAlignmentState?[] states = cityObjects
+            .Select(static cityObject => HeightMapChunkAlignmentState.TryCreate(cityObject))
+            .ToArray();
+        if (states.Any(static state => state is null))
+        {
+            return cityObjects.ToArray();
+        }
+
+        HeightMapChunkAlignmentState[] chunkStates = states
+            .Select(static state => state!)
+            .ToArray();
+        int sampleOffset = 0;
+        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        {
+            state.SampleOffset = sampleOffset;
+            sampleOffset += state.HeightSamples.Length;
+        }
+
+        HeightMapSampleUnionFind unionFind = new(sampleOffset);
+        bool foundSharedBoundary = false;
+
+        for (int leftIndex = 0; leftIndex < chunkStates.Length; leftIndex++)
+        {
+            for (int rightIndex = leftIndex + 1; rightIndex < chunkStates.Length; rightIndex++)
+            {
+                foundSharedBoundary |=
+                    TryUnionVerticalHeightMapBoundary(chunkStates[leftIndex], chunkStates[rightIndex], unionFind)
+                    || TryUnionVerticalHeightMapBoundary(chunkStates[rightIndex], chunkStates[leftIndex], unionFind)
+                    || TryUnionHorizontalHeightMapBoundary(chunkStates[leftIndex], chunkStates[rightIndex], unionFind)
+                    || TryUnionHorizontalHeightMapBoundary(chunkStates[rightIndex], chunkStates[leftIndex], unionFind);
+            }
+        }
+
+        if (!foundSharedBoundary)
+        {
+            return cityObjects.ToArray();
+        }
+
+        Dictionary<int, (double WorldHeightSum, int Count)> groupedWorldHeights = [];
+        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        {
+            for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
+            {
+                int root = unionFind.Find(state.SampleOffset + localSampleIndex);
+                double worldHeight = state.BaseHeight + state.HeightSamples[localSampleIndex];
+                if (groupedWorldHeights.TryGetValue(root, out (double WorldHeightSum, int Count) current))
+                {
+                    groupedWorldHeights[root] = (current.WorldHeightSum + worldHeight, current.Count + 1);
+                }
+                else
+                {
+                    groupedWorldHeights[root] = (worldHeight, 1);
+                }
+            }
+        }
+
+        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        {
+            for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
+            {
+                int root = unionFind.Find(state.SampleOffset + localSampleIndex);
+                (double worldHeightSum, int count) = groupedWorldHeights[root];
+                state.HeightSamples[localSampleIndex] = (worldHeightSum / count) - state.BaseHeight;
+            }
+        }
+
+        return chunkStates
+            .Select(static state => state.ToCityObject())
+            .ToArray();
+    }
+
+    private static bool TryUnionVerticalHeightMapBoundary(
+        HeightMapChunkAlignmentState leftState,
+        HeightMapChunkAlignmentState rightState,
+        HeightMapSampleUnionFind unionFind)
+    {
+        if (leftState.Geometry.Height != rightState.Geometry.Height)
+        {
+            return false;
+        }
+
+        const double boundaryTolerance = 1e-3;
+        double leftMaxX = leftState.CityObject.Transform.Position.X + (leftState.Geometry.Size.X / 2.0);
+        double rightMinX = rightState.CityObject.Transform.Position.X - (rightState.Geometry.Size.X / 2.0);
+        if (Math.Abs(leftMaxX - rightMinX) > boundaryTolerance)
+        {
+            return false;
+        }
+
+        double leftMinZ = leftState.CityObject.Transform.Position.Z - (leftState.Geometry.Size.Y / 2.0);
+        double leftMaxZ = leftState.CityObject.Transform.Position.Z + (leftState.Geometry.Size.Y / 2.0);
+        double rightMinZ = rightState.CityObject.Transform.Position.Z - (rightState.Geometry.Size.Y / 2.0);
+        double rightMaxZ = rightState.CityObject.Transform.Position.Z + (rightState.Geometry.Size.Y / 2.0);
+        if (Math.Abs(leftMinZ - rightMinZ) > boundaryTolerance
+            || Math.Abs(leftMaxZ - rightMaxZ) > boundaryTolerance)
+        {
+            return false;
+        }
+
+        for (int row = 0; row < leftState.Geometry.Height; row++)
+        {
+            int leftSampleIndex = (row * leftState.Geometry.Width) + (leftState.Geometry.Width - 1);
+            int rightSampleIndex = row * rightState.Geometry.Width;
+            unionFind.Union(leftState.SampleOffset + leftSampleIndex, rightState.SampleOffset + rightSampleIndex);
+        }
+
+        return true;
+    }
+
+    private static bool TryUnionHorizontalHeightMapBoundary(
+        HeightMapChunkAlignmentState southState,
+        HeightMapChunkAlignmentState northState,
+        HeightMapSampleUnionFind unionFind)
+    {
+        if (southState.Geometry.Width != northState.Geometry.Width)
+        {
+            return false;
+        }
+
+        const double boundaryTolerance = 1e-3;
+        double southMaxZ = southState.CityObject.Transform.Position.Z + (southState.Geometry.Size.Y / 2.0);
+        double northMinZ = northState.CityObject.Transform.Position.Z - (northState.Geometry.Size.Y / 2.0);
+        if (Math.Abs(southMaxZ - northMinZ) > boundaryTolerance)
+        {
+            return false;
+        }
+
+        double southMinX = southState.CityObject.Transform.Position.X - (southState.Geometry.Size.X / 2.0);
+        double southMaxX = southState.CityObject.Transform.Position.X + (southState.Geometry.Size.X / 2.0);
+        double northMinX = northState.CityObject.Transform.Position.X - (northState.Geometry.Size.X / 2.0);
+        double northMaxX = northState.CityObject.Transform.Position.X + (northState.Geometry.Size.X / 2.0);
+        if (Math.Abs(southMinX - northMinX) > boundaryTolerance
+            || Math.Abs(southMaxX - northMaxX) > boundaryTolerance)
+        {
+            return false;
+        }
+
+        int southRowStart = (southState.Geometry.Height - 1) * southState.Geometry.Width;
+        for (int column = 0; column < southState.Geometry.Width; column++)
+        {
+            int southSampleIndex = southRowStart + column;
+            unionFind.Union(southState.SampleOffset + southSampleIndex, northState.SampleOffset + column);
+        }
+
+        return true;
+    }
+
+    private sealed class HeightMapChunkAlignmentState
+    {
+        public HeightMapChunkAlignmentState(
+            ResoniteConstructionCityObject cityObject,
+            ResoniteHeightMapGridGeometry geometry,
+            double[] heightSamples)
+        {
+            CityObject = cityObject;
+            Geometry = geometry;
+            HeightSamples = heightSamples;
+            BaseHeight = cityObject.Transform.Position.Y - geometry.MaxHeight;
+        }
+
+        public ResoniteConstructionCityObject CityObject { get; }
+
+        public ResoniteHeightMapGridGeometry Geometry { get; }
+
+        public double[] HeightSamples { get; }
+
+        public double BaseHeight { get; }
+
+        public int SampleOffset { get; set; }
+
+        public static HeightMapChunkAlignmentState? TryCreate(ResoniteConstructionCityObject cityObject)
+        {
+            return cityObject.Geometry is ResoniteHeightMapGridGeometry geometry
+                ? new HeightMapChunkAlignmentState(cityObject, geometry, geometry.HeightSamples.ToArray())
+                : null;
+        }
+
+        public ResoniteConstructionCityObject ToCityObject()
+        {
+            double minHeight = HeightSamples.Min();
+            double maxHeight = HeightSamples.Max();
+
+            return CityObject with
+            {
+                Transform = CityObject.Transform with
+                {
+                    Position = CityObject.Transform.Position with
+                    {
+                        Y = BaseHeight + maxHeight,
+                    },
+                },
+                Geometry = Geometry with
+                {
+                    MinHeight = minHeight,
+                    MaxHeight = maxHeight,
+                    HeightSamples = HeightSamples,
+                },
+            };
+        }
+    }
+
+    private sealed class HeightMapSampleUnionFind
+    {
+        private readonly int[] _parents;
+
+        public HeightMapSampleUnionFind(int sampleCount)
+        {
+            _parents = Enumerable.Range(0, sampleCount).ToArray();
+        }
+
+        public int Find(int index)
+        {
+            if (_parents[index] != index)
+            {
+                _parents[index] = Find(_parents[index]);
+            }
+
+            return _parents[index];
+        }
+
+        public void Union(int left, int right)
+        {
+            int leftRoot = Find(left);
+            int rightRoot = Find(right);
+            if (leftRoot != rightRoot)
+            {
+                _parents[rightRoot] = leftRoot;
             }
         }
     }
@@ -2916,10 +3169,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             (int)Math.Ceiling(extentZ / request.DemHeightmapMetersPerVertex) + 1,
             2,
             request.DemHeightmapMaxResolution);
-        ushort[] heightSamples = new ushort[width * height];
         double minHeight = double.PositiveInfinity;
         double maxHeight = double.NegativeInfinity;
-        double[] localHeights = new double[heightSamples.Length];
+        double[] localHeights = new double[width * height];
 
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
@@ -2939,15 +3191,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 minHeight = Math.Min(minHeight, localHeight);
                 maxHeight = Math.Max(maxHeight, localHeight);
             }
-        }
-
-        double heightRange = Math.Max(maxHeight - minHeight, 0.0);
-        for (int index = 0; index < localHeights.Length; index++)
-        {
-            double normalized = heightRange <= 1e-9
-                ? 0.0
-                : Math.Clamp((localHeights[index] - minHeight) / heightRange, 0.0, 1.0);
-            heightSamples[index] = (ushort)Math.Round(normalized * ushort.MaxValue, MidpointRounding.AwayFromZero);
         }
 
         ResoniteMaterialBinding[] materials = CreateDemHeightMapMaterials(
@@ -2982,9 +3225,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 Width: width,
                 Height: height,
                 Size: new ResoniteFloat2(extentX, extentZ),
-                MinHeight: 0.0,
-                MaxHeight: heightRange,
-                HeightSamples: heightSamples),
+                MinHeight: minHeight,
+                MaxHeight: maxHeight,
+                HeightSamples: localHeights),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity);
         return true;
@@ -3114,25 +3357,25 @@ public static partial class LocalCityGmlResonitePlanBuilder
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
             GetCityObjectGeographicBounds(cityObject),
             demTerrainTextureOverlay.GeographicBounds);
-        double centerLatitude = (clippedBounds.MinLatitude + clippedBounds.MaxLatitude) / 2.0;
-        double centerLongitude = (clippedBounds.MinLongitude + clippedBounds.MaxLongitude) / 2.0;
+        double referenceLatitude = cityObjectOrigin.Latitude;
+        double referenceLongitude = cityObjectOrigin.Longitude;
         ResoniteFloat3 westPosition = CreateGlobalHeightMapLocalPosition(
-            new GeodeticPoint(centerLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
+            new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);
         ResoniteFloat3 eastPosition = CreateGlobalHeightMapLocalPosition(
-            new GeodeticPoint(centerLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
+            new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);
         ResoniteFloat3 southPosition = CreateGlobalHeightMapLocalPosition(
-            new GeodeticPoint(clippedBounds.MinLatitude, centerLongitude, cityObjectOrigin.Altitude),
+            new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);
         ResoniteFloat3 northPosition = CreateGlobalHeightMapLocalPosition(
-            new GeodeticPoint(clippedBounds.MaxLatitude, centerLongitude, cityObjectOrigin.Altitude),
+            new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);

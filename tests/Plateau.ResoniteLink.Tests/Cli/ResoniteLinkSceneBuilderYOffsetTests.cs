@@ -113,7 +113,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
                 Size: new ResoniteFloat2(10.0, 10.0),
                 MinHeight: 0.0,
                 MaxHeight: 3.0,
-                HeightSamples: [0, 1, 2, 3]),
+                HeightSamples: [0.0, 1.0, 2.0, 3.0]),
             Materials: [CreateWireframeMaterial()],
             SourceObjectKey: sourceObjectKey);
 

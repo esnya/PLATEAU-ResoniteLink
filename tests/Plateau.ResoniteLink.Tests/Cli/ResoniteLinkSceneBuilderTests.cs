@@ -419,7 +419,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                         Size: new ResoniteFloat2(10.0, 10.0),
                         MinHeight: 0.0,
                         MaxHeight: 10.0,
-                        HeightSamples: [0, ushort.MaxValue, 0, ushort.MaxValue]),
+                        HeightSamples: [0.0, 10.0, 0.0, 10.0]),
                     Materials:
                     [
                         new ResoniteMaterialBinding(
