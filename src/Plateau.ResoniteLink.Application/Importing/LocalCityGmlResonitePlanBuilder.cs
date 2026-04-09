@@ -3148,180 +3148,235 @@ public static class LocalCityGmlResonitePlanBuilder
     private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
     {
-        ResoniteConstructionCityObject[] aligned = cityObjects.ToArray();
-
-        for (int leftIndex = 0; leftIndex < aligned.Length; leftIndex++)
+        HeightMapChunkAlignmentState?[] states = cityObjects
+            .Select(static cityObject => HeightMapChunkAlignmentState.TryCreate(cityObject))
+            .ToArray();
+        if (states.Any(static state => state is null))
         {
-            for (int rightIndex = leftIndex + 1; rightIndex < aligned.Length; rightIndex++)
+            return cityObjects.ToArray();
+        }
+
+        HeightMapChunkAlignmentState[] chunkStates = states
+            .Select(static state => state!)
+            .ToArray();
+        int sampleOffset = 0;
+        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        {
+            state.SampleOffset = sampleOffset;
+            sampleOffset += state.HeightSamples.Length;
+        }
+
+        HeightMapSampleUnionFind unionFind = new(sampleOffset);
+        bool foundSharedBoundary = false;
+
+        for (int leftIndex = 0; leftIndex < chunkStates.Length; leftIndex++)
+        {
+            for (int rightIndex = leftIndex + 1; rightIndex < chunkStates.Length; rightIndex++)
             {
-                if (aligned[leftIndex].Geometry is not ResoniteHeightMapGridGeometry leftGeometry
-                    || aligned[rightIndex].Geometry is not ResoniteHeightMapGridGeometry rightGeometry)
-                {
-                    continue;
-                }
-
-                bool alignedBoundary =
-                    TryAlignVerticalHeightMapBoundary(
-                        aligned[leftIndex],
-                        leftGeometry,
-                        aligned[rightIndex],
-                        rightGeometry,
-                        out ResoniteConstructionCityObject updatedLeft,
-                        out ResoniteConstructionCityObject updatedRight)
-                    || TryAlignVerticalHeightMapBoundary(
-                        aligned[rightIndex],
-                        rightGeometry,
-                        aligned[leftIndex],
-                        leftGeometry,
-                        out updatedRight,
-                        out updatedLeft)
-                    || TryAlignHorizontalHeightMapBoundary(
-                        aligned[leftIndex],
-                        leftGeometry,
-                        aligned[rightIndex],
-                        rightGeometry,
-                        out updatedLeft,
-                        out updatedRight)
-                    || TryAlignHorizontalHeightMapBoundary(
-                        aligned[rightIndex],
-                        rightGeometry,
-                        aligned[leftIndex],
-                        leftGeometry,
-                        out updatedRight,
-                        out updatedLeft);
-                if (!alignedBoundary)
-                {
-                    continue;
-                }
-
-                aligned[leftIndex] = updatedLeft;
-                aligned[rightIndex] = updatedRight;
+                foundSharedBoundary |=
+                    TryUnionVerticalHeightMapBoundary(chunkStates[leftIndex], chunkStates[rightIndex], unionFind)
+                    || TryUnionVerticalHeightMapBoundary(chunkStates[rightIndex], chunkStates[leftIndex], unionFind)
+                    || TryUnionHorizontalHeightMapBoundary(chunkStates[leftIndex], chunkStates[rightIndex], unionFind)
+                    || TryUnionHorizontalHeightMapBoundary(chunkStates[rightIndex], chunkStates[leftIndex], unionFind);
             }
         }
 
-        return aligned;
+        if (!foundSharedBoundary)
+        {
+            return cityObjects.ToArray();
+        }
+
+        Dictionary<int, (double WorldHeightSum, int Count)> groupedWorldHeights = [];
+        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        {
+            for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
+            {
+                int root = unionFind.Find(state.SampleOffset + localSampleIndex);
+                double worldHeight = state.BaseHeight + state.HeightSamples[localSampleIndex];
+                if (groupedWorldHeights.TryGetValue(root, out (double WorldHeightSum, int Count) current))
+                {
+                    groupedWorldHeights[root] = (current.WorldHeightSum + worldHeight, current.Count + 1);
+                }
+                else
+                {
+                    groupedWorldHeights[root] = (worldHeight, 1);
+                }
+            }
+        }
+
+        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        {
+            for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
+            {
+                int root = unionFind.Find(state.SampleOffset + localSampleIndex);
+                (double worldHeightSum, int count) = groupedWorldHeights[root];
+                state.HeightSamples[localSampleIndex] = (worldHeightSum / count) - state.BaseHeight;
+            }
+        }
+
+        return chunkStates
+            .Select(static state => state.ToCityObject())
+            .ToArray();
     }
 
-    private static bool TryAlignVerticalHeightMapBoundary(
-        ResoniteConstructionCityObject leftObject,
-        ResoniteHeightMapGridGeometry leftGeometry,
-        ResoniteConstructionCityObject rightObject,
-        ResoniteHeightMapGridGeometry rightGeometry,
-        out ResoniteConstructionCityObject updatedLeftObject,
-        out ResoniteConstructionCityObject updatedRightObject)
+    private static bool TryUnionVerticalHeightMapBoundary(
+        HeightMapChunkAlignmentState leftState,
+        HeightMapChunkAlignmentState rightState,
+        HeightMapSampleUnionFind unionFind)
     {
-        updatedLeftObject = leftObject;
-        updatedRightObject = rightObject;
-
-        if (leftGeometry.Height != rightGeometry.Height)
+        if (leftState.Geometry.Height != rightState.Geometry.Height)
         {
             return false;
         }
 
         const double boundaryTolerance = 1e-3;
-        double leftMaxX = leftObject.Transform.Position.X + (leftGeometry.Size.X / 2.0);
-        double rightMinX = rightObject.Transform.Position.X - (rightGeometry.Size.X / 2.0);
+        double leftMaxX = leftState.CityObject.Transform.Position.X + (leftState.Geometry.Size.X / 2.0);
+        double rightMinX = rightState.CityObject.Transform.Position.X - (rightState.Geometry.Size.X / 2.0);
         if (Math.Abs(leftMaxX - rightMinX) > boundaryTolerance)
         {
             return false;
         }
 
-        double leftMinZ = leftObject.Transform.Position.Z - (leftGeometry.Size.Y / 2.0);
-        double leftMaxZ = leftObject.Transform.Position.Z + (leftGeometry.Size.Y / 2.0);
-        double rightMinZ = rightObject.Transform.Position.Z - (rightGeometry.Size.Y / 2.0);
-        double rightMaxZ = rightObject.Transform.Position.Z + (rightGeometry.Size.Y / 2.0);
+        double leftMinZ = leftState.CityObject.Transform.Position.Z - (leftState.Geometry.Size.Y / 2.0);
+        double leftMaxZ = leftState.CityObject.Transform.Position.Z + (leftState.Geometry.Size.Y / 2.0);
+        double rightMinZ = rightState.CityObject.Transform.Position.Z - (rightState.Geometry.Size.Y / 2.0);
+        double rightMaxZ = rightState.CityObject.Transform.Position.Z + (rightState.Geometry.Size.Y / 2.0);
         if (Math.Abs(leftMinZ - rightMinZ) > boundaryTolerance
             || Math.Abs(leftMaxZ - rightMaxZ) > boundaryTolerance)
         {
             return false;
         }
 
-        double[] leftSamples = leftGeometry.HeightSamples.ToArray();
-        double[] rightSamples = rightGeometry.HeightSamples.ToArray();
-        double leftBaseHeight = leftObject.Transform.Position.Y - leftGeometry.MaxHeight;
-        double rightBaseHeight = rightObject.Transform.Position.Y - rightGeometry.MaxHeight;
-
-        for (int row = 0; row < leftGeometry.Height; row++)
+        for (int row = 0; row < leftState.Geometry.Height; row++)
         {
-            int leftSampleIndex = (row * leftGeometry.Width) + (leftGeometry.Width - 1);
-            int rightSampleIndex = row * rightGeometry.Width;
-            double averageWorldHeight = ((leftBaseHeight + leftSamples[leftSampleIndex]) + (rightBaseHeight + rightSamples[rightSampleIndex])) / 2.0;
-            leftSamples[leftSampleIndex] = averageWorldHeight - leftBaseHeight;
-            rightSamples[rightSampleIndex] = averageWorldHeight - rightBaseHeight;
+            int leftSampleIndex = (row * leftState.Geometry.Width) + (leftState.Geometry.Width - 1);
+            int rightSampleIndex = row * rightState.Geometry.Width;
+            unionFind.Union(leftState.SampleOffset + leftSampleIndex, rightState.SampleOffset + rightSampleIndex);
         }
 
-        updatedLeftObject = leftObject with { Geometry = CreateUpdatedHeightMapGeometry(leftGeometry, leftSamples) };
-        updatedRightObject = rightObject with { Geometry = CreateUpdatedHeightMapGeometry(rightGeometry, rightSamples) };
         return true;
     }
 
-    private static bool TryAlignHorizontalHeightMapBoundary(
-        ResoniteConstructionCityObject southObject,
-        ResoniteHeightMapGridGeometry southGeometry,
-        ResoniteConstructionCityObject northObject,
-        ResoniteHeightMapGridGeometry northGeometry,
-        out ResoniteConstructionCityObject updatedSouthObject,
-        out ResoniteConstructionCityObject updatedNorthObject)
+    private static bool TryUnionHorizontalHeightMapBoundary(
+        HeightMapChunkAlignmentState southState,
+        HeightMapChunkAlignmentState northState,
+        HeightMapSampleUnionFind unionFind)
     {
-        updatedSouthObject = southObject;
-        updatedNorthObject = northObject;
-
-        if (southGeometry.Width != northGeometry.Width)
+        if (southState.Geometry.Width != northState.Geometry.Width)
         {
             return false;
         }
 
         const double boundaryTolerance = 1e-3;
-        double southMaxZ = southObject.Transform.Position.Z + (southGeometry.Size.Y / 2.0);
-        double northMinZ = northObject.Transform.Position.Z - (northGeometry.Size.Y / 2.0);
+        double southMaxZ = southState.CityObject.Transform.Position.Z + (southState.Geometry.Size.Y / 2.0);
+        double northMinZ = northState.CityObject.Transform.Position.Z - (northState.Geometry.Size.Y / 2.0);
         if (Math.Abs(southMaxZ - northMinZ) > boundaryTolerance)
         {
             return false;
         }
 
-        double southMinX = southObject.Transform.Position.X - (southGeometry.Size.X / 2.0);
-        double southMaxX = southObject.Transform.Position.X + (southGeometry.Size.X / 2.0);
-        double northMinX = northObject.Transform.Position.X - (northGeometry.Size.X / 2.0);
-        double northMaxX = northObject.Transform.Position.X + (northGeometry.Size.X / 2.0);
+        double southMinX = southState.CityObject.Transform.Position.X - (southState.Geometry.Size.X / 2.0);
+        double southMaxX = southState.CityObject.Transform.Position.X + (southState.Geometry.Size.X / 2.0);
+        double northMinX = northState.CityObject.Transform.Position.X - (northState.Geometry.Size.X / 2.0);
+        double northMaxX = northState.CityObject.Transform.Position.X + (northState.Geometry.Size.X / 2.0);
         if (Math.Abs(southMinX - northMinX) > boundaryTolerance
             || Math.Abs(southMaxX - northMaxX) > boundaryTolerance)
         {
             return false;
         }
 
-        double[] southSamples = southGeometry.HeightSamples.ToArray();
-        double[] northSamples = northGeometry.HeightSamples.ToArray();
-        double southBaseHeight = southObject.Transform.Position.Y - southGeometry.MaxHeight;
-        double northBaseHeight = northObject.Transform.Position.Y - northGeometry.MaxHeight;
-        int southRowStart = (southGeometry.Height - 1) * southGeometry.Width;
-
-        for (int column = 0; column < southGeometry.Width; column++)
+        int southRowStart = (southState.Geometry.Height - 1) * southState.Geometry.Width;
+        for (int column = 0; column < southState.Geometry.Width; column++)
         {
             int southSampleIndex = southRowStart + column;
-            int northSampleIndex = column;
-            double averageWorldHeight = ((southBaseHeight + southSamples[southSampleIndex]) + (northBaseHeight + northSamples[northSampleIndex])) / 2.0;
-            southSamples[southSampleIndex] = averageWorldHeight - southBaseHeight;
-            northSamples[northSampleIndex] = averageWorldHeight - northBaseHeight;
+            unionFind.Union(southState.SampleOffset + southSampleIndex, northState.SampleOffset + column);
         }
 
-        updatedSouthObject = southObject with { Geometry = CreateUpdatedHeightMapGeometry(southGeometry, southSamples) };
-        updatedNorthObject = northObject with { Geometry = CreateUpdatedHeightMapGeometry(northGeometry, northSamples) };
         return true;
     }
 
-    private static ResoniteHeightMapGridGeometry CreateUpdatedHeightMapGeometry(
-        ResoniteHeightMapGridGeometry geometry,
-        IReadOnlyList<double> heightSamples)
+    private sealed class HeightMapChunkAlignmentState
     {
-        double minHeight = heightSamples.Min();
-        double maxHeight = heightSamples.Max();
-
-        return geometry with
+        public HeightMapChunkAlignmentState(
+            ResoniteConstructionCityObject cityObject,
+            ResoniteHeightMapGridGeometry geometry,
+            double[] heightSamples)
         {
-            MinHeight = minHeight,
-            MaxHeight = maxHeight,
-            HeightSamples = heightSamples,
-        };
+            CityObject = cityObject;
+            Geometry = geometry;
+            HeightSamples = heightSamples;
+            BaseHeight = cityObject.Transform.Position.Y - geometry.MaxHeight;
+        }
+
+        public ResoniteConstructionCityObject CityObject { get; }
+
+        public ResoniteHeightMapGridGeometry Geometry { get; }
+
+        public double[] HeightSamples { get; }
+
+        public double BaseHeight { get; }
+
+        public int SampleOffset { get; set; }
+
+        public static HeightMapChunkAlignmentState? TryCreate(ResoniteConstructionCityObject cityObject)
+        {
+            return cityObject.Geometry is ResoniteHeightMapGridGeometry geometry
+                ? new HeightMapChunkAlignmentState(cityObject, geometry, geometry.HeightSamples.ToArray())
+                : null;
+        }
+
+        public ResoniteConstructionCityObject ToCityObject()
+        {
+            double minHeight = HeightSamples.Min();
+            double maxHeight = HeightSamples.Max();
+
+            return CityObject with
+            {
+                Transform = CityObject.Transform with
+                {
+                    Position = CityObject.Transform.Position with
+                    {
+                        Y = BaseHeight + maxHeight,
+                    },
+                },
+                Geometry = Geometry with
+                {
+                    MinHeight = minHeight,
+                    MaxHeight = maxHeight,
+                    HeightSamples = HeightSamples,
+                },
+            };
+        }
+    }
+
+    private sealed class HeightMapSampleUnionFind
+    {
+        private readonly int[] _parents;
+
+        public HeightMapSampleUnionFind(int sampleCount)
+        {
+            _parents = Enumerable.Range(0, sampleCount).ToArray();
+        }
+
+        public int Find(int index)
+        {
+            if (_parents[index] != index)
+            {
+                _parents[index] = Find(_parents[index]);
+            }
+
+            return _parents[index];
+        }
+
+        public void Union(int left, int right)
+        {
+            int leftRoot = Find(left);
+            int rightRoot = Find(right);
+            if (leftRoot != rightRoot)
+            {
+                _parents[rightRoot] = leftRoot;
+            }
+        }
     }
 
     private static bool TryMaterializeDemHeightMapCityObject(

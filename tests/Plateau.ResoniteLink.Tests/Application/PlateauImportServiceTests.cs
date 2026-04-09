@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.IO.Compression;
+using System.Reflection;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -1009,6 +1010,118 @@ public sealed class PlateauImportServiceTests
 
             Assert.InRange(Math.Abs(westWorldHeight - eastWorldHeight), 0.0, tolerance);
         }
+    }
+
+    [Fact]
+    public void AlignAdjacentDemHeightMapChunkBoundariesPreservesChunkWorldHeightsWhenBoundaryAveragingRaisesMaximum()
+    {
+        ResoniteConstructionCityObject leftChunk = CreateHeightMapChunk(
+            "left",
+            positionX: 0.0,
+            positionY: 25.0,
+            positionZ: 0.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 10.0,
+            maxHeight: 25.0,
+            heightSamples: [10.0, 20.0, 10.0, 25.0]);
+        ResoniteConstructionCityObject rightChunk = CreateHeightMapChunk(
+            "right",
+            positionX: 10.0,
+            positionY: 45.0,
+            positionZ: 0.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 30.0,
+            maxHeight: 45.0,
+            heightSamples: [45.0, 30.0, 35.0, 30.0]);
+
+        ResoniteConstructionCityObject[] alignedChunks = AlignAdjacentDemHeightMapChunkBoundaries(leftChunk, rightChunk);
+
+        ResoniteConstructionCityObject alignedLeftChunk = alignedChunks
+            .OrderBy(static chunk => chunk.Transform.Position.X)
+            .First();
+        ResoniteHeightMapGridGeometry alignedLeftGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(alignedLeftChunk.Geometry);
+
+        Assert.Equal(32.5, alignedLeftChunk.Transform.Position.Y, 6);
+        Assert.Equal(10.0, GetHeightMapWorldHeight(alignedLeftChunk, alignedLeftGeometry, row: 0, column: 0), 6);
+        Assert.Equal(32.5, GetHeightMapWorldHeight(alignedLeftChunk, alignedLeftGeometry, row: 0, column: 1), 6);
+        Assert.Equal(30.0, GetHeightMapWorldHeight(alignedLeftChunk, alignedLeftGeometry, row: 1, column: 1), 6);
+    }
+
+    [Fact]
+    public void AlignAdjacentDemHeightMapChunkBoundariesReconcilesSharedCornerAcrossTwoByTwoChunks()
+    {
+        ResoniteConstructionCityObject northWestChunk = CreateHeightMapChunk(
+            "north-west",
+            positionX: 0.0,
+            positionY: 10.0,
+            positionZ: -10.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 0.0,
+            maxHeight: 10.0,
+            heightSamples: [1.0, 2.0, 3.0, 10.0]);
+        ResoniteConstructionCityObject northEastChunk = CreateHeightMapChunk(
+            "north-east",
+            positionX: 10.0,
+            positionY: 20.0,
+            positionZ: -10.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 4.0,
+            maxHeight: 20.0,
+            heightSamples: [20.0, 5.0, 6.0, 7.0]);
+        ResoniteConstructionCityObject southWestChunk = CreateHeightMapChunk(
+            "south-west",
+            positionX: 0.0,
+            positionY: 30.0,
+            positionZ: 0.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 8.0,
+            maxHeight: 30.0,
+            heightSamples: [8.0, 9.0, 10.0, 30.0]);
+        ResoniteConstructionCityObject southEastChunk = CreateHeightMapChunk(
+            "south-east",
+            positionX: 10.0,
+            positionY: 40.0,
+            positionZ: 0.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 11.0,
+            maxHeight: 40.0,
+            heightSamples: [40.0, 11.0, 12.0, 13.0]);
+
+        ResoniteConstructionCityObject[] alignedChunks = AlignAdjacentDemHeightMapChunkBoundaries(
+            northWestChunk,
+            northEastChunk,
+            southWestChunk,
+            southEastChunk);
+
+        double sharedCenterX = 5.0;
+        double sharedCenterZ = -5.0;
+        double[] sharedCornerHeights = alignedChunks
+            .Select(chunk =>
+            {
+                ResoniteHeightMapGridGeometry geometry = Assert.IsType<ResoniteHeightMapGridGeometry>(chunk.Geometry);
+                return GetCornerHeightNearestPoint(chunk, geometry, sharedCenterX, sharedCenterZ);
+            })
+            .ToArray();
+
+        Assert.All(sharedCornerHeights, height => Assert.Equal(sharedCornerHeights[0], height, 6));
     }
 
     [Fact]
@@ -2283,6 +2396,85 @@ public sealed class PlateauImportServiceTests
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_split_boundary.gml"),
             xml);
+    }
+
+    private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
+        params ResoniteConstructionCityObject[] cityObjects)
+    {
+        MethodInfo method = typeof(LocalCityGmlResonitePlanBuilder).GetMethod(
+            "AlignAdjacentDemHeightMapChunkBoundaries",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Expected private heightmap boundary alignment helper.");
+
+        return (ResoniteConstructionCityObject[])method.Invoke(null, [cityObjects])!;
+    }
+
+    private static ResoniteConstructionCityObject CreateHeightMapChunk(
+        string displayName,
+        double positionX,
+        double positionY,
+        double positionZ,
+        int width,
+        int height,
+        double sizeX,
+        double sizeY,
+        double minHeight,
+        double maxHeight,
+        IReadOnlyList<double> heightSamples)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: displayName,
+            DisplayName: displayName,
+            PackageName: "dem",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(positionX, positionY, positionZ)),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: width,
+                Height: height,
+                Size: new ResoniteFloat2(sizeX, sizeY),
+                MinHeight: minHeight,
+                MaxHeight: maxHeight,
+                HeightSamples: heightSamples),
+            Materials: []);
+    }
+
+    private static double GetHeightMapWorldHeight(
+        ResoniteConstructionCityObject chunk,
+        ResoniteHeightMapGridGeometry geometry,
+        int row,
+        int column)
+    {
+        return chunk.Transform.Position.Y
+            - geometry.MaxHeight
+            + geometry.HeightSamples[(row * geometry.Width) + column];
+    }
+
+    private static double GetCornerHeightNearestPoint(
+        ResoniteConstructionCityObject chunk,
+        ResoniteHeightMapGridGeometry geometry,
+        double targetX,
+        double targetZ)
+    {
+        int[] rows = [0, geometry.Height - 1];
+        int[] columns = [0, geometry.Width - 1];
+        double minX = chunk.Transform.Position.X - (geometry.Size.X / 2.0);
+        double minZ = chunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
+        double stepX = geometry.Width <= 1 ? 0.0 : geometry.Size.X / (geometry.Width - 1);
+        double stepZ = geometry.Height <= 1 ? 0.0 : geometry.Size.Y / (geometry.Height - 1);
+
+        return rows
+            .SelectMany(row => columns.Select(column =>
+            {
+                double x = minX + (column * stepX);
+                double z = minZ + (row * stepZ);
+                double distanceSquared = Math.Pow(x - targetX, 2.0) + Math.Pow(z - targetZ, 2.0);
+                double height = GetHeightMapWorldHeight(chunk, geometry, row, column);
+                return (distanceSquared, height);
+            }))
+            .OrderBy(static candidate => candidate.distanceSquared)
+            .First()
+            .height;
     }
 
     private static void CreateRuntimeStraddledSplitBoundaryDemFixture(string datasetRoot)
