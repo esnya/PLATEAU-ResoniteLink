@@ -73,7 +73,7 @@ jobs:
         env:
           CURRENT_TAG: ${{ github.ref_name }}
           PREVIOUS_TAG: ${{ steps.metadata.outputs.previous_tag }}
-        run: ./scripts/prepare-release-notes.sh "${CURRENT_TAG}" "${PREVIOUS_TAG}" artifacts/release/notes.md
+        run: bash ./scripts/prepare-release-notes.sh "${CURRENT_TAG}" "${PREVIOUS_TAG}" artifacts/release/notes.md
 
       - name: Create GitHub release
         env:

@@ -11,7 +11,7 @@ mkdir -p "$(dirname "${output_path}")"
 cat > "${output_path}" <<EOF
 ## Summary
 
-- Replace this section with a short user-facing summary when finalizing the release.
+- Automated release for ${current_tag}.
 - GitHub Releases are the canonical changelog for Plateau.ResoniteLink.
 - \`Plateau.ResoniteLink-cli-${current_tag}.zip\` is a framework-dependent asset and requires .NET 10.
 

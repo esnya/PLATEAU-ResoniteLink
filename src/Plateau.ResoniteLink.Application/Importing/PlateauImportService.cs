@@ -105,18 +105,6 @@ public sealed class PlateauImportService(
             PackageNames = request.PackageNames is null
                 ? null
                 : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
-            ExcludeLodLevelsByPackage = request.ExcludeLodLevelsByPackage is null
-                ? null
-                : request.ExcludeLodLevelsByPackage.ToDictionary(
-                    static pair => pair.Key.Trim(),
-                    static pair => pair.Value,
-                    StringComparer.OrdinalIgnoreCase),
-            PackagePatterns = request.PackagePatterns is null
-                ? null
-                : request.PackagePatterns.ToDictionary(
-                    static pair => pair.Key.Trim(),
-                    static pair => pair.Value,
-                    StringComparer.OrdinalIgnoreCase),
         };
     }
 
