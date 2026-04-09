@@ -1327,6 +1327,32 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncRejectsUnsupportedPackagePatternWithValidationException()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null,
+                    PackagePatterns: new Dictionary<string, string>
+                    {
+                        ["unknown"] = "*Road*",
+                    }),
+                workRoot: "runtime/resonite"));
+
+        Assert.Contains(
+            exception.Errors,
+            error => error.Contains("Unsupported package name(s): unknown.", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncFallsBackToBundledDefaultTextureWhenTextureFileIsMissing()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
