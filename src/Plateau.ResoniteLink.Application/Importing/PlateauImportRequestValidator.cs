@@ -87,36 +87,36 @@ public static class PlateauImportRequestValidator
             }
         }
 
-        switch (request.SourceKind)
+        switch (request.Source)
         {
-            case DatasetSourceKind.Local:
-                if (string.IsNullOrWhiteSpace(request.LocalSourcePath))
+            case PlateauLocalImportSource localSource:
+                if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
                 {
                     errors.Add("The --local-source-path value is required when --source local is used.");
                     break;
                 }
 
-                if (!Directory.Exists(request.LocalSourcePath)
-                    && !File.Exists(request.LocalSourcePath))
+                if (!Directory.Exists(localSource.LocalSourcePath)
+                    && !File.Exists(localSource.LocalSourcePath))
                 {
-                    errors.Add($"The local source path '{request.LocalSourcePath}' does not exist.");
+                    errors.Add($"The local source path '{localSource.LocalSourcePath}' does not exist.");
                 }
 
                 break;
-            case DatasetSourceKind.Remote:
-                if (request.ServerUri is null)
+            case PlateauRemoteImportSource remoteSource:
+                if (remoteSource.ServerUri is null)
                 {
                     errors.Add("The --server-url value is required when --source remote is used.");
                     break;
                 }
 
-                if (!request.ServerUri.IsAbsoluteUri)
+                if (!remoteSource.ServerUri.IsAbsoluteUri)
                 {
                     errors.Add("The --server-url value must be an absolute URI.");
                     break;
                 }
 
-                if (!LooksLikeSupportedArchiveUri(request.ServerUri))
+                if (!LooksLikeSupportedArchiveUri(remoteSource.ServerUri))
                 {
                     errors.Add("The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
                 }

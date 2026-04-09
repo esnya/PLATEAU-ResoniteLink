@@ -4,6 +4,21 @@ namespace Plateau.ResoniteLink.Cli;
 
 public static class CliArgumentsParser
 {
+    private static readonly string[] DefaultPackageNames =
+    [
+        "dem",
+        "bldg",
+        "brid",
+        "frn",
+        "tran",
+        "rwy",
+        "trk",
+        "tun",
+        "ubld",
+        "unf",
+        "veg",
+    ];
+
     public const string HelpText =
         """
         Plateau.ResoniteLink CLI
@@ -66,7 +81,7 @@ public static class CliArgumentsParser
         bool enableSendMetrics = false;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
-        IReadOnlyList<string> packageNames = PlateauPackageCatalog.CliDefaultPackageNames;
+        IReadOnlyList<string> packageNames = DefaultPackageNames;
         IReadOnlySet<int>? globalExcludeLods = null;
         IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = null;
         bool hasPackageExcludeLodsOption = false;
@@ -307,12 +322,17 @@ public static class CliArgumentsParser
             };
         }
 
+        PlateauImportSource source = sourceKind switch
+        {
+            DatasetSourceKind.Local => new PlateauLocalImportSource(localSourcePath),
+            DatasetSourceKind.Remote => new PlateauRemoteImportSource(serverUri),
+            _ => throw new InvalidOperationException($"Unsupported dataset source kind '{sourceKind}'."),
+        };
+
         PlateauImportRequest request = new(
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
-            SourceKind: sourceKind,
-            LocalSourcePath: localSourcePath,
-            ServerUri: serverUri,
+            Source: source,
             PackageNames: packageNames,
             GlobalExcludeLodLevels: globalExcludeLods,
             ExcludeLodLevelsByPackage: packageExcludeLods,

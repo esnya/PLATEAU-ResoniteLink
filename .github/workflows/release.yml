@@ -24,14 +24,8 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
-      - name: Restore
-        run: dotnet restore Plateau.ResoniteLink.sln --locked-mode
-
-      - name: Format
-        run: dotnet format whitespace . --folder --verify-no-changes
-
-      - name: Test
-        run: dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 -p:UseSharedCompilation=false
+      - name: Verify
+        run: bash ./scripts/verify-ci.sh
 
       - name: Compute release metadata
         id: metadata

@@ -114,8 +114,7 @@ The current live adapter uses `ImportMesh(ImportMeshRawData)` for meshes and `Im
 Validate formatting, analyzers, and tests:
 
 ```bash
-dotnet format whitespace . --folder --verify-no-changes
-dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false
+bash scripts/verify-ci.sh
 ```
 
 ## License Notes

@@ -68,6 +68,33 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncPassesDocumentedDefaultPackagesWhenPackagesOptionIsOmitted()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        BuildCommandOptions? capturedOptions = null;
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            options =>
+            {
+                capturedOptions = options;
+                return new PlateauImportService(new StubSceneBuilder());
+            });
+
+        int exitCode = await application.RunAsync(
+            BuildLiveArgs(fixturePath));
+
+        Assert.Equal(0, exitCode);
+        Assert.NotNull(capturedOptions);
+        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions!.Request.PackageNames);
+        Assert.Equal(string.Empty, standardError.ToString());
+        Assert.Contains("Resonite import completed.", standardOutput.ToString());
+    }
+
+    [Fact]
     public async Task RunAsyncPropagatesCancellation()
     {
         using StringWriter standardOutput = new();
@@ -90,20 +117,7 @@ public sealed class CliApplicationTests
 
     private static string[] BuildLiveArgs(string fixturePath)
     {
-        return
-        [
-            "build",
-            "--dataset",
-            "tokyo23ku",
-            "--mesh-code",
-            "53394525",
-            "--source",
-            "local",
-            "--local-source-path",
-            fixturePath,
-            "--resonitelink-port",
-            "12345",
-        ];
+        return CliTestData.BuildLocalBuildArgs(fixturePath);
     }
 
     private sealed class StubSceneBuilder : IResoniteSceneBuilder

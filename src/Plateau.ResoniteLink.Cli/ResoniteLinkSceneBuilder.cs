@@ -3,8 +3,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading.Channels;
 
 using GeographicLib;
@@ -28,8 +26,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly int connectionCount;
     private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
+    private readonly ResoniteLiveAssetStateStore liveAssetStateStore;
     private readonly Action<string>? progressReporter;
-    private readonly SemaphoreSlim assetStateWriteLock = new(1, 1);
     private List<IResoniteLinkClient>? clients;
     private ResoniteConstructionMetadata? metadata;
     private string? datasetSlotId;
@@ -44,8 +42,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ConcurrentDictionary<string, Lazy<Task>>? componentEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task<Uri>>>? assetComponentEnsureTasks;
     private ConcurrentDictionary<string, string>? assetSourceFingerprints;
-    private ConcurrentDictionary<string, Task<ResolvedTextureImport>>? resolvedTexturePathTasks;
-    private Dictionary<string, TerrainTextureOverlay>? terrainTextureOverlaysByPath;
+    private ResoniteTextureImportResolver? textureImportResolver;
     private Channel<QueuedCityObject>? cityObjectChannel;
     private Task[]? processingTasks;
     private int processedCityObjectCount;
@@ -87,6 +84,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         this.diagnostics = diagnostics;
         this.clientFactory = clientFactory;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator();
+        liveAssetStateStore = new ResoniteLiveAssetStateStore(progressReporter);
         this.progressReporter = progressReporter;
     }
 
@@ -133,7 +131,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         slotEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         componentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         assetComponentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task<Uri>>>(StringComparer.Ordinal);
-        assetSourceFingerprints = await LoadAssetSourceFingerprintsAsync(liveAssetStatePath, cancellationToken);
+        assetSourceFingerprints = await liveAssetStateStore.LoadAsync(liveAssetStatePath, cancellationToken);
         materialAssetManager = new ResoniteMaterialAssetManager(
             metadata.Request.Dataset,
             (containerSlotId, componentId, componentType, uriMemberName, importAssetAsync, sourceFingerprint, ct) =>
@@ -155,11 +153,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     members,
                     ct),
             ReportProgress);
-        resolvedTexturePathTasks = new ConcurrentDictionary<string, Task<ResolvedTextureImport>>(StringComparer.OrdinalIgnoreCase);
-        datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(metadata.Request.LocalSourcePath!, cancellationToken);
-        terrainTextureOverlaysByPath = metadata.SourceDataset.TerrainTextureOverlays.ToDictionary(
-            static overlay => overlay.TexturePath,
-            StringComparer.Ordinal);
+        PlateauLocalImportSource localSource = metadata.Request.Source as PlateauLocalImportSource
+            ?? throw new InvalidOperationException("Live scene building requires a resolved local dataset source.");
+
+        datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(localSource.LocalSourcePath!, cancellationToken);
+        textureImportResolver = new ResoniteTextureImportResolver(
+            datasetContentSource,
+            generatedAssetsRoot,
+            metadata.SourceDataset.TerrainTextureOverlays,
+            terrainTextureAssetGenerator);
         cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
             new BoundedChannelOptions(Math.Max(MaxQueuedCityObjects, connectionCount))
             {
@@ -251,7 +253,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         cityObjectChannel.Writer.TryComplete();
         await Task.WhenAll(processingTasks).WaitAsync(cancellationToken);
         diagnostics.CompleteSendWindow();
-        await PersistAssetSourceFingerprintsAsync(cancellationToken);
+        await liveAssetStateStore.PersistAsync(liveAssetStatePath, assetSourceFingerprints, cancellationToken);
         ReportProgress($"[live] Completed {processedCityObjectCount} city objects.");
         return [$"{endpoint}#{meshCodeSlotId}"];
     }
@@ -293,8 +295,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         componentEnsureTasks = null;
         assetComponentEnsureTasks = null;
         assetSourceFingerprints = null;
-        resolvedTexturePathTasks = null;
-        terrainTextureOverlaysByPath = null;
+        textureImportResolver = null;
         cityObjectChannel = null;
         processingTasks = null;
         sceneBuildStopwatch = null;
@@ -327,9 +328,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
-        ObjectDisposedException.ThrowIf(resolvedTexturePathTasks is null, this);
-        ObjectDisposedException.ThrowIf(datasetContentSource is null, this);
+        ObjectDisposedException.ThrowIf(textureImportResolver is null, this);
         (string TexturePath, ResoniteTextureSourceKind TextureSourceKind)[] distinctTextures = cityObject.Materials
             .Where(static material => !string.IsNullOrWhiteSpace(material.TexturePath))
             .Select(static material => (TexturePath: material.TexturePath!, TextureSourceKind: material.TextureSourceKind))
@@ -341,13 +340,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Task<PreparedTextureReference>[] texturePreparationTasks = distinctTextures
             .Select(async texture =>
             {
-                ResolvedTextureImport resolvedTexture = await resolvedTexturePathTasks.GetOrAdd(
-                    CreateTextureCacheKey(texture.TexturePath, texture.TextureSourceKind),
-                    _ => ResolveTextureImportAsync(
-                        datasetContentSource,
-                        texture.TexturePath,
-                        texture.TextureSourceKind,
-                        cancellationToken));
+                ResolvedTextureImport resolvedTexture = await textureImportResolver.ResolveAsync(
+                    texture.TexturePath,
+                    texture.TextureSourceKind,
+                    cancellationToken);
 
                 return new PreparedTextureReference(
                     texture.TexturePath,
@@ -397,92 +393,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             preparedGeometry,
             preparedTextures);
-    }
-
-    private async Task<ResolvedTextureImport> ResolveTextureImportAsync(
-        IPlateauDatasetContentSource datasetContentSource,
-        string texturePath,
-        ResoniteTextureSourceKind textureSourceKind,
-        CancellationToken cancellationToken)
-    {
-        ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(generatedAssetsRoot is null, this);
-        ObjectDisposedException.ThrowIf(terrainTextureOverlaysByPath is null, this);
-
-        if (terrainTextureOverlaysByPath.TryGetValue(texturePath, out TerrainTextureOverlay? terrainTextureOverlay))
-        {
-            ResoniteRawTextureImport overlayTextureImport = await terrainTextureAssetGenerator.EnsureTextureAsync(
-                terrainTextureOverlay,
-                cancellationToken);
-            return new ResolvedTextureImport(
-                overlayTextureImport,
-                ComputeTextureImportFingerprint(overlayTextureImport));
-        }
-
-        string absoluteTexturePath = textureSourceKind switch
-        {
-            ResoniteTextureSourceKind.Dataset => await datasetContentSource.MaterializeFileAsync(
-                texturePath,
-                generatedAssetsRoot,
-                cancellationToken),
-            ResoniteTextureSourceKind.Bundled => BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
-            _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
-        };
-
-        return new ResolvedTextureImport(
-            ResoniteTextureImportFactory.CreateFromFile(absoluteTexturePath),
-            ComputeContentFingerprint(absoluteTexturePath));
-    }
-
-    private static string ComputeTextureImportFingerprint(ResoniteTextureImport textureImport)
-    {
-        return textureImport switch
-        {
-            ResoniteFileTextureImport fileTextureImport => ComputeContentFingerprint(fileTextureImport.AbsolutePath),
-            ResoniteRawTextureImport rawTextureImport => CreateRawTextureFingerprint(rawTextureImport),
-            ResoniteRawHdrTextureImport rawHdrTextureImport => CreateRawHdrTextureFingerprint(rawHdrTextureImport),
-            _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
-        };
-    }
-
-    private static string CreateRawTextureFingerprint(ResoniteRawTextureImport textureImport)
-    {
-        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Width));
-        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Height));
-        incrementalHash.AppendData(Encoding.UTF8.GetBytes(textureImport.ColorProfile));
-        incrementalHash.AppendData(textureImport.RawRgba32Bytes);
-        return Convert.ToHexString(incrementalHash.GetHashAndReset());
-    }
-
-    private static string CreateRawHdrTextureFingerprint(ResoniteRawHdrTextureImport textureImport)
-    {
-        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Width));
-        incrementalHash.AppendData(BitConverter.GetBytes(textureImport.Height));
-        incrementalHash.AppendData(textureImport.RawRgbaFloatBytes);
-        return Convert.ToHexString(incrementalHash.GetHashAndReset());
-    }
-
-    private static string ComputeContentFingerprint(string absolutePath)
-    {
-        using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        using FileStream fileStream = new(
-            absolutePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            16 * 1024,
-            useAsync: false);
-        byte[] buffer = new byte[16 * 1024];
-        int bytesRead;
-
-        while ((bytesRead = fileStream.Read(buffer)) > 0)
-        {
-            incrementalHash.AppendData(buffer, 0, bytesRead);
-        }
-
-        return Convert.ToHexString(incrementalHash.GetHashAndReset());
     }
 
     private static string CreateTriangleMeshFingerprint(ResoniteImportedMesh mesh)
@@ -943,13 +853,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
     }
 
-    private static string CreateTextureCacheKey(string? texturePath, ResoniteTextureSourceKind textureSourceKind)
-    {
-        return texturePath is null
-            ? string.Empty
-            : string.Create(CultureInfo.InvariantCulture, $"{textureSourceKind}:{texturePath}");
-    }
-
     private async Task<string> EnsureGeometryComponentAsync(
         IResoniteLinkClient client,
         string meshAssetSlotId,
@@ -1181,9 +1084,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         byte[] rawBytes = new byte[rawPixels.Length * sizeof(float)];
         Buffer.BlockCopy(rawPixels, 0, rawBytes, 0, rawBytes.Length);
+        ResoniteRawHdrTextureImport textureImport = new(geometry.Width, geometry.Height, rawBytes);
         return new PreparedHeightMapTexture(
-            new ResoniteRawHdrTextureImport(geometry.Width, geometry.Height, rawBytes),
-            ComputeTextureImportFingerprint(new ResoniteRawHdrTextureImport(geometry.Width, geometry.Height, rawBytes)));
+            textureImport,
+            ResoniteTextureImportResolver.ComputeFingerprint(textureImport));
     }
 
     private void ReportBuildStep(ResoniteConstructionCityObject cityObject, string step)
@@ -1636,7 +1540,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         assetSourceFingerprints[componentId] = sourceFingerprint;
-        await PersistAssetSourceFingerprintsAsync(cancellationToken);
+        if (liveAssetStatePath is not null && assetSourceFingerprints is not null)
+        {
+            await liveAssetStateStore.PersistAsync(liveAssetStatePath, assetSourceFingerprints, cancellationToken);
+        }
         return assetUri;
     }
 
@@ -1703,90 +1610,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         return fieldUri.Value;
-    }
-
-    private async Task PersistAssetSourceFingerprintsAsync(CancellationToken cancellationToken)
-    {
-        if (liveAssetStatePath is null || assetSourceFingerprints is null)
-        {
-            return;
-        }
-
-        await assetStateWriteLock.WaitAsync(cancellationToken);
-        try
-        {
-            string directory = Path.GetDirectoryName(liveAssetStatePath) ?? ".";
-            Directory.CreateDirectory(directory);
-            string temporaryPath = Path.Combine(
-                directory,
-                $"{Path.GetFileName(liveAssetStatePath)}.{Guid.NewGuid():N}.tmp");
-            try
-            {
-                LiveAssetState state = new(
-                    assetSourceFingerprints.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                        .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal));
-                string json = JsonSerializer.Serialize(state, LiveAssetStateJsonContext.Default.LiveAssetState);
-                await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
-                File.Move(temporaryPath, liveAssetStatePath, overwrite: true);
-            }
-            finally
-            {
-                TryDeleteTemporaryAssetStateFile(temporaryPath);
-            }
-        }
-        finally
-        {
-            assetStateWriteLock.Release();
-        }
-    }
-
-    private static void TryDeleteTemporaryAssetStateFile(string temporaryPath)
-    {
-        try
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
-    }
-
-    private async Task<ConcurrentDictionary<string, string>> LoadAssetSourceFingerprintsAsync(
-        string statePath,
-        CancellationToken cancellationToken)
-    {
-        if (!File.Exists(statePath))
-        {
-            return new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
-        }
-
-        try
-        {
-            await using FileStream stream = File.OpenRead(statePath);
-            LiveAssetState? state = await JsonSerializer.DeserializeAsync(
-                stream,
-                LiveAssetStateJsonContext.Default.LiveAssetState,
-                cancellationToken);
-            return new ConcurrentDictionary<string, string>(
-                state?.AssetSourceFingerprints ?? [],
-                StringComparer.Ordinal);
-        }
-        catch (JsonException)
-        {
-            ReportProgress($"[live] Ignoring unreadable asset state cache '{statePath}'.");
-            return new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
-        }
-        catch (IOException)
-        {
-            ReportProgress($"[live] Ignoring unavailable asset state cache '{statePath}'.");
-            return new ConcurrentDictionary<string, string>(StringComparer.Ordinal);
-        }
     }
 
     private static string FormatLodSlotName(int? lodLevel)
@@ -1857,19 +1680,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteTextureImport TextureImport,
         string SourceFingerprint);
 
-    private sealed record ResolvedTextureImport(
-        ResoniteTextureImport TextureImport,
-        string SourceFingerprint);
-
     private sealed record PreparedHeightMapTexture(
         ResoniteTextureImport TextureImport,
         string SourceFingerprint);
-}
-
-internal sealed record LiveAssetState(
-    Dictionary<string, string> AssetSourceFingerprints);
-
-[JsonSerializable(typeof(LiveAssetState))]
-internal sealed partial class LiveAssetStateJsonContext : JsonSerializerContext
-{
 }

@@ -17,7 +17,4 @@ fi
 
 echo "Using dotnet: $(dotnet --version)"
 
-cd "$REPO_ROOT"
-dotnet restore Plateau.ResoniteLink.sln --locked-mode
-dotnet format whitespace . --folder --verify-no-changes
-dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false
+bash "$REPO_ROOT/scripts/verify-ci.sh"
