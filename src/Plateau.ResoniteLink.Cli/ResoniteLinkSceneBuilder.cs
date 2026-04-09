@@ -10,6 +10,8 @@ using GeographicLib;
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
+using System.Diagnostics.CodeAnalysis;
+
 using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Cli;
@@ -17,6 +19,7 @@ namespace Plateau.ResoniteLink.Cli;
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
+    private const int CityObjectSendAttemptLimit = 2;
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
     private const string HeightMapAssetSlotSuffix = "_heightmap";
@@ -49,6 +52,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private int firstQueuedCityObjectLogged;
     private int firstPreparedCityObjectLogged;
     private int firstBuiltCityObjectLogged;
+    private int retriedCityObjectCount;
+    private int skippedFailedCityObjectCount;
+    private int retriedAndRecoveredCityObjectCount;
     private IPlateauDatasetContentSource? datasetContentSource;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
@@ -192,6 +198,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
         firstBuiltCityObjectLogged = 0;
+        retriedCityObjectCount = 0;
+        skippedFailedCityObjectCount = 0;
+        retriedAndRecoveredCityObjectCount = 0;
         diagnostics.StartSendWindow(connectionCount);
         processingTasks = clients
             .Zip(
@@ -270,7 +279,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             List<IResoniteLinkClient> createdClients = Enumerable.Range(0, connectionCount)
                 .Select(_ =>
                 {
-                    IResoniteLinkClient client = clientFactory();
+                    IResoniteLinkClient client = new RetryingResoniteLinkClient(
+                        clientFactory,
+                        ReportProgress);
                     return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
                 })
                 .ToList();
@@ -342,6 +353,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await Task.WhenAll(processingTasks).WaitAsync(cancellationToken);
         diagnostics.CompleteSendWindow();
         ReportProgress($"[live] Completed {processedCityObjectCount} city objects.");
+        ReportProgress(
+            $"[live] Send summary: attempted={processedCityObjectCount + skippedFailedCityObjectCount} "
+            + $"sent={processedCityObjectCount} skipped_failed={skippedFailedCityObjectCount} "
+            + $"retried={retriedCityObjectCount} retried_recovered={retriedAndRecoveredCityObjectCount}.");
         return [$"{endpoint}#{meshCodeSlotId}"];
     }
 
@@ -401,14 +416,71 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         await foreach (QueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
         {
-            PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-            await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
-            int processedCount = Interlocked.Increment(ref processedCityObjectCount);
-            ReportProgress(
-                $"[live] Sent city object {processedCount}: "
-                + $"{preparedCityObject.CityObject.DisplayName} "
-                + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})");
+            await ProcessQueuedCityObjectWithRetryAsync(client, queuedCityObject, cancellationToken);
         }
+    }
+
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "City object send retries intentionally handle arbitrary per-object failures and retry isolated work.")]
+    private async Task ProcessQueuedCityObjectWithRetryAsync(
+        IResoniteLinkClient client,
+        QueuedCityObject queuedCityObject,
+        CancellationToken cancellationToken)
+    {
+        Exception? lastException = null;
+        bool retried = false;
+
+        for (int attempt = 1; attempt <= CityObjectSendAttemptLimit; attempt++)
+        {
+            try
+            {
+                PreparedCityObject preparedCityObject = attempt == 1
+                    ? await queuedCityObject.PreparationTask.WaitAsync(cancellationToken)
+                    : await PrepareCityObjectAsync(queuedCityObject.CityObject, cancellationToken);
+                await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
+
+                int processedCount = Interlocked.Increment(ref processedCityObjectCount);
+                if (retried)
+                {
+                    Interlocked.Increment(ref retriedAndRecoveredCityObjectCount);
+                }
+
+                ReportProgress(
+                    $"[live] Sent city object {processedCount}: "
+                    + $"{preparedCityObject.CityObject.DisplayName} "
+                    + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})");
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                lastException = exception;
+                if (attempt >= CityObjectSendAttemptLimit)
+                {
+                    break;
+                }
+
+                retried = true;
+                Interlocked.Increment(ref retriedCityObjectCount);
+                ReportProgress(
+                    $"[live][warn] City object send failed on attempt {attempt}/{CityObjectSendAttemptLimit}: "
+                    + $"{queuedCityObject.CityObject.DisplayName} "
+                    + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
+                    + $"Retrying. Reason: {exception.Message}");
+            }
+        }
+
+        Interlocked.Increment(ref skippedFailedCityObjectCount);
+        ReportProgress(
+            $"[live][warn] City object skipped after {CityObjectSendAttemptLimit} failed attempts: "
+            + $"{queuedCityObject.CityObject.DisplayName} "
+            + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
+            + $"Reason: {lastException?.Message ?? "Unknown error"}");
     }
 
     private void ReportProgress(string message)
@@ -1091,7 +1163,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ReportProgress(
             $"[live] HeightMap '{preparedGeometry.Geometry.Width}x{preparedGeometry.Geometry.Height}' importing displacement texture "
-            + $"via {(preparedGeometry.HeightTextureImport is ResoniteFileTextureImport fileImport ? $"file '{fileImport.AbsolutePath}'" : "raw payload")}.");
+            + "via raw payload.");
         await UpsertDedicatedAssetComponentUrlAsync(
             client,
             meshAssetSlotId,
@@ -1112,9 +1184,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 ["Uncompressed"] = new Field_bool { Value = true },
                 ["DirectLoad"] = new Field_bool { Value = true },
                 ["MipMaps"] = new Field_bool { Value = false },
-                ["WrapModeU"] = new Field_Nullable_Enum { Value = "Clamp" },
-                ["WrapModeV"] = new Field_Nullable_Enum { Value = "Clamp" },
-                ["FilterMode"] = new Field_Nullable_Enum { Value = "Point" },
             },
             cancellationToken);
 

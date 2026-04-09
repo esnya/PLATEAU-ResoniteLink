@@ -103,6 +103,27 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             static path => path.EndsWith("_Height.jpg", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedRawTextures,
+            texture => string.Equals(texture.ColorProfile, ResoniteTextureColorProfiles.Srgb, StringComparison.Ordinal)
+                && texture.SourcePath is not null
+                && BundledDefaultMaterialFamilies.FacadeVariants.Any(variant =>
+                    texture.SourcePath.EndsWith(variant.Replace('/', Path.DirectorySeparatorChar), StringComparison.Ordinal)));
+        Assert.Contains(
+            fakeClient.ImportedRawTextures,
+            static texture => string.Equals(texture.ColorProfile, ResoniteTextureColorProfiles.Linear, StringComparison.Ordinal)
+                && texture.SourcePath is not null
+                && texture.SourcePath.EndsWith("_NormalGL.jpg", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedRawTextures,
+            static texture => string.Equals(texture.ColorProfile, ResoniteTextureColorProfiles.Linear, StringComparison.Ordinal)
+                && texture.SourcePath is not null
+                && texture.SourcePath.EndsWith("_Height.jpg", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedRawTextures,
+            static texture => string.Equals(texture.ColorProfile, ResoniteTextureColorProfiles.Linear, StringComparison.Ordinal)
+                && texture.SourcePath is not null
+                && texture.SourcePath.EndsWith("_Metallic.png", StringComparison.Ordinal));
 
         Assert.All(staticTextureRequests, request =>
         {
@@ -351,9 +372,6 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["Uncompressed"]).Value);
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["DirectLoad"]).Value);
         Assert.False(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["MipMaps"]).Value);
-        Assert.Equal("Clamp", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["WrapModeU"]).Value);
-        Assert.Equal("Clamp", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["WrapModeV"]).Value);
-        Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["FilterMode"]).Value);
         Assert.DoesNotContain("SourceFingerprint", heightTextureRequest.Data.Members.Keys);
 
         string reliefSlotId = fakeClient.BuildingSlotIds["Relief One"];
@@ -1664,6 +1682,51 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
     }
 
+    [Fact]
+    public async Task BuildAsyncLogsWarningsRetriesAndSkipsFailedCityObject()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        List<string> progressMessages = [];
+        FakeResoniteLinkSession session = new();
+        int remainingMeshImportFailures = 4;
+
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => new FailingImportMeshSharedClient(
+                session,
+                () => Interlocked.Decrement(ref remainingMeshImportFailures) >= 0),
+            progressReporter: progressMessages.Add);
+
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
+
+        Assert.Single(destinations);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("City object send failed on attempt 1/2", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("City object skipped after 2 failed attempts", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            message => message.Contains("[live] Send summary:", StringComparison.Ordinal)
+                && message.Contains($"attempted={scene.CityObjects.Count}", StringComparison.Ordinal)
+                && message.Contains($"sent={scene.CityObjects.Count - 1}", StringComparison.Ordinal)
+                && message.Contains("skipped_failed=1", StringComparison.Ordinal)
+                && message.Contains("retried=1", StringComparison.Ordinal));
+    }
+
     private sealed class FakeResoniteLinkClient : IResoniteLinkClient
     {
         private readonly FakeResoniteLinkSession session;
@@ -1827,9 +1890,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
                         if (rawImport.SourcePath is not null)
@@ -1855,6 +1915,189 @@ public sealed class ResoniteLinkSceneBuilderTests
             lock (session.Gate)
             {
                 Component existing = session.ComponentsById[request.Data.ID];
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            lock (session.Gate)
+            {
+                clone.Children = session.SlotsById.Values
+                    .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                    .Select(slot => CloneSlot(slot, depth - 1))
+                    .ToList();
+            }
+
+            return clone;
+        }
+    }
+
+    private sealed class FailingImportMeshSharedClient(
+        FakeResoniteLinkSession session,
+        Func<bool> shouldFailImportMesh) : IResoniteLinkClient
+    {
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ComponentsById[request.Data.ID] = request.Data;
+                session.AddedComponents.Add(request);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.SlotsById[request.Data.ID] = request.Data;
+                session.AddedSlots.Add(request);
+                session.SlotPaths[request.Data.ID] = CreateSlotPath(session.SlotPaths, request.Data);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.Batches.Add(operations.ToArray());
+            }
+
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Component? component;
+            lock (session.Gate)
+            {
+                session.ComponentsById.TryGetValue(componentId, out component);
+            }
+
+            return Task.FromResult(component);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Slot? slot;
+            lock (session.Gate)
+            {
+                session.SlotsById.TryGetValue(slotId, out slot);
+            }
+
+            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (shouldFailImportMesh())
+            {
+                throw new InvalidOperationException("Simulated mesh import failure.");
+            }
+
+            lock (session.Gate)
+            {
+                session.ImportedMeshes.Add(request);
+                return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshes.Count - 1}", UriKind.Absolute));
+            }
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                switch (textureImport)
+                {
+                    case ResoniteRawTextureImport rawImport:
+                        session.ImportedRawTextures.Add(rawImport);
+                        if (rawImport.SourcePath is not null)
+                        {
+                            session.ImportedTexturePaths.Add(rawImport.SourcePath);
+                        }
+
+                        break;
+                    case ResoniteRawHdrTextureImport rawHdrImport:
+                        session.ImportedRawHdrTextures.Add(rawHdrImport);
+                        break;
+                }
+
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count}", UriKind.Absolute));
+            }
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.ComponentsById.TryGetValue(request.Data.ID, out Component? existing))
+                {
+                    existing = new Component
+                    {
+                        ID = request.Data.ID,
+                        Members = new Dictionary<string, Member>(StringComparer.Ordinal),
+                    };
+                    session.ComponentsById[request.Data.ID] = existing;
+                }
+
                 foreach ((string memberName, Member member) in request.Data.Members)
                 {
                     existing.Members[memberName] = member;
@@ -2083,9 +2326,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             cancellationToken.ThrowIfCancellationRequested();
             switch (textureImport)
             {
-                case ResoniteFileTextureImport fileImport:
-                    ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                    break;
                 case ResoniteRawTextureImport rawImport:
                     ImportedRawTextures.Add(rawImport);
                     if (rawImport.SourcePath is not null)
