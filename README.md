@@ -6,7 +6,9 @@ Plateau.ResoniteLink is a .NET 10 project for bringing [PLATEAU](https://www.mli
 
 Import behavior and terminology are guided by [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/).
 
-Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyVersion`, `FileVersion`, and `InformationalVersion` from those tags, emitting numeric assembly versions without the `v` prefix.
+GitHub Releases are the canonical changelog for this repository. Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyVersion`, `FileVersion`, and `InformationalVersion` from those tags, emitting numeric assembly versions without the `v` prefix.
+
+Each tagged release publishes a framework-dependent CLI asset named `Plateau.ResoniteLink-cli-vX.Y.Z.zip`. The asset requires an installed .NET 10 runtime or SDK, and you can invoke it from the extracted directory with `dotnet Plateau.ResoniteLink.Cli.dll --help`.
 
 
 ## Scope
@@ -24,6 +26,7 @@ Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyV
 ## Runtime And Prerequisites
 
 - Target runtime: .NET SDK 10.
+- Release asset runtime: the GitHub Release zip is framework-dependent and requires .NET 10.
 - Host assumption: a running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url`.
 - Live testing workflow: see [docs/live-testing.md](docs/live-testing.md).
 - Default material and DEM terrain imagery sources and provenance: see [docs/default-materials.md](docs/default-materials.md), `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`, and `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
