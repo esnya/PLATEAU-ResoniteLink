@@ -117,6 +117,12 @@ Validate formatting, analyzers, and tests:
 scripts/verify-ci.sh
 ```
 
+To have Git block pushes until the same verification passes, enable the tracked pre-push hook once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## License Notes
 
 - The repository root is licensed under [MIT](LICENSE).
