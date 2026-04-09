@@ -598,6 +598,84 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncDoesNotPlaceDatasetScopedMaterialWithoutTextureInCommonAssets()
+    {
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU tokyo23ku 53394525",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["tran"],
+                    SourceFiles: ["udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dataset-flat-material",
+                    DisplayName: "Dataset Flat Material",
+                    PackageName: "tran",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: new ResoniteImportedMesh(
+                        Vertices:
+                        [
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                        ],
+                        Submeshes:
+                        [
+                            new ResoniteMeshSubmesh(0, "dataset-flat-material", [0, 1, 2]),
+                        ]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dataset-flat-material",
+                            BaseColor: new ResoniteColor(0.4, 0.5, 0.6, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        AddComponent materialRequest = Assert.Single(
+            fakeClient.AddedComponents,
+            static request => string.Equals(
+                request.Data.ComponentType,
+                "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                StringComparison.Ordinal));
+        string materialPath = fakeClient.SlotPaths[materialRequest.ContainerSlotId];
+        Assert.StartsWith("PLATEAU tokyo23ku/Assets/tran/LOD1/", materialPath, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Assets/Common", materialPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncUsesWireframeMaterialForOverlayCityObjects()
     {
         CapturedResoniteScene scene = new(
