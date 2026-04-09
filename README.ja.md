@@ -95,6 +95,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --dataset tokyo23ku \
   --mesh-code 533944 \
   --source remote \
+  --server-url https://example.invalid/plateau_tokyo23ku_citygml.zip \
   --resonitelink-port <port>
 ```
 

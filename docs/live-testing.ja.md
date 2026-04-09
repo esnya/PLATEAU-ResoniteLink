@@ -91,12 +91,25 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   build `
   --dataset <dataset> `
   --mesh-code <mesh-code> `
-  --source <local-or-remote> `
+  --source local `
+  --local-source-path <dataset-root> `
   --resonitelink-port <port>
 ```
 
-`--source local` を使う場合は、`--local-source-path <dataset-root>` も指定する。値は Unity SDK の `LocalSourcePath` 命名に合わせており、dataset directory、ZIP/7z archive、または `udx/` を含む nested dataset root を配下に持つ ancestor directory を指せる。
-`--source remote` を使う場合は、`--server-url` に official PLATEAU の direct な CityGML ZIP/7z archive URL を指定する必要がある。CLI は dataset search を行わない。download した archive は `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` に cache され、archive URL が同じである限り mesh code が変わっても再利用される。あとから `--source local --local-source-path ...` で再利用することもできる。
+remote を使う場合は、source 固有の引数を次の形に切り替える。
+
+```powershell
+dotnet run --project src/Plateau.ResoniteLink.Cli -- `
+  build `
+  --dataset <dataset> `
+  --mesh-code <mesh-code> `
+  --source remote `
+  --server-url <direct-citygml-zip-or-7z-url> `
+  --resonitelink-port <port>
+```
+
+`--local-source-path <dataset-root>` は Unity SDK の `LocalSourcePath` 命名に合わせており、dataset directory、ZIP/7z archive、または `udx/` を含む nested dataset root を配下に持つ ancestor directory を指せる。
+`--server-url` には official PLATEAU の direct な CityGML ZIP/7z archive URL を指定する必要がある。CLI は dataset search を行わない。download した archive は `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` に cache され、archive URL が同じである限り mesh code が変わっても再利用される。あとから `--source local --local-source-path ...` で再利用することもできる。
 
 長時間の送信では、インラインの `cmd.exe /c dotnet ...` よりも、小さな Windows PowerShell ラッパーを使う方が安定する。この環境では、`Start-Process -Wait -PassThru` と stdout/stderr の redirect を使う形の方が、WSL interop 由来の詰まりを切り分けやすい。
 

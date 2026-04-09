@@ -11,6 +11,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
+[Collection(BundledCompanionTextureIsolationGroup.Name)]
 [SuppressMessage(
     "Reliability",
     "CA2000:Dispose objects before losing scope",
