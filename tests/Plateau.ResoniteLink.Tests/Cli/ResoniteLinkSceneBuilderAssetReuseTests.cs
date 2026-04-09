@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -213,121 +211,35 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncAllowsConcurrentBuildersToPersistLiveAssetStateInSameWorkRoot()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        CapturedScene firstScene = new(
-            metadata,
-            [CreateTriangleCityObject(
-                objectIdentity: "shared-work-root-one",
-                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
-        CapturedScene secondScene = new(
-            metadata,
-            [CreateTriangleCityObject(
-                objectIdentity: "shared-work-root-two",
-                mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"))]);
-        string workRoot = Path.Combine(datasetDirectory.Path, "work");
-
-        using ReuseSessionSharedClient firstClient = new();
-        using ReuseSessionSharedClient secondClient = new();
-
-        await Task.WhenAll(
-            BuildSceneOnceAsync(firstScene, firstClient, workRoot),
-            BuildSceneOnceAsync(secondScene, secondClient, workRoot));
-
-        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
-        Assert.True(File.Exists(statePath));
-    }
-
-    [Fact]
-    public async Task BuildAsyncPersistsLiveAssetStateOnlyAfterSceneCompletion()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        CapturedScene scene = new(
-            metadata,
-            [CreateTriangleCityObject(
-                objectIdentity: "persist-once-after-complete",
-                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
-        using ReuseSessionSharedClient client = new();
-        using CountingLiveAssetStateStore stateStore = new();
-
-        await using ResoniteLinkSceneBuilder builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            () => client,
-            liveAssetStateStore: stateStore);
-
-        string workRoot = Path.Combine(datasetDirectory.Path, "work");
-        await builder.BeginAsync(scene.Metadata, workRoot);
-        Assert.Equal(1, stateStore.LoadCallCount);
-        Assert.Equal(0, stateStore.PersistCallCount);
-
-        foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects)
-        {
-            await builder.ProcessCityObjectAsync(cityObject);
-        }
-
-        Assert.Equal(0, stateStore.PersistCallCount);
-
-        await builder.CompleteAsync();
-
-        Assert.Equal(1, stateStore.PersistCallCount);
-        Assert.NotEmpty(stateStore.PersistedAssetSourceFingerprints);
-    }
-
-    [Fact]
-    public async Task BuildAsyncReusesPersistedLiveAssetStateAcrossBuilderRuns()
+    public async Task BuildAsyncPlacesMaterialAndTextureComponentsOnSameCommonAssetSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
-        string workRoot = Path.Combine(datasetDirectory.Path, "work");
         string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
         CapturedScene scene = new(
             metadata,
             [CreateBundledTriangleCityObject(
-                objectIdentity: "persisted-live-state",
+                objectIdentity: "same-slot-material-components",
                 texturePath: bundledTexturePath,
                 mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
-
-        ReuseFakeSession session = new();
-        using ReuseSessionSharedClient firstClient = new(session);
-        using ReuseSessionSharedClient secondClient = new(session);
-
-        await BuildSceneOnceAsync(scene, firstClient, workRoot);
-        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
-        Assert.True(File.Exists(statePath));
-
-        int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
-        int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
-
-        await BuildSceneOnceAsync(scene, secondClient, workRoot);
-
-        Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
-        Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
-    }
-
-    [Fact]
-    public async Task BuildAsyncCleansTemporaryLiveAssetStateFileWhenPersistMoveFails()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        CapturedScene scene = new(
-            metadata,
-            [CreateTriangleCityObject(
-                objectIdentity: "persist-failure-cleanup",
-                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
-        string workRoot = Path.Combine(datasetDirectory.Path, "work");
-        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
-        Directory.CreateDirectory(statePath);
         using ReuseSessionSharedClient client = new();
 
-        await Assert.ThrowsAnyAsync<IOException>(() => BuildSceneOnceAsync(scene, client, workRoot));
-        Assert.DoesNotContain(
-            Directory.EnumerateFiles(workRoot, "resonite-live-asset-state.json.*.tmp"),
-            static path => File.Exists(path));
+        await BuildSceneOnceAsync(scene, client, Path.Combine(datasetDirectory.Path, "work"));
+
+        AddComponent materialRequest = Assert.Single(
+            client.AddedComponents,
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
+        AddComponent[] textureRequests = client.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(textureRequests);
+        Assert.All(textureRequests, request => Assert.Equal(materialRequest.ContainerSlotId, request.ContainerSlotId));
+        Slot materialSlot = client.SlotsById[materialRequest.ContainerSlotId];
+        Assert.Equal("triangle-textured-material", materialSlot.Name?.Value);
+        Assert.NotNull(materialSlot.Parent);
+        Slot parentSlot = client.SlotsById[materialSlot.Parent!.TargetID];
+        Assert.Equal("Common", parentSlot.Name?.Value);
     }
 
     private static async Task BuildSceneOnceAsync(
@@ -724,41 +636,6 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         ResoniteConstructionMetadata Metadata,
         IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
 
-    private sealed class CountingLiveAssetStateStore : IResoniteLiveAssetStateStore
-    {
-        public int LoadCallCount { get; private set; }
-
-        public int PersistCallCount { get; private set; }
-
-        public IReadOnlyDictionary<string, string> PersistedAssetSourceFingerprints { get; private set; } =
-            new Dictionary<string, string>(StringComparer.Ordinal);
-
-        public Task PersistAsync(
-            string? statePath,
-            ConcurrentDictionary<string, string>? assetSourceFingerprints,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            PersistCallCount++;
-            PersistedAssetSourceFingerprints = assetSourceFingerprints is null
-                ? new Dictionary<string, string>(StringComparer.Ordinal)
-                : new Dictionary<string, string>(assetSourceFingerprints, StringComparer.Ordinal);
-            return Task.CompletedTask;
-        }
-
-        public Task<ConcurrentDictionary<string, string>> LoadAsync(
-            string statePath,
-            CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            LoadCallCount++;
-            return Task.FromResult(new ConcurrentDictionary<string, string>(StringComparer.Ordinal));
-        }
-
-        public void Dispose()
-        {
-        }
-    }
 }
 
 [CollectionDefinition(BundledCompanionTextureIsolationGroup.Name, DisableParallelization = true)]
