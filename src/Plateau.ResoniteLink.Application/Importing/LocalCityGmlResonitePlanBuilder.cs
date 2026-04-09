@@ -24,6 +24,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
+
     private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
         X: Math.Sqrt(0.5),
         Y: 0.0,
