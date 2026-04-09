@@ -124,6 +124,13 @@ public sealed class CliApplicationTests
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
 
+        public Task EnsureConnectedAsync(
+            PlateauImportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task BeginAsync(
             ResoniteConstructionMetadata metadata,
             string workRoot,

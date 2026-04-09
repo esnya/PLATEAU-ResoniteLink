@@ -38,17 +38,23 @@ public sealed class PlateauImportService(
         ReportProgress(
             $"[import] Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'.");
 
-        Stopwatch sourceStopwatch = Stopwatch.StartNew();
-        IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
-            resolvedRequest,
-            progressReporter,
-            cancellationToken);
-        sourceStopwatch.Stop();
-        ReportProgress(
-            $"[import] Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s.");
-
         try
         {
+            Stopwatch connectStopwatch = Stopwatch.StartNew();
+            await sceneBuilder.EnsureConnectedAsync(resolvedRequest, cancellationToken);
+            connectStopwatch.Stop();
+            ReportProgress(
+                $"[import] Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s.");
+
+            Stopwatch sourceStopwatch = Stopwatch.StartNew();
+            IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
+                resolvedRequest,
+                progressReporter,
+                cancellationToken);
+            sourceStopwatch.Stop();
+            ReportProgress(
+                $"[import] Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s.");
+
             Stopwatch beginStopwatch = Stopwatch.StartNew();
             await sceneBuilder.BeginAsync(source.Metadata, workRoot, cancellationToken);
             beginStopwatch.Stop();
