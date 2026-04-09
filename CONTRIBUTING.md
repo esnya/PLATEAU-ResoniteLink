@@ -11,6 +11,18 @@ Before opening a PR:
 - Update the matching `.ja.md` file when you change an English Markdown document.
 - Add or update tests when behavior changes.
 
+GitHub Releases are the canonical changelog. Create release tags as `vX.Y.Z`; each tag publishes a framework-dependent CLI zip asset and generates release notes from merged pull requests.
+
+Release labels are optional, but using them keeps generated notes readable:
+
+- `feature`, `enhancement`: user-facing additions
+- `fix`, `bug`, `bugfix`: behavior fixes
+- `documentation`, `docs`, `meta`, `chore`: docs and maintenance
+- `test`, `tests`, `internal`, `refactor`, `ci`, `build`: internal validation and infrastructure work
+- `skip-release-notes`: omit a PR from generated notes when it should stay out of the changelog
+
+Unlabeled PRs fall through to the catch-all `Other changes` section in the generated release notes.
+
 For Codex Cloud / ephemeral agents where `dotnet` is missing, run `./scripts/setup-codex-cloud.sh` to bootstrap SDK 10 and execute the standard checks.
 
 If you can, run:

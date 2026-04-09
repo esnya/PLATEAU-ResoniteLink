@@ -4,7 +4,9 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデー�
 
 インポート挙動と用語は、[PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) を参考にしています。
 
-リリースタグは `vX.Y.Z` 形式を使います。ビルド成果物の `Version`、`AssemblyVersion`、`FileVersion`、`InformationalVersion` はそのタグから決定し、アセンブリの数値バージョンには `v` prefix を含めません。
+この repository の changelog 正本は GitHub Releases です。リリースタグは `vX.Y.Z` 形式を使います。ビルド成果物の `Version`、`AssemblyVersion`、`FileVersion`、`InformationalVersion` はそのタグから決定し、アセンブリの数値バージョンには `v` prefix を含めません。
+
+各 tagged release では、framework-dependent の CLI asset `Plateau.ResoniteLink-cli-vX.Y.Z.zip` を公開します。この asset を実行するには .NET 10 の runtime または SDK が必要で、展開先 directory で `dotnet Plateau.ResoniteLink.Cli.dll --help` を実行できます。
 
 ## Scope
 
@@ -21,6 +23,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) のデー�
 ## Runtime And Prerequisites
 
 - 対象 runtime: .NET SDK 10。
+- release asset の runtime 前提: GitHub Release の zip は framework-dependent なので .NET 10 が必要。
 - 前提: `--resonitelink-port` または `--resonitelink-url` で到達できる ResoniteLink listener が起動していること。
 - live test 手順: [docs/live-testing.ja.md](docs/live-testing.ja.md) を参照。
 - default material と DEM terrain imagery の出所・追跡情報: [docs/default-materials.ja.md](docs/default-materials.ja.md)、`THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`、`THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` を参照。

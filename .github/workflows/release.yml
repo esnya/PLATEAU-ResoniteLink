@@ -1,0 +1,100 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore
+        run: dotnet restore Plateau.ResoniteLink.sln --locked-mode
+
+      - name: Format
+        run: dotnet format whitespace . --folder --verify-no-changes
+
+      - name: Test
+        run: dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 -p:UseSharedCompilation=false
+
+      - name: Compute release metadata
+        id: metadata
+        run: |
+          set -euo pipefail
+          current_tag="${GITHUB_REF_NAME}"
+          previous_tag="$(git tag --sort=-version:refname | grep -Fxv "${current_tag}" | head -n 1 || true)"
+          echo "previous_tag=${previous_tag}" >> "${GITHUB_OUTPUT}"
+          echo "asset_name=Plateau.ResoniteLink-cli-${current_tag}.zip" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish CLI
+        run: dotnet publish src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj --configuration Release --no-restore --output artifacts/release/publish
+
+      - name: Add asset readme
+        env:
+          CURRENT_TAG: ${{ github.ref_name }}
+        run: |
+          cat > artifacts/release/publish/README.txt <<EOF
+          Plateau.ResoniteLink CLI ${CURRENT_TAG}
+
+          This release asset is framework-dependent and requires .NET 10.
+
+          Quick start:
+            dotnet Plateau.ResoniteLink.Cli.dll --help
+
+          Canonical changelog:
+            https://github.com/${{ github.repository }}/releases/tag/${CURRENT_TAG}
+          EOF
+
+      - name: Archive CLI asset
+        env:
+          ASSET_NAME: ${{ steps.metadata.outputs.asset_name }}
+        run: |
+          set -euo pipefail
+          cd artifacts/release/publish
+          zip -r "../${ASSET_NAME}" .
+
+      - name: Prepare release notes header
+        env:
+          CURRENT_TAG: ${{ github.ref_name }}
+          PREVIOUS_TAG: ${{ steps.metadata.outputs.previous_tag }}
+        run: ./scripts/prepare-release-notes.sh "${CURRENT_TAG}" "${PREVIOUS_TAG}" artifacts/release/notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_TAG: ${{ github.ref_name }}
+          PREVIOUS_TAG: ${{ steps.metadata.outputs.previous_tag }}
+          ASSET_NAME: ${{ steps.metadata.outputs.asset_name }}
+        run: |
+          set -euo pipefail
+          args=(
+            release create "${CURRENT_TAG}"
+            "artifacts/release/${ASSET_NAME}#Plateau.ResoniteLink CLI ${CURRENT_TAG}"
+            --verify-tag
+            --title "${CURRENT_TAG}"
+            --generate-notes
+            --notes "$(cat artifacts/release/notes.md)"
+            --latest
+          )
+
+          if [[ -n "${PREVIOUS_TAG}" ]]; then
+            args+=(--notes-start-tag "${PREVIOUS_TAG}")
+          fi
+
+          gh "${args[@]}"
