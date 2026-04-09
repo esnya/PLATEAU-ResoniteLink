@@ -1885,7 +1885,6 @@ public sealed class PlateauImportServiceTests
             .Distinct()
             .ToArray();
 
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 0.0));
         Assert.True(
             facadeUvs.Max(static uv => uv.X) - facadeUvs.Min(static uv => uv.X) >= 5.0 - 1e-4,
             "Expected facade UVs to span the wall width.");
@@ -1959,6 +1958,28 @@ public sealed class PlateauImportServiceTests
                 material.TexturePath,
                 "default-materials/facade/PaintedPlaster012_2K-JPG_Color.jpg",
                 StringComparison.Ordinal));
+
+        int facadeSubmeshIndex = Assert.Single(facadeMaterials[0].SubmeshIndices);
+        ResoniteMeshSubmesh facadeSubmesh = Assert.Single(
+            building.Mesh.Submeshes,
+            submesh => submesh.Index == facadeSubmeshIndex);
+        ((double, double, double) Position, (double, double)[] Uvs)[] duplicatePositionUvs = facadeSubmesh.TriangleVertexIndices
+            .Select(index => building.Mesh.Vertices[index])
+            .GroupBy(
+                static vertex => (
+                    Round(vertex.Position.X),
+                    Round(vertex.Position.Y),
+                    Round(vertex.Position.Z)))
+            .Select(group => (
+                Position: group.Key,
+                Uvs: group
+                    .Select(static vertex => (Round(vertex.UV0.X), Round(vertex.UV0.Y)))
+                    .Distinct()
+                    .ToArray()))
+            .Where(static entry => entry.Uvs.Length > 1)
+            .ToArray();
+
+        Assert.Empty(duplicatePositionUvs);
     }
 
     [Fact]
@@ -4004,6 +4025,11 @@ public sealed class PlateauImportServiceTests
     private static bool Approximately(double actual, double expected)
     {
         return Math.Abs(actual - expected) < 1e-4;
+    }
+
+    private static double Round(double value)
+    {
+        return Math.Round(value, 6);
     }
 
     private static void CreateZipArchiveFromDirectory(string sourceDirectory, string archivePath)

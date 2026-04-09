@@ -1641,8 +1641,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     surface,
                     packageName,
                     cityObjectOrigin,
-                    cityObjectCartesian,
-                    material.TextureScale)
+                    cityObjectCartesian)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateSurfaceTessellatedRings(
             surface,
@@ -1828,8 +1827,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ParsedSurface surface,
         string packageName,
         GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian,
-        ResoniteFloat2? textureScale)
+        LocalCartesian? cityObjectCartesian)
     {
         ResoniteFloat3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
@@ -1852,33 +1850,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
-        double minU = double.PositiveInfinity;
-        double minV = double.PositiveInfinity;
-        double maxU = double.NegativeInfinity;
-        double maxV = double.NegativeInfinity;
-
-        foreach (GeodeticPoint vertex in surface.Vertices)
-        {
-            ResoniteFloat3 position = CreateResonitePosition(vertex, cityObjectOrigin, cityObjectCartesian);
-            double u = Dot(position, surfaceAxes.AxisU);
-            double v = Dot(position, surfaceAxes.AxisV);
-            minU = Math.Min(minU, u);
-            minV = Math.Min(minV, v);
-            maxU = Math.Max(maxU, u);
-            maxV = Math.Max(maxV, v);
-        }
-
-        return new SurfaceUvProjection(
-            surfaceAxes.AxisU,
-            surfaceAxes.AxisV,
-            minU,
-            minV,
-            Math.Max(maxU - minU, 1e-8),
-            Math.Max(maxV - minV, 1e-8),
-            surfaceAxes.AlignWidthToTextureScale
-                ? AlignTextureSpan(Math.Max(maxU - minU, 1e-8), textureScale?.X)
-                : Math.Max(maxU - minU, 1e-8),
-            AlignTextureSpan(Math.Max(maxV - minV, 1e-8), textureScale?.Y));
+        return new SurfaceUvProjection(surfaceAxes.AxisU, surfaceAxes.AxisV);
     }
 
     private static ResoniteFloat2 CreateGeneratedSurfaceUv(
@@ -1888,22 +1860,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
         SurfaceUvProjection projection)
     {
         ResoniteFloat3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
-        double u = ((Dot(position, projection.AxisU) - projection.MinU) / projection.Width) * projection.AlignedWidth;
-        double v = ((Dot(position, projection.AxisV) - projection.MinV) / projection.Height) * projection.AlignedHeight;
+        double u = Dot(position, projection.AxisU);
+        double v = Dot(position, projection.AxisV);
         return new ResoniteFloat2(u, v);
-    }
-
-    private static double AlignTextureSpan(double span, double? tilesPerMeter)
-    {
-        if (!tilesPerMeter.HasValue
-            || tilesPerMeter.Value <= 1e-8
-            || span <= 1e-8)
-        {
-            return span;
-        }
-
-        double repeats = Math.Max(1.0, Math.Round(span * tilesPerMeter.Value, MidpointRounding.AwayFromZero));
-        return repeats / tilesPerMeter.Value;
     }
 
     private static SurfaceUvAxes? TryCreateSurfaceUvAxes(ResoniteFloat3 normal)
@@ -1912,7 +1871,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 facadeAxisU = Cross(verticalAxis, normal);
         if (Magnitude(facadeAxisU) >= 1e-8)
         {
-            return new SurfaceUvAxes(Normalize(facadeAxisU), verticalAxis, AlignWidthToTextureScale: true);
+            return new SurfaceUvAxes(Normalize(facadeAxisU), verticalAxis);
         }
 
         ResoniteFloat3[] referenceAxes =
@@ -1937,7 +1896,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 continue;
             }
 
-            return new SurfaceUvAxes(axisU, Normalize(axisV), AlignWidthToTextureScale: true);
+            return new SurfaceUvAxes(axisU, Normalize(axisV));
         }
 
         return null;
@@ -1985,7 +1944,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
-        return new SurfaceUvAxes(axisU, Normalize(axisV), AlignWidthToTextureScale: true);
+        return new SurfaceUvAxes(axisU, Normalize(axisV));
     }
 
     private static bool IsBuildingPackage(string packageName)
@@ -3996,18 +3955,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private sealed record SurfaceUvAxes(
         ResoniteFloat3 AxisU,
-        ResoniteFloat3 AxisV,
-        bool AlignWidthToTextureScale);
+        ResoniteFloat3 AxisV);
 
     private sealed record SurfaceUvProjection(
         ResoniteFloat3 AxisU,
-        ResoniteFloat3 AxisV,
-        double MinU,
-        double MinV,
-        double Width,
-        double Height,
-        double AlignedWidth,
-        double AlignedHeight);
+        ResoniteFloat3 AxisV);
 
     private enum ParsedSurfaceSemantic
     {
