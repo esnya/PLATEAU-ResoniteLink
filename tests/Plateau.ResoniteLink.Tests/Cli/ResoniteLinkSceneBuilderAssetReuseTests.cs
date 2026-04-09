@@ -579,9 +579,6 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
                         if (rawImport.SourcePath is not null)

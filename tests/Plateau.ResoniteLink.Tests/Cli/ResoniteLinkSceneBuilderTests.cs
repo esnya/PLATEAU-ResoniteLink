@@ -372,6 +372,9 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["Uncompressed"]).Value);
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["DirectLoad"]).Value);
         Assert.False(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["MipMaps"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["WrapModeU"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["WrapModeV"]).Value);
+        Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["FilterMode"]).Value);
         Assert.DoesNotContain("SourceFingerprint", heightTextureRequest.Data.Members.Keys);
 
         string reliefSlotId = fakeClient.BuildingSlotIds["Relief One"];

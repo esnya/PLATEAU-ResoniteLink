@@ -2,6 +2,9 @@ using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Plateau.ResoniteLink.Tests.Cli;
 
 public sealed class ResoniteTextureImportResolverTests
@@ -12,9 +15,8 @@ public sealed class ResoniteTextureImportResolverTests
         using TemporaryDirectory datasetRoot = new();
         using TemporaryDirectory workRoot = new();
 
-        string relativeTexturePath = "textures/albedo.bin";
-        byte[] sourceBytes = [1, 2, 3, 4, 5, 6];
-        WriteDatasetFile(datasetRoot.Path, relativeTexturePath, sourceBytes);
+        string relativeTexturePath = "textures/albedo.png";
+        WriteDatasetImage(datasetRoot.Path, relativeTexturePath);
         FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
         StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
 
@@ -37,8 +39,9 @@ public sealed class ResoniteTextureImportResolverTests
         Assert.Equal(1, datasetContentSource.MaterializeCount);
         Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
 
-        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(firstResolution);
-        Assert.StartsWith(workRoot.Path, fileImport.AbsolutePath, StringComparison.Ordinal);
+        ResoniteRawTextureImport rawImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution);
+        Assert.StartsWith(workRoot.Path, rawImport.SourcePath, StringComparison.Ordinal);
+        Assert.Equal(ResoniteTextureColorProfiles.Srgb, rawImport.ColorProfile);
     }
 
     [Fact]
@@ -85,11 +88,12 @@ public sealed class ResoniteTextureImportResolverTests
         Assert.Equal("sRGB", rawTextureImport.ColorProfile);
     }
 
-    private static void WriteDatasetFile(string datasetRoot, string relativePath, byte[] contents)
+    private static void WriteDatasetImage(string datasetRoot, string relativePath)
     {
         string absolutePath = Path.Combine(datasetRoot, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
-        File.WriteAllBytes(absolutePath, contents);
+        using Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255));
+        image.SaveAsPng(absolutePath);
     }
 
     private sealed class FakeDatasetContentSource(string sourceRoot) : IPlateauDatasetContentSource

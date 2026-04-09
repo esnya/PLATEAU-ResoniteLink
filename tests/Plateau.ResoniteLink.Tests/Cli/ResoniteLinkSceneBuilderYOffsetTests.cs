@@ -532,9 +532,6 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         ImportedRawTextures.Add(rawImport);
                         if (rawImport.SourcePath is not null)

@@ -1164,13 +1164,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportProgress(
             $"[live] HeightMap '{preparedGeometry.Geometry.Width}x{preparedGeometry.Geometry.Height}' importing displacement texture "
             + "via raw payload.");
-        await UpsertDedicatedAssetComponentUrlAsync(
+        await UpsertHeightMapTextureComponentAsync(
             client,
             meshAssetSlotId,
             heightTextureId,
-            "[FrooxEngine]FrooxEngine.StaticTexture2D",
-            "URL",
-            () => client.ImportTextureAsync(preparedGeometry.HeightTextureImport, cancellationToken),
+            preparedGeometry.HeightTextureImport,
             cancellationToken);
         ReportProgress(
             $"[live] HeightMap texture imported for '{objectIdentity}'. Updating StaticTexture2D settings.");
@@ -1178,13 +1176,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             client,
             heightTextureId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
-            {
-                ["Readable"] = new Field_bool { Value = true },
-                ["Uncompressed"] = new Field_bool { Value = true },
-                ["DirectLoad"] = new Field_bool { Value = true },
-                ["MipMaps"] = new Field_bool { Value = false },
-            },
+            CreateHeightMapTextureMembers(includeSamplingMembers: true),
             cancellationToken);
 
         double displacementMagnitude = Math.Max(
@@ -1228,6 +1220,93 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         ReportProgress($"[live] GridMesh ready for '{objectIdentity}'.");
         return gridMeshId;
+    }
+
+    private async Task UpsertHeightMapTextureComponentAsync(
+        IResoniteLinkClient client,
+        string containerSlotId,
+        string componentId,
+        ResoniteRawHdrTextureImport textureImport,
+        CancellationToken cancellationToken)
+    {
+        Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
+        ReportProgress(
+            $"[live] Importing asset for component '{componentId}' ([FrooxEngine]FrooxEngine.StaticTexture2D).");
+        Uri assetUri = await client.ImportTextureAsync(textureImport, cancellationToken);
+        ReportProgress(
+            $"[live] Asset import completed for component '{componentId}' ([FrooxEngine]FrooxEngine.StaticTexture2D) -> '{assetUri}'.");
+
+        if (existingComponent is not null)
+        {
+            await UpdateComponentMembersAsync(
+                client,
+                componentId,
+                "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                CreateHeightMapTextureMembers(includeSamplingMembers: false, assetUri),
+                cancellationToken);
+            return;
+        }
+
+        await AddHeightMapTextureComponentAsync(
+            client,
+            containerSlotId,
+            componentId,
+            assetUri,
+            cancellationToken);
+    }
+
+    private async Task AddHeightMapTextureComponentAsync(
+        IResoniteLinkClient client,
+        string containerSlotId,
+        string componentId,
+        Uri assetUri,
+        CancellationToken cancellationToken)
+    {
+        ReportProgress(
+            $"[live] Adding asset component '{componentId}' ([FrooxEngine]FrooxEngine.StaticTexture2D) to slot '{containerSlotId}'.");
+        await client.AddComponentAsync(
+            new AddComponent
+            {
+                ContainerSlotId = containerSlotId,
+                Data = new Component
+                {
+                    ID = componentId,
+                    ComponentType = "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                    Members = CreateHeightMapTextureMembers(includeSamplingMembers: true, assetUri),
+                },
+            },
+            cancellationToken);
+    }
+
+    private static Dictionary<string, Member> CreateHeightMapTextureMembers(
+        bool includeSamplingMembers,
+        Uri? assetUri = null)
+    {
+        Dictionary<string, Member> members = new(StringComparer.Ordinal)
+        {
+            ["Readable"] = new Field_bool { Value = true },
+            ["Uncompressed"] = new Field_bool { Value = true },
+            ["DirectLoad"] = new Field_bool { Value = true },
+            ["MipMaps"] = new Field_bool { Value = false },
+        };
+
+        if (assetUri is not null)
+        {
+            members["URL"] = new Field_Uri
+            {
+                Value = assetUri,
+            };
+        }
+
+        if (!includeSamplingMembers)
+        {
+            return members;
+        }
+
+        members["WrapModeU"] = new Field_Enum { Value = "Clamp" };
+        members["WrapModeV"] = new Field_Enum { Value = "Clamp" };
+        members["FilterMode"] = new Field_Nullable_Enum { Value = "Point" };
+        return members;
     }
 
     private async Task UpsertComponentMembersAsync(
@@ -2149,7 +2228,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private sealed record PreparedHeightMapGridGeometry(
         ResoniteHeightMapGridGeometry Geometry,
-        ResoniteTextureImport HeightTextureImport)
+        ResoniteRawHdrTextureImport HeightTextureImport)
         : PreparedConstructionGeometry;
 
     private sealed record PreparedCityObject(

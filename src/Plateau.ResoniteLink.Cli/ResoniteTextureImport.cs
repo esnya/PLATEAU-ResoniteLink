@@ -1,8 +1,15 @@
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Plateau.ResoniteLink.Cli;
 
 internal abstract record ResoniteTextureImport;
 
-internal sealed record ResoniteFileTextureImport(string AbsolutePath) : ResoniteTextureImport;
+internal static class ResoniteTextureColorProfiles
+{
+    public const string Linear = "Linear";
+    public const string Srgb = "sRGB";
+}
 
 internal sealed record ResoniteRawTextureImport(
     int Width,
@@ -18,9 +25,22 @@ internal sealed record ResoniteRawHdrTextureImport(
 
 internal static class ResoniteTextureImportFactory
 {
-    public static ResoniteFileTextureImport CreateFromFile(string absolutePath)
+    public static async Task<ResoniteRawTextureImport> CreateRawFromFileAsync(
+        string absolutePath,
+        string colorProfile = ResoniteTextureColorProfiles.Srgb,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
-        return new ResoniteFileTextureImport(absolutePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
+
+        using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(absolutePath, cancellationToken);
+        byte[] rawBytes = new byte[image.Width * image.Height * 4];
+        image.CopyPixelDataTo(rawBytes);
+        return new ResoniteRawTextureImport(
+            image.Width,
+            image.Height,
+            colorProfile,
+            rawBytes,
+            absolutePath);
     }
 }

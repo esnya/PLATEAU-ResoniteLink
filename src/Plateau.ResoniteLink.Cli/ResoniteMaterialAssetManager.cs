@@ -115,7 +115,12 @@ internal sealed class ResoniteMaterialAssetManager(
                     normalTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath), cancellationToken),
+                    async () => await client.ImportTextureAsync(
+                        await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                            textureSet.NormalPath,
+                            ResoniteTextureColorProfiles.Linear,
+                            cancellationToken),
+                        cancellationToken),
                     cancellationToken);
                 materialMembers["NormalMap"] = new Reference
                 {
@@ -137,7 +142,12 @@ internal sealed class ResoniteMaterialAssetManager(
                     heightTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath), cancellationToken),
+                    async () => await client.ImportTextureAsync(
+                        await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                            textureSet.HeightPath,
+                            ResoniteTextureColorProfiles.Linear,
+                            cancellationToken),
+                        cancellationToken),
                     cancellationToken);
                 materialMembers["HeightMap"] = new Reference
                 {
@@ -158,7 +168,12 @@ internal sealed class ResoniteMaterialAssetManager(
                     metallicTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath), cancellationToken),
+                    async () => await client.ImportTextureAsync(
+                        await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                            textureSet.MetallicPath,
+                            ResoniteTextureColorProfiles.Linear,
+                            cancellationToken),
+                        cancellationToken),
                     cancellationToken);
                 Reference metallicReference = new()
                 {
@@ -180,7 +195,12 @@ internal sealed class ResoniteMaterialAssetManager(
                     emissionTextureComponentId,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     "URL",
-                    () => client.ImportTextureAsync(ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath), cancellationToken),
+                    async () => await client.ImportTextureAsync(
+                        await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                            textureSet.EmissionPath,
+                            ResoniteTextureColorProfiles.Srgb,
+                            cancellationToken),
+                        cancellationToken),
                     cancellationToken);
                 materialMembers["EmissiveMap"] = new Reference
                 {

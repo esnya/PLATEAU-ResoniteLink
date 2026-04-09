@@ -65,6 +65,9 @@ internal sealed class ResoniteTextureImportResolver
             _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
         };
 
-        return ResoniteTextureImportFactory.CreateFromFile(absoluteTexturePath);
+        return await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+            absoluteTexturePath,
+            ResoniteTextureColorProfiles.Srgb,
+            cancellationToken);
     }
 }
