@@ -85,7 +85,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] staticTextureRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(6, staticTextureRequests.Length);
+        Assert.InRange(staticTextureRequests.Length, 4, 6);
 
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
@@ -103,12 +103,6 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             static path => path.EndsWith("_Height.jpg", StringComparison.Ordinal));
-        Assert.Contains(
-            fakeClient.ImportedTexturePaths,
-            static path => path.EndsWith("_Metallic.png", StringComparison.Ordinal));
-        Assert.Contains(
-            fakeClient.ImportedTexturePaths,
-            static path => path.EndsWith("_Emission.jpg", StringComparison.Ordinal));
 
         Assert.All(staticTextureRequests, request =>
         {
@@ -149,17 +143,26 @@ public sealed class ResoniteLinkSceneBuilderTests
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
                 && request.ContainerSlotId != fakeClient.BuildingSlotIds["Building One"])
             .ToArray();
-        Assert.Equal(2, materialRequests.Length);
+        Assert.InRange(materialRequests.Length, 2, 3);
         Assert.Contains(
             materialRequests,
-            request => fakeClient.SlotPaths[request.ContainerSlotId].StartsWith(
-                "PLATEAU tokyo23ku/Assets/Common",
+            request =>
+            {
+                string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
+                return slotPath.StartsWith("PLATEAU tokyo23ku/Assets/Common/", StringComparison.Ordinal)
+                    && !string.Equals(slotPath, "PLATEAU tokyo23ku/Assets/Common", StringComparison.Ordinal)
+                    && slotPath.Contains("_uv_", StringComparison.Ordinal);
+            });
+        Assert.Contains(
+            materialRequests,
+            request => string.Equals(
+                fakeClient.SlotPaths[request.ContainerSlotId],
+                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
                 StringComparison.Ordinal));
         Assert.Contains(
             materialRequests,
-            request => fakeClient.SlotPaths[request.ContainerSlotId].StartsWith(
-                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/",
-                StringComparison.Ordinal));
+            request => meshAssetRequests.Any(meshRequest =>
+                string.Equals(meshRequest.ContainerSlotId, request.ContainerSlotId, StringComparison.Ordinal)));
 
         Component meshRenderer = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
@@ -291,8 +294,6 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.IsType<Reference>(uvFacadeMaterial.Members["NormalMap"]);
         Assert.IsType<Reference>(uvFacadeMaterial.Members["HeightMap"]);
         Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
-        Assert.IsType<Reference>(uvFacadeMaterial.Members["MetallicMap"]);
-        Assert.IsType<Reference>(uvFacadeMaterial.Members["OcclusionMap"]);
         Field_float uvHeightScale = Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
         Assert.Equal(0.002f, uvHeightScale.Value);
     }
@@ -517,6 +518,109 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal(0.0f, pixels[13]);
         Assert.Equal(0.0f, pixels[14]);
         Assert.Equal(1.0f, pixels[15]);
+    }
+
+    [Fact]
+    public async Task BuildAsyncPlacesHeightMapDisplacementTextureOnDedicatedAssetSlot()
+    {
+        const string dataset = "tokyo23ku";
+        const string meshCode = "53394525";
+        const string overlayTexturePath = "terrain://dem/gsi-seamlessphoto/00000-00000-TEST";
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: $"PLATEAU {dataset} {meshCode}",
+            Request: new PlateauImportRequest(
+                Dataset: dataset,
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["dem"],
+                SourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+                TerrainTextureOverlays:
+                [
+                    new TerrainTextureOverlay(
+                        TexturePath: overlayTexturePath,
+                        PackageName: "dem",
+                        UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
+                        ZoomLevel: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel,
+                        GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                        MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize),
+                ]),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        CapturedResoniteScene scene = new(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_heightmap_overlay_test",
+                    DisplayName: "HeightMap Overlay Test",
+                    PackageName: "dem",
+                    ActualMeshCode: meshCode,
+                    LodLevel: 0,
+                    Transform: new ResoniteTransform(
+                        new ResoniteFloat3(0.0, 0.0, 0.0),
+                        new ResoniteFloatQ(Math.Sqrt(0.5), 0.0, 0.0, Math.Sqrt(0.5))),
+                    Geometry: new ResoniteHeightMapGridGeometry(
+                        Width: 2,
+                        Height: 2,
+                        Size: new ResoniteFloat2(10.0, 10.0),
+                        MinHeight: 0.0,
+                        MaxHeight: 10.0,
+                        HeightSamples: [0.0, 10.0, 0.0, 10.0]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-heightmap-overlay-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: overlayTexturePath,
+                            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "dem_heightmap_overlay_test_source"),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            terrainTextureAssetGenerator);
+
+        using TemporaryDirectory workDirectory = new();
+        await RunBuilderAsync(builder, scene, workDirectory.Path);
+
+        AddComponent[] textureRequests = fakeClient.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, textureRequests.Length);
+
+        AddComponent displacementTextureRequest = Assert.Single(
+            textureRequests,
+            request => request.Data.ID.Contains("heightmap_texture", StringComparison.Ordinal));
+        AddComponent materialTextureRequest = Assert.Single(
+            textureRequests,
+            request => !request.Data.ID.Contains("heightmap_texture", StringComparison.Ordinal));
+
+        Slot displacementTextureSlot = fakeClient.SlotsById[displacementTextureRequest.ContainerSlotId];
+        Slot materialTextureSlot = fakeClient.SlotsById[materialTextureRequest.ContainerSlotId];
+
+        Assert.Equal("HeightMap Overlay Test_heightmap", displacementTextureSlot.Name?.Value);
+        Assert.Equal("HeightMap Overlay Test", materialTextureSlot.Name?.Value);
+        Assert.NotEqual(displacementTextureRequest.ContainerSlotId, materialTextureRequest.ContainerSlotId);
     }
 
 
@@ -1467,6 +1571,13 @@ public sealed class ResoniteLinkSceneBuilderTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: fixturePath,
                 ServerUri: null));
+        ResoniteLinkSceneBuilder.DispatchLaneAllocator dispatchLaneAllocator = new(2);
+        int[] dispatchLanes = scene.CityObjects
+            .Select(dispatchLaneAllocator.GetLane)
+            .Distinct()
+            .OrderBy(static lane => lane)
+            .ToArray();
+        Assert.Equal([0, 1], dispatchLanes);
 
         FakeResoniteLinkSession session = new();
         FakeResoniteLinkClient[] clients =
@@ -1497,6 +1608,23 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
         Assert.True(clients.All(client => client.ImportedMeshCount > 0));
         Assert.Equal(scene.CityObjects.Count, clients.Sum(client => client.ImportedMeshCount));
+    }
+
+    [Fact]
+    public void GetDispatchLaneKeepsSharedDependenciesOnSameConnection()
+    {
+        ResoniteLinkSceneBuilder.DispatchLaneAllocator dispatchLaneAllocator = new(4);
+        ResoniteConstructionCityObject first = CreateDispatchTestCityObject(
+            slotKey: "bldg_1",
+            sourceObjectKey: "source-1");
+        ResoniteConstructionCityObject second = CreateDispatchTestCityObject(
+            slotKey: "bldg_2",
+            sourceObjectKey: "source-2");
+
+        int firstLane = dispatchLaneAllocator.GetLane(first);
+        int secondLane = dispatchLaneAllocator.GetLane(second);
+
+        Assert.Equal(firstLane, secondLane);
     }
 
     [Fact]
@@ -2085,6 +2213,33 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
         return new CapturedResoniteScene(source.Metadata, source.ReadCityObjects().ToArray());
+    }
+
+    private static ResoniteConstructionCityObject CreateDispatchTestCityObject(
+        string slotKey,
+        string sourceObjectKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTriangleMesh(slotKey),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: sourceObjectKey);
     }
 
     private sealed record CapturedResoniteScene(

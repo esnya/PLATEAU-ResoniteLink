@@ -8,7 +8,6 @@ using ResoniteLink;
 namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteMaterialAssetManager(
-    string dataset,
     Func<string, string, string, string, Func<Task<Uri>>, string, CancellationToken, Task<Uri>> ensureAssetComponentUrlKnownAsync,
     Func<string, string, string, CancellationToken, Task> ensureAssetSlotKnownAsync,
     Func<string, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> ensureComponentKnownAsync,
@@ -22,24 +21,20 @@ internal sealed class ResoniteMaterialAssetManager(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTexturePathsByKey,
-        string materialAssetSlotId,
+        string materialSlotId,
+        string? materialSlotParentId,
+        string materialSlotName,
         string materialInstanceKey,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(material);
         ArgumentNullException.ThrowIfNull(preparedTexturePathsByKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(materialAssetSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
         ArgumentException.ThrowIfNullOrWhiteSpace(materialInstanceKey);
 
-        string materialSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            dataset,
-            "materialslot",
-            materialInstanceKey);
-        string materialId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
-            dataset,
-            "materialasset",
-            materialInstanceKey);
+        string materialId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "material");
         ReportProgress($"[live] Material '{material.MaterialKey}' queued.");
         return await materialComponentTasks.GetOrAdd(
             materialInstanceKey,
@@ -48,8 +43,9 @@ internal sealed class ResoniteMaterialAssetManager(
                     client,
                     material,
                     preparedTexturePathsByKey,
-                    materialAssetSlotId,
                     materialSlotId,
+                    materialSlotParentId,
+                    materialSlotName,
                     materialInstanceKey,
                     materialId,
                     cancellationToken),
@@ -60,19 +56,23 @@ internal sealed class ResoniteMaterialAssetManager(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<string, (ResoniteTextureImport TextureImport, string SourceFingerprint)> preparedTexturePathsByKey,
-        string materialAssetsParentSlotId,
         string materialSlotId,
+        string? materialSlotParentId,
+        string materialSlotName,
         string materialInstanceKey,
         string materialId,
         CancellationToken cancellationToken)
     {
-        await ensureAssetSlotKnownAsync(materialSlotId, materialAssetsParentSlotId, material.MaterialKey, cancellationToken);
+        if (materialSlotParentId is not null)
+        {
+            await ensureAssetSlotKnownAsync(materialSlotId, materialSlotParentId, materialSlotName, cancellationToken);
+        }
 
-        string textureComponentId = CreateAssetComponentId(materialSlotId, "albedo");
-        string emissionTextureComponentId = CreateAssetComponentId(materialSlotId, "emission");
-        string heightTextureComponentId = CreateAssetComponentId(materialSlotId, "height");
-        string metallicTextureComponentId = CreateAssetComponentId(materialSlotId, "metallic");
-        string normalTextureComponentId = CreateAssetComponentId(materialSlotId, "normal");
+        string textureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "albedo");
+        string emissionTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "emission");
+        string heightTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "height");
+        string metallicTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "metallic");
+        string normalTextureComponentId = CreateAssetComponentId(materialSlotId, materialInstanceKey, "normal");
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
         string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
@@ -209,9 +209,9 @@ internal sealed class ResoniteMaterialAssetManager(
         return materialId;
     }
 
-    private static string CreateAssetComponentId(string assetSlotId, string role)
+    private static string CreateAssetComponentId(string assetSlotId, string materialInstanceKey, string role)
     {
-        return $"{assetSlotId}_{role}";
+        return $"{assetSlotId}_{materialInstanceKey}_{role}";
     }
 
     internal static string CreateTextureCacheKey(string? texturePath, ResoniteTextureSourceKind textureSourceKind)

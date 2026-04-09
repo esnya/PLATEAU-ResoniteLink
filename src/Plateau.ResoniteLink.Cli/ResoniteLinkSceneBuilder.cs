@@ -19,6 +19,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const int MaxQueuedCityObjects = 4;
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
+    private const string HeightMapAssetSlotSuffix = "_heightmap";
     private const double SlotPositionTolerance = 0.0001;
     private static readonly ConcurrentDictionary<string, string> AssetSourceFingerprints = new(StringComparer.Ordinal);
     private readonly Func<IResoniteLinkClient> clientFactory;
@@ -40,8 +41,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ConcurrentDictionary<string, Lazy<Task>>? slotEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task>>? componentEnsureTasks;
     private ConcurrentDictionary<string, Lazy<Task<Uri>>>? assetComponentEnsureTasks;
+    private DispatchLaneAllocator? dispatchLaneAllocator;
     private ResoniteTextureImportResolver? textureImportResolver;
-    private Channel<QueuedCityObject>? cityObjectChannel;
+    private Channel<QueuedCityObject>[]? cityObjectChannels;
     private Task[]? processingTasks;
     private int processedCityObjectCount;
     private Stopwatch? sceneBuildStopwatch;
@@ -132,8 +134,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         slotEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         componentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
         assetComponentEnsureTasks = new ConcurrentDictionary<string, Lazy<Task<Uri>>>(StringComparer.Ordinal);
+        dispatchLaneAllocator = new DispatchLaneAllocator(connectionCount);
         materialAssetManager = new ResoniteMaterialAssetManager(
-            metadata.Request.Dataset,
             (containerSlotId, componentId, componentType, uriMemberName, importAssetAsync, sourceFingerprint, ct) =>
                 EnsureAssetComponentUrlKnownAsync(
                     setupClient,
@@ -169,13 +171,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             generatedAssetsRoot,
             metadata.SourceDataset.TerrainTextureOverlays,
             terrainTextureAssetGenerator);
-        cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
-            new BoundedChannelOptions(Math.Max(MaxQueuedCityObjects, connectionCount))
-            {
-                SingleReader = false,
-                SingleWriter = false,
-                FullMode = BoundedChannelFullMode.Wait,
-            });
+        cityObjectChannels = clients
+            .Select(_ => Channel.CreateBounded<QueuedCityObject>(
+                new BoundedChannelOptions(Math.Max(MaxQueuedCityObjects, connectionCount))
+                {
+                    SingleReader = true,
+                    SingleWriter = false,
+                    FullMode = BoundedChannelFullMode.Wait,
+                }))
+            .ToArray();
         processedCityObjectCount = 0;
         sceneBuildStopwatch = Stopwatch.StartNew();
         firstQueuedCityObjectLogged = 0;
@@ -183,7 +187,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstBuiltCityObjectLogged = 0;
         diagnostics.StartSendWindow(connectionCount);
         processingTasks = clients
-            .Select(client => ProcessQueuedCityObjectsAsync(cityObjectChannel.Reader, client, cancellationToken))
+            .Zip(
+                cityObjectChannels,
+                (client, channel) => ProcessQueuedCityObjectsAsync(channel.Reader, client, cancellationToken))
             .ToArray();
 
         await EnsureSlotKnownAsync(
@@ -294,7 +300,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(clients is null, this);
         ObjectDisposedException.ThrowIf(metadata is null, this);
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
-        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
 
         await AwaitProcessingTasksIfCompletedAsync();
 
@@ -306,7 +312,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
         }
 
-        await cityObjectChannel.Writer.WriteAsync(
+        ObjectDisposedException.ThrowIf(dispatchLaneAllocator is null, this);
+
+        int dispatchLane = dispatchLaneAllocator.GetLane(cityObject);
+        await cityObjectChannels[dispatchLane].Writer.WriteAsync(
             new QueuedCityObject(cityObject, preparationTask),
             cancellationToken);
         await AwaitProcessingTasksIfCompletedAsync();
@@ -315,10 +324,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     public async Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(meshCodeSlotId is null, this);
-        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
 
-        cityObjectChannel.Writer.TryComplete();
+        foreach (Channel<QueuedCityObject> channel in cityObjectChannels)
+        {
+            channel.Writer.TryComplete();
+        }
+
         await Task.WhenAll(processingTasks).WaitAsync(cancellationToken);
         diagnostics.CompleteSendWindow();
         ReportProgress($"[live] Completed {processedCityObjectCount} city objects.");
@@ -327,7 +340,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     public async ValueTask DisposeAsync()
     {
-        cityObjectChannel?.Writer.TryComplete();
+        if (cityObjectChannels is not null)
+        {
+            foreach (Channel<QueuedCityObject> channel in cityObjectChannels)
+            {
+                channel.Writer.TryComplete();
+            }
+        }
+
         if (processingTasks is not null)
         {
             try
@@ -360,8 +380,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         slotEnsureTasks = null;
         componentEnsureTasks = null;
         assetComponentEnsureTasks = null;
+        dispatchLaneAllocator = null;
         textureImportResolver = null;
-        cityObjectChannel = null;
+        cityObjectChannels = null;
         processingTasks = null;
         sceneBuildStopwatch = null;
     }
@@ -597,6 +618,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             metadata.Request.Dataset,
             rootMeshCode,
             meshAssetLogicalKey);
+        string heightMapAssetLogicalKey = CreateHeightMapAssetLogicalKey(meshAssetLogicalKey);
+        string heightMapAssetSlotId = GetAssetSlotId(
+            metadata.Request.Dataset,
+            rootMeshCode,
+            heightMapAssetLogicalKey);
         string rendererId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
             rootMeshCode,
@@ -646,11 +672,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             meshAssetLogicalKey,
             assetLodSlotId,
             cancellationToken);
+        if (preparedCityObject.Geometry is PreparedHeightMapGridGeometry)
+        {
+            await EnsureAssetSlotKnownAsync(
+                client,
+                heightMapAssetSlotId,
+                assetLodSlotId,
+                heightMapAssetLogicalKey,
+                cancellationToken);
+        }
 
         ReportBuildStep(cityObject, $"Ensuring geometry component ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
         string geometryComponentId = await EnsureGeometryComponentAsync(
             client,
-            meshAssetSlotId,
+            preparedCityObject.Geometry is PreparedHeightMapGridGeometry ? heightMapAssetSlotId : meshAssetSlotId,
             cityObjectSlotId,
             metadata.Request.Dataset,
             rootMeshCode,
@@ -671,17 +706,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ReportBuildStep(
                 cityObject,
                 $"Ensuring material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
-            string materialParentSlotId = ShouldUseCommonMaterialAssets(material)
-                ? commonAssetsSlotId
-                : assetLodSlotId;
+            bool useCommonMaterialAssets = ShouldUseCommonMaterialAssets(material);
             string materialInstanceKey = CreateScopedMaterialInstanceKey(
                 material,
-                materialParentSlotId == commonAssetsSlotId ? null : materialParentSlotId);
+                useCommonMaterialAssets ? null : meshAssetSlotId);
+            string materialSlotId = useCommonMaterialAssets
+                ? GetCommonMaterialAssetSlotId(metadata.Request.Dataset, materialInstanceKey)
+                : meshAssetSlotId;
+            string? materialSlotParentId = useCommonMaterialAssets ? commonAssetsSlotId : null;
+            string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets);
             string materialId = await materialAssetManager.EnsureMaterialComponentAsync(
                 client,
                 material,
                 preparedTextureDataByKey,
-                materialParentSlotId,
+                materialSlotId,
+                materialSlotParentId,
+                materialSlotName,
                 materialInstanceKey,
                 cancellationToken);
             materialIds.Add(materialId);
@@ -779,6 +819,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return cityObject.SourceObjectKey ?? cityObject.SlotKey;
     }
 
+    private static string CreateDispatchDependencyKey(ResoniteConstructionCityObject cityObject)
+    {
+        string lodKey = cityObject.LodLevel.HasValue
+            ? cityObject.LodLevel.Value.ToString(CultureInfo.InvariantCulture)
+            : "none";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{lodKey}");
+    }
+
     private static string CreateScopedMaterialInstanceKey(ResoniteMaterialBinding material, string? scopeKey)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -837,6 +887,31 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private static bool ShouldUseCommonMaterialAssets(ResoniteMaterialBinding material)
     {
         return material.TextureSourceKind == ResoniteTextureSourceKind.Bundled;
+    }
+
+    private static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        if (!useCommonMaterialAssets)
+        {
+            return material.MaterialKey;
+        }
+
+        string projectionName = material.Projection switch
+        {
+            ResoniteMaterialProjection.Uv => "uv",
+            ResoniteMaterialProjection.Triplanar => "triplanar",
+            _ => material.Projection.ToString().ToLowerInvariant(),
+        };
+
+        string sourceName = material.TexturePath is not null
+            ? Path.GetFileNameWithoutExtension(material.TexturePath).Replace("_Color", string.Empty, StringComparison.Ordinal)
+            : material.MaterialType.ToString();
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{material.MaterialKey}_{projectionName}_{sourceName}");
     }
 
     private static bool IsDemPackage(string packageName)
@@ -1961,9 +2036,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "asset", meshCode, logicalKey);
     }
 
+    private static string GetCommonMaterialAssetSlotId(string dataset, string logicalKey)
+    {
+        return ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "commonasset", logicalKey);
+    }
+
     private static string CreateMeshAssetLogicalKey(ResoniteConstructionCityObject cityObject)
     {
         return cityObject.DisplayName;
+    }
+
+    private static string CreateHeightMapAssetLogicalKey(string meshAssetLogicalKey)
+    {
+        return string.Concat(meshAssetLogicalKey, HeightMapAssetSlotSuffix);
     }
 
     private sealed record SlotDefinition(
@@ -1978,6 +2063,34 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string ComponentId,
         string ComponentType,
         IReadOnlyDictionary<string, Member> Members);
+
+    internal sealed class DispatchLaneAllocator
+    {
+        private readonly int connectionCount;
+        private readonly ConcurrentDictionary<string, int> lanesByDependencyKey = new(StringComparer.Ordinal);
+        private int nextLane = -1;
+
+        public DispatchLaneAllocator(int connectionCount)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(connectionCount, 1);
+            this.connectionCount = connectionCount;
+        }
+
+        public int GetLane(ResoniteConstructionCityObject cityObject)
+        {
+            ArgumentNullException.ThrowIfNull(cityObject);
+
+            if (connectionCount == 1)
+            {
+                return 0;
+            }
+
+            string dependencyKey = CreateDispatchDependencyKey(cityObject);
+            return lanesByDependencyKey.GetOrAdd(
+                dependencyKey,
+                _ => Interlocked.Increment(ref nextLane) % connectionCount);
+        }
+    }
 
     private sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,
