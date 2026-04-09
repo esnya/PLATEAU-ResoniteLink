@@ -100,6 +100,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         this.metadata = metadata;
         string resolvedWorkRoot = Path.GetFullPath(workRoot);
+        Directory.CreateDirectory(resolvedWorkRoot);
         generatedAssetsRoot = Path.Combine(resolvedWorkRoot, ".generated-assets");
         liveAssetStatePath = Path.Combine(resolvedWorkRoot, LiveAssetStateFileName);
         datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
@@ -1716,7 +1717,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             string directory = Path.GetDirectoryName(liveAssetStatePath) ?? ".";
             Directory.CreateDirectory(directory);
-            string temporaryPath = $"{liveAssetStatePath}.tmp";
+            string temporaryPath = Path.Combine(
+                directory,
+                $"{Path.GetFileName(liveAssetStatePath)}.{Guid.NewGuid():N}.tmp");
             LiveAssetState state = new(
                 assetSourceFingerprints.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
                     .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal));

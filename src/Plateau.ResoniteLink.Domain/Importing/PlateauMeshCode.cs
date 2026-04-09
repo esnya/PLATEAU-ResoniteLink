@@ -45,6 +45,11 @@ public static class PlateauMeshCode
         {
             int secondLatitudeIndex = int.Parse(meshCode[4].ToString(), CultureInfo.InvariantCulture);
             int secondLongitudeIndex = int.Parse(meshCode[5].ToString(), CultureInfo.InvariantCulture);
+            if (secondLatitudeIndex > 7 || secondLongitudeIndex > 7)
+            {
+                return false;
+            }
+
             latitudeSpan /= 8.0;
             longitudeSpan /= 8.0;
             southLatitude += secondLatitudeIndex * latitudeSpan;

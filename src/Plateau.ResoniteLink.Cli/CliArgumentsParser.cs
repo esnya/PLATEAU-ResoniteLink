@@ -240,6 +240,12 @@ public static class CliArgumentsParser
                                     $"The value '{serverUrl}' is not a valid absolute URL.");
                             }
 
+                            if (!LooksLikeSupportedArchiveUri(serverUri))
+                            {
+                                return CliParseResult.Failure(
+                                    "The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
+                            }
+
                             break;
                         }
                     case "--exclude-lod":
@@ -276,27 +282,14 @@ public static class CliArgumentsParser
                         }
                     default:
                         {
-                            // Check for package-specific pattern options like --tran-pattern
-                            bool foundPatternOption = false;
-                            foreach (string pkg in PlateauPackageCatalog.SupportedPackageNames)
+                            if (TryParsePackagePatternOption(token, args, ref index, out string? normalizedPackageName, out string? patternValue))
                             {
-                                string optionPrefix = $"--{pkg}-pattern";
-                                if (token.Equals(optionPrefix, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    string patternValue = ReadValue(args, ref index, token);
-                                    packagePatterns ??= new();
-                                    packagePatterns[pkg] = patternValue;
-                                    foundPatternOption = true;
-                                    break;
-                                }
+                                packagePatterns ??= new(StringComparer.OrdinalIgnoreCase);
+                                packagePatterns[normalizedPackageName!] = patternValue!;
+                                break;
                             }
 
-                            if (!foundPatternOption)
-                            {
-                                return CliParseResult.Failure($"Unknown option '{token}'.");
-                            }
-
-                            break;
+                            return CliParseResult.Failure($"Unknown option '{token}'.");
                         }
                 }
             }
@@ -516,6 +509,47 @@ public static class CliArgumentsParser
 
         exclusionMap = normalizedMap.Count > 0 ? normalizedMap : null;
         return true;
+    }
+
+    private static bool TryParsePackagePatternOption(
+        string token,
+        string[] args,
+        ref int index,
+        out string? normalizedPackageName,
+        out string? patternValue)
+    {
+        normalizedPackageName = null;
+        patternValue = null;
+
+        const string suffix = "-pattern";
+        if (!token.StartsWith("--", StringComparison.Ordinal)
+            || !token.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string packageName = token[2..^suffix.Length];
+        if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string? normalized))
+        {
+            return false;
+        }
+
+        normalizedPackageName = normalized;
+        patternValue = ReadValue(args, ref index, token);
+        return true;
+    }
+
+    private static bool LooksLikeSupportedArchiveUri(Uri serverUri)
+    {
+        if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string extension = Path.GetExtension(serverUri.AbsolutePath);
+        return string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static string GetCurrentOsDirectoryName()

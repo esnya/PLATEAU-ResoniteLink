@@ -91,12 +91,25 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   build `
   --dataset <dataset> `
   --mesh-code <mesh-code> `
-  --source <local-or-remote> `
+  --source local `
+  --local-source-path <dataset-root> `
   --resonitelink-port <port>
 ```
 
-If `--source local` is used, also pass `--local-source-path <dataset-root>`. The value follows the Unity SDK `LocalSourcePath` naming and may point at a dataset directory, a ZIP/7z archive, or an ancestor directory that contains one nested dataset root with `udx/`.
-If `--source remote` is used, `--server-url` must point directly to an official PLATEAU CityGML ZIP/7z archive. The CLI does not perform dataset search. The downloaded archive is cached under `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/`, and the cache is reused across mesh-code changes as long as the archive URL stays the same. The cached data can later be reused through `--source local --local-source-path ...`.
+For remote mode, swap the source-specific arguments:
+
+```powershell
+dotnet run --project src/Plateau.ResoniteLink.Cli -- `
+  build `
+  --dataset <dataset> `
+  --mesh-code <mesh-code> `
+  --source remote `
+  --server-url <direct-citygml-zip-or-7z-url> `
+  --resonitelink-port <port>
+```
+
+`--local-source-path <dataset-root>` follows the Unity SDK `LocalSourcePath` naming and may point at a dataset directory, a ZIP/7z archive, or an ancestor directory that contains one nested dataset root with `udx/`.
+`--server-url` must point directly to an official PLATEAU CityGML ZIP/7z archive. The CLI does not perform dataset search. The downloaded archive is cached under `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/`, and the cache is reused across mesh-code changes as long as the archive URL stays the same. The cached data can later be reused through `--source local --local-source-path ...`.
 
 For long-running sends, prefer a small Windows PowerShell wrapper over an inline `cmd.exe /c dotnet ...` command. In this environment, a wrapper that uses `Start-Process -Wait -PassThru` plus redirected stdout/stderr is easier to observe and less likely to get stuck on WSL interop details.
 
