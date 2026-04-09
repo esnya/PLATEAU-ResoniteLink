@@ -4,6 +4,10 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public interface IResoniteSceneBuilder : IAsyncDisposable
 {
+    Task EnsureConnectedAsync(
+        PlateauImportRequest request,
+        CancellationToken cancellationToken = default);
+
     Task BeginAsync(
         ResoniteConstructionMetadata metadata,
         string workRoot,

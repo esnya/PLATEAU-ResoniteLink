@@ -27,6 +27,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly ResoniteLiveAssetStateStore liveAssetStateStore;
+    private readonly SemaphoreSlim clientInitializationGate = new(1, 1);
     private readonly Action<string>? progressReporter;
     private List<IResoniteLinkClient>? clients;
     private ResoniteConstructionMetadata? metadata;
@@ -88,6 +89,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         this.progressReporter = progressReporter;
     }
 
+    public async Task EnsureConnectedAsync(
+        PlateauImportRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        await EnsureClientsConnectedAsync(request, cancellationToken);
+    }
+
     public async Task BeginAsync(
         ResoniteConstructionMetadata metadata,
         string workRoot,
@@ -119,13 +129,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             "assetgroup",
             "common");
 
-        clients = Enumerable.Range(0, connectionCount)
-            .Select(_ =>
-            {
-                IResoniteLinkClient client = clientFactory();
-                return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
-            })
-            .ToList();
+        await EnsureClientsConnectedAsync(metadata.Request, cancellationToken);
+        ObjectDisposedException.ThrowIf(clients is null, this);
         IResoniteLinkClient setupClient = clients[0];
         licenseManager = new ResoniteLicenseManager(metadata.Attribution);
         slotEnsureTasks = new ConcurrentDictionary<string, Lazy<Task>>(StringComparer.Ordinal);
@@ -175,12 +180,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstPreparedCityObjectLogged = 0;
         firstBuiltCityObjectLogged = 0;
         diagnostics.StartSendWindow(connectionCount);
-        await Task.WhenAll(clients.Select(client => client.ConnectAsync(endpoint, cancellationToken)));
         processingTasks = clients
             .Select(client => ProcessQueuedCityObjectsAsync(cityObjectChannel.Reader, client, cancellationToken))
             .ToArray();
-        ReportProgress(
-            $"[live] Connected {connectionCount} ResoniteLink sessions to {endpoint} for dataset '{metadata.Request.Dataset}' mesh '{metadata.Request.MeshCode}'.");
 
         await EnsureSlotKnownAsync(
             setupClient,
@@ -215,6 +217,49 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await EnsureSlotKnownAsync(setupClient, datasetAssetsSlotId, datasetSlotId, "Assets", null, null, cancellationToken);
         await EnsureSlotKnownAsync(setupClient, commonAssetsSlotId, datasetAssetsSlotId, CommonAssetsSlotName, null, null, cancellationToken);
         ReportProgress("[live] Dataset slots and asset groups are ready.");
+    }
+
+    private async Task EnsureClientsConnectedAsync(
+        PlateauImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        await clientInitializationGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (clients is not null)
+            {
+                return;
+            }
+
+            List<IResoniteLinkClient> createdClients = Enumerable.Range(0, connectionCount)
+                .Select(_ =>
+                {
+                    IResoniteLinkClient client = clientFactory();
+                    return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
+                })
+                .ToList();
+
+            try
+            {
+                await Task.WhenAll(createdClients.Select(client => client.ConnectAsync(endpoint, cancellationToken)));
+                clients = createdClients;
+                ReportProgress(
+                    $"[live] Connected {connectionCount} ResoniteLink sessions to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'.");
+            }
+            catch
+            {
+                foreach (IResoniteLinkClient client in createdClients)
+                {
+                    client.Dispose();
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            clientInitializationGate.Release();
+        }
     }
 
     public async Task ProcessCityObjectAsync(

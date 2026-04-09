@@ -1762,6 +1762,7 @@ public sealed class PlateauImportServiceTests
             workRoot: "runtime/resonite");
 
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Resolved dataset source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scene builder connection check completed", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scanned ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Parsed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Prepared construction source", StringComparison.Ordinal));
@@ -1803,9 +1804,141 @@ public sealed class PlateauImportServiceTests
         Assert.Single(sceneBuilder.CityObjects);
     }
 
+    [Fact]
+    public async Task ExecuteAsyncEnsuresSceneBuilderConnectionBeforeConstructionSourceBootstrap()
+    {
+        List<string> callOrder = [];
+        StubResoniteSceneBuilder sceneBuilder = new()
+        {
+            OnEnsureConnected = () => callOrder.Add("connect"),
+            OnBegin = () => callOrder.Add("begin"),
+        };
+
+        RecordingConstructionSourceFactory constructionSourceFactory = new(
+            CreateStubConstructionSource(),
+            onCreate: () => callOrder.Add("create-source"));
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite");
+
+        Assert.Equal(["connect", "create-source", "begin"], callOrder);
+        Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncDisposesSceneBuilderWhenConstructionSourceBootstrapFailsAfterConnect()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        FailingConstructionSourceFactory constructionSourceFactory = new(new InvalidOperationException("bootstrap failed"));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Remote,
+                    LocalSourcePath: null,
+                    ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+                workRoot: "runtime/resonite"));
+
+        Assert.Equal("bootstrap failed", exception.Message);
+        Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
+        Assert.Equal(1, sceneBuilder.DisposeCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncStopsBeforeConstructionSourceBootstrapWhenConnectionCheckFails()
+    {
+        List<string> callOrder = [];
+        StubResoniteSceneBuilder sceneBuilder = new()
+        {
+            OnEnsureConnected = () => callOrder.Add("connect"),
+            OnBegin = () => callOrder.Add("begin"),
+            EnsureConnectedException = new InvalidOperationException("connect failed"),
+        };
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(
+            CreateStubConstructionSource(),
+            onCreate: () => callOrder.Add("create-source"));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Remote,
+                    LocalSourcePath: null,
+                    ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+                workRoot: "runtime/resonite"));
+
+        Assert.Equal("connect failed", exception.Message);
+        Assert.Equal(["connect"], callOrder);
+        Assert.Empty(constructionSourceFactory.Requests);
+        Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
+        Assert.Equal(1, sceneBuilder.DisposeCallCount);
+    }
+
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public int EnsureConnectedCallCount { get; private set; }
+        public int DisposeCallCount { get; private set; }
+        public Action? OnEnsureConnected { get; set; }
+        public Action? OnBegin { get; set; }
+        public Exception? EnsureConnectedException { get; set; }
+
+        public Task EnsureConnectedAsync(
+            PlateauImportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            EnsureConnectedCallCount++;
+            OnEnsureConnected?.Invoke();
+            if (EnsureConnectedException is not null)
+            {
+                throw EnsureConnectedException;
+            }
+
+            return Task.CompletedTask;
+        }
 
         public Task BeginAsync(
             ResoniteConstructionMetadata metadata,
@@ -1814,6 +1947,7 @@ public sealed class PlateauImportServiceTests
         {
             ArgumentNullException.ThrowIfNull(metadata);
             ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
+            OnBegin?.Invoke();
             return Task.CompletedTask;
         }
 
@@ -1833,6 +1967,7 @@ public sealed class PlateauImportServiceTests
 
         public ValueTask DisposeAsync()
         {
+            DisposeCallCount++;
             return ValueTask.CompletedTask;
         }
     }
@@ -1851,7 +1986,9 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class RecordingConstructionSourceFactory(IResoniteConstructionSource source)
+    private sealed class RecordingConstructionSourceFactory(
+        IResoniteConstructionSource source,
+        Action? onCreate = null)
         : IResoniteConstructionSourceFactory
     {
         public List<PlateauImportRequest> Requests { get; } = [];
@@ -1862,8 +1999,21 @@ public sealed class PlateauImportServiceTests
             CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            onCreate?.Invoke();
             progressReporter?.Invoke("[import] Parsed 1 city object from stub source in 0.000s.");
             return Task.FromResult(source);
+        }
+    }
+
+    private sealed class FailingConstructionSourceFactory(Exception exception)
+        : IResoniteConstructionSourceFactory
+    {
+        public Task<IResoniteConstructionSource> CreateAsync(
+            PlateauImportRequest request,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromException<IResoniteConstructionSource>(exception);
         }
     }
 
