@@ -34,7 +34,7 @@ public sealed class CliArgumentsParserTests
             Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
             result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-        Assert.Equal(1, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.False(result.Options.EnableSendMetrics);
     }
 
