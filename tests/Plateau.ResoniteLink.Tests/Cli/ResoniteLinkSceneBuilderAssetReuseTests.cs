@@ -269,6 +269,27 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
     }
 
+    [Fact]
+    public async Task BuildAsyncCleansTemporaryLiveAssetStateFileWhenPersistMoveFails()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        CapturedScene scene = new(
+            metadata,
+            [CreateTriangleCityObject(
+                objectIdentity: "persist-failure-cleanup",
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+        string workRoot = Path.Combine(datasetDirectory.Path, "work");
+        string statePath = Path.Combine(workRoot, "resonite-live-asset-state.json");
+        Directory.CreateDirectory(statePath);
+        using ReuseSessionSharedClient client = new();
+
+        await Assert.ThrowsAnyAsync<IOException>(() => BuildSceneOnceAsync(scene, client, workRoot));
+        Assert.DoesNotContain(
+            Directory.EnumerateFiles(workRoot, "resonite-live-asset-state.json.*.tmp"),
+            static path => File.Exists(path));
+    }
+
     private static async Task BuildSceneOnceAsync(
         CapturedScene scene,
         ReuseSessionSharedClient client,

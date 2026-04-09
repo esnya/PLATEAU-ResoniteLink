@@ -1720,16 +1720,40 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             string temporaryPath = Path.Combine(
                 directory,
                 $"{Path.GetFileName(liveAssetStatePath)}.{Guid.NewGuid():N}.tmp");
-            LiveAssetState state = new(
-                assetSourceFingerprints.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-                    .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal));
-            string json = JsonSerializer.Serialize(state, LiveAssetStateJsonContext.Default.LiveAssetState);
-            await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
-            File.Move(temporaryPath, liveAssetStatePath, overwrite: true);
+            try
+            {
+                LiveAssetState state = new(
+                    assetSourceFingerprints.OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+                        .ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.Ordinal));
+                string json = JsonSerializer.Serialize(state, LiveAssetStateJsonContext.Default.LiveAssetState);
+                await File.WriteAllTextAsync(temporaryPath, json, cancellationToken);
+                File.Move(temporaryPath, liveAssetStatePath, overwrite: true);
+            }
+            finally
+            {
+                TryDeleteTemporaryAssetStateFile(temporaryPath);
+            }
         }
         finally
         {
             assetStateWriteLock.Release();
+        }
+    }
+
+    private static void TryDeleteTemporaryAssetStateFile(string temporaryPath)
+    {
+        try
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 
