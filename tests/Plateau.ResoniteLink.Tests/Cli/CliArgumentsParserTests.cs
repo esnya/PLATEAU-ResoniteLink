@@ -29,7 +29,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("tokyo23ku", result.Options.Request.Dataset);
         Assert.Equal("53394525", result.Options.Request.MeshCode);
         Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
-        Assert.Equal(PlateauPackageCatalog.CliDefaultPackageNames, result.Options.Request.PackageNames);
+        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
         Assert.Equal(
             Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
             result.Options.WorkRoot);

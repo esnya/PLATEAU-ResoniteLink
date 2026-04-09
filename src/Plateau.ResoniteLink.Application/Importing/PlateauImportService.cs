@@ -101,7 +101,7 @@ public sealed class PlateauImportService(
         {
             Dataset = TrimToEmpty(request.Dataset),
             MeshCode = TrimToEmpty(request.MeshCode),
-            LocalSourcePath = string.IsNullOrWhiteSpace(request.LocalSourcePath) ? null : request.LocalSourcePath.Trim(),
+            Source = NormalizeSourceForValidation(request.Source),
             PackageNames = request.PackageNames is null
                 ? null
                 : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
@@ -111,6 +111,23 @@ public sealed class PlateauImportService(
     private static string TrimToEmpty(string? value)
     {
         return value?.Trim() ?? string.Empty;
+    }
+
+    private static PlateauImportSource NormalizeSourceForValidation(PlateauImportSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        return source switch
+        {
+            PlateauLocalImportSource localSource => new PlateauLocalImportSource(
+                string.IsNullOrWhiteSpace(localSource.LocalSourcePath)
+                    ? null
+                    : localSource.LocalSourcePath.Trim()),
+            PlateauRemoteImportSource remoteSource => remoteSource.ServerUri is null
+                ? new PlateauRemoteImportSource(null)
+                : remoteSource,
+            _ => source,
+        };
     }
 
     private static PlateauImportRequest NormalizeRequest(PlateauImportRequest request)

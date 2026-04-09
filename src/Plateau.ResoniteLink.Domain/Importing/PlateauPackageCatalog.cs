@@ -85,21 +85,6 @@ public static class PlateauPackageCatalog
         "wwy",
     ];
 
-    public static readonly string[] CliDefaultPackageNames =
-    [
-        "dem",
-        "bldg",
-        "brid",
-        "frn",
-        "tran",
-        "rwy",
-        "trk",
-        "tun",
-        "ubld",
-        "unf",
-        "veg",
-    ];
-
     private static readonly Dictionary<string, string> PackageAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

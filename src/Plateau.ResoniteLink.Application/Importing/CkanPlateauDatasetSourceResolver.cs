@@ -32,24 +32,30 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        if (request.SourceKind == DatasetSourceKind.Local)
+        if (request.Source is PlateauLocalImportSource)
         {
             return request;
         }
 
-        if (request.ServerUri is null)
+        if (request.Source is not PlateauRemoteImportSource remoteSource)
         {
             throw new PlateauImportValidationException(
                 ["Remote import requires --server-url to point directly to a .zip or .7z CityGML archive. Built-in dataset search is not supported."]);
         }
 
-        if (!LooksLikeSupportedArchiveUri(request.ServerUri))
+        if (remoteSource.ServerUri is null)
         {
             throw new PlateauImportValidationException(
-                [$"The direct archive URL '{request.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
+                ["Remote import requires --server-url to point directly to a .zip or .7z CityGML archive. Built-in dataset search is not supported."]);
         }
 
-        Uri archiveUri = request.ServerUri;
+        if (!LooksLikeSupportedArchiveUri(remoteSource.ServerUri))
+        {
+            throw new PlateauImportValidationException(
+                [$"The direct archive URL '{remoteSource.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
+        }
+
+        Uri archiveUri = remoteSource.ServerUri;
 
         string safeDataset = CreateSafePathSegment(request.Dataset);
         string safeMeshCode = CreateSafePathSegment(request.MeshCode);
@@ -69,8 +75,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             {
                 return request with
                 {
-                    SourceKind = DatasetSourceKind.Local,
-                    LocalSourcePath = archivePath,
+                    Source = new PlateauLocalImportSource(archivePath),
                 };
             }
         }
@@ -79,8 +84,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
         return request with
         {
-            SourceKind = DatasetSourceKind.Local,
-            LocalSourcePath = archivePath,
+            Source = new PlateauLocalImportSource(archivePath),
         };
     }
 
