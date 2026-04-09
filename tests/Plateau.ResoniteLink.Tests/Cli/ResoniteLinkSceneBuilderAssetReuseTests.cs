@@ -114,7 +114,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncReimportsBundledCompanionTexturesWhenContentsChangeInSameSession()
+    public async Task BuildAsyncDoesNotReimportBundledCompanionTexturesWhenContentsChangeInSameSession()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
@@ -167,7 +167,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     [secondCityObject]);
 
                 await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-                Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
+                Assert.Equal(importedTexturesAfterFirstRun, sharedClient.ImportedTexturePaths.Count);
             }
             finally
             {
@@ -236,7 +236,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.NotEmpty(textureRequests);
         Assert.All(textureRequests, request => Assert.Equal(materialRequest.ContainerSlotId, request.ContainerSlotId));
         Slot materialSlot = client.SlotsById[materialRequest.ContainerSlotId];
-        Assert.Equal("triangle-textured-material", materialSlot.Name?.Value);
+        Assert.StartsWith("triangle-textured-material_uv_", materialSlot.Name?.Value, StringComparison.Ordinal);
         Assert.NotNull(materialSlot.Parent);
         Slot parentSlot = client.SlotsById[materialSlot.Parent!.TargetID];
         Assert.Equal("Common", parentSlot.Name?.Value);

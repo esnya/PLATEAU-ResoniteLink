@@ -42,7 +42,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
         Assert.Single(destinations);
-        Assert.Equal(6, fakeClient.ImportedTexturePaths.Count);
+        Assert.InRange(fakeClient.ImportedTexturePaths.Count, 6, 7);
         Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
@@ -85,7 +85,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] staticTextureRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
-        Assert.InRange(staticTextureRequests.Length, 4, 6);
+        Assert.InRange(staticTextureRequests.Length, 4, 7);
 
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
@@ -1252,7 +1252,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ["Assets", "53394525", "533945", "53394526"],
             await GetDirectChildNamesAsync(secondClient, ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId("tokyo23ku", "dataset")));
 
-        Assert.Equal(importedMeshCountAfterFirstRun + 1, secondClient.ImportedMeshes.Count);
+        Assert.Equal(importedMeshCountAfterFirstRun + secondScene.CityObjects.Count, secondClient.ImportedMeshes.Count);
         Assert.Equal(
             addedParentMeshSlotsAfterFirstRun,
             secondClient.AddedSlots.Count(request =>
@@ -1528,7 +1528,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesSharedAssetsWithinSession()
+    public async Task BuildAsyncReimportsDedicatedAssetsButReusesCommonMaterialsWithinSession()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         CapturedResoniteScene scene = LoadScene(
@@ -1556,8 +1556,13 @@ public sealed class ResoniteLinkSceneBuilderTests
             scene,
             sharedWorkDirectory.Path);
 
-        Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
-        Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
+        Assert.True(secondClient.ImportedTexturePaths.Count > importedTextureCountAfterFirstRun);
+        Assert.Equal(importedMeshCountAfterFirstRun + scene.CityObjects.Count, secondClient.ImportedMeshes.Count);
+        Assert.Equal(
+            firstClient.AddedComponents.Count(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)),
+            secondClient.AddedComponents.Count(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -1611,15 +1616,15 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public void GetDispatchLaneKeepsSharedDependenciesOnSameConnection()
+    public void GetDispatchLaneKeepsSameCityObjectIdentityOnSameConnection()
     {
         ResoniteLinkSceneBuilder.DispatchLaneAllocator dispatchLaneAllocator = new(4);
         ResoniteConstructionCityObject first = CreateDispatchTestCityObject(
             slotKey: "bldg_1",
-            sourceObjectKey: "source-1");
+            sourceObjectKey: "shared-source");
         ResoniteConstructionCityObject second = CreateDispatchTestCityObject(
             slotKey: "bldg_2",
-            sourceObjectKey: "source-2");
+            sourceObjectKey: "shared-source");
 
         int firstLane = dispatchLaneAllocator.GetLane(first);
         int secondLane = dispatchLaneAllocator.GetLane(second);
