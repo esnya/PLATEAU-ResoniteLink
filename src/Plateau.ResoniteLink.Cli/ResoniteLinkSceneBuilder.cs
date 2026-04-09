@@ -28,6 +28,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly ResoniteLiveAssetStateStore liveAssetStateStore;
     private readonly Action<string>? progressReporter;
+    private bool liveAssetStateStoreDisposed;
     private List<IResoniteLinkClient>? clients;
     private ResoniteConstructionMetadata? metadata;
     private string? datasetSlotId;
@@ -106,7 +107,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             "dataset");
         meshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             metadata.Request.Dataset,
-            metadata.Request.MeshCode,
+            GetRequestMeshSelectorEntityKey(metadata.Request.MeshCode),
             "meshcode");
         datasetAssetsSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(
             metadata.Request.Dataset,
@@ -288,6 +289,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
         }
 
+        if (!liveAssetStateStoreDisposed)
+        {
+            liveAssetStateStore.Dispose();
+            liveAssetStateStoreDisposed = true;
+        }
+
         clients = null;
         metadata = null;
         datasetContentSource = null;
@@ -465,6 +472,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         byte[] bytes = Encoding.UTF8.GetBytes(value);
         AppendInt32(incrementalHash, bytes.Length);
         incrementalHash.AppendData(bytes);
+    }
+
+    private static string GetRequestMeshSelectorEntityKey(string meshCode)
+    {
+        if (PlateauMeshCode.TryGetBounds(meshCode, out _))
+        {
+            return meshCode;
+        }
+
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(meshCode));
+        return $"regex-{Convert.ToHexStringLower(hash[..8])}";
     }
 
     private async Task BuildPreparedCityObjectAsync(
@@ -1293,7 +1311,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         string targetMeshCodeSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
             dataset,
-            meshCode,
+            GetRequestMeshSelectorEntityKey(meshCode),
             "meshcode");
         Slot? datasetSlot = await client.GetSlotAsync(datasetSlotId, 1, cancellationToken);
         Slot? referenceSlot = datasetSlot?.Children?

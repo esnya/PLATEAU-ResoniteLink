@@ -1008,6 +1008,27 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncKeepsDistinctRequestSlotsForDifferentRegexSelectors()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+        using TemporaryDirectory sharedWorkDirectory = new();
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            CreateRegexRequestScene("5339452[56]"),
+            sharedWorkDirectory.Path);
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            CreateRegexRequestScene("5339452(56)"),
+            sharedWorkDirectory.Path);
+
+        Assert.Contains("PLATEAU tokyo23ku/5339452[56]", secondClient.SlotPaths.Values);
+        Assert.Contains("PLATEAU tokyo23ku/5339452(56)", secondClient.SlotPaths.Values);
+    }
+
+    [Fact]
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
@@ -1700,17 +1721,27 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private static CapturedResoniteScene CreateRegexRequestScene()
     {
-        return CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        return CreateRegexRequestScene("5339452[56]", new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+    }
+
+    private static CapturedResoniteScene CreateRegexRequestScene(string meshCode)
+    {
+        return CreateRegexRequestScene(meshCode, new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
     }
 
     private static CapturedResoniteScene CreateRegexRequestScene(ResoniteLocalOrigin localOrigin)
     {
+        return CreateRegexRequestScene("5339452[56]", localOrigin);
+    }
+
+    private static CapturedResoniteScene CreateRegexRequestScene(string meshCode, ResoniteLocalOrigin localOrigin)
+    {
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
-            WorldName: "PLATEAU tokyo23ku 5339452[56]",
+            WorldName: $"PLATEAU tokyo23ku {meshCode}",
             Request: new PlateauImportRequest(
                 Dataset: "tokyo23ku",
-                MeshCode: "5339452[56]",
+                MeshCode: meshCode,
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
                 ServerUri: null),

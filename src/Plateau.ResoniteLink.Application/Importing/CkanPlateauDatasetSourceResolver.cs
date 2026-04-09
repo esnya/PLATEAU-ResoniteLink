@@ -58,12 +58,15 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         Uri archiveUri = remoteSource.ServerUri;
 
         string safeDataset = CreateSafePathSegment(request.Dataset);
-        EnsureNoPathTraversal(request.MeshCode, nameof(request.MeshCode));
         string archiveCacheKey = CreateArchiveCacheKey(archiveUri);
         string cacheRoot = GetArchiveCacheRoot(workRoot, safeDataset, archiveCacheKey);
         if (TryCreateSafePathSegment(request.MeshCode, out string? safeMeshCode))
         {
             TryMigrateLegacyArchiveCache(workRoot, safeDataset, safeMeshCode!, archiveCacheKey, cacheRoot);
+        }
+        else
+        {
+            TryMigrateLegacyArchiveCacheForRegex(workRoot, safeDataset, archiveCacheKey, cacheRoot);
         }
 
         Directory.CreateDirectory(cacheRoot);
@@ -407,25 +410,6 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         return normalized;
     }
 
-    private static void EnsureNoPathTraversal(string value, string paramName)
-    {
-        string normalized = value.Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
-        }
-
-        string[] segments = normalized
-            .Split(['/', '\\'], StringSplitOptions.None);
-        if (segments.Length > 1
-            || segments.Any(static segment =>
-                string.Equals(segment, ".", StringComparison.Ordinal)
-                || string.Equals(segment, "..", StringComparison.Ordinal)))
-        {
-            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
-        }
-    }
-
     private static bool TryCreateSafePathSegment(string value, out string? safePathSegment)
     {
         try
@@ -435,8 +419,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
         catch (PlateauImportValidationException)
         {
-            if (value.Contains(Path.DirectorySeparatorChar)
-                || value.Contains(Path.AltDirectorySeparatorChar))
+            if (ContainsExplicitPathTraversal(value))
             {
                 throw;
             }
@@ -444,6 +427,20 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             safePathSegment = null;
             return false;
         }
+    }
+
+    private static bool ContainsExplicitPathTraversal(string value)
+    {
+        string normalized = value.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return true;
+        }
+
+        return normalized.Contains("../", StringComparison.Ordinal)
+            || normalized.Contains("..\\", StringComparison.Ordinal)
+            || normalized.StartsWith("./", StringComparison.Ordinal)
+            || normalized.StartsWith(".\\", StringComparison.Ordinal);
     }
 
     private static string CreateArchiveCacheKey(Uri archiveUri)
@@ -504,7 +501,57 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
         Directory.CreateDirectory(Path.GetDirectoryName(cacheRoot)!);
         Directory.Move(legacyCacheRoot, cacheRoot);
-        TryDeleteDirectory(Path.GetDirectoryName(legacyCacheRoot));
+        TryDeleteEmptyDirectory(Path.GetDirectoryName(legacyCacheRoot));
+    }
+
+    private static void TryMigrateLegacyArchiveCacheForRegex(
+        string workRoot,
+        string safeDataset,
+        string archiveCacheKey,
+        string cacheRoot)
+    {
+        if (Directory.Exists(cacheRoot))
+        {
+            return;
+        }
+
+        string datasetCacheRoot = Path.GetFullPath(Path.Combine(workRoot, "cache", "remote", safeDataset));
+        if (!Directory.Exists(datasetCacheRoot))
+        {
+            return;
+        }
+
+        string? legacyCacheRoot = Directory
+            .EnumerateDirectories(datasetCacheRoot)
+            .Select(directory => Path.Combine(directory, archiveCacheKey))
+            .FirstOrDefault(Directory.Exists);
+        if (legacyCacheRoot is null)
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(cacheRoot)!);
+        Directory.Move(legacyCacheRoot, cacheRoot);
+        TryDeleteEmptyDirectory(Path.GetDirectoryName(legacyCacheRoot));
+    }
+
+    private static void TryDeleteEmptyDirectory(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(path, recursive: false);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)

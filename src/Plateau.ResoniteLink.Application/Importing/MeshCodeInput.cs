@@ -21,6 +21,12 @@ internal static class MeshCodeInput
             return true;
         }
 
+        if (meshCode.All(char.IsDigit))
+        {
+            error = $"The mesh code value '{meshCode}' is not a supported literal mesh code.";
+            return false;
+        }
+
         try
         {
             regex = new Regex(
