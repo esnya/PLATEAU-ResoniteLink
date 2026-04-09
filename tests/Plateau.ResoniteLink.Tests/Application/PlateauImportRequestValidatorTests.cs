@@ -153,4 +153,23 @@ public sealed class PlateauImportRequestValidatorTests
                 "The DEM heightmap max resolution value must be at least 2.",
                 StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void ValidateRejectsInvalidMeshCodeRegex()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "[53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => error.StartsWith(
+                "The mesh code value '[53394525' is not a valid regular expression:",
+                StringComparison.Ordinal));
+    }
 }

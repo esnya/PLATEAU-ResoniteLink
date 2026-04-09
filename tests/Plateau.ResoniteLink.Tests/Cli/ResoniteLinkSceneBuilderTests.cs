@@ -968,6 +968,46 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncUsesMetadataLocalOriginWhenRequestMeshCodeIsRegex()
+    {
+        using FakeResoniteLinkClient fakeClient = new();
+        CapturedResoniteScene scene = CreateRegexRequestScene();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Slot sharedTerrainSlot = fakeClient.SlotsById[fakeClient.BuildingSlotIds["Shared Terrain"]];
+        Field_float3 sharedTerrainPosition = Assert.IsType<Field_float3>(sharedTerrainSlot.Position);
+        Assert.NotEqual(0.0f, sharedTerrainPosition.Value.x);
+    }
+
+    [Fact]
+    public async Task BuildAsyncUpdatesExistingMeshRootPositionWhenRegexOriginChanges()
+    {
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using FakeResoniteLinkClient secondClient = new(session);
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
+            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)));
+        Slot firstRootSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
+        Field_float3 firstRootPosition = Assert.IsType<Field_float3>(firstRootSlot.Position);
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
+            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.70625, 0.0)));
+        Slot updatedRootSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
+        Field_float3 updatedRootPosition = Assert.IsType<Field_float3>(updatedRootSlot.Position);
+
+        Assert.NotEqual(firstRootPosition.Value.x, updatedRootPosition.Value.x);
+    }
+
+    [Fact]
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
@@ -1655,6 +1695,83 @@ public sealed class ResoniteLinkSceneBuilderTests
                             DepthOffset: null,
                             SubmeshIndices: [0]),
                     ]),
+            ]);
+    }
+
+    private static CapturedResoniteScene CreateRegexRequestScene()
+    {
+        return CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+    }
+
+    private static CapturedResoniteScene CreateRegexRequestScene(ResoniteLocalOrigin localOrigin)
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU tokyo23ku 5339452[56]",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "5339452[56]",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg", "dem"],
+                SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: localOrigin);
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_shared",
+                    DisplayName: "Shared Terrain",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "shared-terrain"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: "bldg_53394525",
+                    DisplayName: "Building 25",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("bldg-53394525"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "bldg-53394525",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "building-25"),
             ]);
     }
 

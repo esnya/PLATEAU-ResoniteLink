@@ -201,6 +201,35 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncSupportsRegexMeshCodeSelection()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "5339452[56]",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null,
+                PackageNames: ["bldg", "dem"]),
+            workRoot: "runtime/resonite");
+
+        Assert.Equal("5339452[56]", result.Metadata.Request.MeshCode);
+        Assert.Equal(["bldg", "dem"], result.Metadata.SourceDataset.PackageNames);
+        Assert.Contains(
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Contains(
+            "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+            result.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(35.6875, result.Metadata.LocalOrigin.Latitude, precision: 4);
+        Assert.Equal(139.69375, result.Metadata.LocalOrigin.Longitude, precision: 4);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncNormalizesWhitespacePaddedLocalPathAndPackageMaps()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -1225,6 +1254,27 @@ public sealed class PlateauImportServiceTests
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        Assert.True(Approximately(result.Metadata.LocalOrigin.Latitude, 35.6875));
+        Assert.True(Approximately(result.Metadata.LocalOrigin.Longitude, 139.69375));
+        Assert.True(Approximately(result.Metadata.LocalOrigin.Altitude, 0.0));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesMatchedMeshCodesForRegexLocalOrigin()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "5339452[5]",
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: fixturePath,
                 ServerUri: null),

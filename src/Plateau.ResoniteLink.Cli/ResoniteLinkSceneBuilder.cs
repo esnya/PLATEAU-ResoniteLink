@@ -202,6 +202,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             setupClient,
             metadata.Request.Dataset,
             metadata.Request.MeshCode,
+            metadata.LocalOrigin,
             cancellationToken);
         await EnsureSlotKnownAsync(
             setupClient,
@@ -210,6 +211,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             metadata.Request.MeshCode,
             meshCodeRootPosition,
             null,
+            cancellationToken);
+        await EnsureSlotPositionAsync(
+            setupClient,
+            meshCodeSlotId,
+            datasetSlotId,
+            metadata.Request.MeshCode,
+            meshCodeRootPosition,
             cancellationToken);
 
         await EnsureSlotKnownAsync(setupClient, datasetAssetsSlotId, datasetSlotId, "Assets", null, null, cancellationToken);
@@ -477,9 +485,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             metadata.Request.Dataset,
             rootMeshCode,
             "meshcode");
-        ResoniteFloat3 rootMeshCodePosition = await ResolveMeshCodeRootPositionAsync(client, metadata.Request.Dataset, rootMeshCode, cancellationToken);
+        ResoniteFloat3 rootMeshCodePosition = await ResolveMeshCodeRootPositionAsync(
+            client,
+            metadata.Request.Dataset,
+            rootMeshCode,
+            metadata.LocalOrigin,
+            cancellationToken);
         ResoniteFloat3 cityObjectLocalPosition = ResolveCityObjectLocalPosition(
-            metadata.Request.MeshCode,
+            metadata.LocalOrigin,
             rootMeshCode,
             cityObject.Transform.Position);
         await EnsureSlotKnownAsync(
@@ -489,6 +502,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             rootMeshCode,
             rootMeshCodePosition,
             null,
+            cancellationToken);
+        await EnsureSlotPositionAsync(
+            client,
+            rootMeshCodeSlotId,
+            datasetSlotId,
+            rootMeshCode,
+            rootMeshCodePosition,
             cancellationToken);
 
         string objectIdentity = GetCityObjectIdentity(cityObject);
@@ -1153,19 +1173,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     }
 
     private static ResoniteFloat3 ResolveCityObjectLocalPosition(
-        string requestMeshCode,
+        ResoniteLocalOrigin requestOrigin,
         string rootMeshCode,
         ResoniteFloat3 cityObjectPosition)
     {
-        if (string.Equals(requestMeshCode, rootMeshCode, StringComparison.Ordinal))
+        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
         {
             return cityObjectPosition;
         }
 
-        // City objects are produced in the request mesh-code frame; convert them
+        // City objects are produced in the request-local-origin frame; convert them
         // to the target mesh-code local frame because root mesh slots already carry
         // the inter-mesh-code offset in Resonite.
-        ResoniteFloat3 rootOffsetFromRequest = ComputeMeshCodeOffset(requestMeshCode, rootMeshCode);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
         return Subtract(cityObjectPosition, rootOffsetFromRequest);
     }
 
@@ -1224,6 +1244,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             && Math.Abs(existingPosition.Value.y - (float)expectedY) < SlotPositionTolerance;
     }
 
+    private static bool IsApproximatelyEqual(ResoniteFloat3 expectedPosition, Field_float3? existingPosition)
+    {
+        return existingPosition is not null
+            && Math.Abs(existingPosition.Value.x - (float)expectedPosition.X) < SlotPositionTolerance
+            && Math.Abs(existingPosition.Value.y - (float)expectedPosition.Y) < SlotPositionTolerance
+            && Math.Abs(existingPosition.Value.z - (float)expectedPosition.Z) < SlotPositionTolerance;
+    }
+
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
         if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
@@ -1232,6 +1260,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return new ResoniteFloat3(0.0, 0.0, 0.0);
         }
 
+        return ComputeOriginOffset(referenceCenter, currentCenter);
+    }
+
+    private static ResoniteFloat3 ComputeOriginOffset(
+        ResoniteLocalOrigin referenceCenter,
+        ResoniteLocalOrigin currentCenter)
+    {
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,
             referenceCenter.Longitude,
@@ -1251,6 +1286,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         IResoniteLinkClient client,
         string dataset,
         string meshCode,
+        ResoniteLocalOrigin requestedOrigin,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(datasetSlotId is null, this);
@@ -1259,12 +1295,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             dataset,
             meshCode,
             "meshcode");
-        Slot? existingMeshCodeSlot = await client.GetSlotAsync(targetMeshCodeSlotId, 0, cancellationToken);
-        if (existingMeshCodeSlot is not null)
-        {
-            return GetPositionOrDefault(existingMeshCodeSlot);
-        }
-
         Slot? datasetSlot = await client.GetSlotAsync(datasetSlotId, 1, cancellationToken);
         Slot? referenceSlot = datasetSlot?.Children?
             .FirstOrDefault(slot =>
@@ -1272,12 +1302,73 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 && TryGetMeshCodeName(slot, out _));
         if (referenceSlot is null || !TryGetMeshCodeName(referenceSlot, out string referenceMeshCode))
         {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
+            if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin meshCenter))
+            {
+                return new ResoniteFloat3(0.0, 0.0, 0.0);
+            }
+
+            return ComputeOriginOffset(requestedOrigin, meshCenter);
+        }
+
+        if (!PlateauMeshCode.TryGetCenter(meshCode, out _))
+        {
+            return Add(
+                GetPositionOrDefault(referenceSlot),
+                ComputeOriginOffsetFromMeshCode(referenceMeshCode, requestedOrigin));
         }
 
         return Add(
             GetPositionOrDefault(referenceSlot),
             ComputeMeshCodeOffset(referenceMeshCode, meshCode));
+    }
+
+    private static async Task EnsureSlotPositionAsync(
+        IResoniteLinkClient client,
+        string slotId,
+        string parentId,
+        string slotName,
+        ResoniteFloat3 expectedPosition,
+        CancellationToken cancellationToken)
+    {
+        Slot? existingSlot = await client.GetSlotAsync(slotId, 0, cancellationToken);
+        if (existingSlot is null)
+        {
+            return;
+        }
+
+        if (IsApproximatelyEqual(expectedPosition, existingSlot.Position))
+        {
+            return;
+        }
+
+        await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    ID = slotId,
+                    Parent = existingSlot.Parent ?? new Reference
+                    {
+                        TargetID = parentId,
+                    },
+                    Name = string.IsNullOrWhiteSpace(existingSlot.Name?.Value)
+                        ? new Field_string { Value = slotName }
+                        : existingSlot.Name,
+                    Position = CreateFloat3(expectedPosition),
+                    Rotation = existingSlot.Rotation,
+                },
+            },
+            cancellationToken);
+    }
+
+    private static ResoniteFloat3 ComputeOriginOffsetFromMeshCode(string referenceMeshCode, ResoniteLocalOrigin targetOrigin)
+    {
+        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter))
+        {
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        return ComputeOriginOffset(referenceCenter, targetOrigin);
     }
 
     private async Task AwaitProcessingTasksIfCompletedAsync()

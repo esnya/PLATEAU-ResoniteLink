@@ -59,6 +59,26 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParsePreservesRegexMeshCode()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "5339452[56]",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal("5339452[56]", result.Options!.Request.MeshCode);
+    }
+
+    [Fact]
     public void ParseRejectsUnsupportedPackageName()
     {
         CliParseResult result = CliArgumentsParser.Parse(

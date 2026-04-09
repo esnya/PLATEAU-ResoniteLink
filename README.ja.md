@@ -66,6 +66,8 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 `--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset、remote download cache、そして live asset 再利用状態を保持する `resonite-live-asset-state.json` の保存先になります。この directory を削除すると、download cache と asset の dedupe / reuse 状態が両方とも失われます。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `1` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。さらに、global / package ごとの LOD 除外、marking の扱い、package ごとの object pattern を制御する filter option もあります。`--exclude-lod-for-package` を省略した場合の既定 fallback は現在 `tran:1` で、`--exclude-lod-for-package tran:none` を使うと明示的に解除できます。DEM の既定出力は従来どおり mesh 経路で、`--dem-terrain-mode heightmap` を指定すると `dem` を `GridMesh` + 高さテクスチャ経路へ切り替えます。`--dem-heightmap-meters-per-vertex` と `--dem-heightmap-max-resolution` はサンプル密度と安全上限の制御に使います。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
 
+`--mesh-code` には、6 桁/8 桁のリテラルな PLATEAU mesh code だけでなく .NET 正規表現も指定できます。8 桁リテラル指定では従来どおり parent mesh の包含を維持します。正規表現は CityGML filename 内の 6 桁/8 桁 mesh-code token と `udx/<package>/<mesh-code>/` directory segment に対して適用されます。
+
 公式 PLATEAU の CityGML ZIP/7z archive URL を明示指定してオンライン取得しつつ Resonite に取り込む例:
 
 ```bash

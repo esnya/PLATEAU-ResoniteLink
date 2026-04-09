@@ -48,7 +48,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         bool sharedAcrossMeshCodes,
         AppearanceLibrary appearanceLibrary,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        MeshCodeArea? requestedMeshArea,
+        IReadOnlyList<MeshCodeArea>? requestedMeshAreas,
         LodFilteringStrategy lodFilteringStrategy)
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
@@ -94,9 +94,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
-        if (requestedMeshArea is not null
+        if (requestedMeshAreas is not null
+            && requestedMeshAreas.Count > 0
             && coordinateReferenceSystem.IsGeographic
-            && !IntersectsMeshCodeArea(surfaces, requestedMeshArea))
+            && !IntersectsMeshCodeArea(surfaces, requestedMeshAreas))
         {
             return null;
         }
@@ -258,7 +259,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         XDocument document,
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        MeshCodeArea? requestedMeshArea,
+        IReadOnlyList<MeshCodeArea>? requestedMeshAreas,
         LodFilteringStrategy lodFilteringStrategy)
     {
         string relativeSourceFile = sourceFile.RelativePath;
@@ -279,7 +280,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 sourceFile.RequiresMeshAreaFilter,
                 appearanceLibrary,
                 coordinateReferenceSystem,
-                sourceFile.RequiresMeshAreaFilter ? requestedMeshArea : null,
+                sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
                 lodFilteringStrategy))
             .Where(static cityObject => cityObject is not null)
             .Select(static cityObject => cityObject!)
@@ -289,7 +290,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static bool IntersectsMeshCodeArea(
         IEnumerable<ParsedSurface> surfaces,
-        MeshCodeArea meshCodeArea)
+        IReadOnlyList<MeshCodeArea> meshCodeAreas)
     {
         List<GeodeticPoint> vertices = surfaces
             .SelectMany(static surface => surface.Vertices)
@@ -300,10 +301,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double minLongitude = vertices.Min(static point => point.Longitude);
         double maxLongitude = vertices.Max(static point => point.Longitude);
 
-        return maxLatitude >= meshCodeArea.SouthLatitude
+        return meshCodeAreas.Any(meshCodeArea =>
+            maxLatitude >= meshCodeArea.SouthLatitude
             && minLatitude <= meshCodeArea.NorthLatitude
             && maxLongitude >= meshCodeArea.WestLongitude
-            && minLongitude <= meshCodeArea.EastLongitude;
+            && minLongitude <= meshCodeArea.EastLongitude);
     }
 
     private static (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) GetBounds(
@@ -3520,6 +3522,43 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 bounds.NorthLatitude,
                 bounds.WestLongitude,
                 bounds.EastLongitude);
+        }
+
+        public static MeshCodeArea[] CreateManyFromRequestedMeshCodes(IEnumerable<string> meshCodes)
+        {
+            ArgumentNullException.ThrowIfNull(meshCodes);
+
+            return meshCodes
+                .Select(TryParse)
+                .Where(static meshArea => meshArea is not null)
+                .Select(static meshArea => meshArea!)
+                .Distinct()
+                .ToArray();
+        }
+
+        public static MeshCodeArea? TryMerge(IEnumerable<MeshCodeArea> meshAreas)
+        {
+            ArgumentNullException.ThrowIfNull(meshAreas);
+
+            MeshCodeArea[] areaArray = meshAreas.ToArray();
+            if (areaArray.Length == 0)
+            {
+                return null;
+            }
+
+            return new MeshCodeArea(
+                areaArray.Min(static meshArea => meshArea.SouthLatitude),
+                areaArray.Max(static meshArea => meshArea.NorthLatitude),
+                areaArray.Min(static meshArea => meshArea.WestLongitude),
+                areaArray.Max(static meshArea => meshArea.EastLongitude));
+        }
+
+        public ResoniteLocalOrigin GetCenter()
+        {
+            return new ResoniteLocalOrigin(
+                Latitude: (SouthLatitude + NorthLatitude) / 2.0,
+                Longitude: (WestLongitude + EastLongitude) / 2.0,
+                Altitude: 0.0);
         }
     }
 

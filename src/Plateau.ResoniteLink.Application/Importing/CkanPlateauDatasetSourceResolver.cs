@@ -58,10 +58,13 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         Uri archiveUri = remoteSource.ServerUri;
 
         string safeDataset = CreateSafePathSegment(request.Dataset);
-        string safeMeshCode = CreateSafePathSegment(request.MeshCode);
+        EnsureNoPathTraversal(request.MeshCode, nameof(request.MeshCode));
         string archiveCacheKey = CreateArchiveCacheKey(archiveUri);
         string cacheRoot = GetArchiveCacheRoot(workRoot, safeDataset, archiveCacheKey);
-        TryMigrateLegacyArchiveCache(workRoot, safeDataset, safeMeshCode, archiveCacheKey, cacheRoot);
+        if (TryCreateSafePathSegment(request.MeshCode, out string? safeMeshCode))
+        {
+            TryMigrateLegacyArchiveCache(workRoot, safeDataset, safeMeshCode!, archiveCacheKey, cacheRoot);
+        }
 
         Directory.CreateDirectory(cacheRoot);
 
@@ -402,6 +405,45 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
 
         return normalized;
+    }
+
+    private static void EnsureNoPathTraversal(string value, string paramName)
+    {
+        string normalized = value.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
+        }
+
+        string[] segments = normalized
+            .Split(['/', '\\'], StringSplitOptions.None);
+        if (segments.Length > 1
+            || segments.Any(static segment =>
+                string.Equals(segment, ".", StringComparison.Ordinal)
+                || string.Equals(segment, "..", StringComparison.Ordinal)))
+        {
+            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
+        }
+    }
+
+    private static bool TryCreateSafePathSegment(string value, out string? safePathSegment)
+    {
+        try
+        {
+            safePathSegment = CreateSafePathSegment(value);
+            return true;
+        }
+        catch (PlateauImportValidationException)
+        {
+            if (value.Contains(Path.DirectorySeparatorChar)
+                || value.Contains(Path.AltDirectorySeparatorChar))
+            {
+                throw;
+            }
+
+            safePathSegment = null;
+            return false;
+        }
     }
 
     private static string CreateArchiveCacheKey(Uri archiveUri)
