@@ -9,7 +9,8 @@ internal static class BundledDefaultMaterialAssetStore
     private static readonly HashSet<string> ResourceNames = Assembly
         .GetManifestResourceNames()
         .ToHashSet(StringComparer.Ordinal);
-    private static readonly string ExtractionRoot = Path.Combine(
+    private static readonly AsyncLocal<string?> ExtractionRootOverride = new();
+    private static readonly string DefaultExtractionRoot = Path.Combine(
         Path.GetTempPath(),
         "Plateau.ResoniteLink",
         "default-materials");
@@ -25,7 +26,7 @@ internal static class BundledDefaultMaterialAssetStore
         string resourceName = GetResourceName(logicalPath);
 
         string absolutePath = Path.Combine(
-            ExtractionRoot,
+            GetExtractionRoot(),
             logicalPath.Replace('/', Path.DirectorySeparatorChar));
         string? directory = Path.GetDirectoryName(absolutePath);
         if (directory is null)
@@ -64,6 +65,15 @@ internal static class BundledDefaultMaterialAssetStore
 
         absolutePath = GetAbsolutePath(logicalPath);
         return true;
+    }
+
+    internal static IDisposable PushExtractionRootOverride(string extractionRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(extractionRoot);
+
+        string? previousRoot = ExtractionRootOverride.Value;
+        ExtractionRootOverride.Value = extractionRoot;
+        return new ExtractionRootOverrideScope(previousRoot);
     }
 
     private static string GetResourceName(string logicalPath)
@@ -123,5 +133,27 @@ internal static class BundledDefaultMaterialAssetStore
         }
 
         return string.Join('.', segments);
+    }
+
+    private static string GetExtractionRoot()
+    {
+        return ExtractionRootOverride.Value ?? DefaultExtractionRoot;
+    }
+
+    private sealed class ExtractionRootOverrideScope(string? previousRoot) : IDisposable
+    {
+        private readonly string? previousRoot = previousRoot;
+        private bool disposed;
+
+        public void Dispose()
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            ExtractionRootOverride.Value = previousRoot;
+            disposed = true;
+        }
     }
 }

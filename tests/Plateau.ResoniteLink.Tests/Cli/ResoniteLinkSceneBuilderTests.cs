@@ -1098,7 +1098,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             ResoniteLinkSendDiagnostics.Disabled,
             () => blockingClient);
 
-        await builder.BeginAsync(scene.Metadata, "runtime/resonite");
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
         await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
 
         Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
