@@ -26,4 +26,4 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Verify
-        run: ./scripts/verify-ci.sh
+        run: bash ./scripts/verify-ci.sh
