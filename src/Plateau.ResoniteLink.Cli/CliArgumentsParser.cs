@@ -28,7 +28,7 @@ public static class CliArgumentsParser
 
         Options:
           --dataset <value>      Required. PLATEAU dataset identifier.
-          --mesh-code <value>    Required. PLATEAU mesh code to construct in Resonite.
+          --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
           --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
           --exclude-lod-for-package <csv>

@@ -41,16 +41,22 @@ public static partial class LocalCityGmlResonitePlanBuilder
         MeshCodeArea? requestedMeshArea = MeshCodeArea.TryParse(request.MeshCode);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
-        SourceFileDescriptor[] sourceFiles = LocalCityGmlSourceFileDiscovery.Discover(
-                datasetSource.EnumerateFiles(),
-                request.MeshCode,
-                request.PackageNames)
+        LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
+            datasetSource.EnumerateFiles(),
+            request.MeshCode,
+            request.PackageNames);
+        IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles = discoveryResult.SourceFiles;
+        SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
             .Select(static descriptor => new SourceFileDescriptor(
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
                 descriptor.RequiresMeshAreaFilter))
             .ToArray();
+        MeshCodeArea[] requestedMeshAreas = requestedMeshArea is null
+            ? MeshCodeArea.CreateManyFromRequestedMeshCodes(discoveryResult.RequestedMeshCodes)
+            : [requestedMeshArea];
+        MeshCodeArea? effectiveRequestedMeshArea = MeshCodeArea.TryMerge(requestedMeshAreas);
         scanStopwatch.Stop();
         progressReporter?.Invoke(
             $"[import] Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s.");
@@ -71,7 +77,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         SourceFilePipeline[] sourceFilePipelines = await CreateSourceFilePipelinesAsync(
             sourceFiles,
             datasetSource,
-            requestedMeshArea,
+            requestedMeshAreas,
             progressReporter,
             lodFilteringStrategy,
             cancellationToken);
@@ -126,14 +132,16 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 [$"No CityGML coordinate reference system was resolved for mesh code '{request.MeshCode}'."]);
         }
 
-        if (!PlateauMeshCode.TryGetCenter(request.MeshCode, out ResoniteLocalOrigin meshCenter))
+        ResoniteLocalOrigin? resolvedLocalOrigin = ResolveLocalOrigin(effectiveRequestedMeshArea);
+        if (resolvedLocalOrigin is null)
         {
             throw new PlateauImportValidationException(
-                [$"The mesh code '{request.MeshCode}' does not define a supported geographic center."]);
+                [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
+        ResoniteLocalOrigin meshCenter = resolvedLocalOrigin;
         MeshCodeArea? demTerrainBounds = referenceSystem.IsGeographic
-            ? ResolveDemTerrainBounds(demParsedSourceFiles, requestedMeshArea)
+            ? ResolveDemTerrainBounds(demParsedSourceFiles, effectiveRequestedMeshArea)
             : null;
         TerrainTextureOverlay[] terrainTextureOverlays = demTerrainBounds is not null && demPipelines.Count > 0
             ? CreateDemTerrainTextureOverlays(demTerrainBounds)
@@ -184,10 +192,16 @@ public static partial class LocalCityGmlResonitePlanBuilder
             terrainHeightSampler);
     }
 
+    private static ResoniteLocalOrigin? ResolveLocalOrigin(
+        MeshCodeArea? requestedMeshArea)
+    {
+        return requestedMeshArea?.GetCenter();
+    }
+
     private static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
-        MeshCodeArea? requestedMeshArea,
+        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
@@ -199,7 +213,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     () => ParseSourceFileAsync(
                         sourceFile,
                         datasetSource,
-                        requestedMeshArea,
+                        requestedMeshAreas,
                         progressReporter,
                         lodFilteringStrategy,
                         cancellationToken)))
@@ -209,7 +223,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     private static async Task<ParsedSourceFileResult> ParseSourceFileAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        MeshCodeArea? requestedMeshArea,
+        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
@@ -221,7 +235,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsAsync(
                            sourceFile,
                            datasetSource,
-                           requestedMeshArea,
+                           requestedMeshAreas,
                            lodFilteringStrategy,
                            cancellationToken))
         {
@@ -256,7 +270,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        MeshCodeArea? requestedMeshArea,
+        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -267,7 +281,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             document,
             sourceFile,
             datasetSource,
-            requestedMeshArea,
+            requestedMeshAreas,
             lodFilteringStrategy);
 
         foreach (ParsedCityObject cityObject in cityObjects)

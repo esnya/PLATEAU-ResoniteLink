@@ -9,10 +9,10 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     {
         string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
 
-        IReadOnlyList<LocalCityGmlSourceFileDescriptor> result = LocalCityGmlSourceFileDiscovery.Discover(
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
             datasetRoot,
             "53394525",
-            packageNames: null);
+            packageNames: null).SourceFiles.ToArray();
 
         Assert.Equal(["dem", "bldg", "luse", "tran"], result.Select(static file => file.PackageName).ToArray());
         Assert.Equal(
@@ -26,10 +26,10 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     {
         string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
 
-        IReadOnlyList<LocalCityGmlSourceFileDescriptor> result = LocalCityGmlSourceFileDiscovery.Discover(
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
             datasetRoot,
             "53394525",
-            ["waterbody", "tran", "dem"]);
+            ["waterbody", "tran", "dem"]).SourceFiles.ToArray();
 
         Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
         Assert.Contains(
@@ -45,6 +45,64 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     }
 
     [Fact]
+    public void DiscoverMatchesRegexMeshCodesFromFileNamesAndDirectories()
+    {
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+            [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/tran/53394526/plateau_tokyo23ku_tran_mesh.gml",
+                "udx/dem/53394527/plateau_tokyo23ku_dem_53394527.gml",
+                "udx/bldg/533945/plateau_tokyo23ku_bldg_533945.gml",
+            ],
+            "5339452[56]",
+            packageNames: null).SourceFiles.ToArray();
+
+        Assert.Equal(
+            [
+                "udx/bldg/533945/plateau_tokyo23ku_bldg_533945.gml",
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/tran/53394526/plateau_tokyo23ku_tran_mesh.gml",
+            ],
+            result.Select(static file => file.RelativePath).ToArray());
+        Assert.Equal(["533945", "53394525", "53394526"], result.Select(static file => file.MatchedMeshCode).ToArray());
+        Assert.Equal([true, false, false], result.Select(static file => file.RequiresMeshAreaFilter).ToArray());
+    }
+
+    [Fact]
+    public void DiscoverRegexSelectionKeepsParentMeshFilesForMatchedDetailedMeshes()
+    {
+        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+
+        LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
+            datasetRoot,
+            "5339452.",
+            ["dem", "tran"]);
+        LocalCityGmlSourceFileDescriptor[] result = discoveryResult.SourceFiles.ToArray();
+
+        Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
+        Assert.All(result, static file => Assert.Equal("533945", file.MatchedMeshCode));
+        Assert.All(result, static file => Assert.True(file.RequiresMeshAreaFilter));
+        Assert.Contains("53394525", discoveryResult.RequestedMeshCodes);
+    }
+
+    [Fact]
+    public void DiscoverRegexSelectionDerivesRequestedMeshCodesOnlyFromRequestedPackages()
+    {
+        LocalCityGmlSourceFileDiscoveryResult result = LocalCityGmlSourceFileDiscovery.Discover(
+            [
+                "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+                "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
+            ],
+            "5339452.",
+            ["dem"]);
+
+        Assert.Equal(["53394525"], result.RequestedMeshCodes);
+        Assert.Equal(
+            ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            result.SourceFiles.Select(static file => file.RelativePath).ToArray());
+    }
+
+    [Fact]
     public void DiscoverIgnoresFilesOutsideRecognizedUdxPackageLayout()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -55,10 +113,10 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
             Path.Combine(datasetRoot.Path, "udx", "unknown", "53394525", "plateau_tokyo23ku_unknown_53394525.gml"),
             "<root />");
 
-        IReadOnlyList<LocalCityGmlSourceFileDescriptor> result = LocalCityGmlSourceFileDiscovery.Discover(
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
             datasetRoot.Path,
             "53394525",
-            packageNames: null);
+            packageNames: null).SourceFiles.ToArray();
 
         Assert.Empty(result);
     }
