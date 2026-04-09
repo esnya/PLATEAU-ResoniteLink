@@ -17,6 +17,4 @@ fi
 
 echo "Using dotnet: $(dotnet --version)"
 
-git -C "$REPO_ROOT" config core.hooksPath .githooks
-
-"$REPO_ROOT/scripts/verify-ci.sh"
+bash "$REPO_ROOT/scripts/verify-ci.sh"

@@ -114,13 +114,7 @@ The current live adapter uses `ImportMesh(ImportMeshRawData)` for meshes and `Im
 Validate formatting, analyzers, and tests:
 
 ```bash
-scripts/verify-ci.sh
-```
-
-To have Git block pushes until the same verification passes, enable the tracked pre-push hook once per clone:
-
-```bash
-git config core.hooksPath .githooks
+bash scripts/verify-ci.sh
 ```
 
 ## License Notes
