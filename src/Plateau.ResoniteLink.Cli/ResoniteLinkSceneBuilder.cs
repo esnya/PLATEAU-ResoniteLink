@@ -202,8 +202,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             new ResoniteFloat3(0.0, 0.0, 0.0),
             cancellationToken);
         await licenseManager.EnsureDatasetLicenseAsync(setupClient, datasetSlotId, datasetLicenseComponentId, cancellationToken);
-        await EnsureSlotKnownAsync(setupClient, datasetAssetsSlotId, datasetSlotId, "Assets", null, null, cancellationToken);
-        await EnsureSlotKnownAsync(setupClient, commonAssetsSlotId, datasetAssetsSlotId, CommonAssetsSlotName, null, null, cancellationToken);
+        await EnsureSlotsKnownBatchAsync(
+            setupClient,
+            [
+                CreateSlotDefinition(datasetAssetsSlotId, datasetSlotId, "Assets"),
+                CreateSlotDefinition(commonAssetsSlotId, datasetAssetsSlotId, CommonAssetsSlotName),
+            ],
+            cancellationToken);
         SceneAnchor? existingAnchor = await ResolveSceneAnchorAsync(setupClient, cancellationToken);
         if (existingAnchor is null)
         {
@@ -666,20 +671,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ReportBuildStep(
                 cityObject,
                 $"Ensuring material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
-            string materialInstanceKey = CreateSharedMaterialInstanceKey(material);
+            string materialParentSlotId = ShouldUseCommonMaterialAssets(material)
+                ? commonAssetsSlotId
+                : assetLodSlotId;
+            string materialInstanceKey = CreateScopedMaterialInstanceKey(
+                material,
+                materialParentSlotId == commonAssetsSlotId ? null : materialParentSlotId);
             string materialId = await materialAssetManager.EnsureMaterialComponentAsync(
                 client,
                 material,
                 preparedTextureDataByKey,
-                commonAssetsSlotId,
+                materialParentSlotId,
                 materialInstanceKey,
                 cancellationToken);
             materialIds.Add(materialId);
         }
 
         ReportBuildStep(cityObject, "Ensuring MeshRenderer component.");
-        await EnsureComponentKnownAsync(
-            client,
+        ComponentDefinition rendererDefinition = CreateComponentDefinition(
             cityObjectSlotId,
             rendererId,
             "[FrooxEngine]FrooxEngine.MeshRenderer",
@@ -698,12 +707,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                         })
                         .ToList(),
                 },
-            },
-            cancellationToken);
-
-        ReportBuildStep(cityObject, "Ensuring MeshCollider component.");
-        await EnsureComponentKnownAsync(
-            client,
+            });
+        ComponentDefinition colliderDefinition = CreateComponentDefinition(
             cityObjectSlotId,
             colliderId,
             "[FrooxEngine]FrooxEngine.MeshCollider",
@@ -721,8 +726,31 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 {
                     TargetID = geometryComponentId,
                 },
-            },
-            cancellationToken);
+            });
+        if (existingCityObjectSlot is null)
+        {
+            await EnsureComponentsKnownBatchAsync(
+                client,
+                [rendererDefinition, colliderDefinition],
+                cancellationToken);
+        }
+        else
+        {
+            await UpsertComponentMembersAsync(
+                client,
+                rendererDefinition.ContainerSlotId,
+                rendererDefinition.ComponentId,
+                rendererDefinition.ComponentType,
+                rendererDefinition.Members,
+                cancellationToken);
+            await UpsertComponentMembersAsync(
+                client,
+                colliderDefinition.ContainerSlotId,
+                colliderDefinition.ComponentId,
+                colliderDefinition.ComponentType,
+                colliderDefinition.Members,
+                cancellationToken);
+        }
 
         ReportBuildStep(cityObject, "Live build completed.");
         sendScope.MarkSent();
@@ -751,11 +779,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return cityObject.SourceObjectKey ?? cityObject.SlotKey;
     }
 
-    private static string CreateSharedMaterialInstanceKey(ResoniteMaterialBinding material)
+    private static string CreateScopedMaterialInstanceKey(ResoniteMaterialBinding material, string? scopeKey)
     {
         ArgumentNullException.ThrowIfNull(material);
 
         using IncrementalHash incrementalHash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendString(incrementalHash, scopeKey ?? string.Empty);
         AppendString(incrementalHash, material.MaterialType.ToString());
         AppendString(incrementalHash, material.Projection.ToString());
         AppendString(incrementalHash, material.TextureSourceKind.ToString());
@@ -803,6 +832,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{material.MaterialKey}_{materialFingerprint[..16]}");
+    }
+
+    private static bool ShouldUseCommonMaterialAssets(ResoniteMaterialBinding material)
+    {
+        return material.TextureSourceKind == ResoniteTextureSourceKind.Bundled;
     }
 
     private static bool IsDemPackage(string packageName)
@@ -1515,6 +1549,57 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
+    private static async Task EnsureSlotsKnownBatchAsync(
+        IResoniteLinkClient client,
+        IReadOnlyList<SlotDefinition> definitions,
+        CancellationToken cancellationToken)
+    {
+        if (definitions.Count == 0)
+        {
+            return;
+        }
+
+        List<SlotDefinition> missingDefinitions = [];
+        foreach (SlotDefinition definition in definitions)
+        {
+            Slot? existingSlot = await client.GetSlotAsync(definition.SlotId, 0, cancellationToken);
+            if (existingSlot is null)
+            {
+                missingDefinitions.Add(definition);
+            }
+        }
+
+        if (missingDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        if (missingDefinitions.Count == 1)
+        {
+            SlotDefinition definition = missingDefinitions[0];
+            await AddSlotDirectAsync(
+                client,
+                definition.SlotId,
+                definition.ParentId,
+                definition.SlotName,
+                definition.Position,
+                definition.Rotation,
+                cancellationToken);
+            return;
+        }
+
+        await client.RunDataModelOperationBatchAsync(
+            missingDefinitions
+                .Select(static definition => (DataModelOperation)CreateAddSlotOperation(
+                    definition.SlotId,
+                    definition.ParentId,
+                    definition.SlotName,
+                    definition.Position,
+                    definition.Rotation))
+                .ToArray(),
+            cancellationToken);
+    }
+
     private async Task EnsureComponentKnownAsync(
         IResoniteLinkClient client,
         string containerSlotId,
@@ -1534,6 +1619,55 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 componentType,
                 members,
                 cancellationToken),
+            cancellationToken);
+    }
+
+    private static async Task EnsureComponentsKnownBatchAsync(
+        IResoniteLinkClient client,
+        IReadOnlyList<ComponentDefinition> definitions,
+        CancellationToken cancellationToken)
+    {
+        if (definitions.Count == 0)
+        {
+            return;
+        }
+
+        List<ComponentDefinition> missingDefinitions = [];
+        foreach (ComponentDefinition definition in definitions)
+        {
+            Component? existingComponent = await client.GetComponentAsync(definition.ComponentId, cancellationToken);
+            if (existingComponent is null)
+            {
+                missingDefinitions.Add(definition);
+            }
+        }
+
+        if (missingDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        if (missingDefinitions.Count == 1)
+        {
+            ComponentDefinition definition = missingDefinitions[0];
+            await AddComponentDirectAsync(
+                client,
+                definition.ContainerSlotId,
+                definition.ComponentId,
+                definition.ComponentType,
+                definition.Members,
+                cancellationToken);
+            return;
+        }
+
+        await client.RunDataModelOperationBatchAsync(
+            missingDefinitions
+                .Select(static definition => (DataModelOperation)CreateAddComponentOperation(
+                    definition.ContainerSlotId,
+                    definition.ComponentId,
+                    definition.ComponentType,
+                    definition.Members))
+                .ToArray(),
             cancellationToken);
     }
 
@@ -1577,23 +1711,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    ID = slotId,
-                    Parent = new Reference
-                    {
-                        TargetID = parentId,
-                    },
-                    Name = new Field_string
-                    {
-                        Value = slotName,
-                    },
-                    Position = position is null ? null : CreateFloat3(position),
-                    Rotation = rotation is null ? null : CreateFloatQ(rotation),
-                },
-            },
+            CreateAddSlotOperation(slotId, parentId, slotName, position, rotation),
             cancellationToken);
     }
 
@@ -1607,23 +1725,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    ID = slotId,
-                    Parent = new Reference
-                    {
-                        TargetID = parentId,
-                    },
-                    Name = new Field_string
-                    {
-                        Value = slotName,
-                    },
-                    Position = position is null ? null : CreateFloat3(position),
-                    Rotation = rotation is null ? null : CreateFloatQ(rotation),
-                },
-            },
+            CreateAddSlotOperation(slotId, parentId, slotName, position, rotation),
             cancellationToken);
     }
 
@@ -1639,13 +1741,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
         AssetSourceFingerprints.TryGetValue(componentId, out string? existingSourceFingerprint);
-        if (existingSourceFingerprint is not null
-            && string.Equals(existingSourceFingerprint, sourceFingerprint, StringComparison.Ordinal)
-            && TryGetUri(existingComponent, uriMemberName) is Uri existingUri)
+        if (TryGetUri(existingComponent, uriMemberName) is Uri existingUri)
         {
-            ReportProgress(
-                $"[live] Reusing asset component '{componentId}' ({componentType}) on logical asset slot '{containerSlotId}'.");
-            return existingUri;
+            if (existingSourceFingerprint is null)
+            {
+                AssetSourceFingerprints[componentId] = sourceFingerprint;
+                ReportProgress(
+                    $"[live] Reusing existing asset component '{componentId}' ({componentType}) on logical asset slot '{containerSlotId}'.");
+                return existingUri;
+            }
+
+            if (string.Equals(existingSourceFingerprint, sourceFingerprint, StringComparison.Ordinal))
+            {
+                ReportProgress(
+                    $"[live] Reusing asset component '{componentId}' ({componentType}) on logical asset slot '{containerSlotId}'.");
+                return existingUri;
+            }
         }
 
         ReportProgress(
@@ -1709,23 +1820,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Component? existingComponent = await client.GetComponentAsync(componentId, cancellationToken);
         if (existingComponent is not null)
         {
-            ReportProgress($"[live] Reusing existing component '{componentId}' ({componentType}).");
+            ReportProgress($"[live] Updating existing component '{componentId}' ({componentType}).");
+            await client.UpdateComponentAsync(
+                new UpdateComponent
+                {
+                    Data = new Component
+                    {
+                        ID = componentId,
+                        Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
+                    },
+                },
+                cancellationToken);
             return;
         }
 
         ReportProgress(
             $"[live] Adding component '{componentId}' ({componentType}) to slot '{containerSlotId}'.");
         await client.AddComponentAsync(
-            new AddComponent
-            {
-                ContainerSlotId = containerSlotId,
-                Data = new Component
-                {
-                    ID = componentId,
-                    ComponentType = componentType,
-                    Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
-                },
-            },
+            CreateAddComponentOperation(containerSlotId, componentId, componentType, members),
             cancellationToken);
     }
 
@@ -1738,17 +1850,71 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         await client.AddComponentAsync(
-            new AddComponent
-            {
-                ContainerSlotId = containerSlotId,
-                Data = new Component
-                {
-                    ID = componentId,
-                    ComponentType = componentType,
-                    Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
-                },
-            },
+            CreateAddComponentOperation(containerSlotId, componentId, componentType, members),
             cancellationToken);
+    }
+
+    private static SlotDefinition CreateSlotDefinition(
+        string slotId,
+        string parentId,
+        string slotName,
+        ResoniteFloat3? position = null,
+        ResoniteFloatQ? rotation = null)
+    {
+        return new SlotDefinition(slotId, parentId, slotName, position, rotation);
+    }
+
+    private static ComponentDefinition CreateComponentDefinition(
+        string containerSlotId,
+        string componentId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members)
+    {
+        return new ComponentDefinition(containerSlotId, componentId, componentType, members);
+    }
+
+    private static AddSlot CreateAddSlotOperation(
+        string slotId,
+        string parentId,
+        string slotName,
+        ResoniteFloat3? position,
+        ResoniteFloatQ? rotation)
+    {
+        return new AddSlot
+        {
+            Data = new Slot
+            {
+                ID = slotId,
+                Parent = new Reference
+                {
+                    TargetID = parentId,
+                },
+                Name = new Field_string
+                {
+                    Value = slotName,
+                },
+                Position = position is null ? null : CreateFloat3(position),
+                Rotation = rotation is null ? null : CreateFloatQ(rotation),
+            },
+        };
+    }
+
+    private static AddComponent CreateAddComponentOperation(
+        string containerSlotId,
+        string componentId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members)
+    {
+        return new AddComponent
+        {
+            ContainerSlotId = containerSlotId,
+            Data = new Component
+            {
+                ID = componentId,
+                ComponentType = componentType,
+                Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
+            },
+        };
     }
 
     private static Uri? TryGetUri(Component? component, string memberName)
@@ -1799,6 +1965,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         return cityObject.DisplayName;
     }
+
+    private sealed record SlotDefinition(
+        string SlotId,
+        string ParentId,
+        string SlotName,
+        ResoniteFloat3? Position,
+        ResoniteFloatQ? Rotation);
+
+    private sealed record ComponentDefinition(
+        string ContainerSlotId,
+        string ComponentId,
+        string ComponentType,
+        IReadOnlyDictionary<string, Member> Members);
 
     private sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,

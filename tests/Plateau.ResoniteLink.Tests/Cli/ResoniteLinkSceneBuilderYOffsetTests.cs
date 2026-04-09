@@ -471,6 +471,30 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             return Task.CompletedTask;
         }
 
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
+        }
+
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

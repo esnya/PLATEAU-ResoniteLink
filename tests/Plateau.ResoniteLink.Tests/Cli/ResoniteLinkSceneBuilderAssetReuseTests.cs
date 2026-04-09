@@ -472,6 +472,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures => session.ImportedRawHdrTextures;
         public Dictionary<string, Component> ComponentsById => session.ComponentsById;
         public Dictionary<string, Slot> SlotsById => session.SlotsById;
+        public List<IReadOnlyList<DataModelOperation>> Batches => session.Batches;
 
         public void Dispose()
         {
@@ -506,6 +507,35 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             }
 
             return Task.CompletedTask;
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.Batches.Add(operations.ToArray());
+            }
+
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -626,6 +656,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
 
         public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
+
+        public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
 
         public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
 
