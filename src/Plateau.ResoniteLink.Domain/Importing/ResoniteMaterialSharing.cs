@@ -10,7 +10,8 @@ public static class ResoniteMaterialSharing
 
         return material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
+            && (material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
+                || material.TextureSourceKind == ResoniteTextureSourceKind.Bundled)
             && !string.IsNullOrWhiteSpace(material.TexturePath)
             && material.DepthOffset is null
             && material.TextureScale is null

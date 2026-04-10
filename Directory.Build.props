@@ -24,8 +24,12 @@
 
     <MinVerTagPrefix>v</MinVerTagPrefix>
 
-    <BaseOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/bin/$(MSBuildProjectName)/</BaseOutputPath>
-    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <RepositoryArtifactsRoot>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/</RepositoryArtifactsRoot>
+    <LinuxWorkspaceKey>$([System.String]::Copy('$(MSBuildThisFileDirectory)').Replace('\','_').Replace('/','_').Replace(':','_').Replace(' ','_'))</LinuxWorkspaceKey>
+    <RepositoryArtifactsRoot Condition="'$(RepositoryHostOs)' == 'linux'">/tmp/Plateau.ResoniteLink/$(LinuxWorkspaceKey)/artifacts/build/$(RepositoryHostOs)/</RepositoryArtifactsRoot>
+
+    <BaseOutputPath>$(RepositoryArtifactsRoot)bin/$(MSBuildProjectName)/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(RepositoryArtifactsRoot)obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)/artifacts/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
   </PropertyGroup>

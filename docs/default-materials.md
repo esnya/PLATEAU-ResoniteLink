@@ -16,7 +16,7 @@ The current package buckets are derived from the full official package candidate
 
 The package-to-material mapping is centralized in `PlateauPackageCatalog`, and tests assert that every supported non-`dem` package belongs to exactly one material bucket so Unity-SDK package coverage and fallback policy stay in sync.
 `frn` now resolves through a dedicated `city-furniture` fallback family instead of sharing the generic `other` bucket.
-As of `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0), published on 2026-03-12, Unity maps `PredefinedCityModelPackage.CityFurniture` to `PlateauDefaultCityFurniture`, whose default texture set uses a generic metal look. ResoniteLink follows that look, but the checked-in fallback texture data is sourced directly from AmbientCG instead of copying the Unity SDK asset files.
+As of `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0), published on 2026-03-12, Unity maps `PredefinedCityModelPackage.CityFurniture` to `PlateauDefaultCityFurniture`. ResoniteLink keeps the dedicated `city-furniture` bucket, but the bundled no-color/no-texture fallback now uses AmbientCG `Plaster001` as its neutral checked-in base instead of a metal-family texture.
 
 ## `dem` Terrain Imagery Note
 
@@ -62,7 +62,7 @@ The repository bundles the following fallback materials:
 - `road`:
   `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
 - `city-furniture`:
-  `Metal032_2K-JPG_Color.jpg`
+  `Plaster001_2K-JPG_Color.jpg`
 - `other`:
   `Concrete012_2K-JPG_Color.jpg`, `Ground054_2K-JPG_Color.jpg`
 
@@ -79,7 +79,7 @@ Sources:
 - `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
 - `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
-- `Metal032`: <https://ambientcg.com/view?id=Metal032>
+- `Plaster001`: <https://ambientcg.com/view?id=Plaster001>
 
 All bundled fallback textures currently checked into this repository are sourced from AmbientCG and distributed under CC0 1.0.
 The local license tracking note is stored in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
@@ -98,9 +98,9 @@ Source tracking by checked-in asset family:
 - `default-materials/road/Asphalt023L_2K-JPG_*` -> AmbientCG `Asphalt023L` -> <https://ambientcg.com/view?id=Asphalt023L>
 - `default-materials/other/Ground054_2K-JPG_*` -> AmbientCG `Ground054` -> <https://ambientcg.com/view?id=Ground054>
 - `default-materials/other/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
-- `default-materials/city-furniture/Metal032_2K-JPG_*` -> AmbientCG `Metal032` -> <https://ambientcg.com/view?id=Metal032>
+- `default-materials/city-furniture/Plaster001_2K-JPG_*` -> AmbientCG `Plaster001` -> <https://ambientcg.com/view?id=Plaster001>
 
-The `city-furniture` metallic map is not a verbatim upstream file. `Metal032_2K-JPG_Metallic.png` is derived from the AmbientCG `Metal032_2K-JPG_Metalness.jpg` and `Metal032_2K-JPG_Roughness.jpg` maps and repacked for Resonite `PBS_Metallic`.
+The `city-furniture` metallic map is not a verbatim upstream file. `Plaster001_2K-JPG_Metallic.png` is repository-generated from AmbientCG `Plaster001_2K-JPG_Roughness.jpg` and packed for Resonite `PBS_Metallic` with a zero metallic channel and neutral ambient occlusion.
 
 The checked-in files keep only the maps that the live builder consumes directly:
 

@@ -399,7 +399,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal("udx/tran/53394525/appearance/marking.png", roadMaterial.TexturePath);
         Assert.Equal(ResoniteTextureSourceKind.Dataset, roadMaterial.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, roadMaterial.Projection);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, roadMaterial.DepthOffset);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainSurfaceDepthOffset, roadMaterial.DepthOffset);
     }
 
     [Fact]
@@ -457,7 +457,9 @@ public sealed class PlateauImportServiceTests
         Assert.All(
             road.Mesh.Vertices,
             static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
-        Assert.All(road.Materials, static material => Assert.Null(material.DepthOffset));
+        Assert.All(
+            road.Materials,
+            static material => Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainSurfaceDepthOffset, material.DepthOffset));
     }
 
     [Fact]
@@ -490,7 +492,7 @@ public sealed class PlateauImportServiceTests
 
         ResoniteMaterialBinding roadMaterial = Assert.Single(road.Materials);
         Assert.Equal("udx/tran/53394525/appearance/segment.png", roadMaterial.TexturePath);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, roadMaterial.DepthOffset);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainSurfaceDepthOffset, roadMaterial.DepthOffset);
     }
 
     [Fact]
@@ -523,7 +525,7 @@ public sealed class PlateauImportServiceTests
 
         ResoniteMaterialBinding squareMaterial = Assert.Single(square.Materials);
         Assert.Equal("udx/squr/53394525/appearance/segment-square.png", squareMaterial.TexturePath);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, squareMaterial.DepthOffset);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainSurfaceDepthOffset, squareMaterial.DepthOffset);
     }
 
     [Fact]
@@ -734,7 +736,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(ResoniteMaterialType.VertexColor, markingMaterial.MaterialType);
         Assert.Null(markingMaterial.TexturePath);
         Assert.Equal(ResoniteMaterialProjection.Uv, markingMaterial.Projection);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, markingMaterial.DepthOffset);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainMarkingDepthOffset, markingMaterial.DepthOffset);
 
         int markingSubmeshIndex = Assert.Single(markingMaterial.SubmeshIndices);
         ResoniteMeshSubmesh markingSubmesh = Assert.Single(
@@ -1883,6 +1885,7 @@ public sealed class PlateauImportServiceTests
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoadVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
+                Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainSurfaceDepthOffset, material.DepthOffset);
             });
 
         ResoniteConstructionCityObject cityFurniture = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "City Furniture One");
@@ -1895,6 +1898,7 @@ public sealed class PlateauImportServiceTests
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
                 Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
+                Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainFineOverlayDepthOffset, material.DepthOffset);
             });
 
         ResoniteConstructionCityObject area = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "Area One");
@@ -1939,6 +1943,8 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(otherMaterial.TexturePath!, BundledDefaultMaterialFamilies.OtherVariants);
         Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, cityFurnitureMaterial.Family);
         Assert.Equal(BundledDefaultMaterialFamilies.Other, otherMaterial.Family);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainFineOverlayDepthOffset, cityFurnitureMaterial.DepthOffset);
+        Assert.Null(otherMaterial.DepthOffset);
         Assert.NotEqual(cityFurnitureMaterial.MaterialKey, otherMaterial.MaterialKey);
         Assert.Contains("|family:city-furniture|", cityFurnitureMaterial.MaterialKey, StringComparison.Ordinal);
         Assert.Contains("|family:other|", otherMaterial.MaterialKey, StringComparison.Ordinal);
@@ -2192,7 +2198,7 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scanned ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Parsed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Prepared construction source", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization.", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting scene builder initialization.", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Streamed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scene builder completion finished", StringComparison.Ordinal));
     }
@@ -2298,6 +2304,68 @@ public sealed class PlateauImportServiceTests
 
         Assert.Equal("bootstrap failed", exception.Message);
         Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
+        Assert.Equal(0, sceneBuilder.DisposeCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncDisposesOwnedSceneBuilderAfterSuccessfulExecution()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(CreateStubConstructionSource());
+        PlateauImportService service = PlateauImportService.CreateOwned(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite");
+
+        Assert.Equal("Stub World", result.Metadata.WorldName);
+        Assert.Equal(["stub://resonite"], result.Destinations);
+        Assert.Equal(1, sceneBuilder.DisposeCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncDisposesOwnedSceneBuilderWhenConstructionSourceBootstrapFails()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        FailingConstructionSourceFactory constructionSourceFactory = new(new InvalidOperationException("bootstrap failed"));
+        PlateauImportService service = PlateauImportService.CreateOwned(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Remote,
+                    LocalSourcePath: null,
+                    ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+                workRoot: "runtime/resonite"));
+
+        Assert.Equal("bootstrap failed", exception.Message);
         Assert.Equal(1, sceneBuilder.DisposeCallCount);
     }
 
@@ -2340,7 +2408,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(["connect"], callOrder);
         Assert.Empty(constructionSourceFactory.Requests);
         Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
-        Assert.Equal(1, sceneBuilder.DisposeCallCount);
+        Assert.Equal(0, sceneBuilder.DisposeCallCount);
     }
 
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
@@ -2399,6 +2467,11 @@ public sealed class PlateauImportServiceTests
             DisposeCallCount++;
             return ValueTask.CompletedTask;
         }
+
+        public void Dispose()
+        {
+            DisposeCallCount++;
+        }
     }
 
     private sealed class RecordingDatasetSourceResolver(PlateauImportRequest resolvedRequest) : IPlateauDatasetSourceResolver
@@ -2450,11 +2523,6 @@ public sealed class PlateauImportServiceTests
         : IResoniteConstructionSource
     {
         public ResoniteConstructionMetadata Metadata { get; } = metadata;
-
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
-        {
-            return cityObjects;
-        }
 
         public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

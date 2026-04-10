@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Plateau.ResoniteLink.Tests;
 
 internal static class TestData
@@ -7,9 +9,15 @@ internal static class TestData
         return Path.Combine(GetRepositoryRoot(), "tests", "Fixtures", fixtureName);
     }
 
-    private static string GetRepositoryRoot()
+    private static string GetRepositoryRoot([CallerFilePath] string sourceFilePath = "")
     {
-        DirectoryInfo? current = new(AppContext.BaseDirectory);
+        string? sourceDirectory = Path.GetDirectoryName(sourceFilePath);
+        if (string.IsNullOrWhiteSpace(sourceDirectory))
+        {
+            throw new DirectoryNotFoundException("Source file directory could not be resolved from the test context.");
+        }
+
+        DirectoryInfo? current = new(sourceDirectory);
         while (current is not null)
         {
             if (File.Exists(Path.Combine(current.FullName, "Plateau.ResoniteLink.sln")))

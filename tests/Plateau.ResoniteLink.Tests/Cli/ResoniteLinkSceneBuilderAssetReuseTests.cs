@@ -1,3 +1,4 @@
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -181,7 +182,38 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenTextureBasenamesMatchButPathsDiffer()
+    public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenDepthOffsetDiffers()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["tran", "frn"]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        string bundledTexturePath = BundledDefaultMaterialFamilies.CityFurnitureVariants[0];
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-material-depth-one",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"),
+                    depthOffset: LocalCityGmlResonitePlanBuilder.DefaultTerrainSurfaceDepthOffset),
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-material-depth-two",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"),
+                    depthOffset: LocalCityGmlResonitePlanBuilder.DefaultTerrainFineOverlayDepthOffset),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncSharesAlbedoOnlyCommonMaterialWhenTextureBasenamesMatchButPathsDiffer()
     {
         using TemporaryDirectory datasetDirectory = new();
         string firstTexturePath = "textures/set-a/wall.png";
@@ -211,13 +243,17 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
         Assert.Equal(
-            2,
+            1,
             sharedClient.AddedComponents.Count(static request =>
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenTexturePathsDifferOnlyByColorSuffix()
+    public async Task BuildAsyncSharesAlbedoOnlyCommonMaterialWhenTexturePathsDifferOnlyByColorSuffix()
     {
         using TemporaryDirectory datasetDirectory = new();
         string firstTexturePath = "textures/facade.png";
@@ -247,13 +283,17 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
         Assert.Equal(
-            2,
+            1,
             sharedClient.AddedComponents.Count(static request =>
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
     }
 
     [Fact]
-    public async Task BuildAsyncUsesDedicatedMaterialsForDatasetAlbedoOnlyTextures()
+    public async Task BuildAsyncUsesSharedCommonMaterialForDatasetAlbedoOnlyTextures()
     {
         using TemporaryDirectory datasetDirectory = new();
         string textureOne = "textures/albedo-one.png";
@@ -286,12 +326,62 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
         Assert.Equal(
-            2,
+            1,
             sharedClient.AddedComponents.Count(static request =>
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
-        Assert.DoesNotContain(
-            sharedClient.AddedComponents,
-            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesSharedCommonMaterialForDatasetAlbedoOnlyTexturesAcrossRuns()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string firstTexturePath = "textures/albedo-one.png";
+        string secondTexturePath = "textures/albedo-two.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, firstTexturePath),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, secondTexturePath),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            datasetDirectory.Path,
+            sourceFiles: [firstTexturePath, secondTexturePath]);
+        using ReuseSessionSharedClient client = new();
+
+        CapturedScene firstScene = new(
+            metadata,
+            [
+                CreateTexturedTriangleCityObject(
+                    objectIdentity: "dataset-albedo-run-one",
+                    firstTexturePath,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material")),
+            ]);
+        CapturedScene secondScene = new(
+            metadata,
+            [
+                CreateTexturedTriangleCityObject(
+                    objectIdentity: "dataset-albedo-run-two",
+                    secondTexturePath,
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material")),
+            ]);
+
+        await BuildSceneOnceAsync(firstScene, client, Path.Combine(datasetDirectory.Path, "work-first"));
+        await BuildSceneOnceAsync(secondScene, client, Path.Combine(datasetDirectory.Path, "work-second"));
+
+        Assert.Equal(
+            1,
+            client.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+        Assert.Equal(
+            2,
+            client.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -507,7 +597,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         string texturePath,
         ResoniteImportedMesh mesh,
         ResoniteFloat2? textureScale = null,
-        ResoniteColor? baseColor = null)
+        ResoniteColor? baseColor = null,
+        ResoniteMaterialDepthOffset? depthOffset = null)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
@@ -526,7 +617,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     TexturePath: texturePath,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
+                    DepthOffset: depthOffset,
                     SubmeshIndices: [0],
                     TextureScale: textureScale),
             ],

@@ -6,6 +6,28 @@
 
 警告: この手順中の cleanup は、現在の Resonite session にある live-world の成果を破壊しうる。破棄してよい実験用 session で使うか、dataset root を削除してよいことを明示的に確認してから実行する。
 
+## 先に Dry-Run
+
+どの live send より前にも、同じ import 条件で一度 `--dry-run` を実行する。
+
+- `--dry-run` は Resonite へ接続せずに、dataset resolution、archive / local source の検査、construction source の準備、city object の streaming までを通す。
+- 実セッションを触れないまま前段を確認したい場合、このリポジトリでは `--dry-run` を必須の preflight とする。
+- `--dry-run` は `--resonitelink-port`、`--resonitelink-url`、`--resonitelink-connections`、`--send-metrics` を意図的に受け付けない。検証対象は live socket path ではなく、その前の import pipeline である。
+
+例:
+
+```powershell
+dotnet run --project src/Plateau.ResoniteLink.Cli -- `
+  build `
+  --dataset <dataset> `
+  --mesh-code <mesh-code> `
+  --source local `
+  --local-source-path <dataset-root> `
+  --dry-run
+```
+
+real-session の send 許可を取りに行く前の gate は、green の dry run と repository の CI check 一式とする。
+
 ## Live Contract Rules
 
 - ResoniteLink の component payload は、自由な property bag ではなく strict な transport contract として扱う。

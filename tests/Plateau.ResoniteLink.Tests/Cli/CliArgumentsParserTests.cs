@@ -33,6 +33,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(
             Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
             result.Options.WorkRoot);
+        Assert.Equal(BuildExecutionMode.Live, result.Options.ExecutionMode);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.False(result.Options.EnableSendMetrics);
@@ -196,11 +197,117 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Null(result.Error);
+        Assert.Equal(BuildExecutionMode.Live, result.Options!.ExecutionMode);
         Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.SourceKind);
         Assert.Equal(
             new Uri("https://example.invalid/plateau.zip"),
             result.Options.Request.ServerUri);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseParsesDryRunWithoutResoniteEndpoint()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--source",
+                "local",
+                "--local-source-path",
+                "/data/plateau",
+                "--dry-run",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(BuildExecutionMode.DryRun, result.Options!.ExecutionMode);
+        Assert.Null(result.Options.ResoniteLinkUri);
+        Assert.False(result.Options.EnableSendMetrics);
+        Assert.Equal(CliDefaultOptions.ResoniteLinkConnectionCount, result.Options.ResoniteLinkConnectionCount);
+    }
+
+    [Fact]
+    public void ParseRejectsDryRunWithResoniteEndpoint()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--dry-run",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Equal(
+            "Do not specify --resonitelink-port or --resonitelink-url with --dry-run.",
+            result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDryRunWithResoniteLinkConnections()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--dry-run",
+                "--resonitelink-connections",
+                "8",
+            ]);
+
+        Assert.Equal("Do not specify --resonitelink-connections with --dry-run.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDryRunWithExplicitDefaultResoniteLinkConnections()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--dry-run",
+                "--resonitelink-connections",
+                "4",
+            ]);
+
+        Assert.Equal("Do not specify --resonitelink-connections with --dry-run.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDryRunWithSendMetrics()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--dry-run",
+                "--send-metrics",
+            ]);
+
+        Assert.Equal("Do not specify --send-metrics with --dry-run.", result.Error);
     }
 
     [Fact]

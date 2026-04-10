@@ -48,6 +48,51 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncWritesDryRunCompletionWithoutLiveDestinations()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubSceneBuilder sceneBuilder = new();
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            new PlateauImportService(sceneBuilder));
+
+        int exitCode = await application.RunAsync(
+            CliTestData.BuildDryRunArgs(fixturePath));
+
+        Assert.Equal(0, exitCode);
+        Assert.Equal(2, sceneBuilder.CityObjects.Count);
+        Assert.Contains("Dry run completed.", standardOutput.ToString());
+        Assert.Contains("Live Resonite session was not used.", standardOutput.ToString());
+        Assert.DoesNotContain("Resonite location:", standardOutput.ToString(), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsyncDryRunUsesOwnedDryRunSceneBuilderFactoryPath()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            options => CliApplication.CreateImportService(options, new PassThroughDatasetSourceResolver()));
+
+        int exitCode = await application.RunAsync(
+            CliTestData.BuildDryRunArgs(fixturePath));
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("Dry run completed.", standardOutput.ToString());
+        Assert.Contains("Live Resonite session was not used.", standardOutput.ToString());
+        Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    [Fact]
     public async Task RunAsyncReturnsFailureForOperationalException()
     {
         using StringWriter standardOutput = new();
@@ -90,6 +135,7 @@ public sealed class CliApplicationTests
         Assert.Equal(0, exitCode);
         Assert.NotNull(capturedOptions);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions!.Request.PackageNames);
+        Assert.Equal(BuildExecutionMode.Live, capturedOptions.ExecutionMode);
         Assert.Equal(string.Empty, standardError.ToString());
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
     }
@@ -155,6 +201,17 @@ public sealed class CliApplicationTests
         public ValueTask DisposeAsync()
         {
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class PassThroughDatasetSourceResolver : IPlateauDatasetSourceResolver
+    {
+        public Task<PlateauImportRequest> ResolveAsync(
+            PlateauImportRequest request,
+            string workRoot,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(request);
         }
     }
 }

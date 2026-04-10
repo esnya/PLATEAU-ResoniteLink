@@ -128,16 +128,6 @@ public static class PlateauImportRequestValidator
                 break;
         }
 
-        if (request.DemHeightmapMetersPerVertex <= 0)
-        {
-            errors.Add("The DEM heightmap meters-per-vertex value must be greater than zero.");
-        }
-
-        if (request.DemHeightmapMaxResolution < 2)
-        {
-            errors.Add("The DEM heightmap max resolution value must be at least 2.");
-        }
-
         return errors;
     }
 

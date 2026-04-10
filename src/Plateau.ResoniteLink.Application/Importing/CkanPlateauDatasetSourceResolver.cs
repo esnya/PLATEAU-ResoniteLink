@@ -12,16 +12,26 @@ namespace Plateau.ResoniteLink.Application.Importing;
 public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly SocketsHttpHandler SharedHttpHandler = new()
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+    };
+    private static readonly HttpClient SharedHttpClient = CreateSharedHttpClient();
     private readonly HttpClient httpClient;
 
     public CkanPlateauDatasetSourceResolver()
-        : this(new HttpClient())
+        : this(SharedHttpClient)
     {
     }
 
     public CkanPlateauDatasetSourceResolver(HttpClient httpClient)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    }
+
+    private static HttpClient CreateSharedHttpClient()
+    {
+        return new HttpClient(SharedHttpHandler, disposeHandler: false);
     }
 
     public async Task<PlateauImportRequest> ResolveAsync(
@@ -211,8 +221,8 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
     {
         foreach (string archiveCacheName in PlateauDatasetContentSourceFactory.GetMaterializedArchiveCacheKeys(archivePath))
         {
-            TryDeleteDirectory(Path.Combine(workRoot, ".dataset-cache", archiveCacheName));
-            TryDeleteDirectory(Path.Combine(workRoot, ".generated-assets", ".dataset-cache", archiveCacheName));
+            TryDeleteDirectoryUnderWorkRoot(workRoot, Path.Combine(workRoot, ".dataset-cache", archiveCacheName));
+            TryDeleteDirectoryUnderWorkRoot(workRoot, Path.Combine(workRoot, ".generated-assets", ".dataset-cache", archiveCacheName));
 
             try
             {
@@ -221,7 +231,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                              ".dataset-cache",
                              SearchOption.AllDirectories))
                 {
-                    TryDeleteDirectory(Path.Combine(materializedCacheRoot, archiveCacheName));
+                    TryDeleteDirectoryUnderWorkRoot(workRoot, Path.Combine(materializedCacheRoot, archiveCacheName));
                 }
             }
             catch (IOException)
@@ -233,7 +243,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
     }
 
-    private static void TryDeleteDirectory(string? path)
+    private static void TryDeleteDirectoryUnderWorkRoot(string workRoot, string? path)
     {
         if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
         {
@@ -242,7 +252,25 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
         try
         {
-            Directory.Delete(path, true);
+            string normalizedWorkRoot = Path.GetFullPath(workRoot);
+            string normalizedPath = Path.GetFullPath(path);
+            PlateauDatasetContentSourceFactory.EnsurePathIsContained(
+                normalizedWorkRoot,
+                normalizedPath,
+                normalizedPath,
+                nameof(path),
+                "work root");
+            PlateauDatasetContentSourceFactory.EnsurePathDoesNotTraverseReparsePoints(
+                normalizedWorkRoot,
+                normalizedPath,
+                normalizedPath,
+                nameof(path),
+                "work root",
+                includeRoot: true);
+            Directory.Delete(normalizedPath, true);
+        }
+        catch (ArgumentException)
+        {
         }
         catch (IOException)
         {

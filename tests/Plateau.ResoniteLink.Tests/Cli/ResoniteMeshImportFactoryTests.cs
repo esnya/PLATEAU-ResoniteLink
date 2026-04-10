@@ -30,8 +30,8 @@ public sealed class ResoniteMeshImportFactoryTests
             ],
             Submeshes:
             [
-                new ResoniteMeshSubmesh(3, "later", [2, 1, 0]),
-                new ResoniteMeshSubmesh(1, "first", [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, "later", [2, 1, 0]),
+                new ResoniteMeshSubmesh(0, "first", [0, 1, 2]),
             ]);
 
         ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);

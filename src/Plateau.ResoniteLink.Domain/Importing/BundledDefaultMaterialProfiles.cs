@@ -11,28 +11,33 @@ public static class BundledDefaultMaterialProfiles
     public static readonly ResoniteFloat2 RoofingTiles014BTilesPerMeter = CreateTilesPerMeter(2.9, 2.9);
     public static readonly ResoniteFloat2 Asphalt020LTilesPerMeter = CreateTilesPerMeter(4.6, 4.6);
     public static readonly ResoniteFloat2 Asphalt023LTilesPerMeter = CreateTilesPerMeter(2.5, 2.5);
-    public static readonly ResoniteFloat2 Metal032TilesPerMeter = CreateTilesPerMeter(2.5, 2.5);
+    public static readonly ResoniteFloat2 Plaster001TilesPerMeter = BundledDefaultMaterialTiling.DefaultTilesPerMeter;
     public static readonly ResoniteFloat2 Ground054TilesPerMeter = CreateTilesPerMeter(3.5, 3.5);
+    private static readonly Dictionary<string, ResoniteFloat2> TilesPerMeterByTexturePath =
+        new Dictionary<string, ResoniteFloat2>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["default-materials/facade/facade001_2k-jpg_color.jpg"] = FacadeDefaultTilesPerMeter,
+            ["default-materials/facade/facade018a_2k-jpg_color.jpg"] = Facade018ATilesPerMeter,
+            ["default-materials/facade/facade019a_2k-jpg_color.jpg"] = Facade019ATilesPerMeter,
+            ["default-materials/facade/facade020a_2k-jpg_color.jpg"] = Facade020ATilesPerMeter,
+            ["default-materials/roof/concrete012_2k-jpg_color.jpg"] = ConcreteDefaultTilesPerMeter,
+            ["default-materials/roof/concrete033_2k-jpg_color.jpg"] = ConcreteDefaultTilesPerMeter,
+            ["default-materials/roof/roofingtiles012a_2k-jpg_color.jpg"] = RoofingTiles012ATilesPerMeter,
+            ["default-materials/roof/roofingtiles014b_2k-jpg_color.jpg"] = RoofingTiles014BTilesPerMeter,
+            ["default-materials/road/asphalt020l_2k-jpg_color.jpg"] = Asphalt020LTilesPerMeter,
+            ["default-materials/road/asphalt023l_2k-jpg_color.jpg"] = Asphalt023LTilesPerMeter,
+            ["default-materials/city-furniture/plaster001_2k-jpg_color.jpg"] = Plaster001TilesPerMeter,
+            ["default-materials/other/concrete012_2k-jpg_color.jpg"] = ConcreteDefaultTilesPerMeter,
+            ["default-materials/other/ground054_2k-jpg_color.jpg"] = Ground054TilesPerMeter,
+        };
 
     public static ResoniteFloat2 GetTilesPerMeter(string texturePath)
     {
-        return texturePath.ToLowerInvariant() switch
-        {
-            "default-materials/facade/facade001_2k-jpg_color.jpg" => FacadeDefaultTilesPerMeter,
-            "default-materials/facade/facade018a_2k-jpg_color.jpg" => Facade018ATilesPerMeter,
-            "default-materials/facade/facade019a_2k-jpg_color.jpg" => Facade019ATilesPerMeter,
-            "default-materials/facade/facade020a_2k-jpg_color.jpg" => Facade020ATilesPerMeter,
-            "default-materials/roof/concrete012_2k-jpg_color.jpg" => ConcreteDefaultTilesPerMeter,
-            "default-materials/roof/concrete033_2k-jpg_color.jpg" => ConcreteDefaultTilesPerMeter,
-            "default-materials/roof/roofingtiles012a_2k-jpg_color.jpg" => RoofingTiles012ATilesPerMeter,
-            "default-materials/roof/roofingtiles014b_2k-jpg_color.jpg" => RoofingTiles014BTilesPerMeter,
-            "default-materials/road/asphalt020l_2k-jpg_color.jpg" => Asphalt020LTilesPerMeter,
-            "default-materials/road/asphalt023l_2k-jpg_color.jpg" => Asphalt023LTilesPerMeter,
-            "default-materials/city-furniture/metal032_2k-jpg_color.jpg" => Metal032TilesPerMeter,
-            "default-materials/other/concrete012_2k-jpg_color.jpg" => ConcreteDefaultTilesPerMeter,
-            "default-materials/other/ground054_2k-jpg_color.jpg" => Ground054TilesPerMeter,
-            _ => BundledDefaultMaterialTiling.DefaultTilesPerMeter,
-        };
+        ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
+
+        return TilesPerMeterByTexturePath.TryGetValue(texturePath, out ResoniteFloat2? tilesPerMeter)
+            ? tilesPerMeter
+            : BundledDefaultMaterialTiling.DefaultTilesPerMeter;
     }
 
     private static ResoniteFloat2 CreateTilesPerMeter(double widthMeters, double heightMeters)

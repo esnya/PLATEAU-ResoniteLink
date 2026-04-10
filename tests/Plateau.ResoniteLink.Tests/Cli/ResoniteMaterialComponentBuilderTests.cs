@@ -145,7 +145,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
             out string absolutePath);
 
         Assert.True(resolved);
-        Assert.EndsWith("Metal032_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
+        Assert.EndsWith("Plaster001_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
         Assert.True(File.Exists(absolutePath));
     }
 }

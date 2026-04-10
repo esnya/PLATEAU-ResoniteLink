@@ -15,7 +15,7 @@
 - `special case`: `dem` は生成 terrain overlay 経路を維持し、同梱 fallback family は使わない
 
 package から material 方針への対応は `PlateauPackageCatalog` に集約してあり、サポート対象の non-`dem` package が必ずちょうど 1 つの material bucket に入ることをテストで固定している。これにより、Unity SDK 側の package 対応と fallback policy のズレを見つけやすくしている。`frn` は汎用 `other` bucket ではなく、専用の `city-furniture` fallback family に入る。
-2026-03-12 公開の `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0) 時点では、Unity 側の `PredefinedCityModelPackage.CityFurniture` は `PlateauDefaultCityFurniture` に対応し、見た目は generic metal 系になっている。ResoniteLink もその見た目に寄せるが、チェックインする fallback texture data 自体は Unity SDK の asset をコピーせず、AmbientCG から直接取得したものを使う。
+2026-03-12 公開の `PLATEAU-SDK-for-Unity` [`v4.2.0`](https://github.com/Project-PLATEAU/PLATEAU-SDK-for-Unity/releases/tag/v4.2.0) 時点では、Unity 側の `PredefinedCityModelPackage.CityFurniture` は `PlateauDefaultCityFurniture` に対応している。ResoniteLink 側では専用の `city-furniture` bucket は維持しつつ、材質・色なし時に使う同梱 fallback の基準テクスチャを metal 系から AmbientCG `Plaster001` ベースへ切り替えた。
 
 ## `dem` Terrain Imagery メモ
 
@@ -61,7 +61,7 @@ Unity SDK の `TestDataTokyoMini` にある `frn` fixture をサンプリング�
 - `road`:
   `Asphalt020L_2K-JPG_Color.jpg`, `Asphalt023L_2K-JPG_Color.jpg`
 - `city-furniture`:
-  `Metal032_2K-JPG_Color.jpg`
+  `Plaster001_2K-JPG_Color.jpg`
 - `other`:
   `Concrete012_2K-JPG_Color.jpg`, `Ground054_2K-JPG_Color.jpg`
 
@@ -78,7 +78,7 @@ Sources:
 - `Asphalt020L`: <https://ambientcg.com/view?id=Asphalt020L>
 - `Asphalt023L`: <https://ambientcg.com/view?id=Asphalt023L>
 - `Ground054`: <https://ambientcg.com/view?id=Ground054>
-- `Metal032`: <https://ambientcg.com/view?id=Metal032>
+- `Plaster001`: <https://ambientcg.com/view?id=Plaster001>
 
 現在このリポジトリに同梱している fallback texture は、すべて AmbientCG 由来で、ライセンスは CC0 1.0 である。
 ローカルの追跡用メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` に置いている。
@@ -97,9 +97,9 @@ Sources:
 - `default-materials/road/Asphalt023L_2K-JPG_*` -> AmbientCG `Asphalt023L` -> <https://ambientcg.com/view?id=Asphalt023L>
 - `default-materials/other/Ground054_2K-JPG_*` -> AmbientCG `Ground054` -> <https://ambientcg.com/view?id=Ground054>
 - `default-materials/other/Concrete012_2K-JPG_*` -> AmbientCG `Concrete012` -> <https://ambientcg.com/view?id=Concrete012>
-- `default-materials/city-furniture/Metal032_2K-JPG_*` -> AmbientCG `Metal032` -> <https://ambientcg.com/view?id=Metal032>
+- `default-materials/city-furniture/Plaster001_2K-JPG_*` -> AmbientCG `Plaster001` -> <https://ambientcg.com/view?id=Plaster001>
 
-`city-furniture` の metallic map は upstream のファイルをそのまま置いているわけではない。`Metal032_2K-JPG_Metallic.png` は AmbientCG の `Metal032_2K-JPG_Metalness.jpg` と `Metal032_2K-JPG_Roughness.jpg` から Resonite `PBS_Metallic` 向けに再pack したもの。
+`city-furniture` の metallic map は upstream のファイルをそのまま置いているわけではない。`Plaster001_2K-JPG_Metallic.png` は AmbientCG の `Plaster001_2K-JPG_Roughness.jpg` から生成し、metallic を 0、ambient occlusion を neutral に固定した Resonite `PBS_Metallic` 向け packed map である。
 
 リポジトリに残すのは、live material builder が直接使う最終マップだけに絞る。
 

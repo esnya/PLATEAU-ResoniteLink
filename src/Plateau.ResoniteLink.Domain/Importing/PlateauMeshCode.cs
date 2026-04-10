@@ -1,12 +1,13 @@
 using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Plateau.ResoniteLink.Domain.Importing;
 
 public static class PlateauMeshCode
 {
-    public static bool TryGetCenter(string meshCode, out ResoniteLocalOrigin center)
+    public static bool TryGetCenter(string meshCode, [NotNullWhen(true)] out ResoniteLocalOrigin? center)
     {
-        center = default!;
+        center = null;
 
         if (!TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
         {

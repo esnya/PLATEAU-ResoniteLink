@@ -6,6 +6,28 @@ Use this workflow only for machine-level checks against a running ResoniteLink l
 
 Warning: cleanup during this workflow can destroy live-world results in the current Resonite session. Use a disposable experiment session, or get explicit approval before removing a dataset root from a session the user may want to preserve.
 
+## Dry-Run First
+
+Before any live send, run the same import once with `--dry-run`.
+
+- `--dry-run` exercises dataset resolution, archive/local source checks, construction-source preparation, and city-object streaming without connecting to Resonite.
+- `--dry-run` is the required preflight for this repository when the real Resonite session must stay untouched.
+- `--dry-run` intentionally rejects `--resonitelink-port`, `--resonitelink-url`, `--resonitelink-connections`, and `--send-metrics`. It validates the import pipeline before transport, not the live socket path.
+
+Example:
+
+```powershell
+dotnet run --project src/Plateau.ResoniteLink.Cli -- `
+  build `
+  --dataset <dataset> `
+  --mesh-code <mesh-code> `
+  --source local `
+  --local-source-path <dataset-root> `
+  --dry-run
+```
+
+Treat a green dry run plus the repository CI checks as the gate before requesting approval for a real-session send.
+
 ## Live Contract Rules
 
 - Treat ResoniteLink component payloads as a strict transport contract, not an open-ended property bag.

@@ -6,8 +6,6 @@ public interface IResoniteConstructionSource
 {
     ResoniteConstructionMetadata Metadata { get; }
 
-    IEnumerable<ResoniteConstructionCityObject> ReadCityObjects();
-
     IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
         CancellationToken cancellationToken = default);
 }

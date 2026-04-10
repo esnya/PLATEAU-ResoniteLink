@@ -15,7 +15,12 @@ internal interface ITerrainTextureAssetGenerator
 
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
-    private readonly HttpClient httpClient = httpClient ?? new HttpClient();
+    private static readonly SocketsHttpHandler SharedHttpHandler = new()
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(15),
+    };
+    private static readonly HttpClient SharedHttpClient = CreateSharedHttpClient();
+    private readonly HttpClient httpClient = httpClient ?? SharedHttpClient;
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, ResoniteRawTextureImport> cachedTextures = new();
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
@@ -79,6 +84,11 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             Size = new Size(maxTextureSize, maxTextureSize),
             Sampler = KnownResamplers.Lanczos3,
         }));
+    }
+
+    private static HttpClient CreateSharedHttpClient()
+    {
+        return new HttpClient(SharedHttpHandler, disposeHandler: false);
     }
 
     private async Task<Image<Rgba32>> DownloadTileAsync(

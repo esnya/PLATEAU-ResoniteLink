@@ -6,6 +6,8 @@ using System.Text;
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
+using Xunit.Sdk;
+
 namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class CkanPlateauDatasetSourceResolverCacheTests
@@ -413,6 +415,64 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     }
 
     [Fact]
+    public async Task ResolveAsyncRefreshDoesNotDeleteThroughSymlinkedMaterializedCacheRoot()
+    {
+        byte[] firstZipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>version-a</CityModel>"));
+        byte[] secondZipBytes = CreateZipArchive(
+            ("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>version-b</CityModel>"));
+
+        int requestIndex = 0;
+        using StubHttpMessageHandler handler = new(_ =>
+        {
+            requestIndex++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(requestIndex == 1 ? firstZipBytes : secondZipBytes),
+            };
+        });
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        Assert.NotNull(firstRequest.LocalSourcePath);
+        string cacheName = GetMaterializedArchiveCacheKey(firstRequest.LocalSourcePath);
+        string externalCacheRoot = Path.Combine(workRoot.Path, "external-cache");
+        string externalCachePath = Path.Combine(externalCacheRoot, cacheName);
+        string sentinelPath = Path.Combine(externalCachePath, "udx", "sentinel.dat");
+        Directory.CreateDirectory(Path.GetDirectoryName(sentinelPath)!);
+        await File.WriteAllTextAsync(sentinelPath, "keep");
+
+        string generatedAssetsRoot = Path.Combine(workRoot.Path, ".generated-assets");
+        string generatedDatasetCacheRoot = Path.Combine(generatedAssetsRoot, ".dataset-cache");
+        Directory.CreateDirectory(generatedAssetsRoot);
+        CreateDirectorySymbolicLinkOrSkip(generatedDatasetCacheRoot, externalCacheRoot);
+
+        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533944",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        Assert.NotNull(secondRequest.LocalSourcePath);
+        Assert.Equal(2, requestIndex);
+        Assert.True(File.Exists(sentinelPath));
+        Assert.Equal("keep", await File.ReadAllTextAsync(sentinelPath));
+    }
+
+    [Fact]
     public async Task ResolveAsyncReusesCachedArchiveWhenServerReturnsNotModified()
     {
         byte[] zipBytes = CreateZipArchive(
@@ -566,6 +626,26 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         return Convert.ToHexString(
                 System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.ToString())))
             .ToLowerInvariant();
+    }
+
+    private static void CreateDirectorySymbolicLinkOrSkip(string linkPath, string targetPath)
+    {
+        try
+        {
+            Directory.CreateSymbolicLink(linkPath, targetPath);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw SkipException.ForSkip($"Symbolic links are unavailable in this environment: {exception.Message}");
+        }
+        catch (PlatformNotSupportedException exception)
+        {
+            throw SkipException.ForSkip($"Symbolic links are unavailable in this environment: {exception.Message}");
+        }
+        catch (IOException exception) when (!Directory.Exists(linkPath))
+        {
+            throw SkipException.ForSkip($"Symbolic links are unavailable in this environment: {exception.Message}");
+        }
     }
 
     private sealed class FailingHttpContent(byte[] content, int failAfterBytes) : HttpContent

@@ -23,6 +23,8 @@
 - SDK, analyzer, formatting, and package-version policy stays centralized at the repository root.
 - Individual projects keep only project-specific differences.
 - CI mirrors the local verification workflow:
-  - `dotnet restore`
+  - `dotnet restore Plateau.ResoniteLink.sln --locked-mode`
+  - `dotnet build-server shutdown`
   - `dotnet format whitespace . --folder --verify-no-changes`
-  - `dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false` (build and analyzers are enforced via test)
+  - `dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore -m:1 -p:UseSharedCompilation=false`
+  - `dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 -p:UseSharedCompilation=false`

@@ -5,18 +5,57 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public sealed class PlateauImportService(
-    IResoniteSceneBuilder sceneBuilder,
-    IPlateauDatasetSourceResolver? datasetSourceResolver = null,
-    Action<string>? progressReporter = null,
-    IResoniteConstructionSourceFactory? constructionSourceFactory = null)
+public sealed class PlateauImportService
 {
-    private readonly IResoniteSceneBuilder sceneBuilder = sceneBuilder;
+    private readonly IResoniteSceneBuilder sceneBuilder;
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
-        datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver();
-    private readonly Action<string>? progressReporter = progressReporter;
+        new CkanPlateauDatasetSourceResolver();
+    private readonly Action<string>? progressReporter;
     private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
-        constructionSourceFactory ?? new LocalCityGmlConstructionSourceFactory();
+        new LocalCityGmlConstructionSourceFactory();
+    private readonly bool ownsSceneBuilder;
+
+    public PlateauImportService(
+        IResoniteSceneBuilder sceneBuilder,
+        IPlateauDatasetSourceResolver? datasetSourceResolver = null,
+        Action<string>? progressReporter = null,
+        IResoniteConstructionSourceFactory? constructionSourceFactory = null)
+        : this(
+            sceneBuilder,
+            datasetSourceResolver,
+            progressReporter,
+            constructionSourceFactory,
+            ownsSceneBuilder: false)
+    {
+    }
+
+    public static PlateauImportService CreateOwned(
+        IResoniteSceneBuilder sceneBuilder,
+        IPlateauDatasetSourceResolver? datasetSourceResolver = null,
+        Action<string>? progressReporter = null,
+        IResoniteConstructionSourceFactory? constructionSourceFactory = null)
+    {
+        return new PlateauImportService(
+            sceneBuilder,
+            datasetSourceResolver,
+            progressReporter,
+            constructionSourceFactory,
+            ownsSceneBuilder: true);
+    }
+
+    private PlateauImportService(
+        IResoniteSceneBuilder sceneBuilder,
+        IPlateauDatasetSourceResolver? datasetSourceResolver,
+        Action<string>? progressReporter,
+        IResoniteConstructionSourceFactory? constructionSourceFactory,
+        bool ownsSceneBuilder)
+    {
+        this.sceneBuilder = sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
+        this.datasetSourceResolver = datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver();
+        this.progressReporter = progressReporter;
+        this.constructionSourceFactory = constructionSourceFactory ?? new LocalCityGmlConstructionSourceFactory();
+        this.ownsSceneBuilder = ownsSceneBuilder;
+    }
 
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
@@ -57,7 +96,7 @@ public sealed class PlateauImportService(
                 PlateauLog.Info("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             Stopwatch beginStopwatch = Stopwatch.StartNew();
-            ReportProgress(PlateauLog.Info("import", "Starting live scene initialization."));
+            ReportProgress(PlateauLog.Info("import", "Starting scene builder initialization."));
             await sceneBuilder.BeginAsync(source.Metadata, workRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(PlateauLog.Info("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
@@ -92,7 +131,10 @@ public sealed class PlateauImportService(
         }
         finally
         {
-            await sceneBuilder.DisposeAsync();
+            if (ownsSceneBuilder)
+            {
+                await sceneBuilder.DisposeAsync();
+            }
         }
     }
 

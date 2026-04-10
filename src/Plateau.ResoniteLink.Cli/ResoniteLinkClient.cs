@@ -1,5 +1,3 @@
-using System.Text.Json.Serialization;
-
 using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Cli;
@@ -29,12 +27,12 @@ internal interface IResoniteLinkClient : IDisposable
 
 internal sealed class ResoniteLinkClient : IResoniteLinkClient
 {
-    static ResoniteLinkClient()
-    {
-        LinkInterface.SerializationOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-    }
+    private readonly IResoniteLinkTransport link;
 
-    private readonly LinkInterface link = new();
+    internal ResoniteLinkClient(IResoniteLinkTransport? link = null)
+    {
+        this.link = link ?? new ResoniteLinkTransport();
+    }
 
     public void Dispose()
     {
@@ -43,7 +41,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
     {
-        await link.Connect(endpoint, cancellationToken);
+        await link.ConnectAsync(endpoint, cancellationToken);
     }
 
     public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -51,7 +49,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
-        NewEntityId response = await link.AddComponent(request);
+        NewEntityId response = await link.AddComponentAsync(request, cancellationToken);
         EnsureSuccess(
             response,
             CreateMutationOperationName(
@@ -66,7 +64,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
-        NewEntityId response = await link.AddSlot(request);
+        NewEntityId response = await link.AddSlotAsync(request, cancellationToken);
         EnsureSuccess(
             response,
             CreateMutationOperationName(
@@ -87,7 +85,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             return;
         }
 
-        BatchResponse response = await link.RunDataModelOperationBatch(operations.ToList());
+        BatchResponse response = await link.RunDataModelOperationBatchAsync(operations, cancellationToken);
         if (!response.Success)
         {
             throw new InvalidOperationException(
@@ -100,11 +98,12 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ComponentData response = await link.GetComponentData(
+        ComponentData response = await link.GetComponentDataAsync(
             new GetComponent
             {
                 ComponentID = componentId,
-            });
+            },
+            cancellationToken);
 
         return GetOptionalReadData(
             response.Success,
@@ -116,13 +115,14 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        SlotData response = await link.GetSlotData(
+        SlotData response = await link.GetSlotDataAsync(
             new GetSlot
             {
                 SlotID = slotId,
                 Depth = depth,
                 IncludeComponentData = false,
-            });
+            },
+            cancellationToken);
 
         return GetOptionalReadData(
             response.Success,
@@ -134,7 +134,8 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        AssetData result = await link.ImportMesh(request);
+        ArgumentNullException.ThrowIfNull(request);
+        AssetData result = await link.ImportMeshAsync(request, cancellationToken);
         EnsureSuccess(result, "import mesh");
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null mesh asset URL.");
     }
@@ -145,26 +146,29 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(textureImport);
         AssetData result = textureImport switch
         {
-            ResoniteFileTextureImport fileImport => await link.ImportTexture(
+            ResoniteFileTextureImport fileImport => await link.ImportTextureAsync(
                 new ImportTexture2DFile
                 {
                     FilePath = fileImport.AbsolutePath,
-                }),
-            ResoniteRawTextureImport rawImport => await link.ImportTexture(
+                },
+                cancellationToken),
+            ResoniteRawTextureImport rawImport => await link.ImportTextureAsync(
                 new ImportTexture2DRawData
                 {
                     Width = rawImport.Width,
                     Height = rawImport.Height,
                     ColorProfile = rawImport.ColorProfile,
                     RawBinaryPayload = rawImport.RawRgba32Bytes,
-                }),
-            ResoniteRawHdrTextureImport rawHdrImport => await link.ImportTexture(
+                },
+                cancellationToken),
+            ResoniteRawHdrTextureImport rawHdrImport => await link.ImportTextureAsync(
                 new ImportTexture2DRawDataHDR
                 {
                     Width = rawHdrImport.Width,
                     Height = rawHdrImport.Height,
                     RawBinaryPayload = rawHdrImport.RawRgbaFloatBytes,
-                }),
+                },
+                cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
         };
 
@@ -175,7 +179,8 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Response response = await link.UpdateComponent(request);
+        ArgumentNullException.ThrowIfNull(request);
+        Response response = await link.UpdateComponentAsync(request, cancellationToken);
         EnsureSuccess(response, "update component");
     }
 

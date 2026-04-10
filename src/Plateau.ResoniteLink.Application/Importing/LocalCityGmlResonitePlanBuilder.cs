@@ -24,7 +24,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
-    public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
+    // Match Unity ShaderLab Offset semantics: use a bounded slope factor and separate overlay layers via units.
+    public static readonly ResoniteMaterialDepthOffset DefaultTerrainSurfaceDepthOffset = new(-1.0, -10.0);
+    public static readonly ResoniteMaterialDepthOffset DefaultTerrainMarkingDepthOffset = new(-1.0, -15.0);
+    public static readonly ResoniteMaterialDepthOffset DefaultTerrainFineOverlayDepthOffset = new(-1.0, -20.0);
 
     private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
         X: Math.Sqrt(0.5),
@@ -114,7 +117,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             surfaces,
             coordinateReferenceSystem,
             sourceIdentity,
-            SharedAcrossMeshCodes: sharedAcrossMeshCodes);
+            SharedAcrossMeshCodes: sharedAcrossMeshCodes,
+            IsMarking: isMarking);
     }
 
     private static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
@@ -1027,8 +1031,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static bool IsNearHorizontalSurface(ResoniteFloat3[] positions)
     {
-        ResoniteFloat3? normal = ComputePolygonNormal(positions);
-        return normal is not null && Math.Abs(normal.Y) >= 0.7;
+        return ComputePolygonNormal(positions) is { } normal
+            && Math.Abs(normal.Y) >= 0.7;
     }
 
     private static ParsedSurface? ParseSurface(XElement polygonElement, AppearanceLibrary appearanceLibrary)
@@ -1356,7 +1360,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     ResoniteMaterialProjection.Uv,
                     Family: null,
                     TextureScale: null),
-                DefaultTerrainAlignedMaterialDepthOffset);
+                DefaultTerrainMarkingDepthOffset);
         }
 
         bool preferUvProjection = ShouldPreferUvProjection(
@@ -1370,10 +1374,35 @@ public static partial class LocalCityGmlResonitePlanBuilder
             preferUvProjection,
             preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
             $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
-        ResoniteMaterialDepthOffset? depthOffset = cityObject.TerrainAligned
-            ? DefaultTerrainAlignedMaterialDepthOffset
-            : null;
+        ResoniteMaterialDepthOffset? depthOffset = ResolveMaterialDepthOffset(cityObject, surface);
         return new MaterializedSurface(surface, resolvedMaterial, depthOffset);
+    }
+
+    private static ResoniteMaterialDepthOffset? ResolveMaterialDepthOffset(ParsedCityObject cityObject, ParsedSurface surface)
+    {
+        if (string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (PlateauPackageCatalog.IsCityFurniturePackage(cityObject.PackageName))
+        {
+            return DefaultTerrainFineOverlayDepthOffset;
+        }
+
+        if (IsGeneratedRoadMarkingSurface(surface)
+            || (cityObject.IsMarking && PlateauPackageCatalog.IsRoadPackage(cityObject.PackageName)))
+        {
+            return DefaultTerrainMarkingDepthOffset;
+        }
+
+        if (PlateauPackageCatalog.IsRoadPackage(cityObject.PackageName)
+            || cityObject.TerrainAligned)
+        {
+            return DefaultTerrainSurfaceDepthOffset;
+        }
+
+        return null;
     }
 
     private static ParsedCityObject? CreateGeneratedRoadMarkingCityObject(
@@ -1413,6 +1442,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 SourceIdentity = $"{cityObject.SourceIdentity}_road_marking",
                 SlotKey = $"{cityObject.SlotKey}_road_marking",
                 DisplayName = $"{cityObject.DisplayName} Marking",
+                IsMarking = true,
                 Surfaces = markingSurfaces.ToArray(),
             };
     }
@@ -1431,8 +1461,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3[] positions = vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
-        ResoniteFloat3? normal = ComputePolygonNormal(positions);
-        if (normal is null || Math.Abs(normal.Y) < 0.7)
+        if (ComputePolygonNormal(positions) is not { } normal || Math.Abs(normal.Y) < 0.7)
         {
             return [];
         }
@@ -1656,8 +1685,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return;
         }
 
-        ResoniteFloat3? expectedNormal = ComputePolygonNormal(tessellatedRings[0].Vertices.Select(static vertex => vertex.Position));
-        if (expectedNormal is null)
+        if (ComputePolygonNormal(tessellatedRings[0].Vertices.Select(static vertex => vertex.Position)) is not { } expectedNormal)
         {
             return;
         }
@@ -1704,8 +1732,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             ResoniteColor? color1 = vertex1.Color;
             ResoniteColor? color2 = vertex2.Color;
 
-            ResoniteFloat3? triangleNormal = ComputeNormal(position0, position1, position2);
-            if (triangleNormal is null)
+            if (ComputeNormal(position0, position1, position2) is not { } triangleNormal)
             {
                 continue;
             }
@@ -1715,15 +1742,15 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 (position1, position2) = (position2, position1);
                 (uv1, uv2) = (uv2, uv1);
                 (color1, color2) = (color2, color1);
-                triangleNormal = ComputeNormal(position0, position1, position2);
-                if (triangleNormal is null)
+                if (ComputeNormal(position0, position1, position2) is not { } correctedTriangleNormal)
                 {
                     continue;
                 }
+
+                triangleNormal = correctedTriangleNormal;
             }
 
-            ResoniteFloat3? resoniteNormal = ComputeNormal(position0, position2, position1);
-            if (resoniteNormal is null)
+            if (ComputeNormal(position0, position2, position1) is not { } resoniteNormal)
             {
                 continue;
             }
@@ -1836,13 +1863,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
 
         ResoniteFloat3? normal = ComputePolygonNormal(positions);
-        if (normal is null)
+        if (normal is not { } surfaceNormal)
         {
             return null;
         }
-
-        SurfaceUvAxes? surfaceAxes = TryCreatePathAlignedSurfaceUvAxes(packageName, positions, normal)
-            ?? TryCreateSurfaceUvAxes(normal);
+        SurfaceUvAxes? surfaceAxes = TryCreatePathAlignedSurfaceUvAxes(packageName, positions, surfaceNormal)
+            ?? TryCreateSurfaceUvAxes(surfaceNormal);
         if (surfaceAxes is null)
         {
             return null;
@@ -1961,7 +1987,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         IReadOnlyList<TessellatedVertex> vertices)
     {
         ResoniteFloat3 origin = vertices[0].Position;
-        ResoniteFloat3? normal = ComputePolygonNormal(vertices.Select(static vertex => vertex.Position))
+        ResoniteFloat3 normal = ComputePolygonNormal(vertices.Select(static vertex => vertex.Position))
             ?? throw new PlateauImportValidationException(["Failed to resolve a polygon plane for tessellation."]);
 
         ResoniteFloat3? basisX = null;
@@ -1975,13 +2001,14 @@ public static partial class LocalCityGmlResonitePlanBuilder
             }
         }
 
-        if (basisX is null)
+        if (basisX is not { } planeBasisX)
         {
             throw new PlateauImportValidationException(["Failed to resolve a polygon basis for tessellation."]);
         }
 
-        ResoniteFloat3 basisY = Normalize(Cross(normal, basisX));
-        return (origin, basisX, basisY);
+        ResoniteFloat3 planeNormal = normal;
+        ResoniteFloat3 basisY = Normalize(Cross(planeNormal, planeBasisX));
+        return (origin, planeBasisX, basisY);
     }
 
     private static ContourVertex CreateContourVertex(
@@ -2030,10 +2057,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
             if (vertexData.Color is not null)
             {
                 hasColor = true;
-                r += vertexData.Color.R * weight;
-                g += vertexData.Color.G * weight;
-                b += vertexData.Color.B * weight;
-                a += vertexData.Color.A * weight;
+                ResoniteColor vertexColor = vertexData.Color;
+                r += vertexColor.R * weight;
+                g += vertexColor.G * weight;
+                b += vertexColor.B * weight;
+                a += vertexColor.A * weight;
             }
         }
 
@@ -2295,13 +2323,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3[] positions = surface.Vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
-        ResoniteFloat3? normal = ComputePolygonNormal(positions);
-        if (normal is null)
-        {
-            return false;
-        }
-
-        return Math.Abs(normal.Y) < 0.45;
+        return ComputePolygonNormal(positions) is { } normal
+            && Math.Abs(normal.Y) < 0.45;
     }
 
     private static bool IsNearHorizontalSurface(
@@ -2312,8 +2335,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3[] positions = surface.Vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
-        ResoniteFloat3? normal = ComputePolygonNormal(positions);
-        return normal is not null && Math.Abs(normal.Y) >= 0.98;
+        return ComputePolygonNormal(positions) is { } normal
+            && Math.Abs(normal.Y) >= 0.98;
     }
 
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
@@ -2444,70 +2467,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
 
         public ResoniteConstructionMetadata Metadata { get; }
-
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
-        {
-            LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-                ? new LocalCartesian(
-                    globalOriginPoint.Latitude,
-                    globalOriginPoint.Longitude,
-                    globalOriginPoint.Altitude,
-                    referenceSystem.Geocentric)
-                : null;
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(
-                        sourceFile.SourceFile,
-                        parsedSourceFile.CityObjects),
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject)))
-                {
-                    yield return cityObject;
-                }
-            }
-
-            foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
-            {
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
-                    sourceFile,
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request))
-                {
-                    yield return cityObject;
-                }
-            }
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(
-                        sourceFile.SourceFile,
-                        parsedSourceFile.CityObjects),
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    IsTerrainDependentCityObject))
-                {
-                    yield return cityObject;
-                }
-            }
-        }
 
         public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -2804,14 +2763,22 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 continue;
             }
 
-            ResoniteConstructionCityObject markingObject = MaterializeCityObject(
+            ResoniteConstructionCityObject materializedMarkingObject = MaterializeCityObject(
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
-                splitCityObject.Overlay) with
-            {
-                CollisionEnabled = false,
-            };
+                splitCityObject.Overlay);
+            ResoniteConstructionCityObject markingObject = new(
+                SlotKey: materializedMarkingObject.SlotKey,
+                DisplayName: materializedMarkingObject.DisplayName,
+                PackageName: materializedMarkingObject.PackageName,
+                ActualMeshCode: materializedMarkingObject.ActualMeshCode,
+                LodLevel: materializedMarkingObject.LodLevel,
+                Transform: materializedMarkingObject.Transform,
+                Geometry: materializedMarkingObject.Geometry,
+                Materials: materializedMarkingObject.Materials,
+                CollisionEnabled: false,
+                SourceObjectKey: materializedMarkingObject.SourceObjectKey);
             if (HasRenderableGeometry(markingObject))
             {
                 generatedRoadMarkings.Add(markingObject);
@@ -3020,22 +2987,28 @@ public static partial class LocalCityGmlResonitePlanBuilder
             double minHeight = HeightSamples.Min();
             double maxHeight = HeightSamples.Max();
 
-            return CityObject with
-            {
-                Transform = CityObject.Transform with
-                {
-                    Position = CityObject.Transform.Position with
+            return new ResoniteConstructionCityObject(
+                SlotKey: CityObject.SlotKey,
+                DisplayName: CityObject.DisplayName,
+                PackageName: CityObject.PackageName,
+                ActualMeshCode: CityObject.ActualMeshCode,
+                LodLevel: CityObject.LodLevel,
+                Transform: new ResoniteTransform(
+                    CityObject.Transform.Position with
                     {
                         Y = BaseHeight + maxHeight,
                     },
-                },
-                Geometry = Geometry with
-                {
-                    MinHeight = minHeight,
-                    MaxHeight = maxHeight,
-                    HeightSamples = HeightSamples,
-                },
-            };
+                    CityObject.Transform.Rotation),
+                Geometry: new ResoniteHeightMapGridGeometry(
+                    Width: Geometry.Width,
+                    Height: Geometry.Height,
+                    Size: Geometry.Size,
+                    MinHeight: minHeight,
+                    MaxHeight: maxHeight,
+                    HeightSamples: HeightSamples),
+                Materials: CityObject.Materials,
+                CollisionEnabled: CityObject.CollisionEnabled,
+                SourceObjectKey: CityObject.SourceObjectKey);
         }
     }
 
@@ -3787,6 +3760,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
+        bool IsMarking = false,
         GeodeticPoint? OriginOverride = null);
 
     private sealed record SourceFileDescriptor(
@@ -4812,9 +4786,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         public SurfaceAppearance Resolve(string polygonId)
         {
-            ResoniteColor baseColor = colorsByPolygonId.TryGetValue(polygonId, out ResoniteColor? color)
-                ? color
-                : DefaultMaterialColor;
+            ResoniteColor baseColor = DefaultMaterialColor;
+            if (colorsByPolygonId.TryGetValue(polygonId, out ResoniteColor? resolvedColor))
+            {
+                baseColor = resolvedColor;
+            }
 
             if (!texturesByPolygonId.TryGetValue(polygonId, out TextureAssignment? textureAssignment))
             {

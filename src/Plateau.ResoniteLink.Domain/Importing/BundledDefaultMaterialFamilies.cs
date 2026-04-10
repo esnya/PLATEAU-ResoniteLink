@@ -9,44 +9,44 @@ public static class BundledDefaultMaterialFamilies
     public const string CityFurniture = "city-furniture";
     public const string Other = "other";
 
-    public static readonly IReadOnlyList<string> FacadeVariants =
+    public static IReadOnlyList<string> FacadeVariants { get; } = Array.AsReadOnly(
     [
         "default-materials/facade/Facade001_2K-JPG_Color.jpg",
         "default-materials/facade/Facade018A_2K-JPG_Color.jpg",
         "default-materials/facade/Facade019A_2K-JPG_Color.jpg",
         "default-materials/facade/Facade020A_2K-JPG_Color.jpg",
-    ];
+    ]);
 
-    public static readonly IReadOnlyList<string> RoofVariants =
+    public static IReadOnlyList<string> RoofVariants { get; } = Array.AsReadOnly(
     [
         "default-materials/roof/Concrete012_2K-JPG_Color.jpg",
         "default-materials/roof/Concrete033_2K-JPG_Color.jpg",
         "default-materials/roof/RoofingTiles012A_2K-JPG_Color.jpg",
         "default-materials/roof/RoofingTiles014B_2K-JPG_Color.jpg",
-    ];
+    ]);
 
-    public static readonly IReadOnlyList<string> RoadVariants =
+    public static IReadOnlyList<string> RoadVariants { get; } = Array.AsReadOnly(
     [
         "default-materials/road/Asphalt020L_2K-JPG_Color.jpg",
         "default-materials/road/Asphalt023L_2K-JPG_Color.jpg",
-    ];
+    ]);
 
-    public static readonly IReadOnlyList<string> VegetationVariants =
+    public static IReadOnlyList<string> VegetationVariants { get; } = Array.AsReadOnly(
     [
         "default-materials/other/Ground054_2K-JPG_Color.jpg",
         "default-materials/other/Concrete012_2K-JPG_Color.jpg",
-    ];
+    ]);
 
-    public static readonly IReadOnlyList<string> CityFurnitureVariants =
+    public static IReadOnlyList<string> CityFurnitureVariants { get; } = Array.AsReadOnly(
     [
-        "default-materials/city-furniture/Metal032_2K-JPG_Color.jpg",
-    ];
+        "default-materials/city-furniture/Plaster001_2K-JPG_Color.jpg",
+    ]);
 
-    public static readonly IReadOnlyList<string> OtherVariants =
+    public static IReadOnlyList<string> OtherVariants { get; } = Array.AsReadOnly(
     [
         "default-materials/other/Concrete012_2K-JPG_Color.jpg",
         "default-materials/other/Ground054_2K-JPG_Color.jpg",
-    ];
+    ]);
 
     public static IReadOnlyList<string> GetVariants(string family)
     {
@@ -58,7 +58,7 @@ public static class BundledDefaultMaterialFamilies
             Vegetation => VegetationVariants,
             CityFurniture => CityFurnitureVariants,
             Other => OtherVariants,
-            _ => throw new InvalidOperationException($"Unknown bundled material family '{family}'."),
+            _ => throw new ArgumentOutOfRangeException(nameof(family), family, "Unknown bundled material family."),
         };
     }
 }

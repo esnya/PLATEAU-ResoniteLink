@@ -34,4 +34,21 @@ internal static class CliTestData
             "12345",
         ];
     }
+
+    public static string[] BuildDryRunArgs(string fixturePath)
+    {
+        return
+        [
+            "build",
+            "--dataset",
+            "tokyo23ku",
+            "--mesh-code",
+            "53394525",
+            "--source",
+            "local",
+            "--local-source-path",
+            fixturePath,
+            "--dry-run",
+        ];
+    }
 }

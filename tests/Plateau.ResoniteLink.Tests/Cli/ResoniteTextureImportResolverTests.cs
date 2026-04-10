@@ -91,12 +91,8 @@ public sealed class ResoniteTextureImportResolverTests
     [Fact]
     public async Task ResolveAsyncDoesNotPoisonSharedResolutionWhenFirstWaiterIsCanceled()
     {
-        using TemporaryDirectory datasetRoot = new();
         using TemporaryDirectory workRoot = new();
-
-        string relativeTexturePath = "textures/albedo.png";
-        WriteDatasetImage(datasetRoot.Path, relativeTexturePath);
-        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path, materializeDelay: TimeSpan.FromMilliseconds(100));
+        DelayedDatasetContentSource datasetContentSource = new();
         StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
 
         ResoniteTextureImportResolver resolver = new(
@@ -104,14 +100,19 @@ public sealed class ResoniteTextureImportResolverTests
             workRoot.Path,
             [],
             terrainTextureAssetGenerator);
+        using CancellationTokenSource cancellationTokenSource = new();
+        const string relativeTexturePath = "textures/albedo.png";
 
-        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromMilliseconds(20));
         Task<ResoniteTextureImport> canceledResolution = resolver.ResolveAsync(
             relativeTexturePath,
             ResoniteTextureSourceKind.Dataset,
             cancellationTokenSource.Token);
 
+        await datasetContentSource.MaterializeStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cancellationTokenSource.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await canceledResolution);
+
+        datasetContentSource.AllowMaterializeCompletion.SetResult();
 
         ResoniteTextureImport successfulResolution = await resolver.ResolveAsync(
             relativeTexturePath,

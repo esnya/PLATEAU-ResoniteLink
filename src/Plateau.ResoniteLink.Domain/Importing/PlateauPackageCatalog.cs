@@ -1,14 +1,16 @@
+using System.Collections.ObjectModel;
+
 namespace Plateau.ResoniteLink.Domain.Importing;
 
 public static class PlateauPackageCatalog
 {
-    public static readonly string[] BuildingPackageNames =
+    private static readonly string[] BuildingPackageNamesStorage =
     [
         "bldg",
         "ubld",
     ];
 
-    public static readonly string[] RoadPackageNames =
+    private static readonly string[] RoadPackageNamesStorage =
     [
         "tran",
         "rwy",
@@ -16,13 +18,13 @@ public static class PlateauPackageCatalog
         "trk",
     ];
 
-    public static readonly string[] PathLikePackageNames =
+    private static readonly string[] PathLikePackageNamesStorage =
     [
-        .. RoadPackageNames,
+        .. RoadPackageNamesStorage,
         "wwy",
     ];
 
-    public static readonly string[] WireframeOverlayPackageNames =
+    private static readonly string[] WireframeOverlayPackageNamesStorage =
     [
         "area",
         "fld",
@@ -35,17 +37,17 @@ public static class PlateauPackageCatalog
         "urf",
     ];
 
-    public static readonly string[] VegetationPackageNames =
+    private static readonly string[] VegetationPackageNamesStorage =
     [
         "veg",
     ];
 
-    public static readonly string[] CityFurniturePackageNames =
+    private static readonly string[] CityFurniturePackageNamesStorage =
     [
         "frn",
     ];
 
-    public static readonly string[] OtherMaterialPackageNames =
+    private static readonly string[] OtherMaterialPackageNamesStorage =
     [
         "brid",
         "cons",
@@ -56,7 +58,7 @@ public static class PlateauPackageCatalog
         "wwy",
     ];
 
-    public static readonly string[] SupportedPackageNames =
+    private static readonly string[] SupportedPackageNamesStorage =
     [
         "area",
         "bldg",
@@ -85,6 +87,15 @@ public static class PlateauPackageCatalog
         "wwy",
     ];
 
+    public static ReadOnlyCollection<string> BuildingPackageNames { get; } = Array.AsReadOnly(BuildingPackageNamesStorage);
+    public static ReadOnlyCollection<string> RoadPackageNames { get; } = Array.AsReadOnly(RoadPackageNamesStorage);
+    public static ReadOnlyCollection<string> PathLikePackageNames { get; } = Array.AsReadOnly(PathLikePackageNamesStorage);
+    public static ReadOnlyCollection<string> WireframeOverlayPackageNames { get; } = Array.AsReadOnly(WireframeOverlayPackageNamesStorage);
+    public static ReadOnlyCollection<string> VegetationPackageNames { get; } = Array.AsReadOnly(VegetationPackageNamesStorage);
+    public static ReadOnlyCollection<string> CityFurniturePackageNames { get; } = Array.AsReadOnly(CityFurniturePackageNamesStorage);
+    public static ReadOnlyCollection<string> OtherMaterialPackageNames { get; } = Array.AsReadOnly(OtherMaterialPackageNamesStorage);
+    public static ReadOnlyCollection<string> SupportedPackageNames { get; } = Array.AsReadOnly(SupportedPackageNamesStorage);
+
     private static readonly Dictionary<string, string> PackageAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -92,21 +103,21 @@ public static class PlateauPackageCatalog
         };
 
     private static readonly HashSet<string> SupportedPackageNameSet =
-        new(SupportedPackageNames, StringComparer.OrdinalIgnoreCase);
+        new(SupportedPackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> BuildingPackageNameSet =
-        new(BuildingPackageNames, StringComparer.OrdinalIgnoreCase);
+        new(BuildingPackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> RoadPackageNameSet =
-        new(RoadPackageNames, StringComparer.OrdinalIgnoreCase);
+        new(RoadPackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> PathLikePackageNameSet =
-        new(PathLikePackageNames, StringComparer.OrdinalIgnoreCase);
+        new(PathLikePackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> WireframeOverlayPackageNameSet =
-        new(WireframeOverlayPackageNames, StringComparer.OrdinalIgnoreCase);
+        new(WireframeOverlayPackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> VegetationPackageNameSet =
-        new(VegetationPackageNames, StringComparer.OrdinalIgnoreCase);
+        new(VegetationPackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> CityFurniturePackageNameSet =
-        new(CityFurniturePackageNames, StringComparer.OrdinalIgnoreCase);
+        new(CityFurniturePackageNamesStorage, StringComparer.OrdinalIgnoreCase);
     private static readonly HashSet<string> OtherMaterialPackageNameSet =
-        new(OtherMaterialPackageNames, StringComparer.OrdinalIgnoreCase);
+        new(OtherMaterialPackageNamesStorage, StringComparer.OrdinalIgnoreCase);
 
     public static bool TryNormalizePackageName(string value, out string normalizedPackageName)
     {
@@ -133,7 +144,7 @@ public static class PlateauPackageCatalog
         return true;
     }
 
-    public static string[] NormalizeRequestedPackageNames(IEnumerable<string> packageNames)
+    public static IReadOnlyList<string> NormalizeRequestedPackageNames(IEnumerable<string> packageNames)
     {
         ArgumentNullException.ThrowIfNull(packageNames);
 
@@ -154,7 +165,7 @@ public static class PlateauPackageCatalog
             }
         }
 
-        return normalizedPackageNames.ToArray();
+        return Array.AsReadOnly(normalizedPackageNames.ToArray());
     }
 
     public static bool IsBuildingPackage(string packageName)

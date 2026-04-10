@@ -19,6 +19,11 @@ public static class PlateauDatasetContentSourceFactory
         string fullPath = Path.GetFullPath(sourcePath);
         if (Directory.Exists(fullPath))
         {
+            EnsureDirectoryIsNotReparsePoint(
+                fullPath,
+                sourcePath,
+                nameof(sourcePath),
+                "local dataset root");
             return new LocalPlateauDatasetContentSource(PlateauDatasetPathResolver.ResolveDatasetRoot(fullPath));
         }
 
@@ -133,8 +138,7 @@ public static class PlateauDatasetContentSourceFactory
 
         public IReadOnlyList<string> EnumerateFiles()
         {
-            return Directory
-                .EnumerateFiles(datasetRoot, "*", SearchOption.AllDirectories)
+            return EnumerateFilesSkippingReparsePoints(datasetRoot)
                 .Select(path => NormalizeRelativePath(Path.GetRelativePath(datasetRoot, path)))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
@@ -142,7 +146,7 @@ public static class PlateauDatasetContentSourceFactory
 
         public bool FileExists(string relativePath)
         {
-            string absolutePath = Path.Combine(datasetRoot, NormalizeRelativePath(relativePath));
+            string absolutePath = ResolveLocalPath(datasetRoot, relativePath);
             return File.Exists(absolutePath);
         }
 
@@ -160,18 +164,38 @@ public static class PlateauDatasetContentSourceFactory
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Path.Combine(datasetRoot, NormalizeRelativePath(relativePath)));
+            return Task.FromResult(ResolveLocalPath(datasetRoot, relativePath));
         }
 
         private static FileStream OpenFileReadStream(string datasetRoot, string relativePath)
         {
             return new FileStream(
-                Path.Combine(datasetRoot, NormalizeRelativePath(relativePath)),
+                ResolveLocalPath(datasetRoot, relativePath),
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
                 bufferSize: 16 * 1024,
                 useAsync: true);
+        }
+
+        private static string ResolveLocalPath(string datasetRoot, string relativePath)
+        {
+            string normalizedRoot = Path.GetFullPath(datasetRoot);
+            string normalizedRelativePath = NormalizeRelativePath(relativePath);
+            string absolutePath = Path.GetFullPath(
+                Path.Combine(
+                    normalizedRoot,
+                    normalizedRelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            EnsurePathIsContained(normalizedRoot, absolutePath, relativePath, nameof(relativePath), "dataset root directory");
+            EnsurePathDoesNotTraverseReparsePoints(
+                normalizedRoot,
+                absolutePath,
+                relativePath,
+                nameof(relativePath),
+                "dataset root directory",
+                includeRoot: false);
+
+            return absolutePath;
         }
     }
 
@@ -234,12 +258,12 @@ public static class PlateauDatasetContentSourceFactory
 
         public bool FileExists(string relativePath)
         {
-            return Files.ContainsKey(NormalizeRelativePath(relativePath));
+            return Files.ContainsKey(NormalizeSafeRelativePath(relativePath));
         }
 
         public async ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
-            string normalizedPath = NormalizeRelativePath(relativePath);
+            string normalizedPath = NormalizeSafeRelativePath(relativePath);
             if (!Files.TryGetValue(normalizedPath, out ArchiveFileAccessor? fileAccessor))
             {
                 throw new FileNotFoundException($"The dataset entry '{relativePath}' was not found in '{ArchivePath}'.");
@@ -288,22 +312,35 @@ public static class PlateauDatasetContentSourceFactory
                 Path.Combine(
                     normalizedRoot,
                     normalizedRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-
-            string relativePath = Path.GetRelativePath(
+            EnsurePathIsContained(
                 normalizedRoot,
-                destinationPath)
-                .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-
-            if (Path.IsPathRooted(relativePath)
-                || string.Equals(relativePath, "..", StringComparison.Ordinal)
-                || relativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    $"The dataset relative path '{normalizedRelativePath}' is outside the dataset cache directory.",
-                    nameof(normalizedRelativePath));
-            }
+                destinationPath,
+                normalizedRelativePath,
+                nameof(normalizedRelativePath),
+                "dataset cache directory");
+            EnsurePathDoesNotTraverseReparsePoints(
+                normalizedRoot,
+                destinationPath,
+                normalizedRelativePath,
+                nameof(normalizedRelativePath),
+                "dataset cache directory",
+                includeRoot: true);
 
             return destinationPath;
+        }
+
+        private static bool TryNormalizeSafeRelativePath(string relativePath, out string normalizedPath)
+        {
+            try
+            {
+                normalizedPath = NormalizeSafeRelativePath(relativePath);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                normalizedPath = string.Empty;
+                return false;
+            }
         }
 
         private static async Task IndexArchiveAsync(
@@ -326,27 +363,32 @@ public static class PlateauDatasetContentSourceFactory
                 cancellationToken.ThrowIfCancellationRequested();
 
                 string entryKey = NormalizeRelativePath(entry.Key ?? string.Empty);
-                if (IsSupportedArchiveFile(entryKey))
+                if (!TryNormalizeSafeRelativePath(entryKey, out string normalizedEntryKey))
                 {
-                    string nestedFileName = Path.GetFileNameWithoutExtension(entryKey);
-                    string nestedParent = GetDirectoryPath(entryKey);
+                    continue;
+                }
+
+                if (IsSupportedArchiveFile(normalizedEntryKey))
+                {
+                    string nestedFileName = Path.GetFileNameWithoutExtension(normalizedEntryKey);
+                    string nestedParent = GetDirectoryPath(normalizedEntryKey);
                     string nestedPrefix = PlateauPackageCatalog.TryNormalizePackageName(nestedFileName, out string? packageName)
                         ? CombineRelativePaths(prefix, nestedParent, "udx", packageName)
                         : CombineRelativePaths(prefix, nestedParent, nestedFileName);
 
                     await IndexArchiveAsync(
                         archivePath,
-                        ct => OpenNestedArchiveStreamAsync(archivePath, openArchiveStreamAsync, entryKey, ct),
+                        ct => OpenNestedArchiveStreamAsync(archivePath, openArchiveStreamAsync, normalizedEntryKey, ct),
                         nestedPrefix,
                         results,
                         cancellationToken);
                     continue;
                 }
 
-                string relativePath = CombineRelativePaths(prefix, entryKey);
+                string relativePath = CombineRelativePaths(prefix, normalizedEntryKey);
                 results.Add(new RawArchiveFileAccessor(
                     relativePath,
-                    ct => OpenEntryStreamAsync(archivePath, openArchiveStreamAsync, entryKey, ct)));
+                    ct => OpenEntryStreamAsync(archivePath, openArchiveStreamAsync, normalizedEntryKey, ct)));
             }
         }
 
@@ -444,5 +486,164 @@ public static class PlateauDatasetContentSourceFactory
                 : normalizedPath;
         }
 
+    }
+
+    internal static void EnsurePathIsContained(
+        string normalizedRoot,
+        string absolutePath,
+        string originalRelativePath,
+        string parameterName,
+        string rootDescription)
+    {
+        string containedRelativePath = Path.GetRelativePath(
+            normalizedRoot,
+            absolutePath).Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+        if (Path.IsPathRooted(containedRelativePath)
+            || string.Equals(containedRelativePath, "..", StringComparison.Ordinal)
+            || containedRelativePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"The dataset relative path '{originalRelativePath}' is outside the {rootDescription}.",
+                parameterName);
+        }
+    }
+
+    internal static void EnsurePathDoesNotTraverseReparsePoints(
+        string normalizedRoot,
+        string absolutePath,
+        string originalRelativePath,
+        string parameterName,
+        string rootDescription,
+        bool includeRoot)
+    {
+        if (includeRoot)
+        {
+            EnsureExistingAncestorChainDoesNotTraverseReparsePoints(
+                normalizedRoot,
+                originalRelativePath,
+                parameterName,
+                rootDescription);
+        }
+
+        string relativePath = Path.GetRelativePath(
+            normalizedRoot,
+            absolutePath).Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+
+        if (string.IsNullOrEmpty(relativePath) || string.Equals(relativePath, ".", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        string currentPath = normalizedRoot;
+        foreach (string segment in relativePath.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            currentPath = Path.Combine(currentPath, segment);
+            if (!PathExists(currentPath))
+            {
+                break;
+            }
+
+            if (IsReparsePoint(currentPath))
+            {
+                throw new ArgumentException(
+                    $"The dataset relative path '{originalRelativePath}' traverses a symbolic link or junction inside the {rootDescription}.",
+                    parameterName);
+            }
+        }
+    }
+
+    internal static bool PathExists(string path)
+    {
+        return Directory.Exists(path) || File.Exists(path);
+    }
+
+    internal static void EnsureExistingAncestorChainDoesNotTraverseReparsePoints(
+        string path,
+        string originalRelativePath,
+        string parameterName,
+        string rootDescription)
+    {
+        Stack<string> pendingSegments = [];
+        string currentPath = path;
+
+        while (!PathExists(currentPath))
+        {
+            string? parentPath = Path.GetDirectoryName(currentPath);
+            if (string.IsNullOrEmpty(parentPath) || string.Equals(parentPath, currentPath, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            pendingSegments.Push(Path.GetFileName(currentPath));
+            currentPath = parentPath;
+        }
+
+        if (IsReparsePoint(currentPath))
+        {
+            throw new ArgumentException(
+                $"The dataset relative path '{originalRelativePath}' traverses a symbolic link or junction inside the {rootDescription}.",
+                parameterName);
+        }
+
+        while (pendingSegments.Count > 0)
+        {
+            currentPath = Path.Combine(currentPath, pendingSegments.Pop());
+            if (!PathExists(currentPath))
+            {
+                return;
+            }
+
+            if (IsReparsePoint(currentPath))
+            {
+                throw new ArgumentException(
+                    $"The dataset relative path '{originalRelativePath}' traverses a symbolic link or junction inside the {rootDescription}.",
+                    parameterName);
+            }
+        }
+    }
+
+    internal static bool IsReparsePoint(string path)
+    {
+        return File.GetAttributes(path).HasFlag(FileAttributes.ReparsePoint);
+    }
+
+    internal static void EnsureDirectoryIsNotReparsePoint(
+        string directoryPath,
+        string originalPath,
+        string parameterName,
+        string description)
+    {
+        if (Directory.Exists(directoryPath) && IsReparsePoint(directoryPath))
+        {
+            throw new PlateauImportValidationException(
+                [$"The path '{originalPath}' cannot use a symbolic link or junction as the {description}."]);
+        }
+    }
+
+    private static IEnumerable<string> EnumerateFilesSkippingReparsePoints(string rootPath)
+    {
+        Stack<string> pending = new();
+        pending.Push(rootPath);
+
+        while (pending.Count > 0)
+        {
+            string current = pending.Pop();
+
+            foreach (string file in Directory.EnumerateFiles(current))
+            {
+                yield return file;
+            }
+
+            foreach (string directory in Directory.EnumerateDirectories(current))
+            {
+                if (IsReparsePoint(directory))
+                {
+                    continue;
+                }
+
+                pending.Push(directory);
+            }
+        }
     }
 }

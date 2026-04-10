@@ -14,6 +14,7 @@ internal static class BundledDefaultMaterialAssetStore
         Path.GetTempPath(),
         "Plateau.ResoniteLink",
         "default-materials");
+    private static readonly DateTime AssemblyWriteTimeUtc = File.GetLastWriteTimeUtc(Assembly.Location);
 
     public static string GetAbsolutePath(string logicalPath)
     {
@@ -36,7 +37,8 @@ internal static class BundledDefaultMaterialAssetStore
 
         lock (SyncRoot)
         {
-            if (File.Exists(absolutePath))
+            if (File.Exists(absolutePath)
+                && File.GetLastWriteTimeUtc(absolutePath) >= AssemblyWriteTimeUtc)
             {
                 return absolutePath;
             }

@@ -16,13 +16,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return CreateConstructionSourceCoreAsync(request, progressReporter, cancellationToken);
     }
 
-    public static IResoniteConstructionSource CreateConstructionSource(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null)
-    {
-        return CreateConstructionSourceAsync(request, progressReporter).GetAwaiter().GetResult();
-    }
-
     private static async Task<IResoniteConstructionSource> CreateConstructionSourceCoreAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter,

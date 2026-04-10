@@ -68,4 +68,18 @@ public sealed class PlateauPackageCatalogTests
             Assert.True(PlateauPackageCatalog.IsOtherMaterialPackage(packageName));
         }
     }
+
+    [Fact]
+    public void PublicPackageCollectionsAreReadOnly()
+    {
+        IList<string> supportedPackages = PlateauPackageCatalog.SupportedPackageNames;
+        IReadOnlyList<string> normalizedPackages = PlateauPackageCatalog.NormalizeRequestedPackageNames(["bldg", "tran"]);
+
+        Assert.True(supportedPackages.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => supportedPackages[0] = "mutated");
+
+        IList<string> normalizedPackageList = Assert.IsAssignableFrom<IList<string>>(normalizedPackages);
+        Assert.True(normalizedPackageList.IsReadOnly);
+        Assert.Throws<NotSupportedException>(() => normalizedPackageList[0] = "mutated");
+    }
 }

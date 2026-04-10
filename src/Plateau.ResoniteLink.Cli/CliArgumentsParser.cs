@@ -16,6 +16,7 @@ public static class CliArgumentsParser
         Options:
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
+          --dry-run              Optional. Run the full import planning pipeline without connecting to Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
           --exclude-lod <csv>    Optional. Comma-separated LOD levels to exclude globally.
           --exclude-lod-for-package <csv>
@@ -37,11 +38,11 @@ public static class CliArgumentsParser
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
           --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
           --work-root <path>     Optional. Working directory for live-generated assets, remote download cache, and asset reuse state. Default: runtime/<os>/resonite.
-          --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
-          --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
+          --resonitelink-port    Required for live mode unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
+          --resonitelink-url     Required for live mode unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
-                                                             Optional. Number of parallel ResoniteLink connections for live sends. Default: 4.
-          --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
+                                Optional for live mode. Number of parallel ResoniteLink connections for live sends. Default: 4.
+          --send-metrics         Optional for live mode. Enable opt-in live send metrics and CLI summary output.
           -h, --help             Show this help text.
         """;
 
@@ -66,6 +67,8 @@ public static class CliArgumentsParser
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         bool enableSendMetrics = false;
+        bool dryRun = false;
+        bool hasResoniteLinkConnectionsOption = false;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
@@ -95,10 +98,13 @@ public static class CliArgumentsParser
                     case "--mesh-code":
                         meshCode = ReadValue(args, ref index, token);
                         break;
+                    case "--dry-run":
+                        dryRun = true;
+                        break;
                     case "--packages":
                         {
                             string packageValue = ReadValue(args, ref index, token);
-                            if (!TryParsePackageNames(packageValue, out string[]? parsedPackageNames, out string? packageError))
+                            if (!TryParsePackageNames(packageValue, out IReadOnlyList<string>? parsedPackageNames, out string? packageError))
                             {
                                 return CliParseResult.Failure(packageError!);
                             }
@@ -162,6 +168,7 @@ public static class CliArgumentsParser
                         }
                     case "--resonitelink-connections":
                         {
+                            hasResoniteLinkConnectionsOption = true;
                             string connectionCountValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
                             if (!int.TryParse(connectionCountValue, out resoniteLinkConnectionCount)
                                 || resoniteLinkConnectionCount < 1)
@@ -329,7 +336,31 @@ public static class CliArgumentsParser
             DemHeightmapMetersPerVertex: demHeightmapMetersPerVertex,
             DemHeightmapMaxResolution: demHeightmapMaxResolution);
 
-        if (resoniteLinkUri is null)
+        BuildExecutionMode executionMode = dryRun
+            ? BuildExecutionMode.DryRun
+            : BuildExecutionMode.Live;
+
+        if (executionMode is BuildExecutionMode.DryRun)
+        {
+            if (resoniteLinkUri is not null)
+            {
+                return CliParseResult.Failure(
+                    "Do not specify --resonitelink-port or --resonitelink-url with --dry-run.");
+            }
+
+            if (hasResoniteLinkConnectionsOption)
+            {
+                return CliParseResult.Failure(
+                    "Do not specify --resonitelink-connections with --dry-run.");
+            }
+
+            if (enableSendMetrics)
+            {
+                return CliParseResult.Failure(
+                    "Do not specify --send-metrics with --dry-run.");
+            }
+        }
+        else if (resoniteLinkUri is null)
         {
             return CliParseResult.Failure(
                 "Specify either --resonitelink-port or --resonitelink-url.");
@@ -339,6 +370,7 @@ public static class CliArgumentsParser
             new BuildCommandOptions(
                 request,
                 workRoot,
+                executionMode,
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
                 enableSendMetrics));
@@ -385,7 +417,7 @@ public static class CliArgumentsParser
 
     private static bool TryParsePackageNames(
         string csvValue,
-        out string[]? packageNames,
+        out IReadOnlyList<string>? packageNames,
         out string? error)
     {
         packageNames = null;

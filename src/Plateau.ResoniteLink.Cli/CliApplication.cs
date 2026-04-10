@@ -18,6 +18,10 @@ public sealed class CliApplication
         TextWriter standardError,
         PlateauImportService importService)
     {
+        ArgumentNullException.ThrowIfNull(standardOutput);
+        ArgumentNullException.ThrowIfNull(standardError);
+        ArgumentNullException.ThrowIfNull(importService);
+
         this.standardOutput = standardOutput;
         this.standardError = standardError;
         this.importService = importService;
@@ -28,17 +32,13 @@ public sealed class CliApplication
         TextWriter standardError,
         Func<BuildCommandOptions, PlateauImportService> importServiceFactory)
     {
+        ArgumentNullException.ThrowIfNull(standardOutput);
+        ArgumentNullException.ThrowIfNull(standardError);
+        ArgumentNullException.ThrowIfNull(importServiceFactory);
+
         this.standardOutput = standardOutput;
         this.standardError = standardError;
         this.importServiceFactory = importServiceFactory;
-    }
-
-    public static CliApplication CreateDefault()
-    {
-        return new CliApplication(
-            Console.Out,
-            Console.Error,
-            CreateImportService);
     }
 
     [SuppressMessage(
@@ -47,6 +47,8 @@ public sealed class CliApplication
         Justification = "The CLI entrypoint converts non-cancellation operational failures into a concise error message and exit code.")]
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(args);
+
         CliParseResult parseResult = CliArgumentsParser.Parse(args);
 
         if (parseResult.ShowHelp)
@@ -65,20 +67,32 @@ public sealed class CliApplication
 
         try
         {
+            BuildCommandOptions options = parseResult.Options
+                ?? throw new InvalidOperationException("Successful CLI parsing must produce build options.");
             PlateauImportService effectiveImportService =
-                importService ?? importServiceFactory!(parseResult.Options!);
+                importService ?? importServiceFactory!(options);
 
             ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
-                parseResult.Options!.Request,
-                parseResult.Options.WorkRoot,
+                options.Request,
+                options.WorkRoot,
                 cancellationToken);
 
-            await standardOutput.WriteLineAsync("Resonite import completed.");
+            await standardOutput.WriteLineAsync(
+                options.ExecutionMode is BuildExecutionMode.DryRun
+                    ? "Dry run completed."
+                    : "Resonite import completed.");
             await standardOutput.WriteLineAsync($"World: {result.Metadata.WorldName}");
 
-            foreach (string destination in result.Destinations)
+            if (options.ExecutionMode is BuildExecutionMode.DryRun)
             {
-                await standardOutput.WriteLineAsync($"Resonite location: {destination}");
+                await standardOutput.WriteLineAsync("Live Resonite session was not used.");
+            }
+            else
+            {
+                foreach (string destination in result.Destinations)
+                {
+                    await standardOutput.WriteLineAsync($"Resonite location: {destination}");
+                }
             }
 
             return 0;
@@ -107,8 +121,13 @@ public sealed class CliApplication
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the scene builder lifetime and disposes it after each execution.")]
-    private static PlateauImportService CreateImportService(BuildCommandOptions options)
+    internal static PlateauImportService CreateImportService(
+        BuildCommandOptions options,
+        IPlateauDatasetSourceResolver datasetSourceResolver)
     {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(datasetSourceResolver);
+
         Action<string> reporter = static message =>
         {
             string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
@@ -117,14 +136,23 @@ public sealed class CliApplication
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
             : ResoniteLinkSendDiagnostics.Disabled;
-
-        return new PlateauImportService(
-            new ResoniteLinkSceneBuilder(
-                options.ResoniteLinkUri!,
+        IResoniteSceneBuilder sceneBuilder = options.ExecutionMode switch
+        {
+            BuildExecutionMode.DryRun => new DryRunResoniteSceneBuilder(reporter),
+            BuildExecutionMode.Live => new ResoniteLinkSceneBuilder(
+                options.ResoniteLinkUri
+                    ?? throw new InvalidOperationException("Live mode requires a ResoniteLink endpoint."),
                 options.ResoniteLinkConnectionCount,
                 diagnostics,
                 progressReporter: reporter),
-            progressReporter: reporter);
+            _ => throw new InvalidOperationException($"Unsupported build execution mode '{options.ExecutionMode}'."),
+        };
+
+        return PlateauImportService.CreateOwned(
+            sceneBuilder,
+            datasetSourceResolver: datasetSourceResolver,
+            progressReporter: reporter,
+            constructionSourceFactory: null);
     }
 
     private static void WriteLogLine(TextWriter writer, string timestamp, string message)
