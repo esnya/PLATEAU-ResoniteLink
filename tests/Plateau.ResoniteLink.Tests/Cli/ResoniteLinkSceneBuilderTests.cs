@@ -160,14 +160,13 @@ public sealed class ResoniteLinkSceneBuilderTests
             });
         Assert.Contains(
             materialRequests,
-            request => string.Equals(
-                fakeClient.SlotPaths[request.ContainerSlotId],
-                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
-                StringComparison.Ordinal));
-        Assert.Contains(
-            materialRequests,
-            request => meshAssetRequests.Any(meshRequest =>
-                string.Equals(meshRequest.ContainerSlotId, request.ContainerSlotId, StringComparison.Ordinal)));
+            request =>
+            {
+                string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
+                return slotPath.StartsWith(
+                    $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One/",
+                    StringComparison.Ordinal);
+            });
 
         Component meshRenderer = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
@@ -221,6 +220,293 @@ public sealed class ResoniteLinkSceneBuilderTests
             fakeClient.AddedComponents
                 .GroupBy(static request => request.Data.ID, StringComparer.Ordinal),
             static group => group.Count() > 1);
+    }
+
+    [Fact]
+    public async Task BuildAsyncUsesDedicatedMaterialsForDatasetTexturedMaterials()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string textureOne = "textures/albedo-one.png";
+        string textureTwo = "textures/albedo-two.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureOne),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureTwo),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU reuse-test",
+            Request: new PlateauImportRequest(
+                Dataset: "reuse-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [textureOne, textureTwo],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "albedo-only-building",
+            DisplayName: "Albedo Only Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureOne,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureTwo,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "albedo-only-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        AddComponent[] materialRequests = fakeClient.AddedComponents
+            .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(materialRequests);
+        Assert.DoesNotContain(
+            fakeClient.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+
+        Component meshRenderer = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Albedo Only Building"], StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
+        SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
+        Assert.Equal(2, materials.Elements.Count);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotUseMaterialPropertyBlocksForMixedMaterialStrategies()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string datasetTexture = "textures/albedo-one.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, datasetTexture),
+            new Rgba32(255, 0, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU mixed-property-block-test",
+            Request: new PlateauImportRequest(
+                Dataset: "mixed-property-block-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [datasetTexture],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "mixed-material-building",
+            DisplayName: "Mixed Material Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: datasetTexture,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "mixed-material-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component meshRenderer = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Mixed Material Building"], StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
+        Assert.DoesNotContain(
+            fakeClient.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncOmitsMaterialPropertyBlocksForMixedRenderers()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string textureOne = "textures/albedo-one.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureOne),
+            new Rgba32(255, 0, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU reuse-test",
+            Request: new PlateauImportRequest(
+                Dataset: "reuse-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [textureOne],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "mixed-building",
+            DisplayName: "Mixed Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureOne,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "mixed-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component meshRenderer = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Mixed Building"], StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
     }
 
     [Fact]
@@ -642,19 +928,23 @@ public sealed class ResoniteLinkSceneBuilderTests
                 StringComparison.Ordinal));
         AddComponent materialTextureRequest = Assert.Single(
             textureRequests,
-            request => string.Equals(
+            request => !string.Equals(
                 fakeClient.SlotsById[request.ContainerSlotId].Name?.Value,
-                "HeightMap Overlay Test",
+                "HeightMap Overlay Test_heightmap",
                 StringComparison.Ordinal));
 
         Slot displacementTextureSlot = fakeClient.SlotsById[displacementTextureRequest.ContainerSlotId];
         Slot materialTextureSlot = fakeClient.SlotsById[materialTextureRequest.ContainerSlotId];
 
         Assert.Equal("HeightMap Overlay Test_heightmap", displacementTextureSlot.Name?.Value);
-        Assert.Equal("HeightMap Overlay Test", materialTextureSlot.Name?.Value);
+        Assert.NotEqual("HeightMap Overlay Test_heightmap", materialTextureSlot.Name?.Value);
         Assert.NotEqual(displacementTextureRequest.ContainerSlotId, materialTextureRequest.ContainerSlotId);
         Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[displacementTextureSlot.ID], StringComparison.Ordinal);
         Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[materialTextureSlot.ID], StringComparison.Ordinal);
+        Assert.StartsWith(
+            "PLATEAU tokyo23ku/Assets/dem/LOD0/HeightMap Overlay Test/",
+            fakeClient.SlotPaths[materialTextureSlot.ID],
+            StringComparison.Ordinal);
     }
 
 
@@ -1459,7 +1749,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncLogsWarningsRetriesAndSkipsFailedCityObject()
+    public async Task BuildAsyncSurfacesLaneFailureWhenCityObjectSendFails()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
         CapturedResoniteScene scene = LoadScene(
@@ -1485,13 +1775,13 @@ public sealed class ResoniteLinkSceneBuilderTests
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             async () => await RunBuilderAsync(builder, scene));
 
-        Assert.Contains("Live send skipped", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("Simulated mesh import failure.", exception.Message, StringComparison.Ordinal);
         Assert.Contains(
             progressMessages,
-            static message => message.Contains("City object send failed on attempt 1/2", StringComparison.Ordinal));
+            static message => message.Contains("[live][error] Send lane 1/1 failed:", StringComparison.Ordinal));
         Assert.Contains(
             progressMessages,
-            static message => message.Contains("[live] Send summary:", StringComparison.Ordinal));
+            static message => message.Contains("[live][info] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -3228,6 +3518,21 @@ public sealed class ResoniteLinkSceneBuilderTests
     private static string GetSlotPath(FakeResoniteLinkClient client, string slotId)
     {
         return client.SlotPaths[slotId];
+    }
+
+    private static async Task WriteSolidColorTextureAsync(string path, Rgba32 color)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using Image<Rgba32> image = new(2, 2, color);
+        string extension = Path.GetExtension(path);
+        if (string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            await image.SaveAsJpegAsync(path);
+            return;
+        }
+
+        await image.SaveAsPngAsync(path);
     }
 
     private static async Task<string[]> GetDirectChildNamesAsync(FakeResoniteLinkClient client, string parentId)

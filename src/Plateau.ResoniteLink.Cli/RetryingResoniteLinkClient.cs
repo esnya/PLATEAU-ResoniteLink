@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
+using Plateau.ResoniteLink.Application.Logging;
+
 using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Cli;
@@ -52,8 +54,10 @@ internal sealed class RetryingResoniteLinkClient(
                 }
 
                 reporter?.Invoke(
-                    $"[live][warn] ResoniteLink connect failed on attempt {attempt}/{AttemptLimit}. "
-                    + $"Creating a fresh client before retry. Reason: {exception.Message}");
+                    PlateauLog.Warning(
+                        "live",
+                        $"ResoniteLink connect failed on attempt {attempt}/{AttemptLimit}. "
+                        + $"Creating a fresh client before retry. Reason: {exception.Message}"));
                 ReplaceClientWithoutConnecting();
             }
         }
@@ -188,8 +192,9 @@ internal sealed class RetryingResoniteLinkClient(
         catch (Exception exception)
         {
             reporter?.Invoke(
-                $"[live][warn] ResoniteLink {operationName} failed without retry. "
-                + $"Reason: {exception.Message}");
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
             throw;
         }
         finally
@@ -235,8 +240,10 @@ internal sealed class RetryingResoniteLinkClient(
                     }
 
                     reporter?.Invoke(
-                        $"[live][warn] ResoniteLink {operationName} failed on attempt {attempt}/{AttemptLimit}. "
-                        + $"Reconnecting before retry. Reason: {exception.Message}");
+                        PlateauLog.Warning(
+                            "live",
+                            $"ResoniteLink {operationName} failed on attempt {attempt}/{AttemptLimit}. "
+                            + $"Reconnecting before retry. Reason: {exception.Message}"));
                     await ReconnectAsync(observedGeneration, cancellationToken);
                 }
             }
@@ -280,7 +287,7 @@ internal sealed class RetryingResoniteLinkClient(
             inner = replacement;
             Interlocked.Increment(ref generation);
             previous.Dispose();
-            reporter?.Invoke($"[live][warn] Reconnected ResoniteLink client to {endpoint}.");
+            reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
         }
         finally
         {

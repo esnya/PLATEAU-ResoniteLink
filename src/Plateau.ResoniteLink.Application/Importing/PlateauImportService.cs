@@ -1,5 +1,6 @@
 using System.Diagnostics;
 
+using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
@@ -36,7 +37,7 @@ public sealed class PlateauImportService(
         PlateauImportRequest resolvedRequest =
             await datasetSourceResolver.ResolveAsync(normalizedRequest, workRoot, cancellationToken);
         ReportProgress(
-            $"[import] Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'.");
+            PlateauLog.Info("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
         try
         {
@@ -44,7 +45,7 @@ public sealed class PlateauImportService(
             await sceneBuilder.EnsureConnectedAsync(normalizedRequest, cancellationToken);
             connectStopwatch.Stop();
             ReportProgress(
-                $"[import] Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s.");
+                PlateauLog.Info("import", $"Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
@@ -53,13 +54,13 @@ public sealed class PlateauImportService(
                 cancellationToken);
             sourceStopwatch.Stop();
             ReportProgress(
-                $"[import] Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s.");
+                PlateauLog.Info("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             Stopwatch beginStopwatch = Stopwatch.StartNew();
-            ReportProgress("[import] Starting live scene initialization.");
+            ReportProgress(PlateauLog.Info("import", "Starting live scene initialization."));
             await sceneBuilder.BeginAsync(source.Metadata, workRoot, cancellationToken);
             beginStopwatch.Stop();
-            ReportProgress($"[import] Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s.");
+            ReportProgress(PlateauLog.Info("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             bool processedAnyCityObject = false;
             int processedCityObjectCount = 0;
@@ -74,7 +75,7 @@ public sealed class PlateauImportService(
 
             cityObjectStopwatch.Stop();
             ReportProgress(
-                $"[import] Streamed {processedCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s.");
+                PlateauLog.Info("import", $"Streamed {processedCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             if (!processedAnyCityObject)
             {
@@ -86,7 +87,7 @@ public sealed class PlateauImportService(
             IReadOnlyList<string> destinations = await sceneBuilder.CompleteAsync(cancellationToken);
             completeStopwatch.Stop();
             ReportProgress(
-                $"[import] Scene builder completion finished in {completeStopwatch.Elapsed.TotalSeconds:F3}s.");
+                PlateauLog.Info("import", $"Scene builder completion finished in {completeStopwatch.Elapsed.TotalSeconds:F3}s."));
             return new ImportExecutionResult(source.Metadata, destinations);
         }
         finally

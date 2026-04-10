@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -18,7 +16,7 @@ internal interface ITerrainTextureAssetGenerator
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
-    private readonly ConcurrentDictionary<TerrainTextureOverlay, Lazy<Task<ResoniteRawTextureImport>>> cachedTextures = [];
+    private readonly AsyncCompletedResultCache<TerrainTextureOverlay, ResoniteRawTextureImport> cachedTextures = new();
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -26,27 +24,10 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
-        Lazy<Task<ResoniteRawTextureImport>> cachedTexture = cachedTextures.GetOrAdd(
+        return await cachedTextures.GetOrCreateAsync(
             terrainTextureOverlay,
-            _ => new Lazy<Task<ResoniteRawTextureImport>>(
-                () => CreateTextureAsync(terrainTextureOverlay, CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication));
-
-        Task<ResoniteRawTextureImport> sharedTask = cachedTexture.Value;
-        try
-        {
-            return await sharedTask.WaitAsync(cancellationToken);
-        }
-        catch
-        {
-            if (sharedTask.IsFaulted || sharedTask.IsCanceled)
-            {
-                cachedTextures.TryRemove(
-                    new KeyValuePair<TerrainTextureOverlay, Lazy<Task<ResoniteRawTextureImport>>>(terrainTextureOverlay, cachedTexture));
-            }
-
-            throw;
-        }
+            ct => CreateTextureAsync(terrainTextureOverlay, ct),
+            cancellationToken);
     }
 
     private async Task<ResoniteRawTextureImport> CreateTextureAsync(

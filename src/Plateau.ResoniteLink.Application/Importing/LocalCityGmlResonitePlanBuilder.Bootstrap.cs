@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Xml.Linq;
 
+using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
@@ -59,7 +60,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         MeshCodeArea? effectiveRequestedMeshArea = MeshCodeArea.TryMerge(requestedMeshAreas);
         scanStopwatch.Stop();
         progressReporter?.Invoke(
-            $"[import] Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s.");
+            PlateauLog.Info("import", $"Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s."));
 
         if (sourceFiles.Length == 0)
         {
@@ -122,8 +123,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
         if (demPipelines.Count > 0)
         {
             progressReporter?.Invoke(
-                $"[import] DEM bootstrap parsed {demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length)} city objects "
-                + $"from {demPipelines.Count} files in {demStopwatch.Elapsed.TotalSeconds:F3}s.");
+                PlateauLog.Info(
+                    "import",
+                    $"DEM bootstrap parsed {demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length)} city objects "
+                    + $"from {demPipelines.Count} files in {demStopwatch.Elapsed.TotalSeconds:F3}s."));
         }
 
         if (referenceSystem is null)
@@ -156,8 +159,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             : null;
         progressReporter?.Invoke(
             terrainHeightSampler is null
-                ? "[import] Terrain height sampler disabled for this dataset."
-                : $"[import] Terrain height sampler indexed {demTerrainTriangles.Count} DEM triangles.");
+                ? PlateauLog.Info("import", "Terrain height sampler disabled for this dataset.")
+                : PlateauLog.Info("import", $"Terrain height sampler indexed {demTerrainTriangles.Count} DEM triangles."));
         ResoniteAttribution attribution = PlateauResoniteAttributionFactory.Create(request);
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -179,7 +182,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 Altitude: globalOriginPoint.Altitude));
         totalStopwatch.Stop();
         progressReporter?.Invoke(
-            $"[import] Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s.");
+            PlateauLog.Info("import", $"Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
 
         return new ConstructionSource(
             metadata,
@@ -256,9 +259,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
             : [];
 
         progressReporter?.Invoke(
-            $"[import] Parsed file '{sourceFile.RelativePath}' "
-            + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
-            + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s.");
+            PlateauLog.Info(
+                "import",
+                $"Parsed file '{sourceFile.RelativePath}' "
+                + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
+                + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s."));
 
         return new ParsedSourceFileResult(
             sourceFile,

@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Channels;
 using System.Xml.Linq;
 
@@ -176,13 +174,13 @@ public static partial class LocalCityGmlResonitePlanBuilder
     {
         int globalRow = (int)Math.Floor(topPixel / DefaultDemTerrainTextureMaxSize);
         int globalColumn = (int)Math.Floor(leftPixel / DefaultDemTerrainTextureMaxSize);
-        string fingerprintSource = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{DefaultDemTerrainTextureZoomLevel}|{leftPixel:R}|{rightPixel:R}|{topPixel:R}|{bottomPixel:R}");
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintSource));
+        long leftKey = (long)Math.Round(leftPixel * 1000.0, MidpointRounding.AwayFromZero);
+        long rightKey = (long)Math.Round(rightPixel * 1000.0, MidpointRounding.AwayFromZero);
+        long topKey = (long)Math.Round(topPixel * 1000.0, MidpointRounding.AwayFromZero);
+        long bottomKey = (long)Math.Round(bottomPixel * 1000.0, MidpointRounding.AwayFromZero);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{DefaultDemTerrainTexturePath}/{globalRow:D5}-{globalColumn:D5}-{Convert.ToHexString(hash.AsSpan(0, 8))}");
+            $"{DefaultDemTerrainTexturePath}/{globalRow:D5}-{globalColumn:D5}-{leftKey:D12}-{rightKey:D12}-{topKey:D12}-{bottomKey:D12}");
     }
 
     private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(

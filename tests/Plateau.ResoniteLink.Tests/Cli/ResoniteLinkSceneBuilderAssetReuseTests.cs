@@ -150,6 +150,151 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenUvScaleDiffers()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-material-scale-one",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"),
+                    textureScale: new ResoniteFloat2(1.0, 1.0)),
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-material-scale-two",
+                    texturePath: bundledTexturePath,
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"),
+                    textureScale: new ResoniteFloat2(0.5, 0.5)),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenTextureBasenamesMatchButPathsDiffer()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string firstTexturePath = "textures/set-a/wall.png";
+        string secondTexturePath = "textures/set-b/wall.png";
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, firstTexturePath),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, secondTexturePath),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            datasetDirectory.Path,
+            packageNames: ["bldg"],
+            sourceFiles: [firstTexturePath, secondTexturePath]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateMultiTexturedTriangleCityObject(
+                    objectIdentity: "shared-material-path",
+                    firstTexturePath,
+                    secondTexturePath),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenTexturePathsDifferOnlyByColorSuffix()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string firstTexturePath = "textures/facade.png";
+        string secondTexturePath = "textures/facade_Color.png";
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, firstTexturePath),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, secondTexturePath),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            datasetDirectory.Path,
+            packageNames: ["bldg"],
+            sourceFiles: [firstTexturePath, secondTexturePath]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateMultiTexturedTriangleCityObject(
+                    objectIdentity: "shared-material-color-suffix",
+                    firstTexturePath,
+                    secondTexturePath),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncUsesDedicatedMaterialsForDatasetAlbedoOnlyTextures()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string textureOne = "textures/albedo-one.png";
+        string textureTwo = "textures/albedo-two.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureOne),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureTwo),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            datasetDirectory.Path,
+            sourceFiles: [textureOne, textureTwo]);
+        using ReuseSessionSharedClient sharedClient = new();
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateTexturedTriangleCityObject(
+                    objectIdentity: "dataset-albedo-one",
+                    textureOne,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material")),
+                CreateTexturedTriangleCityObject(
+                    objectIdentity: "dataset-albedo-two",
+                    textureTwo,
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material")),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
+        Assert.DoesNotContain(
+            sharedClient.AddedComponents,
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BuildAsyncPlacesMaterialAndTextureComponentsOnSameCommonAssetSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -175,7 +320,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.NotEmpty(textureRequests);
         Assert.All(textureRequests, request => Assert.Equal(materialRequest.ContainerSlotId, request.ContainerSlotId));
         Slot materialSlot = client.SlotsById[materialRequest.ContainerSlotId];
-        Assert.Equal("triangle-textured-material_uv_Facade001_2K-JPG", materialSlot.Name?.Value);
+        Assert.StartsWith("pbs-uv_", materialSlot.Name?.Value, StringComparison.Ordinal);
         Assert.NotNull(materialSlot.Parent);
         Slot parentSlot = client.SlotsById[materialSlot.Parent!.TargetID];
         Assert.Equal("Common", parentSlot.Name?.Value);
@@ -212,7 +357,11 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Slot meshRoot = AssertSingleChild(datasetRoot, MeshCode, client.SlotsById);
 
         AssertSingleChild(meshRoot, "bldg", client.SlotsById);
-        AssertSingleChild(common, "triangle-textured-material_uv_Facade001_2K-JPG", client.SlotsById);
+        Assert.Contains(
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Parent?.TargetID, common.ID, StringComparison.Ordinal)
+                && slot.Name?.Value is not null
+                && slot.Name.Value.StartsWith("pbs-uv_", StringComparison.Ordinal));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU reuse-test", StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common", StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, assets.ID, StringComparison.Ordinal)));
@@ -356,7 +505,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
         string objectIdentity,
         string texturePath,
-        ResoniteImportedMesh mesh)
+        ResoniteImportedMesh mesh,
+        ResoniteFloat2? textureScale = null,
+        ResoniteColor? baseColor = null)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
@@ -370,13 +521,61 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             [
                 new ResoniteMaterialBinding(
                     MaterialKey: "triangle-textured-material",
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: baseColor ?? new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePath: texturePath,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: textureScale),
+            ],
+            SourceObjectKey: objectIdentity);
+    }
+
+    private static ResoniteConstructionCityObject CreateMultiTexturedTriangleCityObject(
+        string objectIdentity,
+        string firstTexturePath,
+        string secondTexturePath)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: firstTexturePath,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
                     SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: secondTexturePath,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
             ],
             SourceObjectKey: objectIdentity);
     }

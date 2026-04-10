@@ -183,7 +183,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             CancellationToken.None);
 
         Assert.Equal(512, completedTexture.Width);
-        Assert.Equal(4, handler.RequestCount);
+        Assert.Equal(5, handler.RequestCount);
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             terrainTextureOverlay,
             CancellationToken.None);
 
-        Assert.Equal(4, handler.RequestCount);
+        Assert.Equal(5, handler.RequestCount);
         Assert.Equal(512, successfulTexture.Width);
     }
 

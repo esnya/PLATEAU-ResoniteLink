@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -11,7 +9,7 @@ internal sealed class ResoniteTextureImportResolver
     private readonly string generatedAssetsRoot;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly TerrainTextureOverlayLookup terrainTextureOverlayLookup;
-    private readonly ConcurrentDictionary<TextureReferenceKey, Lazy<Task<ResoniteTextureImport>>> resolvedTexturePathTasks = [];
+    private readonly AsyncCompletedResultCache<TextureReferenceKey, ResoniteTextureImport> resolvedTextureCache = new();
 
     public ResoniteTextureImportResolver(
         IPlateauDatasetContentSource datasetContentSource,
@@ -38,36 +36,10 @@ internal sealed class ResoniteTextureImportResolver
         ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
 
         TextureReferenceKey cacheKey = ResoniteMaterialAssetManager.CreateTextureReferenceKey(texturePath, textureSourceKind);
-        Lazy<Task<ResoniteTextureImport>> resolvedTexture = resolvedTexturePathTasks.GetOrAdd(
+        return resolvedTextureCache.GetOrCreateAsync(
             cacheKey,
-            _ => new Lazy<Task<ResoniteTextureImport>>(
-                () => ResolveCoreAsync(texturePath, textureSourceKind, CancellationToken.None),
-                LazyThreadSafetyMode.ExecutionAndPublication));
-
-        Task<ResoniteTextureImport> sharedTask = resolvedTexture.Value;
-        return AwaitResolvedTextureAsync(cacheKey, resolvedTexture, sharedTask, cancellationToken);
-    }
-
-    private async Task<ResoniteTextureImport> AwaitResolvedTextureAsync(
-        TextureReferenceKey cacheKey,
-        Lazy<Task<ResoniteTextureImport>> resolvedTexture,
-        Task<ResoniteTextureImport> sharedTask,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await sharedTask.WaitAsync(cancellationToken);
-        }
-        catch
-        {
-            if (sharedTask.IsFaulted || sharedTask.IsCanceled)
-            {
-                resolvedTexturePathTasks.TryRemove(
-                    new KeyValuePair<TextureReferenceKey, Lazy<Task<ResoniteTextureImport>>>(cacheKey, resolvedTexture));
-            }
-
-            throw;
-        }
+            ct => ResolveCoreAsync(texturePath, textureSourceKind, ct),
+            cancellationToken);
     }
 
     private async Task<ResoniteTextureImport> ResolveCoreAsync(

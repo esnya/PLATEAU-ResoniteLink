@@ -52,7 +52,12 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
         NewEntityId response = await link.AddComponent(request);
-        EnsureSuccess(response, "add component");
+        EnsureSuccess(
+            response,
+            CreateMutationOperationName(
+                "add component",
+                request.Data.ComponentType,
+                request.ContainerSlotId));
         return ValidateCreatedEntityId(response.EntityId, "component");
     }
 
@@ -62,7 +67,12 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
         NewEntityId response = await link.AddSlot(request);
-        EnsureSuccess(response, "add slot");
+        EnsureSuccess(
+            response,
+            CreateMutationOperationName(
+                "add slot",
+                request.Data.Name?.Value,
+                request.Data.Parent?.TargetID));
         return ValidateCreatedEntityId(response.EntityId, "slot");
     }
 
@@ -169,9 +179,13 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         EnsureSuccess(response, "update component");
     }
 
-    private static void EnsureSuccess(Response response, string operationName)
+    internal static void EnsureSuccess(Response? response, string operationName)
     {
-        ArgumentNullException.ThrowIfNull(response);
+        if (response is null)
+        {
+            throw new InvalidOperationException($"ResoniteLink {operationName} returned a null response.");
+        }
+
         if (response.Success)
         {
             return;
@@ -181,6 +195,13 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             string.IsNullOrWhiteSpace(response.ErrorInfo)
                 ? $"ResoniteLink {operationName} failed."
                 : $"ResoniteLink {operationName} failed: {response.ErrorInfo}");
+    }
+
+    private static string CreateMutationOperationName(string operationName, string? subject, string? containerId)
+    {
+        string subjectSuffix = string.IsNullOrWhiteSpace(subject) ? string.Empty : $" '{subject}'";
+        string containerSuffix = string.IsNullOrWhiteSpace(containerId) ? string.Empty : $" on '{containerId}'";
+        return $"{operationName}{subjectSuffix}{containerSuffix}";
     }
 
     private static string ValidateCreatedEntityId(string? responseEntityId, string entityKind)
