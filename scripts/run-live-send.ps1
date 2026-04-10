@@ -2,40 +2,49 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ResoniteLinkPort,
 
+    [Parameter(Mandatory = $true)]
+    [string]$LocalSourcePath,
+
     [string]$Dataset = '14100-yokohama-shi',
     [string]$MeshCode = '533915[3-6][0-2]',
+    [ValidateSet('heightmap', 'mesh')]
     [string]$DemTerrainMode = 'heightmap',
     [string]$Connections = '8',
     [string]$LogPrefix = 'live-send',
+    [string]$RepoPath = 'C:\Users\esnya\Documents\PLATEAU-ResoniteLink',
     [switch]$NoWait
 )
 
 $ErrorActionPreference = 'Stop'
 
-$repo = 'C:\Users\esnya\Documents\PLATEAU-ResoniteLink'
-$stdoutLog = Join-Path $repo ("runtime\windows\resonite\{0}.stdout.log" -f $LogPrefix)
-$stderrLog = Join-Path $repo ("runtime\windows\resonite\{0}.stderr.log" -f $LogPrefix)
-$localSourcePath = Join-Path $repo 'runtime\windows\resonite\cache\remote\14100-yokohama-shi\53391530\14100_yokohama-shi_city_2023_citygml_1_op'
-$workRoot = Join-Path $repo 'runtime\windows\resonite'
-$cliDllPath = Join-Path $repo 'artifacts\build\windows\bin\Plateau.ResoniteLink.Cli\Release\net10.0\Plateau.ResoniteLink.Cli.dll'
+$runtimeRoot = Join-Path $RepoPath 'runtime\windows\resonite'
+$stdoutLog = Join-Path $runtimeRoot ("{0}.stdout.log" -f $LogPrefix)
+$stderrLog = Join-Path $runtimeRoot ("{0}.stderr.log" -f $LogPrefix)
+$workRoot = $runtimeRoot
+$cliDllPath = Join-Path $RepoPath 'artifacts\build\windows\bin\Plateau.ResoniteLink.Cli\Release\net10.0\Plateau.ResoniteLink.Cli.dll'
 
-if (Test-Path $stdoutLog) {
-    Remove-Item $stdoutLog -Force
+if (-not (Test-Path $cliDllPath)) {
+    & 'C:\Program Files\dotnet\dotnet.exe' build (Join-Path $RepoPath 'src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj') -c Release | Out-Host
+    if (-not (Test-Path $cliDllPath)) {
+        throw "CLI build output not found: $cliDllPath"
+    }
 }
 
-if (Test-Path $stderrLog) {
-    Remove-Item $stderrLog -Force
+foreach ($path in @($stdoutLog, $stderrLog)) {
+    if (Test-Path $path) {
+        Remove-Item $path -Force
+    }
 }
 
 $process = Start-Process `
     -FilePath 'C:\Program Files\dotnet\dotnet.exe' `
-    -WorkingDirectory $repo `
+    -WorkingDirectory $RepoPath `
     -ArgumentList @(
         $cliDllPath,
         'build',
         '--dataset', $Dataset,
         '--source', 'local',
-        '--local-source-path', $localSourcePath,
+        '--local-source-path', $LocalSourcePath,
         '--work-root', $workRoot,
         '--dem-terrain-mode', $DemTerrainMode,
         '--resonitelink-port', $ResoniteLinkPort,
@@ -47,20 +56,30 @@ $process = Start-Process `
     -RedirectStandardError $stderrLog
 
 if ($NoWait) {
-    Write-Output "PID=$($process.Id)"
-    Write-Output "STDOUT=$stdoutLog"
-    Write-Output "STDERR=$stderrLog"
+    [pscustomobject]@{
+        ProcessId           = $process.Id
+        Dataset             = $Dataset
+        MeshCode            = $MeshCode
+        DemTerrainMode      = $DemTerrainMode
+        StdoutLog           = $stdoutLog
+        StderrLog           = $stderrLog
+        CliDllPath          = $cliDllPath
+        CliDllLastWriteTime = (Get-Item $cliDllPath).LastWriteTime
+    }
     exit 0
 }
 
 $null = $process | Wait-Process
+$process.Refresh()
 
-Write-Output "EXIT=$($process.ExitCode)"
-Write-Output '---STDOUT---'
-if (Test-Path $stdoutLog) {
-    Get-Content $stdoutLog -Tail 200
-}
-Write-Output '---STDERR---'
-if (Test-Path $stderrLog) {
-    Get-Content $stderrLog -Tail 200
+[pscustomobject]@{
+    ProcessId           = $process.Id
+    ExitCode            = $process.ExitCode
+    Dataset             = $Dataset
+    MeshCode            = $MeshCode
+    DemTerrainMode      = $DemTerrainMode
+    StdoutLog           = $stdoutLog
+    StderrLog           = $stderrLog
+    CliDllPath          = $cliDllPath
+    CliDllLastWriteTime = (Get-Item $cliDllPath).LastWriteTime
 }
