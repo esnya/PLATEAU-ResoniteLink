@@ -179,12 +179,18 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Relief One");
         Assert.Equal("dem", relief.PackageName);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, Assert.Single(relief.Materials).TexturePath);
+        Assert.StartsWith(
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            Assert.Single(relief.Materials).TexturePath,
+            StringComparison.Ordinal);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, Assert.Single(relief.Materials).TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, Assert.Single(relief.Materials).Projection);
         TerrainTextureOverlay demTerrainTexture = Assert.Single(result.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Equal("dem", demTerrainTexture.PackageName);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, demTerrainTexture.TexturePath);
+        Assert.StartsWith(
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            demTerrainTexture.TexturePath,
+            StringComparison.Ordinal);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, demTerrainTexture.UrlTemplate);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, demTerrainTexture.ZoomLevel);
         Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, demTerrainTexture.MaxTextureSize);
@@ -996,6 +1002,177 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncUsesDifferentGeneratedDemTexturePathsForDifferentRequestedMeshSelectors()
+    {
+        string firstTexturePath = CreateGeneratedDemTexturePathForMeshCode("53394525");
+        string secondTexturePath = CreateGeneratedDemTexturePathForMeshCode("53394526");
+
+        Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, firstTexturePath, StringComparison.Ordinal);
+        Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, secondTexturePath, StringComparison.Ordinal);
+        Assert.NotEqual(firstTexturePath, secondTexturePath);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesIndependentGeneratedDemTexturesForSplitHeightMapChunks()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeStraddledSplitBoundaryDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject[] demChunks = heightMapScene.CityObjects
+            .Where(static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal))
+            .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(2, demChunks.Length);
+
+        ResoniteMaterialBinding westMaterial = Assert.Single(
+            demChunks[0].Materials,
+            static material => material.TexturePath is not null
+                && material.TexturePath.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    StringComparison.Ordinal));
+        ResoniteMaterialBinding eastMaterial = Assert.Single(
+            demChunks[1].Materials,
+            static material => material.TexturePath is not null
+                && material.TexturePath.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    StringComparison.Ordinal));
+
+        Assert.NotNull(westMaterial.TextureScale);
+        Assert.NotNull(westMaterial.TextureOffset);
+        Assert.NotNull(eastMaterial.TextureScale);
+        Assert.NotNull(eastMaterial.TextureOffset);
+        Assert.NotEqual(westMaterial.TexturePath, eastMaterial.TexturePath);
+        Assert.Equal(1.0, westMaterial.TextureScale!.X, 6);
+        Assert.Equal(1.0, westMaterial.TextureScale.Y, 6);
+        Assert.Equal(0.0, westMaterial.TextureOffset!.X, 6);
+        Assert.Equal(0.0, westMaterial.TextureOffset.Y, 6);
+        Assert.Equal(1.0, eastMaterial.TextureScale!.X, 6);
+        Assert.Equal(1.0, eastMaterial.TextureScale.Y, 6);
+        Assert.Equal(0.0, eastMaterial.TextureOffset!.X, 6);
+        Assert.Equal(0.0, eastMaterial.TextureOffset.Y, 6);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncFallsBackToSeaLevelOutsideDemTrianglesInHeightMapMode()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSingleTriangleDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject demChunk = Assert.Single(
+            heightMapScene.CityObjects,
+            static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal));
+        ResoniteHeightMapGridGeometry geometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunk.Geometry);
+
+        double minX = demChunk.Transform.Position.X - (geometry.Size.X / 2.0);
+        double minZ = demChunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
+        double outsideHeight0 = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.10),
+            minZ + (geometry.Size.Y * 0.10));
+        double outsideHeight1 = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.20),
+            minZ + (geometry.Size.Y * 0.20));
+        double insideHeight = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.90),
+            minZ + (geometry.Size.Y * 0.90));
+
+        Assert.InRange(Math.Abs(outsideHeight0 - outsideHeight1), 0.0, 1e-6);
+        Assert.True(
+            outsideHeight0 < insideHeight,
+            $"Expected heightmap samples outside the DEM triangle to fall below the interior terrain surface. outside={outsideHeight0:F6}, inside={insideHeight:F6}");
+    }
+
+    [Fact]
+    public void ExtendBoundaryConnectedMissingHeightMapBandsFillsMultiColumnEdgeRuns()
+    {
+        double[] localHeights =
+        [
+            0.0, 0.0, 10.0, 20.0,
+            0.0, 11.0, 12.0, 13.0,
+            0.0, 21.0, 22.0, 23.0,
+            30.0, 31.0, 32.0, 33.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            false, false, true, true,
+            false, true, true, true,
+            false, true, true, true,
+            true, true, true, true,
+        ];
+
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+
+        Assert.Equal(10.0, localHeights[0]);
+        Assert.Equal(10.0, localHeights[1]);
+        Assert.Equal(11.0, localHeights[4]);
+        Assert.Equal(21.0, localHeights[8]);
+    }
+
+    [Fact]
+    public void ExtendBoundaryConnectedMissingHeightMapBandsPreservesInteriorHoles()
+    {
+        double[] localHeights =
+        [
+            10.0, 11.0, 12.0, 13.0,
+            20.0, 0.0, 0.0, 23.0,
+            30.0, 0.0, 0.0, 33.0,
+            40.0, 41.0, 42.0, 43.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            true, true, true, true,
+            true, false, false, true,
+            true, false, false, true,
+            true, true, true, true,
+        ];
+
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+
+        Assert.Equal(0.0, localHeights[5]);
+        Assert.Equal(0.0, localHeights[6]);
+        Assert.Equal(0.0, localHeights[9]);
+        Assert.Equal(0.0, localHeights[10]);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsSplitDemHeightMapBoundaryHeightsAlignedAcrossChunks()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -1643,6 +1820,14 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).X,
+            material.TextureScale!.X,
+            6);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).Y,
+            material.TextureScale!.Y,
+            6);
         Assert.Equal(0.52, material.BaseColor.R, 6);
         Assert.Equal(0.62, material.BaseColor.G, 6);
         Assert.Equal(0.72, material.BaseColor.B, 6);
@@ -1679,6 +1864,14 @@ public sealed class PlateauImportServiceTests
                 Assert.Contains(material.TexturePath!, BundledDefaultMaterialFamilies.RoofVariants);
                 Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
                 Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+                Assert.Equal(
+                    BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).X,
+                    material.TextureScale!.X,
+                    6);
+                Assert.Equal(
+                    BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).Y,
+                    material.TextureScale!.Y,
+                    6);
             });
 
         ResoniteConstructionCityObject road = Assert.Single(scene.CityObjects, static cityObject => cityObject.DisplayName == "Road One");
@@ -1811,7 +2004,6 @@ public sealed class PlateauImportServiceTests
             .Distinct()
             .ToArray();
 
-        Assert.Contains(facadeUvs, static uv => Approximately(uv.X, 0.0) && Approximately(uv.Y, 0.0));
         Assert.True(
             facadeUvs.Max(static uv => uv.X) - facadeUvs.Min(static uv => uv.X) >= 5.0 - 1e-4,
             "Expected facade UVs to span the wall width.");
@@ -1885,6 +2077,28 @@ public sealed class PlateauImportServiceTests
                 material.TexturePath,
                 "default-materials/facade/PaintedPlaster012_2K-JPG_Color.jpg",
                 StringComparison.Ordinal));
+
+        int facadeSubmeshIndex = Assert.Single(facadeMaterials[0].SubmeshIndices);
+        ResoniteMeshSubmesh facadeSubmesh = Assert.Single(
+            building.Mesh.Submeshes,
+            submesh => submesh.Index == facadeSubmeshIndex);
+        ((double, double, double) Position, (double, double)[] Uvs)[] duplicatePositionUvs = facadeSubmesh.TriangleVertexIndices
+            .Select(index => building.Mesh.Vertices[index])
+            .GroupBy(
+                static vertex => (
+                    Round(vertex.Position.X),
+                    Round(vertex.Position.Y),
+                    Round(vertex.Position.Z)))
+            .Select(group => (
+                Position: group.Key,
+                Uvs: group
+                    .Select(static vertex => (Round(vertex.UV0.X), Round(vertex.UV0.Y)))
+                    .Distinct()
+                    .ToArray()))
+            .Where(static entry => entry.Uvs.Length > 1)
+            .ToArray();
+
+        Assert.Empty(duplicatePositionUvs);
     }
 
     [Fact]
@@ -1949,6 +2163,9 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(DatasetSourceKind.Remote, Assert.Single(resolver.Requests).SourceKind);
         Assert.Equal(DatasetSourceKind.Local, result.Metadata.Request.SourceKind);
         Assert.Equal(fixturePath, result.Metadata.Request.LocalSourcePath);
+        Assert.NotNull(sceneBuilder.LastEnsureConnectedRequest);
+        Assert.Equal(DatasetSourceKind.Remote, sceneBuilder.LastEnsureConnectedRequest!.SourceKind);
+        Assert.Null(sceneBuilder.LastEnsureConnectedRequest.LocalSourcePath);
     }
 
     [Fact]
@@ -1970,13 +2187,14 @@ public sealed class PlateauImportServiceTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Resolved dataset source", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scene builder connection check completed", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scanned ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Parsed ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Prepared construction source", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Streamed ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scene builder completion finished", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Resolved dataset source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scene builder connection check completed", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scanned ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Parsed ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Prepared construction source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization.", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Streamed ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scene builder completion finished", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2130,6 +2348,7 @@ public sealed class PlateauImportServiceTests
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
         public int EnsureConnectedCallCount { get; private set; }
         public int DisposeCallCount { get; private set; }
+        public PlateauImportRequest? LastEnsureConnectedRequest { get; private set; }
         public Action? OnEnsureConnected { get; set; }
         public Action? OnBegin { get; set; }
         public Exception? EnsureConnectedException { get; set; }
@@ -2140,6 +2359,7 @@ public sealed class PlateauImportServiceTests
         {
             ArgumentNullException.ThrowIfNull(request);
             EnsureConnectedCallCount++;
+            LastEnsureConnectedRequest = request;
             OnEnsureConnected?.Invoke();
             if (EnsureConnectedException is not null)
             {
@@ -2598,6 +2818,51 @@ public sealed class PlateauImportServiceTests
             xml);
     }
 
+    private static void CreateRuntimeSingleTriangleDemFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsDimension="3" srsName="EPSG:4326">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0010 139.0010 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-single-triangle">
+                  <gml:name>Single Triangle Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-single-triangle-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-dem-single">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-single">
+                                  <gml:posList>35.0000 139.0010 5 35.0010 139.0000 10 35.0010 139.0010 20 35.0000 139.0010 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_single_triangle.gml"),
+            xml);
+    }
+
     private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
         params ResoniteConstructionCityObject[] cityObjects)
     {
@@ -2607,6 +2872,20 @@ public sealed class PlateauImportServiceTests
             ?? throw new InvalidOperationException("Expected private heightmap boundary alignment helper.");
 
         return (ResoniteConstructionCityObject[])method.Invoke(null, [cityObjects])!;
+    }
+
+    private static void ExtendBoundaryConnectedMissingHeightMapBands(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        MethodInfo method = typeof(LocalCityGmlResonitePlanBuilder).GetMethod(
+            "ExtendBoundaryConnectedMissingHeightSamples",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Expected private boundary-connected heightmap fill helper.");
+
+        method.Invoke(null, [localHeights, sampledInsideTriangles, width, height]);
     }
 
     private static ResoniteConstructionCityObject CreateHeightMapChunk(
@@ -2665,6 +2944,31 @@ public sealed class PlateauImportServiceTests
 
         return rows
             .SelectMany(row => columns.Select(column =>
+            {
+                double x = minX + (column * stepX);
+                double z = minZ + (row * stepZ);
+                double distanceSquared = Math.Pow(x - targetX, 2.0) + Math.Pow(z - targetZ, 2.0);
+                double height = GetHeightMapWorldHeight(chunk, geometry, row, column);
+                return (distanceSquared, height);
+            }))
+            .OrderBy(static candidate => candidate.distanceSquared)
+            .First()
+            .height;
+    }
+
+    private static double GetNearestHeightMapWorldHeight(
+        ResoniteConstructionCityObject chunk,
+        ResoniteHeightMapGridGeometry geometry,
+        double targetX,
+        double targetZ)
+    {
+        double minX = chunk.Transform.Position.X - (geometry.Size.X / 2.0);
+        double minZ = chunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
+        double stepX = geometry.Width <= 1 ? 0.0 : geometry.Size.X / (geometry.Width - 1);
+        double stepZ = geometry.Height <= 1 ? 0.0 : geometry.Size.Y / (geometry.Height - 1);
+
+        return Enumerable.Range(0, geometry.Height)
+            .SelectMany(row => Enumerable.Range(0, geometry.Width).Select(column =>
             {
                 double x = minX + (column * stepX);
                 double z = minZ + (row * stepZ);
@@ -3908,6 +4212,21 @@ public sealed class PlateauImportServiceTests
         }
     }
 
+    private static string CreateGeneratedDemTexturePathForMeshCode(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
+        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.WestLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.EastLongitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+        double topPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.NorthLatitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.SouthLatitude, LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel);
+
+        MethodInfo method = typeof(LocalCityGmlResonitePlanBuilder).GetMethod(
+            "CreateDemTerrainTexturePath",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Expected private DEM terrain texture path helper.");
+        return (string)method.Invoke(null, [leftPixel, rightPixel, topPixel, bottomPixel])!;
+    }
+
     internal sealed record CapturedResoniteScene(
         ResoniteConstructionMetadata Metadata,
         IReadOnlyList<ResoniteConstructionCityObject> CityObjects);
@@ -3915,6 +4234,11 @@ public sealed class PlateauImportServiceTests
     private static bool Approximately(double actual, double expected)
     {
         return Math.Abs(actual - expected) < 1e-4;
+    }
+
+    private static double Round(double value)
+    {
+        return Math.Round(value, 6);
     }
 
     private static void CreateZipArchiveFromDirectory(string sourceDirectory, string archivePath)

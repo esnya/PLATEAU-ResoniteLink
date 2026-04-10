@@ -142,12 +142,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             overlays.Add(CreateDemTerrainTextureOverlay(row: 0, column: 0, leftPixel, rightPixel, topPixel, bottomPixel));
         }
 
-        return overlays.Count == 1
-            ?
-            [
-                overlays[0] with { TexturePath = DefaultDemTerrainTexturePath },
-            ]
-            : overlays.ToArray();
+        return overlays.ToArray();
     }
 
     private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
@@ -159,7 +154,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double bottomPixel)
     {
         return new TerrainTextureOverlay(
-            TexturePath: $"{DefaultDemTerrainTexturePath}/{row:D2}-{column:D2}",
+            TexturePath: CreateDemTerrainTexturePath(leftPixel, rightPixel, topPixel, bottomPixel),
             PackageName: "dem",
             UrlTemplate: DefaultDemTerrainTextureUrlTemplate,
             ZoomLevel: DefaultDemTerrainTextureZoomLevel,
@@ -169,6 +164,23 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 MinLongitude: WebMercatorTileMath.PixelXToLongitude(leftPixel, DefaultDemTerrainTextureZoomLevel),
                 MaxLongitude: WebMercatorTileMath.PixelXToLongitude(rightPixel, DefaultDemTerrainTextureZoomLevel)),
             MaxTextureSize: DefaultDemTerrainTextureMaxSize);
+    }
+
+    private static string CreateDemTerrainTexturePath(
+        double leftPixel,
+        double rightPixel,
+        double topPixel,
+        double bottomPixel)
+    {
+        int globalRow = (int)Math.Floor(topPixel / DefaultDemTerrainTextureMaxSize);
+        int globalColumn = (int)Math.Floor(leftPixel / DefaultDemTerrainTextureMaxSize);
+        long leftKey = (long)Math.Round(leftPixel * 1000.0, MidpointRounding.AwayFromZero);
+        long rightKey = (long)Math.Round(rightPixel * 1000.0, MidpointRounding.AwayFromZero);
+        long topKey = (long)Math.Round(topPixel * 1000.0, MidpointRounding.AwayFromZero);
+        long bottomKey = (long)Math.Round(bottomPixel * 1000.0, MidpointRounding.AwayFromZero);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{DefaultDemTerrainTexturePath}/{globalRow:D5}-{globalColumn:D5}-{leftKey:D12}-{rightKey:D12}-{topKey:D12}-{bottomKey:D12}");
     }
 
     private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
@@ -1627,8 +1639,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     surface,
                     packageName,
                     cityObjectOrigin,
-                    cityObjectCartesian,
-                    material.TextureScale)
+                    cityObjectCartesian)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateSurfaceTessellatedRings(
             surface,
@@ -1814,8 +1825,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ParsedSurface surface,
         string packageName,
         GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian,
-        ResoniteFloat2? textureScale)
+        LocalCartesian? cityObjectCartesian)
     {
         ResoniteFloat3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
@@ -1838,33 +1848,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
-        double minU = double.PositiveInfinity;
-        double minV = double.PositiveInfinity;
-        double maxU = double.NegativeInfinity;
-        double maxV = double.NegativeInfinity;
-
-        foreach (GeodeticPoint vertex in surface.Vertices)
-        {
-            ResoniteFloat3 position = CreateResonitePosition(vertex, cityObjectOrigin, cityObjectCartesian);
-            double u = Dot(position, surfaceAxes.AxisU);
-            double v = Dot(position, surfaceAxes.AxisV);
-            minU = Math.Min(minU, u);
-            minV = Math.Min(minV, v);
-            maxU = Math.Max(maxU, u);
-            maxV = Math.Max(maxV, v);
-        }
-
-        return new SurfaceUvProjection(
-            surfaceAxes.AxisU,
-            surfaceAxes.AxisV,
-            minU,
-            minV,
-            Math.Max(maxU - minU, 1e-8),
-            Math.Max(maxV - minV, 1e-8),
-            surfaceAxes.AlignWidthToTextureScale
-                ? AlignTextureSpan(Math.Max(maxU - minU, 1e-8), textureScale?.X)
-                : Math.Max(maxU - minU, 1e-8),
-            AlignTextureSpan(Math.Max(maxV - minV, 1e-8), textureScale?.Y));
+        return new SurfaceUvProjection(surfaceAxes.AxisU, surfaceAxes.AxisV);
     }
 
     private static ResoniteFloat2 CreateGeneratedSurfaceUv(
@@ -1874,22 +1858,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
         SurfaceUvProjection projection)
     {
         ResoniteFloat3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
-        double u = ((Dot(position, projection.AxisU) - projection.MinU) / projection.Width) * projection.AlignedWidth;
-        double v = ((Dot(position, projection.AxisV) - projection.MinV) / projection.Height) * projection.AlignedHeight;
+        double u = Dot(position, projection.AxisU);
+        double v = Dot(position, projection.AxisV);
         return new ResoniteFloat2(u, v);
-    }
-
-    private static double AlignTextureSpan(double span, double? tilesPerMeter)
-    {
-        if (!tilesPerMeter.HasValue
-            || tilesPerMeter.Value <= 1e-8
-            || span <= 1e-8)
-        {
-            return span;
-        }
-
-        double repeats = Math.Max(1.0, Math.Round(span * tilesPerMeter.Value, MidpointRounding.AwayFromZero));
-        return repeats / tilesPerMeter.Value;
     }
 
     private static SurfaceUvAxes? TryCreateSurfaceUvAxes(ResoniteFloat3 normal)
@@ -1898,7 +1869,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 facadeAxisU = Cross(verticalAxis, normal);
         if (Magnitude(facadeAxisU) >= 1e-8)
         {
-            return new SurfaceUvAxes(Normalize(facadeAxisU), verticalAxis, AlignWidthToTextureScale: true);
+            return new SurfaceUvAxes(Normalize(facadeAxisU), verticalAxis);
         }
 
         ResoniteFloat3[] referenceAxes =
@@ -1923,7 +1894,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 continue;
             }
 
-            return new SurfaceUvAxes(axisU, Normalize(axisV), AlignWidthToTextureScale: true);
+            return new SurfaceUvAxes(axisU, Normalize(axisV));
         }
 
         return null;
@@ -1971,7 +1942,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
-        return new SurfaceUvAxes(axisU, Normalize(axisV), AlignWidthToTextureScale: true);
+        return new SurfaceUvAxes(axisU, Normalize(axisV));
     }
 
     private static bool IsBuildingPackage(string packageName)
@@ -3127,7 +3098,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
             .ToArray();
         HeightMapTriangle[] triangles = CreateDemHeightMapTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
-        HeightMapPoint[] points = CreateDemHeightMapPoints(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        double seaLevelLocalHeight = CreateGlobalHeightMapLocalPosition(
+            new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
+            slotPosition,
+            globalOriginPoint,
+            globalCartesian).Y;
         if (positions.Length < 3)
         {
             return false;
@@ -3169,9 +3144,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             (int)Math.Ceiling(extentZ / request.DemHeightmapMetersPerVertex) + 1,
             2,
             request.DemHeightmapMaxResolution);
-        double minHeight = double.PositiveInfinity;
-        double maxHeight = double.NegativeInfinity;
         double[] localHeights = new double[width * height];
+        bool[] sampledInsideTriangles = new bool[width * height];
 
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
@@ -3181,17 +3155,22 @@ public static partial class LocalCityGmlResonitePlanBuilder
             {
                 double u = width == 1 ? 0.0 : (double)xIndex / (width - 1);
                 double sampleX = minX + (extentX * u);
-                if (!TrySampleLocalDemHeight(sampleX, sampleZ, triangles, points, spatialIndex, out double localHeight))
-                {
-                    return false;
-                }
-
                 int sampleIndex = (zIndex * width) + xIndex;
-                localHeights[sampleIndex] = localHeight;
-                minHeight = Math.Min(minHeight, localHeight);
-                maxHeight = Math.Max(maxHeight, localHeight);
+                if (TrySampleLocalDemHeight(sampleX, sampleZ, triangles, spatialIndex, out double localHeight))
+                {
+                    localHeights[sampleIndex] = localHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                }
+                else
+                {
+                    localHeights[sampleIndex] = seaLevelLocalHeight;
+                }
             }
         }
+
+        ExtendBoundaryConnectedMissingHeightSamples(localHeights, sampledInsideTriangles, width, height);
+        double minHeight = localHeights.Min();
+        double maxHeight = localHeights.Max();
 
         ResoniteMaterialBinding[] materials = CreateDemHeightMapMaterials(
             cityObject,
@@ -3451,19 +3430,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return triangles.ToArray();
     }
 
-    private static HeightMapPoint[] CreateDemHeightMapPoints(
-        ParsedCityObject cityObject,
-        ResoniteFloat3 slotPosition,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian)
-    {
-        return cityObject.Surfaces
-            .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
-            .Select(static point => new HeightMapPoint(point.X, point.Z, point.Y))
-            .ToArray();
-    }
-
     private static ResoniteFloat3 CreateGlobalHeightMapLocalPosition(
         GeodeticPoint point,
         ResoniteFloat3 slotPosition,
@@ -3481,7 +3447,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double x,
         double z,
         IReadOnlyList<HeightMapTriangle> triangles,
-        IReadOnlyList<HeightMapPoint> points,
         HeightMapSpatialIndex spatialIndex,
         out double height)
     {
@@ -3494,28 +3459,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             }
         }
 
-        if (points.Count == 0)
-        {
-            height = 0.0;
-            return false;
-        }
-
-        double nearestDistance = double.PositiveInfinity;
-        double nearestHeight = 0.0;
-        foreach (HeightMapPoint point in points)
-        {
-            double distance = SquaredDistance(point.X, point.Z, x, z);
-            if (distance >= nearestDistance)
-            {
-                continue;
-            }
-
-            nearestDistance = distance;
-            nearestHeight = point.Height;
-        }
-
-        height = nearestHeight;
-        return true;
+        height = 0.0;
+        return false;
     }
 
     private static bool TryInterpolateLocalTriangleHeight(
@@ -3547,11 +3492,155 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return true;
     }
 
-    private static double SquaredDistance(double ax, double az, double bx, double bz)
+    private static void ExtendBoundaryConnectedMissingHeightSamples(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
     {
-        double dx = ax - bx;
-        double dz = az - bz;
-        return (dx * dx) + (dz * dz);
+        bool changed;
+        do
+        {
+            changed = false;
+            changed |= FillBoundaryConnectedMissingRunsByRow(localHeights, sampledInsideTriangles, width, height);
+            changed |= FillBoundaryConnectedMissingRunsByColumn(localHeights, sampledInsideTriangles, width, height);
+        }
+        while (changed);
+    }
+
+    private static bool FillBoundaryConnectedMissingRunsByRow(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        bool changed = false;
+        for (int row = 0; row < height; row++)
+        {
+            int rowStart = row * width;
+            int firstValidColumn = -1;
+            for (int column = 0; column < width; column++)
+            {
+                if (sampledInsideTriangles[rowStart + column])
+                {
+                    firstValidColumn = column;
+                    break;
+                }
+            }
+
+            if (firstValidColumn >= 0)
+            {
+                double fillHeight = localHeights[rowStart + firstValidColumn];
+                for (int column = 0; column < firstValidColumn; column++)
+                {
+                    int sampleIndex = rowStart + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+
+            int lastValidColumn = -1;
+            for (int column = width - 1; column >= 0; column--)
+            {
+                if (sampledInsideTriangles[rowStart + column])
+                {
+                    lastValidColumn = column;
+                    break;
+                }
+            }
+
+            if (lastValidColumn >= 0)
+            {
+                double fillHeight = localHeights[rowStart + lastValidColumn];
+                for (int column = width - 1; column > lastValidColumn; column--)
+                {
+                    int sampleIndex = rowStart + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    private static bool FillBoundaryConnectedMissingRunsByColumn(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        bool changed = false;
+        for (int column = 0; column < width; column++)
+        {
+            int firstValidRow = -1;
+            for (int row = 0; row < height; row++)
+            {
+                if (sampledInsideTriangles[(row * width) + column])
+                {
+                    firstValidRow = row;
+                    break;
+                }
+            }
+
+            if (firstValidRow >= 0)
+            {
+                double fillHeight = localHeights[(firstValidRow * width) + column];
+                for (int row = 0; row < firstValidRow; row++)
+                {
+                    int sampleIndex = (row * width) + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+
+            int lastValidRow = -1;
+            for (int row = height - 1; row >= 0; row--)
+            {
+                if (sampledInsideTriangles[(row * width) + column])
+                {
+                    lastValidRow = row;
+                    break;
+                }
+            }
+
+            if (lastValidRow >= 0)
+            {
+                double fillHeight = localHeights[(lastValidRow * width) + column];
+                for (int row = height - 1; row > lastValidRow; row--)
+                {
+                    int sampleIndex = (row * width) + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
     }
 
     private static void ValidateCompatibleReferenceSystem(
@@ -3815,11 +3904,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 B,
         ResoniteFloat3 C);
 
-    private sealed record HeightMapPoint(
-        double X,
-        double Z,
-        double Height);
-
     private sealed record DemHeightMapBounds(
         double MinX,
         double MaxX,
@@ -3982,18 +4066,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private sealed record SurfaceUvAxes(
         ResoniteFloat3 AxisU,
-        ResoniteFloat3 AxisV,
-        bool AlignWidthToTextureScale);
+        ResoniteFloat3 AxisV);
 
     private sealed record SurfaceUvProjection(
         ResoniteFloat3 AxisU,
-        ResoniteFloat3 AxisV,
-        double MinU,
-        double MinV,
-        double Width,
-        double Height,
-        double AlignedWidth,
-        double AlignedHeight);
+        ResoniteFloat3 AxisV);
 
     private enum ParsedSurfaceSemantic
     {

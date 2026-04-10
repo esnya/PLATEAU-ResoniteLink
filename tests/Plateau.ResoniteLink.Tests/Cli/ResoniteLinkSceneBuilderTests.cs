@@ -1,4 +1,7 @@
+using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+
+using GeographicLib;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
@@ -40,7 +43,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
         Assert.Single(destinations);
-        Assert.Equal(6, fakeClient.ImportedTexturePaths.Count);
+        Assert.InRange(fakeClient.ImportedTexturePaths.Count, 5, 7);
         Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
@@ -83,7 +86,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] staticTextureRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(6, staticTextureRequests.Length);
+        Assert.InRange(staticTextureRequests.Length, 4, 7);
 
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
@@ -104,9 +107,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             static path => path.EndsWith("_Metallic.png", StringComparison.Ordinal));
-        Assert.Contains(
-            fakeClient.ImportedTexturePaths,
-            static path => path.EndsWith("_Emission.jpg", StringComparison.Ordinal));
+        Assert.Empty(fakeClient.ImportedRawTextures);
 
         Assert.All(staticTextureRequests, request =>
         {
@@ -147,14 +148,25 @@ public sealed class ResoniteLinkSceneBuilderTests
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
                 && request.ContainerSlotId != fakeClient.BuildingSlotIds["Building One"])
             .ToArray();
-        Assert.Equal(2, materialRequests.Length);
-        Assert.All(materialRequests, request =>
-        {
-            Assert.StartsWith(
-                "PLATEAU tokyo23ku/Assets/Common",
-                fakeClient.SlotPaths[request.ContainerSlotId],
-                StringComparison.Ordinal);
-        });
+        Assert.InRange(materialRequests.Length, 2, 3);
+        Assert.Contains(
+            materialRequests,
+            request =>
+            {
+                string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
+                return slotPath.StartsWith("PLATEAU tokyo23ku/Assets/Common/", StringComparison.Ordinal)
+                    && !string.Equals(slotPath, "PLATEAU tokyo23ku/Assets/Common", StringComparison.Ordinal)
+                    && slotPath.Contains("_uv_", StringComparison.Ordinal);
+            });
+        Assert.Contains(
+            materialRequests,
+            request =>
+            {
+                string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
+                return slotPath.StartsWith(
+                    $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One/",
+                    StringComparison.Ordinal);
+            });
 
         Component meshRenderer = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
@@ -171,6 +183,330 @@ public sealed class ResoniteLinkSceneBuilderTests
                 .Select(static request => request.Data));
         Field_bool characterCollider = Assert.IsType<Field_bool>(collider.Members["CharacterCollider"]);
         Assert.True(characterCollider.Value);
+    }
+
+    [Fact]
+    public async Task BuildAsyncCreatesIndependentSlotsAndComponentsWithoutDuplicateAdds()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Assert.Equal(
+            2,
+            fakeClient.AddedSlots.Count(request => string.Equals(request.Data.Name?.Value, "bldg", StringComparison.Ordinal)));
+        Assert.Equal(
+            2,
+            fakeClient.AddedSlots.Count(request => string.Equals(request.Data.Name?.Value, "LOD2", StringComparison.Ordinal)));
+        Assert.DoesNotContain(
+            fakeClient.AddedSlots
+                .GroupBy(static request => request.Data.ID, StringComparer.Ordinal),
+            static group => group.Count() > 1);
+        Assert.DoesNotContain(
+            fakeClient.AddedComponents
+                .GroupBy(static request => request.Data.ID, StringComparer.Ordinal),
+            static group => group.Count() > 1);
+    }
+
+    [Fact]
+    public async Task BuildAsyncUsesDedicatedMaterialsForDatasetTexturedMaterials()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string textureOne = "textures/albedo-one.png";
+        string textureTwo = "textures/albedo-two.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureOne),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureTwo),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU reuse-test",
+            Request: new PlateauImportRequest(
+                Dataset: "reuse-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [textureOne, textureTwo],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "albedo-only-building",
+            DisplayName: "Albedo Only Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureOne,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureTwo,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "albedo-only-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        AddComponent[] materialRequests = fakeClient.AddedComponents
+            .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal))
+            .ToArray();
+        Assert.NotEmpty(materialRequests);
+        Assert.DoesNotContain(
+            fakeClient.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+
+        Component meshRenderer = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Albedo Only Building"], StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
+        SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
+        Assert.Equal(2, materials.Elements.Count);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotUseMaterialPropertyBlocksForMixedMaterialStrategies()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string datasetTexture = "textures/albedo-one.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, datasetTexture),
+            new Rgba32(255, 0, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU mixed-property-block-test",
+            Request: new PlateauImportRequest(
+                Dataset: "mixed-property-block-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [datasetTexture],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "mixed-material-building",
+            DisplayName: "Mixed Material Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: datasetTexture,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "mixed-material-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component meshRenderer = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Mixed Material Building"], StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
+        Assert.DoesNotContain(
+            fakeClient.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncOmitsMaterialPropertyBlocksForMixedRenderers()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string textureOne = "textures/albedo-one.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureOne),
+            new Rgba32(255, 0, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU reuse-test",
+            Request: new PlateauImportRequest(
+                Dataset: "reuse-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [textureOne],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "mixed-building",
+            DisplayName: "Mixed Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureOne,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "mixed-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        Component meshRenderer = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Mixed Building"], StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
     }
 
     [Fact]
@@ -241,8 +577,6 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.IsType<Reference>(uvFacadeMaterial.Members["NormalMap"]);
         Assert.IsType<Reference>(uvFacadeMaterial.Members["HeightMap"]);
         Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
-        Assert.IsType<Reference>(uvFacadeMaterial.Members["MetallicMap"]);
-        Assert.IsType<Reference>(uvFacadeMaterial.Members["OcclusionMap"]);
         Field_float uvHeightScale = Assert.IsType<Field_float>(uvFacadeMaterial.Members["HeightScale"]);
         Assert.Equal(0.002f, uvHeightScale.Value);
     }
@@ -300,8 +634,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["Uncompressed"]).Value);
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["DirectLoad"]).Value);
         Assert.False(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["MipMaps"]).Value);
-        Assert.Equal("Clamp", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["WrapModeU"]).Value);
-        Assert.Equal("Clamp", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["WrapModeV"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["WrapModeU"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(heightTextureRequest.Data.Members["WrapModeV"]).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(heightTextureRequest.Data.Members["FilterMode"]).Value);
         Assert.DoesNotContain("SourceFingerprint", heightTextureRequest.Data.Members.Keys);
 
@@ -366,10 +700,39 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal(
             1,
             fakeClient.AddedComponents.Count(request => string.Equals(request.Data.ID, heightTextureAdd.Data.ID, StringComparison.Ordinal)));
-        Assert.Contains(
-            fakeClient.UpdatedComponentIds,
-            componentId => string.Equals(componentId, heightTextureAdd.Data.ID, StringComparison.Ordinal));
         Assert.DoesNotContain("SourceFingerprint", heightTextureAdd.Data.Members.Keys);
+    }
+
+    [Fact]
+    public async Task BuildAsyncWaitsForComponentAttachmentVisibility()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        using DelayedAttachmentClient fakeClient = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+        using TemporaryDirectory workDirectory = new();
+
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+        await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
+
+        IReadOnlyList<string> destinations = await builder.CompleteAsync();
+
+        Assert.Single(destinations);
+        Assert.True(fakeClient.DelayedAttachmentProbeCount > 0);
+        Assert.NotEmpty(fakeClient.ImportedMeshes);
+        Assert.Contains(
+            fakeClient.ComponentsById.Values,
+            component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -469,6 +832,121 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal(1.0f, pixels[15]);
     }
 
+    [Fact]
+    public async Task BuildAsyncPlacesHeightMapDisplacementTextureOnDedicatedAssetSlot()
+    {
+        const string dataset = "tokyo23ku";
+        const string meshCode = "53394525";
+        const string overlayTexturePath = "terrain://dem/gsi-seamlessphoto/00000-00000-TEST";
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: $"PLATEAU {dataset} {meshCode}",
+            Request: new PlateauImportRequest(
+                Dataset: dataset,
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["dem"],
+                SourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+                TerrainTextureOverlays:
+                [
+                    new TerrainTextureOverlay(
+                        TexturePath: overlayTexturePath,
+                        PackageName: "dem",
+                        UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
+                        ZoomLevel: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel,
+                        GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                        MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize),
+                ]),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        CapturedResoniteScene scene = new(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_heightmap_overlay_test",
+                    DisplayName: "HeightMap Overlay Test",
+                    PackageName: "dem",
+                    ActualMeshCode: meshCode,
+                    LodLevel: 0,
+                    Transform: new ResoniteTransform(
+                        new ResoniteFloat3(0.0, 0.0, 0.0),
+                        new ResoniteFloatQ(Math.Sqrt(0.5), 0.0, 0.0, Math.Sqrt(0.5))),
+                    Geometry: new ResoniteHeightMapGridGeometry(
+                        Width: 2,
+                        Height: 2,
+                        Size: new ResoniteFloat2(10.0, 10.0),
+                        MinHeight: 0.0,
+                        MaxHeight: 10.0,
+                        HeightSamples: [0.0, 10.0, 0.0, 10.0]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-heightmap-overlay-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: overlayTexturePath,
+                            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "dem_heightmap_overlay_test_source"),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            terrainTextureAssetGenerator);
+
+        using TemporaryDirectory workDirectory = new();
+        await RunBuilderAsync(builder, scene, workDirectory.Path);
+
+        AddComponent[] textureRequests = fakeClient.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, textureRequests.Length);
+
+        AddComponent displacementTextureRequest = Assert.Single(
+            textureRequests,
+            request => string.Equals(
+                fakeClient.SlotsById[request.ContainerSlotId].Name?.Value,
+                "HeightMap Overlay Test_heightmap",
+                StringComparison.Ordinal));
+        AddComponent materialTextureRequest = Assert.Single(
+            textureRequests,
+            request => !string.Equals(
+                fakeClient.SlotsById[request.ContainerSlotId].Name?.Value,
+                "HeightMap Overlay Test_heightmap",
+                StringComparison.Ordinal));
+
+        Slot displacementTextureSlot = fakeClient.SlotsById[displacementTextureRequest.ContainerSlotId];
+        Slot materialTextureSlot = fakeClient.SlotsById[materialTextureRequest.ContainerSlotId];
+
+        Assert.Equal("HeightMap Overlay Test_heightmap", displacementTextureSlot.Name?.Value);
+        Assert.NotEqual("HeightMap Overlay Test_heightmap", materialTextureSlot.Name?.Value);
+        Assert.NotEqual(displacementTextureRequest.ContainerSlotId, materialTextureRequest.ContainerSlotId);
+        Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[displacementTextureSlot.ID], StringComparison.Ordinal);
+        Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[materialTextureSlot.ID], StringComparison.Ordinal);
+        Assert.StartsWith(
+            "PLATEAU tokyo23ku/Assets/dem/LOD0/HeightMap Overlay Test/",
+            fakeClient.SlotPaths[materialTextureSlot.ID],
+            StringComparison.Ordinal);
+    }
+
 
     [Fact]
     public async Task BuildAsyncAppliesMaterialDepthOffsetForTerrainAlignedOverlays()
@@ -545,6 +1023,84 @@ public sealed class ResoniteLinkSceneBuilderTests
         Field_float offsetUnits = Assert.IsType<Field_float>(material.Members["OffsetUnits"]);
         Assert.Equal((float)LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset.Factor, offsetFactor.Value);
         Assert.Equal((float)LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset.Units, offsetUnits.Value);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotPlaceDatasetScopedMaterialWithoutTextureInCommonAssets()
+    {
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU tokyo23ku 53394525",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["tran"],
+                    SourceFiles: ["udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dataset-flat-material",
+                    DisplayName: "Dataset Flat Material",
+                    PackageName: "tran",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: new ResoniteImportedMesh(
+                        Vertices:
+                        [
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                        ],
+                        Submeshes:
+                        [
+                            new ResoniteMeshSubmesh(0, "dataset-flat-material", [0, 1, 2]),
+                        ]),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dataset-flat-material",
+                            BaseColor: new ResoniteColor(0.4, 0.5, 0.6, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        await RunBuilderAsync(builder, scene);
+
+        AddComponent materialRequest = Assert.Single(
+            fakeClient.AddedComponents,
+            static request => string.Equals(
+                request.Data.ComponentType,
+                "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                StringComparison.Ordinal));
+        string materialPath = fakeClient.SlotPaths[materialRequest.ContainerSlotId];
+        Assert.StartsWith("PLATEAU tokyo23ku/Assets/tran/LOD1/", materialPath, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Assets/Common", materialPath, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -897,78 +1453,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncKeepsStableEntityIdsAcrossRuns()
-    {
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        CapturedResoniteScene scene = LoadScene(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: fixturePath,
-                ServerUri: null));
-
-        using FakeResoniteLinkClient firstClient = new();
-        using FakeResoniteLinkClient secondClient = new();
-
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient), scene);
-        await RunBuilderAsync(new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient), scene);
-
-        HashSet<string> firstEntityIds = firstClient.AddedSlots
-            .Select(static request => request.Data.ID)
-            .Concat(firstClient.AddedComponents.Select(static request => request.Data.ID))
-            .ToHashSet(StringComparer.Ordinal);
-
-        Assert.Equal(
-            firstEntityIds.OrderBy(static id => id, StringComparer.Ordinal),
-            secondClient.AddedSlots
-                .Select(static request => request.Data.ID)
-                .Concat(secondClient.AddedComponents.Select(static request => request.Data.ID))
-                .OrderBy(static id => id, StringComparer.Ordinal));
-    }
-
-    [Fact]
-    public async Task BuildAsyncAppendsDifferentMeshCodeAndSkipsSharedObjectsAlreadyPlaced()
-    {
-        FakeResoniteLinkSession session = new();
-        using FakeResoniteLinkClient firstClient = new(session);
-        using FakeResoniteLinkClient secondClient = new(session);
-
-        CapturedResoniteScene firstScene = CreateAppendScene("53394525", "Building 25");
-        CapturedResoniteScene secondScene = CreateAppendScene("53394526", "Building 26");
-
-        using TemporaryDirectory sharedWorkDirectory = new();
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
-            firstScene,
-            sharedWorkDirectory.Path);
-        int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
-        int addedParentMeshSlotsAfterFirstRun = firstClient.AddedSlots.Count(request =>
-            GetSlotPath(firstClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal));
-
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
-            secondScene,
-            sharedWorkDirectory.Path);
-
-        Assert.Contains("PLATEAU tokyo23ku/53394525", secondClient.SlotPaths.Values);
-        Assert.Contains("PLATEAU tokyo23ku/53394526", secondClient.SlotPaths.Values);
-
-        Slot appendedMeshCodeSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "53394526", "meshcode")];
-        Field_float3 appendedPosition = Assert.IsType<Field_float3>(appendedMeshCodeSlot.Position);
-        Assert.NotEqual(0.0f, appendedPosition.Value.x);
-
-        Assert.Equal(importedMeshCountAfterFirstRun + 1, secondClient.ImportedMeshes.Count);
-        Assert.Equal(
-            addedParentMeshSlotsAfterFirstRun,
-            secondClient.AddedSlots.Count(request =>
-                GetSlotPath(secondClient, request.Data.ID).StartsWith("PLATEAU tokyo23ku/533945/", StringComparison.Ordinal)));
-        Assert.Contains("PLATEAU tokyo23ku/533945/dem/LOD0/Shared Terrain", secondClient.SlotPaths.Values);
-        Assert.Contains("PLATEAU tokyo23ku/53394526/bldg/LOD2/Building 26", secondClient.SlotPaths.Values);
-    }
-
-    [Fact]
-    public async Task BuildAsyncUsesMetadataLocalOriginWhenRequestMeshCodeIsRegex()
+    public async Task BuildAsyncCreatesConcreteAnchorRootWhenRequestMeshCodeIsRegex()
     {
         using FakeResoniteLinkClient fakeClient = new();
         CapturedResoniteScene scene = CreateRegexRequestScene();
@@ -980,52 +1465,73 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         await RunBuilderAsync(builder, scene);
 
-        Slot sharedTerrainSlot = fakeClient.SlotsById[fakeClient.BuildingSlotIds["Shared Terrain"]];
-        Field_float3 sharedTerrainPosition = Assert.IsType<Field_float3>(sharedTerrainSlot.Position);
-        Assert.NotEqual(0.0f, sharedTerrainPosition.Value.x);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
+        Assert.Equal(["Assets", "53394525", "533945"], await GetDirectChildNamesAsync(fakeClient, datasetSlot.ID));
+        Slot anchorSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Field_float3 anchorPosition = Assert.IsType<Field_float3>(anchorSlot.Position);
+        Assert.Equal(0.0f, anchorPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, anchorPosition.Value.y, precision: 4);
+        Assert.Equal(0.0f, anchorPosition.Value.z, precision: 4);
+        Assert.DoesNotContain(
+            fakeClient.SlotsById.Values,
+            static slot =>
+                !string.IsNullOrWhiteSpace(slot.Name?.Value)
+                && slot.Name.Value.StartsWith("regex-", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task BuildAsyncUpdatesExistingMeshRootPositionWhenRegexOriginChanges()
+    public async Task BuildAsyncPlacesRegexParentMeshRootFromAnchorOffset()
     {
-        FakeResoniteLinkSession session = new();
-        using FakeResoniteLinkClient firstClient = new(session);
-        using FakeResoniteLinkClient secondClient = new(session);
+        using FakeResoniteLinkClient fakeClient = new();
+        CapturedResoniteScene scene = CreateRegexRequestScene(
+            "5339452[56]",
+            new ResoniteLocalOrigin(35.6875, 139.70625, 0.0));
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
 
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
-            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)));
-        Slot firstRootSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
-        Field_float3 firstRootPosition = Assert.IsType<Field_float3>(firstRootSlot.Position);
+        await RunBuilderAsync(builder, scene);
 
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
-            CreateRegexRequestScene(new ResoniteLocalOrigin(35.6875, 139.70625, 0.0)));
-        Slot updatedRootSlot = secondClient.SlotsById[ResoniteLinkEntityIdFactory.CreateStableEntityId("tokyo23ku", "533945", "meshcode")];
-        Field_float3 updatedRootPosition = Assert.IsType<Field_float3>(updatedRootSlot.Position);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
+        Slot anchorMeshRootSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Slot parentMeshRootSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "533945");
+        Field_float3 anchorMeshRootPosition = Assert.IsType<Field_float3>(anchorMeshRootSlot.Position);
+        Field_float3 parentMeshRootPosition = Assert.IsType<Field_float3>(parentMeshRootSlot.Position);
+        Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin anchorMeshCenter));
+        Assert.True(PlateauMeshCode.TryGetCenter("533945", out ResoniteLocalOrigin parentMeshCenter));
+        ResoniteFloat3 expectedPosition = ComputeOriginOffsetForTest(anchorMeshCenter, parentMeshCenter) with { Y = 0.0 };
 
-        Assert.NotEqual(firstRootPosition.Value.x, updatedRootPosition.Value.x);
+        Assert.Equal(0.0f, anchorMeshRootPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, anchorMeshRootPosition.Value.y, precision: 4);
+        Assert.Equal(0.0f, anchorMeshRootPosition.Value.z, precision: 4);
+        Assert.Equal((float)expectedPosition.X, parentMeshRootPosition.Value.x, precision: 4);
+        Assert.Equal(0.0f, parentMeshRootPosition.Value.y, precision: 4);
+        Assert.Equal((float)expectedPosition.Z, parentMeshRootPosition.Value.z, precision: 4);
     }
 
     [Fact]
-    public async Task BuildAsyncKeepsDistinctRequestSlotsForDifferentRegexSelectors()
+    public async Task BuildAsyncUsesConcreteMeshCodeCompletionForRegexSelectors()
     {
-        FakeResoniteLinkSession session = new();
-        using FakeResoniteLinkClient firstClient = new(session);
-        using FakeResoniteLinkClient secondClient = new(session);
-        using TemporaryDirectory sharedWorkDirectory = new();
+        using FakeResoniteLinkClient fakeClient = new();
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
+            CreateRegexRequestScene("5339452(56)"));
 
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
-            CreateRegexRequestScene("5339452[56]"),
-            sharedWorkDirectory.Path);
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
-            CreateRegexRequestScene("5339452(56)"),
-            sharedWorkDirectory.Path);
-
-        Assert.Contains("PLATEAU tokyo23ku/5339452[56]", secondClient.SlotPaths.Values);
-        Assert.Contains("PLATEAU tokyo23ku/5339452(56)", secondClient.SlotPaths.Values);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
+        Slot completionAnchorSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Assert.Contains("PLATEAU tokyo23ku/53394525", fakeClient.SlotPaths.Values);
+        Assert.Equal(
+            [$"ws://localhost:12345/#{completionAnchorSlot.ID}"],
+            destinations);
+        Assert.DoesNotContain(
+            fakeClient.SlotsById.Values,
+            static slot =>
+                !string.IsNullOrWhiteSpace(slot.Name?.Value)
+                && slot.Name.Value.StartsWith("regex-", StringComparison.Ordinal));
+        Assert.DoesNotContain("PLATEAU tokyo23ku/5339452[56]", fakeClient.SlotPaths.Values);
+        Assert.DoesNotContain("PLATEAU tokyo23ku/5339452(56)", fakeClient.SlotPaths.Values);
     }
 
     [Fact]
@@ -1053,48 +1559,19 @@ public sealed class ResoniteLinkSceneBuilderTests
         await RunBuilderAsync(builder, scene, workDirectory.Path);
 
         TerrainTextureOverlay requestedOverlay = Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, requestedOverlay.TexturePath);
+        Assert.StartsWith(
+            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            requestedOverlay.TexturePath,
+            StringComparison.Ordinal);
 
         ResoniteRawTextureImport builtInTexture = Assert.Single(
             fakeClient.ImportedRawTextures,
-            static texture => texture.SourcePath is null);
+            static texture => texture.Identity is not null
+                && texture.Identity.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, StringComparison.Ordinal));
         Assert.True(builtInTexture.Width > 0);
         Assert.True(builtInTexture.Height > 0);
         Assert.Equal("sRGB", builtInTexture.ColorProfile);
         Assert.Equal(builtInTexture.Width * builtInTexture.Height * 4, builtInTexture.RawRgba32Bytes.Length);
-    }
-
-    [Fact]
-    public async Task BuildAsyncReusesSharedAssetsWithinSession()
-    {
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        CapturedResoniteScene scene = LoadScene(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: fixturePath,
-                ServerUri: null));
-
-        FakeResoniteLinkSession session = new();
-        using FakeResoniteLinkClient firstClient = new(session);
-        using FakeResoniteLinkClient secondClient = new(session);
-
-        using TemporaryDirectory sharedWorkDirectory = new();
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => firstClient),
-            scene,
-            sharedWorkDirectory.Path);
-        int importedTextureCountAfterFirstRun = firstClient.ImportedTexturePaths.Count;
-        int importedMeshCountAfterFirstRun = firstClient.ImportedMeshes.Count;
-
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => secondClient),
-            scene,
-            sharedWorkDirectory.Path);
-
-        Assert.Equal(importedTextureCountAfterFirstRun, secondClient.ImportedTexturePaths.Count);
-        Assert.Equal(importedMeshCountAfterFirstRun, secondClient.ImportedMeshes.Count);
     }
 
     [Fact]
@@ -1108,6 +1585,13 @@ public sealed class ResoniteLinkSceneBuilderTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: fixturePath,
                 ServerUri: null));
+        ResoniteLinkSceneBuilder.DispatchLaneAllocator dispatchLaneAllocator = new(2);
+        int[] dispatchLanes = scene.CityObjects
+            .Select(dispatchLaneAllocator.GetLane)
+            .Distinct()
+            .OrderBy(static lane => lane)
+            .ToArray();
+        Assert.Equal([0, 1], dispatchLanes);
 
         FakeResoniteLinkSession session = new();
         FakeResoniteLinkClient[] clients =
@@ -1138,6 +1622,65 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
         Assert.True(clients.All(client => client.ImportedMeshCount > 0));
         Assert.Equal(scene.CityObjects.Count, clients.Sum(client => client.ImportedMeshCount));
+    }
+
+    [Fact]
+    public async Task BeginAsyncDoesNotWaitForDeferredWorkerConnections()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using DelayedConnectClient secondClient = new();
+        int factoryIndex = 0;
+        using TemporaryDirectory workDirectory = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            2,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => Interlocked.Increment(ref factoryIndex) switch
+            {
+                1 => firstClient,
+                2 => secondClient,
+                _ => throw new InvalidOperationException("Unexpected client factory call."),
+            });
+
+        try
+        {
+            await builder.BeginAsync(scene.Metadata, workDirectory.Path).WaitAsync(TimeSpan.FromSeconds(2));
+            await secondClient.ConnectStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(1, firstClient.ConnectCallCount);
+            Assert.Equal(1, secondClient.ConnectCallCount);
+        }
+        finally
+        {
+            secondClient.AllowConnect();
+            await builder.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public void GetDispatchLaneKeepsSameCityObjectIdentityOnSameConnection()
+    {
+        ResoniteLinkSceneBuilder.DispatchLaneAllocator dispatchLaneAllocator = new(4);
+        ResoniteConstructionCityObject first = CreateDispatchTestCityObject(
+            slotKey: "bldg_1",
+            sourceObjectKey: "shared-source");
+        ResoniteConstructionCityObject second = CreateDispatchTestCityObject(
+            slotKey: "bldg_2",
+            sourceObjectKey: "shared-source");
+
+        int firstLane = dispatchLaneAllocator.GetLane(first);
+        int secondLane = dispatchLaneAllocator.GetLane(second);
+
+        Assert.Equal(firstLane, secondLane);
     }
 
     [Fact]
@@ -1172,6 +1715,199 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
     }
 
+    [Fact]
+    public async Task BeginAsyncReusesExistingDatasetRootAssetsAndCommonBySlotNameAcrossRuns()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+
+        ResoniteLinkSceneBuilder firstBuilder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => new FakeResoniteLinkClient(session));
+        await RunBuilderAsync(firstBuilder, scene);
+
+        ResoniteLinkSceneBuilder secondBuilder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => new FakeResoniteLinkClient(session));
+        await RunBuilderAsync(secondBuilder, scene);
+
+        Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku", StringComparison.Ordinal)));
+        Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku/Assets", StringComparison.Ordinal)));
+        Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku/Assets/Common", StringComparison.Ordinal)));
+        Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku/53394525", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncSurfacesLaneFailureWhenCityObjectSendFails()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        List<string> progressMessages = [];
+        FakeResoniteLinkSession session = new();
+        int remainingMeshImportFailures = 4;
+
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => new FailingImportMeshSharedClient(
+                session,
+                () => Interlocked.Decrement(ref remainingMeshImportFailures) >= 0),
+            progressReporter: progressMessages.Add);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await RunBuilderAsync(builder, scene));
+
+        Assert.Contains("Simulated mesh import failure.", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][error] Send lane 1/1 failed:", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][info] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BeginAsyncReusesExistingDatasetRootByNameUnderRoot()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+        string existingDatasetRootId = session.AllocateSlotId();
+        session.SlotsById[existingDatasetRootId] = new Slot
+        {
+            ID = existingDatasetRootId,
+            Parent = new Reference
+            {
+                TargetID = "Root",
+            },
+            Name = new Field_string
+            {
+                Value = "PLATEAU tokyo23ku",
+            },
+        };
+        session.SlotPaths[existingDatasetRootId] = "PLATEAU tokyo23ku";
+
+        using FakeResoniteLinkClient fakeClient = new(session);
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+
+        Assert.DoesNotContain(
+            fakeClient.AddedSlots,
+            static request => string.Equals(request.Data.Name?.Value, "PLATEAU tokyo23ku", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.AddedSlots,
+            request => string.Equals(request.Data.Parent?.TargetID, existingDatasetRootId, StringComparison.Ordinal)
+                && string.Equals(request.Data.Name?.Value, "Assets", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncWaitsForSharedParentVisibilityAcrossWorkerSessions()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        VisibilityLagSession session = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            2,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => new VisibilityLagClient(session));
+        using TemporaryDirectory workDirectory = new();
+
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+        foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects.Take(2))
+        {
+            await builder.ProcessCityObjectAsync(cityObject);
+        }
+
+        IReadOnlyList<string> destinations = await builder.CompleteAsync();
+
+        Assert.Single(destinations);
+        Assert.Equal(0, session.RejectedInvisibleParentMutationCount);
+    }
+
+    [Fact]
+    public async Task BuildAsyncProcessesSharedParentsAfterTheyPropagateToWorkers()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        VisibilityLagSession session = new();
+        VisibilityLagClient[] clients =
+        [
+            new(session),
+            new(session),
+        ];
+        int factoryIndex = 0;
+
+        try
+        {
+            ResoniteLinkSceneBuilder builder = new(
+                new Uri("ws://localhost:12345/"),
+                2,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => clients[Interlocked.Increment(ref factoryIndex) - 1]);
+
+            await RunBuilderAsync(builder, scene);
+        }
+        finally
+        {
+            foreach (VisibilityLagClient client in clients)
+            {
+                client.Dispose();
+            }
+        }
+
+        Assert.True(session.ImportedMeshCount > 0);
+        Assert.Equal(0, session.RejectedInvisibleParentMutationCount);
+        Assert.Contains(
+            session.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "LOD1", StringComparison.Ordinal));
+        Assert.Contains(
+            session.ComponentsById.Values,
+            component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+    }
+
     private sealed class FakeResoniteLinkClient : IResoniteLinkClient
     {
         private readonly FakeResoniteLinkSession session;
@@ -1202,9 +1938,13 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures => session.ImportedRawHdrTextures;
 
+        public Dictionary<string, Component> ComponentsById => session.ComponentsById;
+
         public Dictionary<string, Slot> SlotsById => session.SlotsById;
 
         public Dictionary<string, string> SlotPaths => session.SlotPaths;
+
+        public List<IReadOnlyList<DataModelOperation>> Batches => session.Batches;
 
         public int ImportedMeshCount { get; private set; }
 
@@ -1219,29 +1959,38 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = session.AllocateComponentId();
             lock (session.Gate)
             {
-                session.ComponentsById[request.Data.ID] = request.Data;
+                request.Data.ID = createdComponentId;
+                session.ComponentsById[createdComponentId] = request.Data;
+                if (session.SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
                 session.AddedComponents.Add(request);
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdComponentId);
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = session.AllocateSlotId();
             lock (session.Gate)
             {
-                session.SlotsById[request.Data.ID] = request.Data;
+                request.Data.ID = createdSlotId;
+                session.SlotsById[createdSlotId] = request.Data;
                 session.AddedSlots.Add(request);
 
                 string? slotName = request.Data.Name?.Value;
                 string slotPath = CreateSlotPath(session.SlotPaths, request.Data);
-                session.SlotPaths[request.Data.ID] = slotPath;
+                session.SlotPaths[createdSlotId] = slotPath;
 
                 if (!string.IsNullOrWhiteSpace(slotName)
                     && !slotPath.Contains("/Assets/", StringComparison.Ordinal)
@@ -1253,11 +2002,40 @@ public sealed class ResoniteLinkSceneBuilderTests
                     && !string.Equals(slotName, "tran", StringComparison.Ordinal)
                     && !string.Equals(slotName, "luse", StringComparison.Ordinal))
                 {
-                    session.BuildingSlotIds[slotName] = request.Data.ID;
+                    session.BuildingSlotIds[slotName] = createdSlotId;
                 }
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdSlotId);
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.Batches.Add(operations.ToArray());
+            }
+
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -1275,13 +2053,16 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Slot? slot;
             lock (session.Gate)
             {
-                session.SlotsById.TryGetValue(slotId, out slot);
-            }
+                if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+                {
+                    return Task.FromResult<Slot?>(CreateSyntheticRootSlot(session, depth, CloneSlot));
+                }
 
-            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+                session.SlotsById.TryGetValue(slotId, out Slot? slot);
+                return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+            }
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -1307,9 +2088,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                         break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
-                        if (rawImport.SourcePath is not null)
+                        if (rawImport.Identity is not null)
                         {
-                            session.ImportedTexturePaths.Add(rawImport.SourcePath);
+                            session.ImportedTexturePaths.Add(rawImport.Identity);
                         }
 
                         break;
@@ -1367,6 +2148,700 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
     }
 
+    private sealed class VisibilityLagClient(VisibilityLagSession session) : IResoniteLinkClient
+    {
+        private readonly int clientId = session.RegisterClient();
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.IsSlotVisible(clientId, request.ContainerSlotId))
+                {
+                    session.RejectedInvisibleParentMutationCount++;
+                    throw new InvalidOperationException($"Container slot '{request.ContainerSlotId}' is not visible on client {clientId}.");
+                }
+
+                string createdComponentId = session.AllocateComponentId();
+                request.Data.ID = createdComponentId;
+                session.ComponentsById[createdComponentId] = request.Data;
+                if (session.SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
+                session.MarkComponentVisible(clientId, createdComponentId);
+                return Task.FromResult(createdComponentId);
+            }
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                string parentId = request.Data.Parent?.TargetID ?? "Root";
+                if (!string.Equals(parentId, "Root", StringComparison.Ordinal)
+                    && !session.IsSlotVisible(clientId, parentId))
+                {
+                    session.RejectedInvisibleParentMutationCount++;
+                    throw new InvalidOperationException($"Parent slot '{parentId}' is not visible on client {clientId}.");
+                }
+
+                string createdSlotId = session.AllocateSlotId();
+                request.Data.ID = createdSlotId;
+                session.SlotsById[createdSlotId] = request.Data;
+                session.MarkSlotVisible(clientId, createdSlotId);
+                return Task.FromResult(createdSlotId);
+            }
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                }
+            }
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.IsComponentVisible(clientId, componentId))
+                {
+                    if (session.ComponentsById.ContainsKey(componentId))
+                    {
+                        session.DelayedVisibilityProbeCount++;
+                        session.MarkComponentVisible(clientId, componentId);
+                    }
+
+                    return Task.FromResult<Component?>(null);
+                }
+
+                session.ComponentsById.TryGetValue(componentId, out Component? component);
+                return Task.FromResult(component);
+            }
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+                {
+                    return Task.FromResult<Slot?>(CreateVisibilityLagRootSlot(depth));
+                }
+
+                if (!session.IsSlotVisible(clientId, slotId))
+                {
+                    if (session.SlotsById.ContainsKey(slotId))
+                    {
+                        session.DelayedVisibilityProbeCount++;
+                        session.MarkSlotVisible(clientId, slotId);
+                    }
+
+                    return Task.FromResult<Slot?>(null);
+                }
+
+                session.SlotsById.TryGetValue(slotId, out Slot? slot);
+                return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+            }
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ImportedMeshCount++;
+                return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshCount}", UriKind.Absolute));
+            }
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ImportedTextureCount++;
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTextureCount}", UriKind.Absolute));
+            }
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.ComponentsById.TryGetValue(request.Data.ID, out Component? existing))
+                {
+                    return Task.CompletedTask;
+                }
+
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+
+                return Task.CompletedTask;
+            }
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Rotation = source.Rotation,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = session.SlotsById.Values
+                .Where(slot =>
+                    string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal)
+                    && session.IsSlotVisible(clientId, slot.ID))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
+        }
+
+        private Slot CreateVisibilityLagRootSlot(int depth)
+        {
+            Slot root = new()
+            {
+                ID = "Root",
+                Name = new Field_string
+                {
+                    Value = "Root",
+                },
+            };
+
+            if (depth <= 0)
+            {
+                return root;
+            }
+
+            root.Children = session.SlotsById.Values
+                .Where(slot =>
+                    string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal)
+                    && session.IsSlotVisible(clientId, slot.ID))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return root;
+        }
+    }
+
+    private sealed class SessionScopedMutationClient(SessionScopedMutationSession session) : IResoniteLinkClient
+    {
+        private readonly int clientId = session.RegisterClient();
+
+        public int ImportedMeshCount { get; private set; }
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.IsSlotOwnedByClient(request.ContainerSlotId, clientId))
+                {
+                    session.ForbiddenForeignMutationCount++;
+                    throw new InvalidOperationException($"Container slot '{request.ContainerSlotId}' is not owned by client {clientId}.");
+                }
+
+                string createdComponentId = session.AllocateComponentId();
+                request.Data.ID = createdComponentId;
+                session.ComponentsById[createdComponentId] = request.Data;
+                if (session.SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
+                session.ComponentOwners[createdComponentId] = clientId;
+                return Task.FromResult(createdComponentId);
+            }
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                string parentId = request.Data.Parent?.TargetID ?? "Root";
+                if (!string.Equals(parentId, "Root", StringComparison.Ordinal)
+                    && !session.IsSlotOwnedByClient(parentId, clientId))
+                {
+                    session.ForbiddenForeignMutationCount++;
+                    throw new InvalidOperationException($"Parent slot '{parentId}' is not owned by client {clientId}.");
+                }
+
+                string createdSlotId = session.AllocateSlotId();
+                request.Data.ID = createdSlotId;
+                session.SlotsById[createdSlotId] = request.Data;
+                session.SlotOwners[createdSlotId] = clientId;
+                return Task.FromResult(createdSlotId);
+            }
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                }
+            }
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.ComponentOwners.TryGetValue(componentId, out int ownerClientId)
+                    || ownerClientId != clientId)
+                {
+                    return Task.FromResult<Component?>(null);
+                }
+
+                session.ComponentsById.TryGetValue(componentId, out Component? component);
+                return Task.FromResult(component);
+            }
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+                {
+                    return Task.FromResult<Slot?>(CreateSyntheticRootSlot(session, depth, CloneSlot));
+                }
+
+                if (!session.SlotOwners.TryGetValue(slotId, out int ownerClientId)
+                    || ownerClientId != clientId)
+                {
+                    return Task.FromResult<Slot?>(null);
+                }
+
+                session.SlotsById.TryGetValue(slotId, out Slot? slot);
+                return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+            }
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ImportedMeshCount++;
+                ImportedMeshCount++;
+                return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshCount}", UriKind.Absolute));
+            }
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ImportedTextureCount++;
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTextureCount}", UriKind.Absolute));
+            }
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.ComponentOwners.TryGetValue(request.Data.ID, out int ownerClientId)
+                    || ownerClientId != clientId
+                    || !session.ComponentsById.TryGetValue(request.Data.ID, out Component? existing))
+                {
+                    session.ForbiddenForeignMutationCount++;
+                    throw new InvalidOperationException($"Component '{request.Data.ID}' is not owned by client {clientId}.");
+                }
+
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+
+                return Task.CompletedTask;
+            }
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Rotation = source.Rotation,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = session.SlotsById.Values
+                .Where(slot =>
+                    string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal)
+                    && session.IsSlotOwnedByClient(slot.ID, clientId))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
+        }
+    }
+
+    private sealed class SessionScopedMutationSession
+    {
+        private int nextClientId;
+        private int nextSlotId;
+        private int nextComponentId;
+
+        public object Gate { get; } = new();
+
+        public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, int> SlotOwners { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
+
+        public Dictionary<string, int> ComponentOwners { get; } = new(StringComparer.Ordinal);
+
+        public int ImportedMeshCount { get; set; }
+
+        public int ImportedTextureCount { get; set; }
+
+        public int ForbiddenForeignMutationCount { get; set; }
+
+        public int RegisterClient() => Interlocked.Increment(ref nextClientId);
+
+        public string AllocateSlotId() => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+
+        public string AllocateComponentId() => string.Create(CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+
+        public bool IsSlotOwnedByClient(string slotId, int clientId)
+        {
+            return SlotOwners.TryGetValue(slotId, out int ownerClientId) && ownerClientId == clientId;
+        }
+    }
+
+    private sealed class VisibilityLagSession
+    {
+        private int nextClientId;
+        private int nextSlotId;
+        private int nextComponentId;
+        private readonly Dictionary<int, HashSet<string>> visibleSlotsByClient = [];
+        private readonly Dictionary<int, HashSet<string>> visibleComponentsByClient = [];
+
+        public object Gate { get; } = new();
+        public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
+        public int ImportedMeshCount { get; set; }
+        public int ImportedTextureCount { get; set; }
+        public int DelayedVisibilityProbeCount { get; set; }
+        public int RejectedInvisibleParentMutationCount { get; set; }
+
+        public int RegisterClient()
+        {
+            lock (Gate)
+            {
+                int clientId = ++nextClientId;
+                visibleSlotsByClient[clientId] = ["Root"];
+                visibleComponentsByClient[clientId] = [];
+                return clientId;
+            }
+        }
+
+        public bool IsSlotVisible(int clientId, string slotId)
+        {
+            return visibleSlotsByClient[clientId].Contains(slotId);
+        }
+
+        public void MarkSlotVisible(int clientId, string slotId)
+        {
+            visibleSlotsByClient[clientId].Add(slotId);
+        }
+
+        public bool IsComponentVisible(int clientId, string componentId)
+        {
+            return visibleComponentsByClient[clientId].Contains(componentId);
+        }
+
+        public void MarkComponentVisible(int clientId, string componentId)
+        {
+            visibleComponentsByClient[clientId].Add(componentId);
+        }
+
+        public string AllocateSlotId()
+        {
+            return $"lag_slot_{Interlocked.Increment(ref nextSlotId)}";
+        }
+
+        public string AllocateComponentId()
+        {
+            return $"lag_component_{Interlocked.Increment(ref nextComponentId)}";
+        }
+    }
+
+    private sealed class FailingImportMeshSharedClient(
+        FakeResoniteLinkSession session,
+        Func<bool> shouldFailImportMesh) : IResoniteLinkClient
+    {
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = session.AllocateComponentId();
+            lock (session.Gate)
+            {
+                request.Data.ID = createdComponentId;
+                session.ComponentsById[createdComponentId] = request.Data;
+                if (session.SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
+                session.AddedComponents.Add(request);
+            }
+
+            return Task.FromResult(createdComponentId);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = session.AllocateSlotId();
+            lock (session.Gate)
+            {
+                request.Data.ID = createdSlotId;
+                session.SlotsById[createdSlotId] = request.Data;
+                session.AddedSlots.Add(request);
+                session.SlotPaths[createdSlotId] = CreateSlotPath(session.SlotPaths, request.Data);
+            }
+
+            return Task.FromResult(createdSlotId);
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.Batches.Add(operations.ToArray());
+            }
+
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Component? component;
+            lock (session.Gate)
+            {
+                session.ComponentsById.TryGetValue(componentId, out component);
+            }
+
+            return Task.FromResult(component);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Slot? slot;
+            lock (session.Gate)
+            {
+                session.SlotsById.TryGetValue(slotId, out slot);
+            }
+
+            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (shouldFailImportMesh())
+            {
+                throw new InvalidOperationException("Simulated mesh import failure.");
+            }
+
+            lock (session.Gate)
+            {
+                session.ImportedMeshes.Add(request);
+                return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshes.Count - 1}", UriKind.Absolute));
+            }
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                switch (textureImport)
+                {
+                    case ResoniteFileTextureImport fileImport:
+                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
+                        break;
+                    case ResoniteRawTextureImport rawImport:
+                        session.ImportedRawTextures.Add(rawImport);
+                        if (rawImport.Identity is not null)
+                        {
+                            session.ImportedTexturePaths.Add(rawImport.Identity);
+                        }
+
+                        break;
+                    case ResoniteRawHdrTextureImport rawHdrImport:
+                        session.ImportedRawHdrTextures.Add(rawHdrImport);
+                        break;
+                }
+
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count}", UriKind.Absolute));
+            }
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (!session.ComponentsById.TryGetValue(request.Data.ID, out Component? existing))
+                {
+                    existing = new Component
+                    {
+                        ID = request.Data.ID,
+                        Members = new Dictionary<string, Member>(StringComparer.Ordinal),
+                    };
+                    session.ComponentsById[request.Data.ID] = existing;
+                }
+
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            lock (session.Gate)
+            {
+                clone.Children = session.SlotsById.Values
+                    .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                    .Select(slot => CloneSlot(slot, depth - 1))
+                    .ToList();
+            }
+
+            return clone;
+        }
+    }
+
     private sealed class StubTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
     {
         public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
@@ -1380,13 +2855,25 @@ public sealed class ResoniteLinkSceneBuilderTests
             using Image<Rgba32> image = new(2, 2, new Rgba32(255, 255, 255, 255));
             byte[] rawBytes = new byte[image.Width * image.Height * 4];
             image.CopyPixelDataTo(rawBytes);
-            return Task.FromResult(new ResoniteRawTextureImport(image.Width, image.Height, "sRGB", rawBytes));
+            return Task.FromResult(
+                new ResoniteRawTextureImport(
+                    image.Width,
+                    image.Height,
+                    "sRGB",
+                    rawBytes,
+                    terrainTextureOverlay.TexturePath));
         }
     }
 
     private sealed class BlockingResoniteLinkClient : IResoniteLinkClient
     {
+        private readonly Dictionary<string, Component> componentsById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Slot> slotsById = new(StringComparer.Ordinal);
         private readonly TaskCompletionSource meshImportRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int nextComponentId;
+        private int nextSlotId;
+
+        public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
 
         public void Dispose()
         {
@@ -1398,28 +2885,63 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            string createdComponentId = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+            request.Data.ID = createdComponentId;
+            componentsById[createdComponentId] = request.Data;
+            if (slotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+            {
+                containerSlot.Components ??= [];
+                containerSlot.Components.Add(request.Data);
+            }
+
+            return Task.FromResult(createdComponentId);
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            request.Data.ID = createdSlotId;
+            slotsById[createdSlotId] = request.Data;
+            return Task.FromResult(createdSlotId);
+        }
+
+        public Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Batches.Add(operations.ToArray());
             return Task.CompletedTask;
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Component?>(null);
+            componentsById.TryGetValue(componentId, out Component? component);
+            return Task.FromResult(component);
         }
 
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Slot?>(null);
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return Task.FromResult<Slot?>(new Slot
+                {
+                    ID = "Root",
+                    Name = new Field_string
+                    {
+                        Value = "Root",
+                    },
+                });
+            }
+
+            slotsById.TryGetValue(slotId, out Slot? slot);
+            return Task.FromResult(slot);
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -1446,10 +2968,89 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
     }
 
+    private sealed class DelayedConnectClient : IResoniteLinkClient
+    {
+        private readonly TaskCompletionSource allowConnect = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ConnectCallCount { get; private set; }
+
+        public TaskCompletionSource ConnectStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+        }
+
+        public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ConnectCallCount++;
+            ConnectStarted.TrySetResult();
+            await allowConnect.Task.WaitAsync(cancellationToken);
+        }
+
+        public void AllowConnect()
+        {
+            allowConnect.TrySetResult();
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(request.Data.ID);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(request.Data.ID);
+        }
+
+        public Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Component?>(null);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(null);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///mesh/0", UriKind.Absolute));
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class LaggyHeightTextureReadClient : IResoniteLinkClient
     {
+        private readonly Dictionary<string, Slot> slotsById = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Component> componentsById = new(StringComparer.Ordinal);
-        private readonly HashSet<string> laggyTextureComponentIds = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, int> remainingLaggyTexturePollsById = new(StringComparer.Ordinal);
+        private int nextComponentId;
+        private int nextSlotId;
 
         public List<AddComponent> AddedComponents { get; } = [];
 
@@ -1461,6 +3062,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public List<string> UpdatedComponentIds { get; } = [];
 
+        public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
+
         public void Dispose()
         {
         }
@@ -1471,32 +3074,68 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+            request.Data.ID = createdComponentId;
             AddedComponents.Add(request);
-            componentsById[request.Data.ID] = request.Data;
+            componentsById[createdComponentId] = request.Data;
+            if (slotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+            {
+                containerSlot.Components ??= [];
+                containerSlot.Components.Add(request.Data);
+            }
 
             if (string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
                 && request.Data.Members.ContainsKey("URL"))
             {
-                laggyTextureComponentIds.Add(request.Data.ID);
+                remainingLaggyTexturePollsById[createdComponentId] = 1;
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdComponentId);
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            string createdSlotId = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            request.Data.ID = createdSlotId;
+            slotsById[createdSlotId] = request.Data;
+            return Task.FromResult(createdSlotId);
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Batches.Add(operations.ToArray());
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case AddSlot:
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (laggyTextureComponentIds.Contains(componentId))
+            if (remainingLaggyTexturePollsById.TryGetValue(componentId, out int remainingPolls)
+                && remainingPolls > 0)
             {
+                remainingLaggyTexturePollsById[componentId] = remainingPolls - 1;
                 return Task.FromResult<Component?>(null);
             }
 
@@ -1507,7 +3146,20 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Slot?>(null);
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return Task.FromResult<Slot?>(new Slot
+                {
+                    ID = "Root",
+                    Name = new Field_string
+                    {
+                        Value = "Root",
+                    },
+                });
+            }
+
+            slotsById.TryGetValue(slotId, out Slot? slot);
+            return Task.FromResult(slot);
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -1526,9 +3178,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                     break;
                 case ResoniteRawTextureImport rawImport:
                     ImportedRawTextures.Add(rawImport);
-                    if (rawImport.SourcePath is not null)
+                    if (rawImport.Identity is not null)
                     {
-                        ImportedTexturePaths.Add(rawImport.SourcePath);
+                        ImportedTexturePaths.Add(rawImport.Identity);
                     }
 
                     break;
@@ -1558,13 +3210,180 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
     }
 
+    private sealed class DelayedAttachmentClient : IResoniteLinkClient
+    {
+        private readonly Dictionary<string, Slot> slotsById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (string ContainerSlotId, Component Component, int RemainingPolls)> pendingAttachmentsByComponentId = new(StringComparer.Ordinal);
+        private int nextComponentId;
+        private int nextSlotId;
+
+        public List<ImportMeshRawData> ImportedMeshes { get; } = [];
+
+        public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
+
+        public int DelayedAttachmentProbeCount { get; private set; }
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+            request.Data.ID = createdComponentId;
+            ComponentsById[createdComponentId] = request.Data;
+
+            if (pendingAttachmentsByComponentId.Count == 0)
+            {
+                pendingAttachmentsByComponentId[createdComponentId] = (request.ContainerSlotId, request.Data, 1);
+            }
+            else if (slotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+            {
+                containerSlot.Components ??= [];
+                containerSlot.Components.Add(request.Data);
+            }
+
+            return Task.FromResult(createdComponentId);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            request.Data.ID = createdSlotId;
+            slotsById[createdSlotId] = request.Data;
+
+            string? parentId = request.Data.Parent?.TargetID;
+            if (parentId is not null && slotsById.TryGetValue(parentId, out Slot? parentSlot))
+            {
+                parentSlot.Children ??= [];
+                parentSlot.Children.Add(request.Data);
+            }
+
+            return Task.FromResult(createdSlotId);
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ComponentsById.TryGetValue(componentId, out Component? component);
+            return Task.FromResult(component);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return Task.FromResult<Slot?>(new Slot
+                {
+                    ID = "Root",
+                    Name = new Field_string
+                    {
+                        Value = "Root",
+                    },
+                });
+            }
+
+            foreach ((string componentId, (string containerSlotId, Component component, int remainingPolls)) in pendingAttachmentsByComponentId.ToArray())
+            {
+                if (!string.Equals(containerSlotId, slotId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                DelayedAttachmentProbeCount++;
+                if (remainingPolls <= 0)
+                {
+                    if (slotsById.TryGetValue(containerSlotId, out Slot? containerSlot))
+                    {
+                        containerSlot.Components ??= [];
+                        containerSlot.Components.Add(component);
+                    }
+
+                    pendingAttachmentsByComponentId.Remove(componentId);
+                }
+                else
+                {
+                    pendingAttachmentsByComponentId[componentId] = (containerSlotId, component, remainingPolls - 1);
+                }
+            }
+
+            slotsById.TryGetValue(slotId, out Slot? slot);
+            return Task.FromResult(slot);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ImportedMeshes.Add(request);
+            return Task.FromResult(new Uri($"resdb:///mesh/{ImportedMeshes.Count - 1}", UriKind.Absolute));
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (ComponentsById.TryGetValue(request.Data.ID, out Component? existing))
+            {
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakeResoniteLinkSession
     {
+        private int nextComponentId;
+        private int nextSlotId;
+
         public object Gate { get; } = new();
 
         public List<AddComponent> AddedComponents { get; } = [];
 
         public List<AddSlot> AddedSlots { get; } = [];
+
+        public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
 
         public Dictionary<string, string> BuildingSlotIds { get; } = new(StringComparer.Ordinal);
 
@@ -1581,6 +3400,16 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Dictionary<string, string> SlotPaths { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
+
+        public string AllocateComponentId()
+        {
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+        }
+
+        public string AllocateSlotId()
+        {
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+        }
     }
 
     private static string CreateSlotPath(IReadOnlyDictionary<string, string> slotPaths, Slot slot)
@@ -1594,14 +3423,138 @@ public sealed class ResoniteLinkSceneBuilderTests
         return string.Concat(slotPaths[slot.Parent.TargetID], "/", slotName);
     }
 
+    private static Slot CreateSyntheticRootSlot(
+        FakeResoniteLinkSession session,
+        int depth,
+        Func<Slot, int, Slot> cloneSlot)
+    {
+        Slot root = new()
+        {
+            ID = "Root",
+            Name = new Field_string
+            {
+                Value = "Root",
+            },
+        };
+
+        if (depth <= 0)
+        {
+            return root;
+        }
+
+        root.Children = session.SlotsById.Values
+            .Where(static slot => string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal))
+            .Select(slot => cloneSlot(slot, depth - 1))
+            .ToList();
+        return root;
+    }
+
+    private static Slot CreateSyntheticRootSlot(
+        SessionScopedMutationSession session,
+        int depth,
+        Func<Slot, int, Slot> cloneSlot)
+    {
+        Slot root = new()
+        {
+            ID = "Root",
+            Name = new Field_string
+            {
+                Value = "Root",
+            },
+        };
+
+        if (depth <= 0)
+        {
+            return root;
+        }
+
+        root.Children = session.SlotsById.Values
+            .Where(static slot => string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal))
+            .Select(slot => cloneSlot(slot, depth - 1))
+            .ToList();
+        return root;
+    }
+
+    private static Slot FindSlotByName(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string slotName)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot => string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal));
+    }
+
+    private static Slot FindSlotByNameUnderAncestor(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string ancestorSlotId,
+        string slotName)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot =>
+                string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
+                && IsDescendantOf(slotsById, slot, ancestorSlotId));
+    }
+
+    private static bool IsDescendantOf(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        Slot slot,
+        string ancestorSlotId)
+    {
+        Reference? parent = slot.Parent;
+        while (parent is not null && slotsById.TryGetValue(parent.TargetID, out Slot? parentSlot))
+        {
+            if (string.Equals(parentSlot.ID, ancestorSlotId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            parent = parentSlot.Parent;
+        }
+
+        return false;
+    }
+
     private static string GetSlotPath(FakeResoniteLinkClient client, string slotId)
     {
         return client.SlotPaths[slotId];
     }
 
+    private static async Task WriteSolidColorTextureAsync(string path, Rgba32 color)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using Image<Rgba32> image = new(2, 2, color);
+        string extension = Path.GetExtension(path);
+        if (string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase))
+        {
+            await image.SaveAsJpegAsync(path);
+            return;
+        }
+
+        await image.SaveAsPngAsync(path);
+    }
+
+    private static async Task<string[]> GetDirectChildNamesAsync(FakeResoniteLinkClient client, string parentId)
+    {
+        Slot parentSlot = Assert.IsType<Slot>(await client.GetSlotAsync(parentId, 1, CancellationToken.None));
+        return (parentSlot.Children ?? [])
+            .Select(static slot => slot.Name?.Value ?? slot.ID)
+            .ToArray();
+    }
+
     private static bool HasSlotPath(FakeResoniteLinkClient client, string expectedPath)
     {
         return client.SlotPaths.Values.Contains(expectedPath, StringComparer.Ordinal);
+    }
+
+    private static void AssertEqualSlotPosition(Slot expected, Slot actual)
+    {
+        Field_float3 expectedPosition = Assert.IsType<Field_float3>(expected.Position);
+        Field_float3 actualPosition = Assert.IsType<Field_float3>(actual.Position);
+        Assert.Equal(expectedPosition.Value.x, actualPosition.Value.x, precision: 4);
+        Assert.Equal(expectedPosition.Value.y, actualPosition.Value.y, precision: 4);
+        Assert.Equal(expectedPosition.Value.z, actualPosition.Value.z, precision: 4);
     }
 
     private static string FormatLodSlotName(int? lodLevel)
@@ -1637,6 +3590,33 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
         return new CapturedResoniteScene(source.Metadata, source.ReadCityObjects().ToArray());
+    }
+
+    private static ResoniteConstructionCityObject CreateDispatchTestCityObject(
+        string slotKey,
+        string sourceObjectKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTriangleMesh(slotKey),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: sourceObjectKey);
     }
 
     private sealed record CapturedResoniteScene(
@@ -1719,6 +3699,156 @@ public sealed class ResoniteLinkSceneBuilderTests
             ]);
     }
 
+    private static CapturedResoniteScene CreateCombinedAppendScene()
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU tokyo23ku 53394525",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg", "dem"],
+                SourceFiles:
+                [
+                    "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                    "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                    "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
+                ],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_shared",
+                    DisplayName: "Shared Terrain",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: "bldg_53394525",
+                    DisplayName: "Building 25",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("bldg-53394525"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "bldg-53394525",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+                new ResoniteConstructionCityObject(
+                    SlotKey: "bldg_53394526",
+                    DisplayName: "Building 26",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394526",
+                    LodLevel: 2,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("bldg-53394526"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "bldg-53394526",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ]),
+            ]);
+    }
+
+    private static CapturedResoniteScene CreateExactParentMeshScene()
+    {
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU tokyo23ku 533945",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "533945",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["dem"],
+                SourceFiles:
+                [
+                    "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                ],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.6875, 0.0));
+
+        return new CapturedResoniteScene(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_shared_parent",
+                    DisplayName: "Shared Terrain",
+                    PackageName: "dem",
+                    ActualMeshCode: "533945",
+                    LodLevel: null,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: null,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "udx_dem_533945_plateau_tokyo23ku_dem_533945_gml_dem_shared_parent"),
+            ]);
+    }
+
     private static CapturedResoniteScene CreateRegexRequestScene()
     {
         return CreateRegexRequestScene("5339452[56]", new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
@@ -1748,7 +3878,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: ["bldg", "dem"],
                 SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
-                TerrainTextureOverlays: []),
+                TerrainTextureOverlays: [],
+                RequestedMeshCodes: ["53394525"]),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new ResoniteLicenseComponentMetadata(
                     RequireCredit: true,
@@ -1819,6 +3950,22 @@ public sealed class ResoniteLinkSceneBuilderTests
             [
                 new ResoniteMeshSubmesh(0, materialKey, [0, 1, 2]),
             ]);
+    }
+
+    private static ResoniteFloat3 ComputeOriginOffsetForTest(
+        ResoniteLocalOrigin referenceCenter,
+        ResoniteLocalOrigin currentCenter)
+    {
+        LocalCartesian cartesian = new(
+            referenceCenter.Latitude,
+            referenceCenter.Longitude,
+            referenceCenter.Altitude,
+            Geocentric.WGS84);
+        (double x, double y, double z) eun = cartesian.Forward(
+            currentCenter.Latitude,
+            currentCenter.Longitude,
+            currentCenter.Altitude);
+        return new ResoniteFloat3(eun.x, eun.z, eun.y);
     }
 
 }

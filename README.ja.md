@@ -60,11 +60,11 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --dem-heightmap-meters-per-vertex 2.0 \
   --dem-heightmap-max-resolution 1024 \
   --resonitelink-port <port> \
-  --resonitelink-connections 1 \
+  --resonitelink-connections 4 \
   --send-metrics
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset、remote download cache、そして live asset 再利用状態を保持する `resonite-live-asset-state.json` の保存先になります。この directory を削除すると、download cache と asset の dedupe / reuse 状態が両方とも失われます。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `1` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。さらに、global / package ごとの LOD 除外、marking の扱い、package ごとの object pattern を制御する filter option もあります。`--exclude-lod-for-package` を省略した場合の既定 fallback は現在 `tran:1` で、`--exclude-lod-for-package tran:none` を使うと明示的に解除できます。DEM の既定出力は従来どおり mesh 経路で、`--dem-terrain-mode heightmap` を指定すると `dem` を `GridMesh` + 高さテクスチャ経路へ切り替えます。`--dem-heightmap-meters-per-vertex` と `--dem-heightmap-max-resolution` はサンプル密度と安全上限の制御に使います。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--work-root` の既定値は `runtime/<os>/resonite/` で、live 用の生成 asset、remote download cache、そして live asset 再利用状態を保持する `resonite-live-asset-state.json` の保存先になります。この directory を削除すると、download cache と asset の dedupe / reuse 状態が両方とも失われます。`--packages` には公式 PLATEAU の `udx/<package>/` 名をカンマ区切りで指定でき、省略時の CLI 既定値は `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg` です。`--resonitelink-connections` の既定値は `4` です。`--send-metrics` を付けると、`System.Diagnostics.Metrics` による opt-in の計測を有効化し、低カーディナリティの counter / histogram と CLI summary を出します。さらに、global / package ごとの LOD 除外、marking の扱い、package ごとの object pattern を制御する filter option もあります。`--exclude-lod-for-package` を省略した場合の既定 fallback は現在 `tran:1` で、`--exclude-lod-for-package tran:none` を使うと明示的に解除できます。DEM の既定出力は従来どおり mesh 経路で、`--dem-terrain-mode heightmap` を指定すると `dem` を `GridMesh` + 高さテクスチャ経路へ切り替えます。`--dem-heightmap-meters-per-vertex` と `--dem-heightmap-max-resolution` はサンプル密度と安全上限の制御に使います。オプション名は可能な範囲で PLATEAU SDK for Unity に寄せており、`--local-source-path` は `DatasetSourceConfigLocal.LocalSourcePath`、`--server-url` は `DatasetSourceConfigRemote.ServerUrl` に対応します。
 
 `--mesh-code` には、6 桁/8 桁のリテラルな PLATEAU mesh code だけでなく .NET 正規表現も指定できます。8 桁リテラル指定では従来どおり parent mesh の包含を維持します。正規表現は CityGML filename 内の 6 桁/8 桁 mesh-code token と `udx/<package>/<mesh-code>/` directory segment に対して適用されます。
 
@@ -104,7 +104,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-ライブ経路は `ws://localhost:<port>/` に接続し、`--resonitelink-connections` で指定した数だけ ResoniteLink session を張ります（既定値は `1` なので、既定では1セッション）。公式の ResoniteLink import message で mesh / texture asset を送信し、dataset / mesh-code slot を作成した上で、PLATEAU の帰属表記を持つ dataset-level の `License` コンポーネントを付与し、インポートした scene に必要な Resonite コンポーネントを構築します。共有 slot / component ID の初期化は 1 回だけに畳み込み、対象 session に既に置かれている city object は mesh / material placement 前に skip しつつ、city object の送信は設定した接続数へ分散するため、大きい mesh code でも full batch をメモリ保持せず live 出力を重ねられます。
+ライブ経路は `ws://localhost:<port>/` に接続し、`--resonitelink-connections` で指定した数だけ ResoniteLink session を張ります（既定値は `4` なので、既定では4セッション）。公式の ResoniteLink import message で mesh / texture asset を送信し、dataset / mesh-code slot を作成した上で、PLATEAU の帰属表記を持つ dataset-level の `License` コンポーネントを付与し、インポートした scene に必要な Resonite コンポーネントを構築します。共有 slot / component ID の初期化は 1 回だけに畳み込み、対象 session に既に置かれている city object は mesh / material placement 前に skip しつつ、city object の送信は設定した接続数へ分散するため、大きい mesh code でも full batch をメモリ保持せず live 出力を重ねられます。
 
 同じ ResoniteLink session と dataset に対して `build` を再実行すると、既存 dataset 配下に branch を追記します。各 city object は実際に source data を持つ meshcode branch 配下に置かれるため、`53394525` の要求で読み込んだ親 mesh 由来の object は `533945` 配下に、要求固有の object は `53394525` 配下に残ります。mesh-code root は slot の offset で整列するため近接 import を並べて表示でき、既存 meshcode branch にある object は再送しません。
 

@@ -4,6 +4,8 @@
 
 この手順は、起動中の ResoniteLink listener に対する実機レベルの確認だけに使う。
 
+警告: この手順中の cleanup は、現在の Resonite session にある live-world の成果を破壊しうる。破棄してよい実験用 session で使うか、dataset root を削除してよいことを明示的に確認してから実行する。
+
 ## Live Contract Rules
 
 - ResoniteLink の component payload は、自由な property bag ではなく strict な transport contract として扱う。

@@ -4,6 +4,8 @@
 
 Use this workflow only for machine-level checks against a running ResoniteLink listener.
 
+Warning: cleanup during this workflow can destroy live-world results in the current Resonite session. Use a disposable experiment session, or get explicit approval before removing a dataset root from a session the user may want to preserve.
+
 ## Live Contract Rules
 
 - Treat ResoniteLink component payloads as a strict transport contract, not an open-ended property bag.

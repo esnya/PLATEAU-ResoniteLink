@@ -2,6 +2,8 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Plateau.ResoniteLink.Application.Logging;
+
 namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteLinkSendDiagnostics
@@ -61,7 +63,7 @@ internal sealed class ResoniteLinkSendDiagnostics
 
         sendWindowStopwatch = Stopwatch.StartNew();
         reporter?.Invoke(
-            $"[live-metrics] Enabled live send metrics via System.Diagnostics.Metrics (connections={connectionCount}).");
+            PlateauLog.Info("live-metrics", $"Enabled live send metrics via System.Diagnostics.Metrics (connections={connectionCount})."));
     }
 
     public void CompleteSendWindow()
@@ -92,13 +94,15 @@ internal sealed class ResoniteLinkSendDiagnostics
                 .Select(static pair => $"{pair.Key}={pair.Value}"));
 
         reporter?.Invoke(
-            $"[live-metrics] send_window_s={elapsedSeconds:F3} sent={sentCount} skipped_existing={skippedCount} "
-            + $"throughput_obj_per_s={throughput:F2} avg_prepare_s={averagePrepareSeconds:F4} "
-            + $"avg_send_s={averageSendSeconds:F4} avg_rpc_per_sent={averageRpcPerSentCityObject:F2} total_rpc={rpcCalls}");
+            PlateauLog.Info(
+                "live-metrics",
+                $"send_window_s={elapsedSeconds:F3} sent={sentCount} skipped_existing={skippedCount} "
+                + $"throughput_obj_per_s={throughput:F2} avg_prepare_s={averagePrepareSeconds:F4} "
+                + $"avg_send_s={averageSendSeconds:F4} avg_rpc_per_sent={averageRpcPerSentCityObject:F2} total_rpc={rpcCalls}"));
 
         if (!string.IsNullOrWhiteSpace(rpcSummary))
         {
-            reporter?.Invoke($"[live-metrics] rpc_breakdown {rpcSummary}");
+            reporter?.Invoke(PlateauLog.Debug("live-metrics", $"rpc_breakdown {rpcSummary}"));
         }
     }
 

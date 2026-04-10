@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 
 using Plateau.ResoniteLink.Application.Importing;
+using Plateau.ResoniteLink.Application.Logging;
 
 namespace Plateau.ResoniteLink.Cli;
 
@@ -111,7 +112,7 @@ public sealed class CliApplication
         Action<string> reporter = static message =>
         {
             string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
-            Console.Out.WriteLine($"[{timestamp}] {message}");
+            WriteLogLine(Console.Out, timestamp, message);
         };
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
@@ -124,5 +125,38 @@ public sealed class CliApplication
                 diagnostics,
                 progressReporter: reporter),
             progressReporter: reporter);
+    }
+
+    private static void WriteLogLine(TextWriter writer, string timestamp, string message)
+    {
+        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message);
+
+        if (ReferenceEquals(writer, Console.Out)
+            && !Console.IsOutputRedirected
+            && PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry entry))
+        {
+            ConsoleColor originalForeground = Console.ForegroundColor;
+            Console.Write($"[{timestamp}] ");
+            Console.ForegroundColor = GetLogLevelColor(entry.Level);
+            Console.Write($"[{entry.Scope}][{entry.LevelToken}]");
+            Console.ForegroundColor = originalForeground;
+            Console.Write(' ');
+            Console.WriteLine(entry.Message);
+            return;
+        }
+
+        writer.WriteLine($"[{timestamp}] {normalizedMessage}");
+    }
+
+    private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)
+    {
+        return level switch
+        {
+            PlateauLogLevel.Debug => ConsoleColor.DarkGray,
+            PlateauLogLevel.Info => Console.ForegroundColor,
+            PlateauLogLevel.Warning => ConsoleColor.Yellow,
+            PlateauLogLevel.Error => ConsoleColor.Red,
+            _ => Console.ForegroundColor,
+        };
     }
 }

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -34,61 +36,20 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
 
         _ = await builder.CompleteAsync();
 
-        string datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "dataset");
-        Slot datasetSlot = Assert.IsType<Slot>(fakeClient.SlotsById[datasetSlotId]);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, $"PLATEAU {dataset}");
         Field_float3 datasetPosition = Assert.IsType<Field_float3>(datasetSlot.Position);
         Assert.Equal(0.0f, datasetPosition.Value.y);
 
-        string cityObjectSlotId = ResoniteLinkEntityIdFactory.CreateStableEntityId(
-            dataset,
-            meshCode,
-            "cityobject",
-            sourceObjectKey);
-        Slot cityObjectSlot = Assert.IsType<Slot>(fakeClient.SlotsById[cityObjectSlotId]);
+        Slot meshRootSlot = FindSlotByNameUnderAncestor(
+            fakeClient.SlotsById,
+            datasetSlot.ID,
+            meshCode);
+        Slot cityObjectSlot = FindSlotByNameUnderAncestor(
+            fakeClient.SlotsById,
+            meshRootSlot.ID,
+            "Height Test Building");
         Field_float3 cityObjectPosition = Assert.IsType<Field_float3>(cityObjectSlot.Position);
         Assert.Equal((float)buildingHeight, cityObjectPosition.Value.y);
-    }
-
-    [Fact]
-    public async Task BeginAsyncResetsExistingDatasetRootYOffsetToZero()
-    {
-        const string dataset = "tokyo23ku";
-        const string meshCode = "53394525";
-        const string sourceObjectKey = "plateau_test_building";
-
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        ResoniteYTestScene scene = CreateScene(dataset, meshCode, sourceObjectKey, 15.5, fixturePath);
-        string datasetSlotId = ResoniteLinkEntityIdFactory.CreateDatasetScopedEntityId(dataset, "dataset");
-
-        using YOffsetFakeClient fakeClient = new();
-        fakeClient.SlotsById[datasetSlotId] = new Slot
-        {
-            ID = datasetSlotId,
-            Parent = new Reference { TargetID = "Root" },
-            Name = new Field_string { Value = $"PLATEAU {dataset}" },
-            Position = new Field_float3
-            {
-                Value = new float3
-                {
-                    x = 0.0f,
-                    y = 1.5f,
-                    z = 0.0f,
-                },
-            },
-        };
-
-        await using ResoniteLinkSceneBuilder builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            () => fakeClient);
-
-        using TemporaryDirectory workDirectory = new();
-        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
-
-        Slot datasetSlot = Assert.IsType<Slot>(fakeClient.SlotsById[datasetSlotId]);
-        Field_float3 datasetPosition = Assert.IsType<Field_float3>(datasetSlot.Position);
-        Assert.Equal(0.0f, datasetPosition.Value.y);
     }
 
     [Fact]
@@ -144,7 +105,165 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         }
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(string dataset, string meshCode, string fixturePath)
+    [Fact]
+    public async Task BuildAsyncKeepsRegexHeightMapAndBuildingAlignedInWorldYAcrossMeshRoots()
+    {
+        const string dataset = "tokyo23ku";
+        const string regexMeshCode = "5339452[56]";
+        const string requestedMeshCode = "53394525";
+        const double expectedWorldY = 12.5;
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            dataset,
+            regexMeshCode,
+            fixturePath,
+            requestedMeshCodes: [requestedMeshCode]);
+
+        ResoniteConstructionCityObject demCityObject = new(
+            SlotKey: "dem-heightmap",
+            DisplayName: "Regex HeightMap Terrain",
+            PackageName: "dem",
+            ActualMeshCode: "533945",
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, expectedWorldY, 0.0)),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: 2,
+                Height: 2,
+                Size: new ResoniteFloat2(10.0, 10.0),
+                MinHeight: 0.0,
+                MaxHeight: 3.0,
+                HeightSamples: [0.0, 1.0, 2.0, 3.0]),
+            Materials: [CreateWireframeMaterial()],
+            SourceObjectKey: "dem-heightmap-source");
+        ResoniteConstructionCityObject buildingCityObject = new(
+            SlotKey: "regex-building",
+            DisplayName: "Regex Building",
+            PackageName: "bldg",
+            ActualMeshCode: requestedMeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(1.0, expectedWorldY, 2.5)),
+            Mesh: CreateTriangleMesh(),
+            Materials: [CreateWireframeMaterial()],
+            SourceObjectKey: "regex-building-source");
+
+        using YOffsetFakeClient fakeClient = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(metadata, workDirectory.Path);
+        await builder.ProcessCityObjectAsync(demCityObject);
+        await builder.ProcessCityObjectAsync(buildingCityObject);
+        _ = await builder.CompleteAsync();
+
+        Slot demRootSlot = FindSlotByName(fakeClient.SlotsById, "533945");
+        Slot buildingRootSlot = FindSlotByName(fakeClient.SlotsById, requestedMeshCode);
+        Slot demCityObjectSlot = FindSlotByNameUnderAncestor(
+            fakeClient.SlotsById,
+            demRootSlot.ID,
+            "Regex HeightMap Terrain");
+        Slot buildingCityObjectSlot = FindSlotByNameUnderAncestor(
+            fakeClient.SlotsById,
+            buildingRootSlot.ID,
+            "Regex Building");
+        double demWorldY = GetWorldY(demRootSlot, demCityObjectSlot);
+        double buildingWorldY = GetWorldY(buildingRootSlot, buildingCityObjectSlot);
+
+        Assert.True(
+            Math.Abs(expectedWorldY - demWorldY) < 0.000001,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"DEM world Y drifted for regex request. expected={expectedWorldY:F6}, actual={demWorldY:F6}, rootY={GetSlotY(demRootSlot):F6}, localY={GetSlotY(demCityObjectSlot):F6}"));
+        Assert.True(
+            Math.Abs(expectedWorldY - buildingWorldY) < 0.000001,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Building world Y drifted for regex request. expected={expectedWorldY:F6}, actual={buildingWorldY:F6}, rootY={GetSlotY(buildingRootSlot):F6}, localY={GetSlotY(buildingCityObjectSlot):F6}"));
+    }
+
+    [Fact]
+    public async Task BuildAsyncKeepsMeshModeWorldYAlignedAcrossMeshRoots()
+    {
+        const string dataset = "tokyo23ku";
+        const string regexMeshCode = "5339452[56]";
+        const string requestedMeshCode = "53394525";
+        const double expectedWorldY = 18.25;
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            dataset,
+            regexMeshCode,
+            fixturePath,
+            requestedMeshCodes: [requestedMeshCode]);
+
+        ResoniteConstructionCityObject parentMeshBuilding = new(
+            SlotKey: "parent-mesh-building",
+            DisplayName: "Parent Mesh Building",
+            PackageName: "bldg",
+            ActualMeshCode: "533945",
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, expectedWorldY, 0.0)),
+            Mesh: CreateTriangleMesh(),
+            Materials: [CreateWireframeMaterial()],
+            SourceObjectKey: "parent-mesh-building-source");
+        ResoniteConstructionCityObject detailedMeshBuilding = new(
+            SlotKey: "detailed-mesh-building",
+            DisplayName: "Detailed Mesh Building",
+            PackageName: "bldg",
+            ActualMeshCode: requestedMeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(1.0, expectedWorldY, 2.5)),
+            Mesh: CreateTriangleMesh(),
+            Materials: [CreateWireframeMaterial()],
+            SourceObjectKey: "detailed-mesh-building-source");
+
+        using YOffsetFakeClient fakeClient = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(metadata, workDirectory.Path);
+        await builder.ProcessCityObjectAsync(parentMeshBuilding);
+        await builder.ProcessCityObjectAsync(detailedMeshBuilding);
+        _ = await builder.CompleteAsync();
+
+        Slot parentRootSlot = FindSlotByName(fakeClient.SlotsById, "533945");
+        Slot detailedRootSlot = FindSlotByName(fakeClient.SlotsById, requestedMeshCode);
+        Slot parentCityObjectSlot = FindSlotByNameUnderAncestor(
+            fakeClient.SlotsById,
+            parentRootSlot.ID,
+            "Parent Mesh Building");
+        Slot detailedCityObjectSlot = FindSlotByNameUnderAncestor(
+            fakeClient.SlotsById,
+            detailedRootSlot.ID,
+            "Detailed Mesh Building");
+        double parentWorldY = GetWorldY(parentRootSlot, parentCityObjectSlot);
+        double detailedWorldY = GetWorldY(detailedRootSlot, detailedCityObjectSlot);
+
+        Assert.True(
+            Math.Abs(expectedWorldY - parentWorldY) < 0.000001,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Parent mesh world Y drifted. expected={expectedWorldY:F6}, actual={parentWorldY:F6}, rootY={GetSlotY(parentRootSlot):F6}, localY={GetSlotY(parentCityObjectSlot):F6}"));
+        Assert.True(
+            Math.Abs(expectedWorldY - detailedWorldY) < 0.000001,
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Detailed mesh world Y drifted. expected={expectedWorldY:F6}, actual={detailedWorldY:F6}, rootY={GetSlotY(detailedRootSlot):F6}, localY={GetSlotY(detailedCityObjectSlot):F6}"));
+        Assert.Equal(0.0, GetSlotY(parentRootSlot));
+        Assert.Equal(0.0, GetSlotY(detailedRootSlot));
+    }
+
+    private static ResoniteConstructionMetadata CreateMetadata(
+        string dataset,
+        string meshCode,
+        string fixturePath,
+        IReadOnlyList<string>? requestedMeshCodes = null)
     {
         return new ResoniteConstructionMetadata(
             SchemaVersion: "3.0",
@@ -161,7 +280,8 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
                 [
                     $"udx/bldg/{meshCode}/plateau_{dataset}_bldg_{meshCode}.gml",
                 ],
-                TerrainTextureOverlays: []),
+                TerrainTextureOverlays: [],
+                RequestedMeshCodes: requestedMeshCodes),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new ResoniteLicenseComponentMetadata(
                     RequireCredit: true,
@@ -170,6 +290,57 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
                     LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
                 MaterialLicenses: []),
             LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+    }
+
+    private static double GetWorldY(Slot rootSlot, Slot cityObjectSlot)
+    {
+        return GetSlotY(rootSlot) + GetSlotY(cityObjectSlot);
+    }
+
+    private static double GetSlotY(Slot slot)
+    {
+        Field_float3 position = Assert.IsType<Field_float3>(slot.Position);
+        return position.Value.y;
+    }
+
+    private static Slot FindSlotByName(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string slotName)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot => string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal));
+    }
+
+    private static Slot FindSlotByNameUnderAncestor(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string ancestorSlotId,
+        string slotName)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot =>
+                string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
+                && IsDescendantOf(slotsById, slot, ancestorSlotId));
+    }
+
+    private static bool IsDescendantOf(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        Slot slot,
+        string ancestorSlotId)
+    {
+        Reference? parent = slot.Parent;
+        while (parent is not null && slotsById.TryGetValue(parent.TargetID, out Slot? parentSlot))
+        {
+            if (string.Equals(parentSlot.ID, ancestorSlotId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            parent = parentSlot.Parent;
+        }
+
+        return false;
     }
 
     private static ResoniteYTestScene CreateScene(
@@ -228,6 +399,8 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
     private sealed class YOffsetFakeClient : IResoniteLinkClient
     {
         private readonly object gate = new();
+        private int nextComponentId;
+        private int nextSlotId;
 
         public Dictionary<string, Slot> SlotsById { get; } = [];
         public Dictionary<string, Component> ComponentsById { get; } = [];
@@ -245,26 +418,59 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = string.Create(CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
             lock (gate)
             {
-                ComponentsById[request.Data.ID] = request.Data;
+                request.Data.ID = createdComponentId;
+                ComponentsById[createdComponentId] = request.Data;
+                if (SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdComponentId);
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
             lock (gate)
             {
-                SlotsById[request.Data.ID] = request.Data;
+                request.Data.ID = createdSlotId;
+                SlotsById[createdSlotId] = request.Data;
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdSlotId);
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -309,9 +515,9 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
                         break;
                     case ResoniteRawTextureImport rawImport:
                         ImportedRawTextures.Add(rawImport);
-                        if (rawImport.SourcePath is not null)
+                        if (rawImport.Identity is not null)
                         {
-                            ImportedTexturePaths.Add(rawImport.SourcePath);
+                            ImportedTexturePaths.Add(rawImport.Identity);
                         }
 
                         break;
