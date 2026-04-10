@@ -279,6 +279,73 @@ public sealed class ResoniteMaterialAssetManagerTests
     }
 
     [Fact]
+    public async Task CreateMaterialComponentAsyncCompletesPropertyBlockUsingExistingTextureWhenPropertyBlockIsMissing()
+    {
+        List<string> createdComponentTypes = [];
+        ResoniteMaterialAssetManager manager = new(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            (_, _, componentType, _, _) =>
+            {
+                createdComponentTypes.Add(componentType);
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("fresh-texture-component", componentType));
+            },
+            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("property-block-slot", "MainTexturePropertyBlock")),
+            (_, _, componentType, members, _) =>
+            {
+                createdComponentTypes.Add(componentType);
+                if (componentType == "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock")
+                {
+                    Reference textureReference = Assert.IsType<Reference>(members["Texture"]);
+                    Assert.Equal("stale-texture-component", textureReference.TargetID);
+                }
+
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("component", componentType));
+            },
+            static (_, slotId, _, _) => Task.FromResult<Slot?>(slotId switch
+            {
+                "property-block-slot" => new Slot
+                {
+                    ID = "property-block-slot",
+                    Components =
+                    [
+                        new Component
+                        {
+                            ID = "stale-texture-component",
+                            ComponentType = "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                            Members = new Dictionary<string, Member>(StringComparer.Ordinal),
+                        },
+                    ],
+                },
+                _ => null,
+            }),
+            static (_, _, _) => Task.FromResult(new Uri("resdb:///texture/shared-albedo", UriKind.Absolute)));
+        using StubResoniteLinkClient client = new();
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
+        {
+            [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
+                ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
+        };
+
+        CreatedMaterialAsset created = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(
+                texturePath: "textures/albedo.png",
+                textureSourceKind: ResoniteTextureSourceKind.Dataset,
+                baseColor: new ResoniteColor(0.8, 0.8, 0.8, 1.0)),
+            preparedTextures,
+            "scope-slot",
+            null,
+            "Material",
+            "property-block-slot",
+            true,
+            CancellationToken.None);
+
+        Assert.Equal("component", created.MaterialPropertyBlockComponentId);
+        Assert.DoesNotContain("[FrooxEngine]FrooxEngine.StaticTexture2D", createdComponentTypes);
+        Assert.Contains("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", createdComponentTypes);
+    }
+
+    [Fact]
     public async Task CreateMaterialComponentAsyncReusesExistingSharedMaterialBeforeImportingTextures()
     {
         int importTextureCallCount = 0;
@@ -432,61 +499,59 @@ public sealed class ResoniteMaterialAssetManagerTests
     }
 
     [Fact]
-    public async Task CreateMaterialComponentAsyncDoesNotReuseSharedAlbedoPropertyBlockWhenImportedTextureChanges()
+    public async Task CreateMaterialComponentAsyncReusesExistingSharedAlbedoPropertyBlockAfterCacheMiss()
     {
-        using TemporaryDirectory workingDirectory = new();
-        string firstImportedTexturePath = Path.Combine(workingDirectory.Path, "albedo-v1.png");
-        string secondImportedTexturePath = Path.Combine(workingDirectory.Path, "albedo-v2.png");
-        await File.WriteAllBytesAsync(firstImportedTexturePath, [1, 2, 3, 4]);
-        await File.WriteAllBytesAsync(secondImportedTexturePath, [5, 6, 7, 8]);
-
-        List<string> createdComponentIds = [];
-        int componentSequence = 0;
+        List<string> createdComponentTypes = [];
+        int dedicatedAssetCreationCount = 0;
         ResoniteMaterialAssetManager manager = new(
             static (_, _, _, _, _) => throw new NotSupportedException(),
-            (_, _, componentType, _, _) => Task.FromResult(
-                new ResoniteLinkSceneBuilder.CreatedComponent(
-                    $"{componentType}-{Interlocked.Increment(ref componentSequence)}",
-                    componentType)),
-            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material")),
             (_, _, componentType, _, _) =>
             {
-                string componentId = $"{componentType}-{Interlocked.Increment(ref componentSequence)}";
-                createdComponentIds.Add(componentId);
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent(componentId, componentType));
+                dedicatedAssetCreationCount++;
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("unexpected-dedicated-component", componentType));
             },
-            static (_, _, _, _) => Task.FromResult<Slot?>(null),
+            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-property-block-slot", "MainTexturePropertyBlock")),
+            (_, _, componentType, _, _) =>
+            {
+                createdComponentTypes.Add(componentType);
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent(
+                    componentType == "[FrooxEngine]FrooxEngine.PBS_Metallic"
+                        ? "material-component"
+                        : throw new InvalidOperationException($"Unexpected created component '{componentType}'."),
+                    componentType));
+            },
+            static (_, slotId, _, _) => Task.FromResult<Slot?>(slotId switch
+            {
+                "shared-property-block-slot" => new Slot
+                {
+                    ID = "shared-property-block-slot",
+                    Components =
+                    [
+                        new Component
+                        {
+                            ID = "existing-property-block-component",
+                            ComponentType = "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
+                            Members = new Dictionary<string, Member>(StringComparer.Ordinal),
+                        },
+                    ],
+                },
+                _ => null,
+            }),
             static (_, _, _) => Task.FromResult(new Uri("resdb:///texture/shared-albedo", UriKind.Absolute)));
         using StubResoniteLinkClient client = new();
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
+        {
+            [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
+                ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
+        };
 
-        CreatedMaterialAsset first = await manager.CreateMaterialComponentAsync(
+        CreatedMaterialAsset created = await manager.CreateMaterialComponentAsync(
             client,
             CreateMaterial(
                 texturePath: "textures/albedo.png",
                 textureSourceKind: ResoniteTextureSourceKind.Dataset,
                 baseColor: new ResoniteColor(0.8, 0.8, 0.8, 1.0)),
-            new Dictionary<TextureReferenceKey, ResoniteTextureImport>
-            {
-                [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
-                    ResoniteTextureImportFactory.CreateFromFile(firstImportedTexturePath),
-            },
-            "scope-slot",
-            null,
-            "Material",
-            "property-block-scope",
-            true,
-            CancellationToken.None);
-        CreatedMaterialAsset second = await manager.CreateMaterialComponentAsync(
-            client,
-            CreateMaterial(
-                texturePath: "textures/albedo.png",
-                textureSourceKind: ResoniteTextureSourceKind.Dataset,
-                baseColor: new ResoniteColor(0.8, 0.8, 0.8, 1.0)),
-            new Dictionary<TextureReferenceKey, ResoniteTextureImport>
-            {
-                [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
-                    ResoniteTextureImportFactory.CreateFromFile(secondImportedTexturePath),
-            },
+            preparedTextures,
             "scope-slot",
             null,
             "Material",
@@ -494,11 +559,10 @@ public sealed class ResoniteMaterialAssetManagerTests
             true,
             CancellationToken.None);
 
-        Assert.NotEqual(first.MaterialPropertyBlockComponentId, second.MaterialPropertyBlockComponentId);
-        Assert.Equal(
-            2,
-            createdComponentIds.Count(componentId =>
-                componentId.StartsWith("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
+        Assert.Equal("material-component", created.MaterialComponentId);
+        Assert.Equal("existing-property-block-component", created.MaterialPropertyBlockComponentId);
+        Assert.Equal(0, dedicatedAssetCreationCount);
+        Assert.DoesNotContain("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", createdComponentTypes);
     }
 
     private static ResoniteMaterialBinding CreateMaterial(

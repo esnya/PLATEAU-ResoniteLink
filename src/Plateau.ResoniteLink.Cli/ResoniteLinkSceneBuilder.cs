@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Threading.Channels;
 
 using GeographicLib;
@@ -932,14 +933,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
 
         string normalizedPath = texturePath.Replace('\\', '/').Trim('/');
-        string? directoryName = Path.GetDirectoryName(normalizedPath)?.Replace('\\', '/').Trim('/');
-        string fileStem = Path.GetFileNameWithoutExtension(normalizedPath);
-
-        string normalizedStemPath = string.IsNullOrWhiteSpace(directoryName)
-            ? fileStem
-            : $"{directoryName}/{fileStem}";
-
-        return normalizedStemPath.Replace('/', '_');
+        return ResoniteSlotNameEncoder.Encode(normalizedPath);
     }
 
     private static bool IsDemPackage(string packageName)
@@ -1133,7 +1127,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 }
 
                 if (arrangedMaterialIds[submeshIndex] is not null
-                    && !string.Equals(arrangedMaterialIds[submeshIndex], materialIds[materialIndex], StringComparison.Ordinal))
+                    && (!string.Equals(arrangedMaterialIds[submeshIndex], materialIds[materialIndex], StringComparison.Ordinal)
+                        || !string.Equals(arrangedMaterialPropertyBlockIds[submeshIndex], materialPropertyBlockIds[materialIndex], StringComparison.Ordinal)))
                 {
                     throw new InvalidOperationException(
                         $"Submesh {submeshIndex} on '{cityObject.DisplayName}' is assigned more than one material.");
@@ -1591,17 +1586,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private static TextureImportCacheKey? TryCreateTextureImportCacheKey(ResoniteTextureImport textureImport)
+    internal static TextureImportCacheKey? TryCreateTextureImportCacheKey(ResoniteTextureImport textureImport)
     {
         return textureImport switch
         {
             ResoniteFileTextureImport fileImport => new TextureImportCacheKey("file", fileImport.AbsolutePath),
-            ResoniteRawTextureImport rawImport when rawImport.Identity is not null => new TextureImportCacheKey(
+            ResoniteRawTextureImport rawImport => new TextureImportCacheKey(
                 "raw",
-                rawImport.Identity,
+                CreateRawTexturePayloadCacheKey(rawImport),
                 rawImport.ColorProfile),
             _ => null,
         };
+    }
+
+    private static string CreateRawTexturePayloadCacheKey(ResoniteRawTextureImport rawImport)
+    {
+        ArgumentNullException.ThrowIfNull(rawImport);
+
+        string payloadHash = Convert.ToHexStringLower(SHA256.HashData(rawImport.RawRgba32Bytes));
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{rawImport.Width}x{rawImport.Height}_{payloadHash}");
     }
 
     private static AddSlot CreateAddSlotOperation(

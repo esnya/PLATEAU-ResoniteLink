@@ -293,6 +293,42 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncKeepsDistinctPropertyBlocksWhenTexturePathsDifferOnlyByPunctuation()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string firstTexturePath = "textures/set-a/wall.png";
+        string secondTexturePath = "textures/set_a/wall.png";
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, firstTexturePath),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, secondTexturePath),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            datasetDirectory.Path,
+            packageNames: ["bldg"],
+            sourceFiles: [firstTexturePath, secondTexturePath]);
+        using ReuseSessionSharedClient sharedClient = new();
+
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateMultiTexturedTriangleCityObject(
+                    objectIdentity: "shared-material-punctuation",
+                    firstTexturePath,
+                    secondTexturePath),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public async Task BuildAsyncUsesSharedCommonMaterialForDatasetAlbedoOnlyTextures()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -333,6 +369,42 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             2,
             sharedClient.AddedComponents.Count(static request =>
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncKeepsDistinctTriplanarDatasetMaterialsWhenTextureExtensionsDiffer()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string firstTexturePath = "textures/wall.png";
+        string secondTexturePath = "textures/wall.jpg";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, firstTexturePath),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, secondTexturePath),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            datasetDirectory.Path,
+            sourceFiles: [firstTexturePath, secondTexturePath]);
+        using ReuseSessionSharedClient sharedClient = new();
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateMultiTexturedTriangleCityObject(
+                    objectIdentity: "dataset-triplanar-extension-split",
+                    firstTexturePath,
+                    secondTexturePath,
+                    projection: ResoniteMaterialProjection.Triplanar),
+            ]);
+
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.Equal(
+            2,
+            sharedClient.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -627,7 +699,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     private static ResoniteConstructionCityObject CreateMultiTexturedTriangleCityObject(
         string objectIdentity,
         string firstTexturePath,
-        string secondTexturePath)
+        string secondTexturePath,
+        ResoniteMaterialProjection projection = ResoniteMaterialProjection.Uv)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
@@ -655,7 +728,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePath: firstTexturePath,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-                    Projection: ResoniteMaterialProjection.Uv,
+                    Projection: projection,
                     DepthOffset: null,
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
@@ -664,7 +737,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePath: secondTexturePath,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-                    Projection: ResoniteMaterialProjection.Uv,
+                    Projection: projection,
                     DepthOffset: null,
                     SubmeshIndices: [1]),
             ],

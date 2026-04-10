@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -67,7 +65,7 @@ internal sealed class ResoniteMaterialAssetManager(
         ResoniteLinkSceneBuilder.CreatedComponent propertyBlock = await GetOrCreateMainTexturePropertyBlockAsync(
             client,
             propertyBlockScopeSlotId,
-            CreateMainTexturePropertyBlockSlotName(textureReferenceKey, textureAsset),
+            CreateMainTexturePropertyBlockSlotName(textureReferenceKey),
             textureAsset,
             cancellationToken);
         return new CreatedMaterialAsset(materialComponent.ComponentId, propertyBlock.ComponentId);
@@ -153,6 +151,13 @@ internal sealed class ResoniteMaterialAssetManager(
                 cancellationToken);
             if (existingMaterialComponent is not null)
             {
+                if (materialSlotParentId is not null && MaterialReuseMayHideAssetDrift(material))
+                {
+                    ReportProgress(
+                        $"[live][warn] Material '{material.MaterialKey}' reusing immutable shared asset '{materialSlotName}'. "
+                        + "If the source texture changed in place, clean the shared asset slot before rerunning.");
+                }
+
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' reusing existing component '{materialComponentType}'.");
                 return new ResoniteLinkSceneBuilder.CreatedComponent(
@@ -389,6 +394,9 @@ internal sealed class ResoniteMaterialAssetManager(
             cancellationToken);
         if (existingPropertyBlock is not null)
         {
+            ReportProgress(
+                $"[live][warn] Property block slot '{propertyBlockSlotName}' already exists and will be reused as-is. "
+                + "If the texture changed in place, clean that shared asset slot before rerunning.");
             return new ResoniteLinkSceneBuilder.CreatedComponent(
                 existingPropertyBlock.ID,
                 existingPropertyBlock.ComponentType);
@@ -399,16 +407,25 @@ internal sealed class ResoniteMaterialAssetManager(
             propertyBlockSlot.SlotId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             cancellationToken);
-        ResoniteLinkSceneBuilder.CreatedComponent textureComponent = existingTextureComponent is not null
-            ? new ResoniteLinkSceneBuilder.CreatedComponent(
+        ResoniteLinkSceneBuilder.CreatedComponent textureComponent;
+        if (existingTextureComponent is not null)
+        {
+            ReportProgress(
+                $"[live][warn] Property block slot '{propertyBlockSlotName}' contains a stale texture component without a property block. "
+                + "Completing the shared property block with the existing texture component as-is.");
+            textureComponent = new ResoniteLinkSceneBuilder.CreatedComponent(
                 existingTextureComponent.ID,
-                existingTextureComponent.ComponentType)
-            : await createDedicatedAssetComponentAsync(
+                existingTextureComponent.ComponentType);
+        }
+        else
+        {
+            textureComponent = await createDedicatedAssetComponentAsync(
                 client,
                 propertyBlockSlot.SlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ct => importTextureAsync(client, textureAsset, ct),
                 cancellationToken);
+        }
 
         return await createComponentAsync(
             client,
@@ -424,61 +441,20 @@ internal sealed class ResoniteMaterialAssetManager(
             cancellationToken);
     }
 
-    private static string CreateMainTexturePropertyBlockSlotName(
-        TextureReferenceKey textureReferenceKey,
-        ResoniteTextureImport textureImport)
+    private static string CreateMainTexturePropertyBlockSlotName(TextureReferenceKey textureReferenceKey)
     {
-        byte[] digest = SHA256.HashData(
-            Encoding.UTF8.GetBytes(
-                $"{textureReferenceKey.SourceKind}:{textureReferenceKey.TexturePath}|{CreateTextureImportFingerprint(textureImport)}"));
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"main-texture-property-block_{Convert.ToHexString(digest.AsSpan(0, 8)).ToLowerInvariant()}");
+            $"main-texture-property-block_{textureReferenceKey.SourceKind.ToString().ToLowerInvariant()}_{ResoniteSlotNameEncoder.Encode(textureReferenceKey.TexturePath)}");
     }
 
-    private static string CreateTextureImportFingerprint(ResoniteTextureImport textureImport)
+    private static bool MaterialReuseMayHideAssetDrift(ResoniteMaterialBinding material)
     {
-        return textureImport switch
-        {
-            ResoniteFileTextureImport fileImport => CreateFileTextureFingerprint(fileImport.AbsolutePath),
-            ResoniteRawTextureImport rawImport => string.Create(
-                CultureInfo.InvariantCulture,
-                $"raw:{rawImport.Identity ?? "none"}:{rawImport.ColorProfile}:{rawImport.Width}:{rawImport.Height}:{rawImport.RawRgba32Bytes.Length}"),
-            ResoniteRawHdrTextureImport rawHdrImport => string.Create(
-                CultureInfo.InvariantCulture,
-                $"raw-hdr:{rawHdrImport.Width}:{rawHdrImport.Height}:{rawHdrImport.RawRgbaFloatBytes.Length}"),
-            _ => textureImport.GetType().FullName ?? textureImport.GetType().Name,
-        };
-    }
-
-    private static string CreateFileTextureFingerprint(string absolutePath)
-    {
-        string normalizedPath = Path.GetFullPath(absolutePath);
-        try
-        {
-            FileInfo fileInfo = new(normalizedPath);
-            return fileInfo.Exists
-                ? string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{normalizedPath}|{fileInfo.Length}|{fileInfo.LastWriteTimeUtc.Ticks}")
-                : normalizedPath;
-        }
-        catch (IOException)
-        {
-            return normalizedPath;
-        }
-        catch (UnauthorizedAccessException)
-        {
-            return normalizedPath;
-        }
-        catch (NotSupportedException)
-        {
-            return normalizedPath;
-        }
-        catch (System.Security.SecurityException)
-        {
-            return normalizedPath;
-        }
+        return !string.IsNullOrWhiteSpace(material.TexturePath)
+            || ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(
+                material,
+                out BundledDefaultMaterialTextureSet? textureSet)
+            && textureSet is not null;
     }
 
     private async Task<Component?> TryGetExistingComponentAsync(

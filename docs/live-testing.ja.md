@@ -4,7 +4,7 @@
 
 この手順は、起動中の ResoniteLink listener に対する実機レベルの確認だけに使う。
 
-警告: この手順中の cleanup は、現在の Resonite session にある live-world の成果を破壊しうる。破棄してよい実験用 session で使うか、dataset root を削除してよいことを明示的に確認してから実行する。
+警告: この手順中の cleanup は、現在の Resonite session にある live-world の成果を破壊しうる。破棄してよい session で使うか、dataset root を削除してよいことを明示的に確認してから実行する。
 
 ## 先に Dry-Run
 
@@ -31,8 +31,10 @@ real-session の send 許可を取りに行く前の gate は、green の dry ru
 ## Live Contract Rules
 
 - ResoniteLink の component payload は、自由な property bag ではなく strict な transport contract として扱う。
-- target の Resonite component type に定義されていない member を送ってはいけない。source fingerprint のような local cache metadata は、live component member とは別に持つ。
+- target の Resonite component type に定義されていない member を送ってはいけない。local cache metadata は live component member とは別に持つ。
 - Resonite 側が nullable enum field を使う component では、単なる enum field で代用せず、対応する ResoniteLink field type を使う。
+- `MeshRenderer.MaterialPropertyBlocks` の疎な穴は `Reference { TargetID = null }` で表す。`EmptyElement` や `null` の list member は使わない。
+- 共有 live material / property-block asset は send 中に書き換えない immutable なものとして扱う。sender がその場で補完するのは、「既存の texture component は残っているが `MainTexturePropertyBlock` だけ欠けている共有 property-block slot」を完成させる場合だけで、それ以外で reused shared slot が stale data を指しているなら、その場で差分適用せず slot を掃除してから再送する。
 - 実機 run に時間を使う前に、少なくとも次を落とせる local test seam を追加または更新する。
   - `AddComponent` 後に `GetComponent` がまだ `null` を返す read-after-write lag
   - 想定外の component member
@@ -120,7 +122,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   --resonitelink-port <port>
 ```
 
-remote を使う場合は、source 固有の引数を次の形に切り替える。
+remote を使う場合は、remote source 用の引数を次の形で指定する。
 
 ```powershell
 dotnet run --project src/Plateau.ResoniteLink.Cli -- `
@@ -168,8 +170,10 @@ $process.ExitCode
 
 - `ImportMesh(ImportMeshRawData)`
 - `ImportTexture(ImportTexture2DFile)`
+- `ImportTexture(ImportTexture2DRawData)`
+- `ImportTexture(ImportTexture2DRawDataHDR)`
 
-コマンドは mesh / texture asset を ResoniteLink 経由で直接送信し、import した asset URL を参照する Resonite の slot / component を live 構築する。
+コマンドは mesh / texture asset を ResoniteLink 経由で直接送信し、import した asset URL を参照する Resonite の slot / component を live 構築する。ここでは file texture、RGBA の raw texture、heightmap 用 HDR raw texture のいずれも使われうる。
 
 ## Done 条件
 

@@ -4,7 +4,7 @@
 
 Use this workflow only for machine-level checks against a running ResoniteLink listener.
 
-Warning: cleanup during this workflow can destroy live-world results in the current Resonite session. Use a disposable experiment session, or get explicit approval before removing a dataset root from a session the user may want to preserve.
+Warning: cleanup during this workflow can destroy live-world results in the current Resonite session. Use a disposable session, or get explicit approval before removing a dataset root from a session the user may want to preserve.
 
 ## Dry-Run First
 
@@ -31,8 +31,10 @@ Treat a green dry run plus the repository CI checks as the gate before requestin
 ## Live Contract Rules
 
 - Treat ResoniteLink component payloads as a strict transport contract, not an open-ended property bag.
-- Do not send members that are not defined on the target Resonite component type. Keep local cache metadata such as source fingerprints outside live component members.
+- Do not send members that are not defined on the target Resonite component type. Keep any local cache metadata outside live component members.
 - When a component uses nullable enum fields on the Resonite side, write them with the matching ResoniteLink field type instead of assuming a plain enum field is interchangeable.
+- For `MeshRenderer.MaterialPropertyBlocks`, represent sparse holes as `Reference { TargetID = null }`. Do not use `EmptyElement` or a `null` list member.
+- Treat shared live material/property-block assets as immutable during a send. The only in-place recovery the sender performs is completing a shared property-block slot that already has an existing texture component but is missing the `MainTexturePropertyBlock`; otherwise, if a reused shared slot points at stale data, clean that slot before rerunning instead of trying to patch it in place.
 - Before spending time on a machine-level run, add or update a local test seam that can fail on:
   - read-after-write lag (`AddComponent` succeeds but a following `GetComponent` still returns `null`)
   - unexpected component members
@@ -120,7 +122,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- `
   --resonitelink-port <port>
 ```
 
-For remote mode, swap the source-specific arguments:
+For remote mode, use the remote-source arguments instead:
 
 ```powershell
 dotnet run --project src/Plateau.ResoniteLink.Cli -- `
@@ -168,8 +170,10 @@ This path uses official ResoniteLink asset import messages:
 
 - `ImportMesh(ImportMeshRawData)`
 - `ImportTexture(ImportTexture2DFile)`
+- `ImportTexture(ImportTexture2DRawData)`
+- `ImportTexture(ImportTexture2DRawDataHDR)`
 
-The command sends mesh and texture assets directly through ResoniteLink and then builds live Resonite slots and components that reference the imported asset URLs.
+The command sends mesh and texture assets directly through ResoniteLink and then builds live Resonite slots and components that reference the imported asset URLs. File textures, RGBA raw textures, and HDR heightmap textures can all appear on this path depending on the material and terrain mode.
 
 ## Done Signal
 
