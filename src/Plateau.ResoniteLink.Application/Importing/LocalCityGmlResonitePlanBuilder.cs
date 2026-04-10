@@ -3100,7 +3100,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
             .ToArray();
         HeightMapTriangle[] triangles = CreateDemHeightMapTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
-        HeightMapPoint[] points = CreateDemHeightMapPoints(cityObject, slotPosition, globalOriginPoint, globalCartesian);
         double seaLevelLocalHeight = CreateGlobalHeightMapLocalPosition(
             new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
             slotPosition,
@@ -3147,9 +3146,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             (int)Math.Ceiling(extentZ / request.DemHeightmapMetersPerVertex) + 1,
             2,
             request.DemHeightmapMaxResolution);
-        double minHeight = double.PositiveInfinity;
-        double maxHeight = double.NegativeInfinity;
         double[] localHeights = new double[width * height];
+        bool[] sampledInsideTriangles = new bool[width * height];
 
         for (int zIndex = 0; zIndex < height; zIndex++)
         {
@@ -3159,26 +3157,22 @@ public static partial class LocalCityGmlResonitePlanBuilder
             {
                 double u = width == 1 ? 0.0 : (double)xIndex / (width - 1);
                 double sampleX = minX + (extentX * u);
-                bool isPerimeterSample = xIndex == 0 || xIndex == width - 1 || zIndex == 0 || zIndex == height - 1;
-                if (!TrySampleLocalDemHeight(
-                    sampleX,
-                    sampleZ,
-                    triangles,
-                    points,
-                    spatialIndex,
-                    seaLevelLocalHeight,
-                    isPerimeterSample,
-                    out double localHeight))
-                {
-                    return false;
-                }
-
                 int sampleIndex = (zIndex * width) + xIndex;
-                localHeights[sampleIndex] = localHeight;
-                minHeight = Math.Min(minHeight, localHeight);
-                maxHeight = Math.Max(maxHeight, localHeight);
+                if (TrySampleLocalDemHeight(sampleX, sampleZ, triangles, spatialIndex, out double localHeight))
+                {
+                    localHeights[sampleIndex] = localHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                }
+                else
+                {
+                    localHeights[sampleIndex] = seaLevelLocalHeight;
+                }
             }
         }
+
+        ExtendBoundaryConnectedMissingHeightSamples(localHeights, sampledInsideTriangles, width, height);
+        double minHeight = localHeights.Min();
+        double maxHeight = localHeights.Max();
 
         ResoniteMaterialBinding[] materials = CreateDemHeightMapMaterials(
             cityObject,
@@ -3438,19 +3432,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return triangles.ToArray();
     }
 
-    private static HeightMapPoint[] CreateDemHeightMapPoints(
-        ParsedCityObject cityObject,
-        ResoniteFloat3 slotPosition,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian)
-    {
-        return cityObject.Surfaces
-            .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
-            .Select(static point => new HeightMapPoint(point.X, point.Z, point.Y))
-            .ToArray();
-    }
-
     private static ResoniteFloat3 CreateGlobalHeightMapLocalPosition(
         GeodeticPoint point,
         ResoniteFloat3 slotPosition,
@@ -3468,10 +3449,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double x,
         double z,
         IReadOnlyList<HeightMapTriangle> triangles,
-        IReadOnlyList<HeightMapPoint> points,
         HeightMapSpatialIndex spatialIndex,
-        double fallbackHeight,
-        bool useNearestPointFallback,
         out double height)
     {
         foreach (int triangleIndex in spatialIndex.GetCandidateTriangleIndices(x, z))
@@ -3483,28 +3461,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             }
         }
 
-        if (useNearestPointFallback && points.Count > 0)
-        {
-            double nearestDistance = double.PositiveInfinity;
-            double nearestHeight = 0.0;
-            foreach (HeightMapPoint point in points)
-            {
-                double distance = SquaredDistance(point.X, point.Z, x, z);
-                if (distance >= nearestDistance)
-                {
-                    continue;
-                }
-
-                nearestDistance = distance;
-                nearestHeight = point.Height;
-            }
-
-            height = nearestHeight;
-            return true;
-        }
-
-        height = fallbackHeight;
-        return true;
+        height = 0.0;
+        return false;
     }
 
     private static bool TryInterpolateLocalTriangleHeight(
@@ -3536,11 +3494,155 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return true;
     }
 
-    private static double SquaredDistance(double ax, double az, double bx, double bz)
+    private static void ExtendBoundaryConnectedMissingHeightSamples(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
     {
-        double dx = ax - bx;
-        double dz = az - bz;
-        return (dx * dx) + (dz * dz);
+        bool changed;
+        do
+        {
+            changed = false;
+            changed |= FillBoundaryConnectedMissingRunsByRow(localHeights, sampledInsideTriangles, width, height);
+            changed |= FillBoundaryConnectedMissingRunsByColumn(localHeights, sampledInsideTriangles, width, height);
+        }
+        while (changed);
+    }
+
+    private static bool FillBoundaryConnectedMissingRunsByRow(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        bool changed = false;
+        for (int row = 0; row < height; row++)
+        {
+            int rowStart = row * width;
+            int firstValidColumn = -1;
+            for (int column = 0; column < width; column++)
+            {
+                if (sampledInsideTriangles[rowStart + column])
+                {
+                    firstValidColumn = column;
+                    break;
+                }
+            }
+
+            if (firstValidColumn >= 0)
+            {
+                double fillHeight = localHeights[rowStart + firstValidColumn];
+                for (int column = 0; column < firstValidColumn; column++)
+                {
+                    int sampleIndex = rowStart + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+
+            int lastValidColumn = -1;
+            for (int column = width - 1; column >= 0; column--)
+            {
+                if (sampledInsideTriangles[rowStart + column])
+                {
+                    lastValidColumn = column;
+                    break;
+                }
+            }
+
+            if (lastValidColumn >= 0)
+            {
+                double fillHeight = localHeights[rowStart + lastValidColumn];
+                for (int column = width - 1; column > lastValidColumn; column--)
+                {
+                    int sampleIndex = rowStart + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    private static bool FillBoundaryConnectedMissingRunsByColumn(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        bool changed = false;
+        for (int column = 0; column < width; column++)
+        {
+            int firstValidRow = -1;
+            for (int row = 0; row < height; row++)
+            {
+                if (sampledInsideTriangles[(row * width) + column])
+                {
+                    firstValidRow = row;
+                    break;
+                }
+            }
+
+            if (firstValidRow >= 0)
+            {
+                double fillHeight = localHeights[(firstValidRow * width) + column];
+                for (int row = 0; row < firstValidRow; row++)
+                {
+                    int sampleIndex = (row * width) + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+
+            int lastValidRow = -1;
+            for (int row = height - 1; row >= 0; row--)
+            {
+                if (sampledInsideTriangles[(row * width) + column])
+                {
+                    lastValidRow = row;
+                    break;
+                }
+            }
+
+            if (lastValidRow >= 0)
+            {
+                double fillHeight = localHeights[(lastValidRow * width) + column];
+                for (int row = height - 1; row > lastValidRow; row--)
+                {
+                    int sampleIndex = (row * width) + column;
+                    if (sampledInsideTriangles[sampleIndex])
+                    {
+                        continue;
+                    }
+
+                    localHeights[sampleIndex] = fillHeight;
+                    sampledInsideTriangles[sampleIndex] = true;
+                    changed = true;
+                }
+            }
+        }
+
+        return changed;
     }
 
     private static void ValidateCompatibleReferenceSystem(
@@ -3803,11 +3905,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 A,
         ResoniteFloat3 B,
         ResoniteFloat3 C);
-
-    private sealed record HeightMapPoint(
-        double X,
-        double Z,
-        double Height);
 
     private sealed record DemHeightMapBounds(
         double MinX,

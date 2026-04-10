@@ -1121,44 +1121,55 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncKeepsHeightMapPerimeterSamplesOnNearestDemBoundaryOutsideTriangles()
+    public void ExtendBoundaryConnectedMissingHeightMapBandsFillsMultiColumnEdgeRuns()
     {
-        using TemporaryDirectory datasetRoot = new();
-        CreateRuntimeSingleTriangleDemFixture(datasetRoot.Path);
-        StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        double[] localHeights =
+        [
+            0.0, 0.0, 10.0, 20.0,
+            0.0, 11.0, 12.0, 13.0,
+            0.0, 21.0, 22.0, 23.0,
+            30.0, 31.0, 32.0, 33.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            false, false, true, true,
+            false, true, true, true,
+            false, true, true, true,
+            true, true, true, true,
+        ];
 
-        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: datasetRoot.Path,
-                ServerUri: null,
-                PackageNames: ["dem"],
-                DemTerrainMode: DemTerrainMode.HeightMap,
-                DemHeightmapMetersPerVertex: 10.0,
-                DemHeightmapMaxResolution: 64),
-            workRoot: "runtime/resonite-heightmap");
-        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
 
-        ResoniteConstructionCityObject demChunk = Assert.Single(
-            heightMapScene.CityObjects,
-            static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal));
-        ResoniteHeightMapGridGeometry geometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunk.Geometry);
+        Assert.Equal(10.0, localHeights[0]);
+        Assert.Equal(10.0, localHeights[1]);
+        Assert.Equal(11.0, localHeights[4]);
+        Assert.Equal(21.0, localHeights[8]);
+    }
 
-        double perimeterHeight = GetHeightMapWorldHeight(demChunk, geometry, row: 0, column: 0);
-        double minX = demChunk.Transform.Position.X - (geometry.Size.X / 2.0);
-        double minZ = demChunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
-        double interiorOutsideHeight = GetNearestHeightMapWorldHeight(
-            demChunk,
-            geometry,
-            minX + (geometry.Size.X * 0.10),
-            minZ + (geometry.Size.Y * 0.10));
+    [Fact]
+    public void ExtendBoundaryConnectedMissingHeightMapBandsPreservesInteriorHoles()
+    {
+        double[] localHeights =
+        [
+            10.0, 11.0, 12.0, 13.0,
+            20.0, 0.0, 0.0, 23.0,
+            30.0, 0.0, 0.0, 33.0,
+            40.0, 41.0, 42.0, 43.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            true, true, true, true,
+            true, false, false, true,
+            true, false, false, true,
+            true, true, true, true,
+        ];
 
-        Assert.True(
-            perimeterHeight > interiorOutsideHeight,
-            $"Expected heightmap perimeter samples to stay on the nearest DEM boundary instead of collapsing to sea level. perimeter={perimeterHeight:F6}, interiorOutside={interiorOutsideHeight:F6}");
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+
+        Assert.Equal(0.0, localHeights[5]);
+        Assert.Equal(0.0, localHeights[6]);
+        Assert.Equal(0.0, localHeights[9]);
+        Assert.Equal(0.0, localHeights[10]);
     }
 
     [Fact]
@@ -2861,6 +2872,20 @@ public sealed class PlateauImportServiceTests
             ?? throw new InvalidOperationException("Expected private heightmap boundary alignment helper.");
 
         return (ResoniteConstructionCityObject[])method.Invoke(null, [cityObjects])!;
+    }
+
+    private static void ExtendBoundaryConnectedMissingHeightMapBands(
+        double[] localHeights,
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        MethodInfo method = typeof(LocalCityGmlResonitePlanBuilder).GetMethod(
+            "ExtendBoundaryConnectedMissingHeightSamples",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Expected private boundary-connected heightmap fill helper.");
+
+        method.Invoke(null, [localHeights, sampledInsideTriangles, width, height]);
     }
 
     private static ResoniteConstructionCityObject CreateHeightMapChunk(
