@@ -1,3 +1,5 @@
+using Plateau.ResoniteLink.Domain.Importing;
+
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
@@ -6,6 +8,15 @@ namespace Plateau.ResoniteLink.Cli;
 internal abstract record ResoniteTextureImport;
 
 internal sealed record ResoniteFileTextureImport(string AbsolutePath) : ResoniteTextureImport;
+
+internal readonly record struct TextureReferenceKey(
+    ResoniteTextureSourceKind SourceKind,
+    string TexturePath);
+
+internal readonly record struct TextureImportCacheKey(
+    string Kind,
+    string Identity,
+    string? ColorProfile = null);
 
 internal static class ResoniteTextureColorProfiles
 {
@@ -18,7 +29,7 @@ internal sealed record ResoniteRawTextureImport(
     int Height,
     string ColorProfile,
     byte[] RawRgba32Bytes,
-    string? SourcePath = null) : ResoniteTextureImport;
+    string? Identity = null) : ResoniteTextureImport;
 
 internal sealed record ResoniteRawHdrTextureImport(
     int Width,

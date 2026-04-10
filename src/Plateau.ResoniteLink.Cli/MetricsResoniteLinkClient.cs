@@ -17,16 +17,16 @@ internal sealed class MetricsResoniteLinkClient(
         await inner.ConnectAsync(endpoint, cancellationToken);
     }
 
-    public async Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("add_component");
-        await inner.AddComponentAsync(request, cancellationToken);
+        return await inner.AddComponentAsync(request, cancellationToken);
     }
 
-    public async Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("add_slot");
-        await inner.AddSlotAsync(request, cancellationToken);
+        return await inner.AddSlotAsync(request, cancellationToken);
     }
 
     public async Task RunDataModelOperationBatchAsync(

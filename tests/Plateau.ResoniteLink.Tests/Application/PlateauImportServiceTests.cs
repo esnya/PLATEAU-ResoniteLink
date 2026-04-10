@@ -1121,6 +1121,47 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncKeepsHeightMapPerimeterSamplesOnNearestDemBoundaryOutsideTriangles()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSingleTriangleDemFixture(datasetRoot.Path);
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        ImportExecutionResult heightMapResult = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                ServerUri: null,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                DemHeightmapMetersPerVertex: 10.0,
+                DemHeightmapMaxResolution: 64),
+            workRoot: "runtime/resonite-heightmap");
+        CapturedResoniteScene heightMapScene = heightMapResult.Metadata.ToScene(sceneBuilder.CityObjects.ToArray());
+
+        ResoniteConstructionCityObject demChunk = Assert.Single(
+            heightMapScene.CityObjects,
+            static cityObject => string.Equals(cityObject.PackageName, "dem", StringComparison.Ordinal));
+        ResoniteHeightMapGridGeometry geometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunk.Geometry);
+
+        double perimeterHeight = GetHeightMapWorldHeight(demChunk, geometry, row: 0, column: 0);
+        double minX = demChunk.Transform.Position.X - (geometry.Size.X / 2.0);
+        double minZ = demChunk.Transform.Position.Z - (geometry.Size.Y / 2.0);
+        double interiorOutsideHeight = GetNearestHeightMapWorldHeight(
+            demChunk,
+            geometry,
+            minX + (geometry.Size.X * 0.10),
+            minZ + (geometry.Size.Y * 0.10));
+
+        Assert.True(
+            perimeterHeight > interiorOutsideHeight,
+            $"Expected heightmap perimeter samples to stay on the nearest DEM boundary instead of collapsing to sea level. perimeter={perimeterHeight:F6}, interiorOutside={interiorOutsideHeight:F6}");
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsSplitDemHeightMapBoundaryHeightsAlignedAcrossChunks()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -2111,6 +2152,9 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(DatasetSourceKind.Remote, Assert.Single(resolver.Requests).SourceKind);
         Assert.Equal(DatasetSourceKind.Local, result.Metadata.Request.SourceKind);
         Assert.Equal(fixturePath, result.Metadata.Request.LocalSourcePath);
+        Assert.NotNull(sceneBuilder.LastEnsureConnectedRequest);
+        Assert.Equal(DatasetSourceKind.Remote, sceneBuilder.LastEnsureConnectedRequest!.SourceKind);
+        Assert.Null(sceneBuilder.LastEnsureConnectedRequest.LocalSourcePath);
     }
 
     [Fact]
@@ -2137,6 +2181,7 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scanned ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Parsed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Prepared construction source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => string.Equals(message, "[import] Starting live scene initialization.", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Streamed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import] Scene builder completion finished", StringComparison.Ordinal));
     }
@@ -2292,6 +2337,7 @@ public sealed class PlateauImportServiceTests
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
         public int EnsureConnectedCallCount { get; private set; }
         public int DisposeCallCount { get; private set; }
+        public PlateauImportRequest? LastEnsureConnectedRequest { get; private set; }
         public Action? OnEnsureConnected { get; set; }
         public Action? OnBegin { get; set; }
         public Exception? EnsureConnectedException { get; set; }
@@ -2302,6 +2348,7 @@ public sealed class PlateauImportServiceTests
         {
             ArgumentNullException.ThrowIfNull(request);
             EnsureConnectedCallCount++;
+            LastEnsureConnectedRequest = request;
             OnEnsureConnected?.Invoke();
             if (EnsureConnectedException is not null)
             {

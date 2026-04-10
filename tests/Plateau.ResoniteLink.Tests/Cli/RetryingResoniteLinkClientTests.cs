@@ -7,7 +7,7 @@ namespace Plateau.ResoniteLink.Tests.Cli;
 public sealed class RetryingResoniteLinkClientTests
 {
     [Fact]
-    public async Task ImportMeshAsyncReconnectsAndRetriesAfterFailure()
+    public async Task ImportMeshAsyncDoesNotReconnectOrRetryAfterFailure()
     {
         int createdClientCount = 0;
         List<string> progressMessages = [];
@@ -23,19 +23,57 @@ public sealed class RetryingResoniteLinkClientTests
             progressMessages.Add);
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        Uri result = await client.ImportMeshAsync(
-            new ImportMeshRawData
-            {
-                RawBinaryPayload = [1, 2, 3],
-                VertexCount = 3,
-            },
-            CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.ImportMeshAsync(
+                new ImportMeshRawData
+                {
+                    RawBinaryPayload = [1, 2, 3],
+                    VertexCount = 3,
+                },
+                CancellationToken.None));
 
-        Assert.Equal(new Uri("resdb:///mesh/ok", UriKind.Absolute), result);
         Assert.Equal(1, firstClient.ImportMeshCallCount);
-        Assert.Equal(1, secondClient.ImportMeshCallCount);
+        Assert.Equal(0, secondClient.ImportMeshCallCount);
+        Assert.Equal(1, firstClient.ConnectCallCount);
+        Assert.Equal(0, secondClient.ConnectCallCount);
+        Assert.Equal(1, createdClientCount);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("failed without retry", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            progressMessages,
+            static message => message.Contains("Reconnecting before retry", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            progressMessages,
+            static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task GetSlotAsyncReconnectsAndRetriesAfterFailure()
+    {
+        int createdClientCount = 0;
+        List<string> progressMessages = [];
+        using StubReconnectableClient firstClient = new(failGetSlot: true);
+        using StubReconnectableClient secondClient = new();
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            },
+            progressMessages.Add);
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        Slot? result = await client.GetSlotAsync("slot-id", 0, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("slot-id", result!.ID);
+        Assert.Equal(1, firstClient.GetSlotCallCount);
+        Assert.Equal(1, secondClient.GetSlotCallCount);
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Equal(2, createdClientCount);
         Assert.Contains(
             progressMessages,
             static message => message.Contains("Reconnecting before retry", StringComparison.Ordinal));
@@ -93,11 +131,44 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.True(innerClient.AddSlotStartedAfterImportCompleted);
     }
 
-    private sealed class StubReconnectableClient(bool failImportMesh) : IResoniteLinkClient
+    [Fact]
+    public async Task AddSlotAsyncReturnsCreatedIdFromInnerClient()
     {
+        using StubReconnectableClient innerClient = new();
+        using RetryingResoniteLinkClient client = new(() => innerClient);
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        string createdSlotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    ID = null!,
+                    Parent = new Reference
+                    {
+                        TargetID = "parent-id",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "Slot",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal("srv_slot_1", createdSlotId);
+    }
+
+    private sealed class StubReconnectableClient(bool failImportMesh = false, bool failGetSlot = false) : IResoniteLinkClient
+    {
+        private int nextComponentId;
+        private int nextSlotId;
+
         public int ConnectCallCount { get; private set; }
 
         public int ImportMeshCallCount { get; private set; }
+
+        public int GetSlotCallCount { get; private set; }
 
         public void Dispose()
         {
@@ -110,16 +181,16 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult($"srv_component_{Interlocked.Increment(ref nextComponentId)}");
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
         }
 
         public Task RunDataModelOperationBatchAsync(
@@ -139,7 +210,16 @@ public sealed class RetryingResoniteLinkClientTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Slot?>(null);
+            GetSlotCallCount++;
+            if (failGetSlot)
+            {
+                throw new InvalidOperationException("Simulated get slot failure.");
+            }
+
+            return Task.FromResult<Slot?>(new Slot
+            {
+                ID = slotId,
+            });
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -169,6 +249,9 @@ public sealed class RetryingResoniteLinkClientTests
 
     private sealed class BlockingReconnectableClient : IResoniteLinkClient
     {
+        private int nextComponentId;
+        private int nextSlotId;
+
         public TaskCompletionSource ImportMeshStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public TaskCompletionSource AllowImportMeshCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -192,18 +275,18 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult($"srv_component_{Interlocked.Increment(ref nextComponentId)}");
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             AddSlotCallCount++;
             AddSlotStartedAfterImportCompleted = AllowImportMeshCompletion.Task.IsCompleted;
-            return Task.CompletedTask;
+            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
         }
 
         public Task RunDataModelOperationBatchAsync(

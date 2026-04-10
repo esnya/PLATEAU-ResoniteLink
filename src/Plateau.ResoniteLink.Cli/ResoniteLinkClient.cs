@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Cli;
@@ -6,9 +8,9 @@ internal interface IResoniteLinkClient : IDisposable
 {
     Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken);
 
-    Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
+    Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
 
-    Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
+    Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
 
     Task RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
@@ -27,6 +29,11 @@ internal interface IResoniteLinkClient : IDisposable
 
 internal sealed class ResoniteLinkClient : IResoniteLinkClient
 {
+    static ResoniteLinkClient()
+    {
+        LinkInterface.SerializationOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+    }
+
     private readonly LinkInterface link = new();
 
     public void Dispose()
@@ -39,16 +46,24 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         await link.Connect(endpoint, cancellationToken);
     }
 
-    public async Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await link.AddComponent(request);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Data);
+        NewEntityId response = await link.AddComponent(request);
+        EnsureSuccess(response, "add component");
+        return ValidateCreatedEntityId(response.EntityId, "component");
     }
 
-    public async Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await link.AddSlot(request);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Data);
+        NewEntityId response = await link.AddSlot(request);
+        EnsureSuccess(response, "add slot");
+        return ValidateCreatedEntityId(response.EntityId, "slot");
     }
 
     public async Task RunDataModelOperationBatchAsync(
@@ -81,7 +96,11 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
                 ComponentID = componentId,
             });
 
-        return response.Success ? response.Data : null;
+        return GetOptionalReadData(
+            response.Success,
+            response.ErrorInfo,
+            response.Data,
+            "component");
     }
 
     public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
@@ -95,13 +114,18 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
                 IncludeComponentData = false,
             });
 
-        return response.Success ? response.Data : null;
+        return GetOptionalReadData(
+            response.Success,
+            response.ErrorInfo,
+            response.Data,
+            "slot");
     }
 
     public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         AssetData result = await link.ImportMesh(request);
+        EnsureSuccess(result, "import mesh");
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null mesh asset URL.");
     }
 
@@ -134,12 +158,58 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
         };
 
+        EnsureSuccess(result, "import texture");
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null texture asset URL.");
     }
 
     public async Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await link.UpdateComponent(request);
+        Response response = await link.UpdateComponent(request);
+        EnsureSuccess(response, "update component");
+    }
+
+    private static void EnsureSuccess(Response response, string operationName)
+    {
+        ArgumentNullException.ThrowIfNull(response);
+        if (response.Success)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            string.IsNullOrWhiteSpace(response.ErrorInfo)
+                ? $"ResoniteLink {operationName} failed."
+                : $"ResoniteLink {operationName} failed: {response.ErrorInfo}");
+    }
+
+    private static string ValidateCreatedEntityId(string? responseEntityId, string entityKind)
+    {
+        if (string.IsNullOrWhiteSpace(responseEntityId))
+        {
+            throw new InvalidOperationException($"ResoniteLink returned a null {entityKind} ID.");
+        }
+
+        return responseEntityId;
+    }
+
+    private static TData? GetOptionalReadData<TData>(
+        bool success,
+        string? errorInfo,
+        TData? data,
+        string entityKind)
+        where TData : class
+    {
+        if (success)
+        {
+            return data;
+        }
+
+        if (string.IsNullOrWhiteSpace(errorInfo))
+        {
+            return null;
+        }
+
+        throw new InvalidOperationException($"ResoniteLink get {entityKind} failed: {errorInfo}");
     }
 }

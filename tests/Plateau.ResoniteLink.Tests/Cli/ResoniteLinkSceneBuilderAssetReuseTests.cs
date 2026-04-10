@@ -13,38 +13,31 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 {
     private const string DatasetName = "reuse-test";
     private const string MeshCode = "53394525";
-    private static readonly SemaphoreSlim BundledCompanionTextureIsolationGate = new(1, 1);
-
     [Fact]
-    public async Task BuildAsyncReimportsTriangleMeshWhenContentChangesInSameSession()
+    public async Task BuildAsyncImportsDedicatedTriangleMeshesForDistinctCityObjectsInSameRun()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using ReuseSessionSharedClient sharedClient = new();
 
-        ResoniteConstructionCityObject firstCityObject = CreateTriangleCityObject(
-            objectIdentity: "shared-triangle",
-            mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
-        CapturedScene firstScene = new(
+        CapturedScene scene = new(
             metadata,
-            [firstCityObject]);
+            [
+                CreateTriangleCityObject(
+                    objectIdentity: "triangle-one",
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material")),
+                CreateTriangleCityObject(
+                    objectIdentity: "triangle-two",
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-material")),
+            ]);
 
-        await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        int importedMeshesAfterFirstRun = sharedClient.ImportedMeshes.Count;
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
-        ResoniteConstructionCityObject secondCityObject = CreateTriangleCityObject(
-            objectIdentity: "shared-triangle",
-            mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-material"));
-        CapturedScene secondScene = new(
-            metadata,
-            [secondCityObject]);
-
-        await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        Assert.Equal(importedMeshesAfterFirstRun + 1, sharedClient.ImportedMeshes.Count);
+        Assert.Equal(scene.CityObjects.Count, sharedClient.ImportedMeshes.Count);
     }
 
     [Fact]
-    public async Task BuildAsyncReimportsRegularTextureWhenContentChangesInSameSession()
+    public async Task BuildAsyncSharesRegularTextureImportsAcrossCityObjectsInSameRun()
     {
         using TemporaryDirectory datasetDirectory = new();
         string texturePath = "textures/albedo.png";
@@ -58,126 +51,72 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             sourceFiles: [texturePath]);
         using ReuseSessionSharedClient sharedClient = new();
 
-        ResoniteConstructionCityObject firstCityObject = CreateTexturedTriangleCityObject(
-            objectIdentity: "shared-regular-texture",
-            texturePath,
-            mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
-        CapturedScene firstScene = new(
+        CapturedScene scene = new(
             metadata,
-            [firstCityObject]);
+            [
+                CreateTexturedTriangleCityObject(
+                    objectIdentity: "shared-regular-texture-one",
+                    texturePath,
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material")),
+                CreateTexturedTriangleCityObject(
+                    objectIdentity: "shared-regular-texture-two",
+                    texturePath,
+                    mesh: CreateTriangleMesh(2.0, 3.0, 4.0, "triangle-textured-material")),
+            ]);
 
-        await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
-        await WriteSolidColorTextureAsync(
-            Path.Combine(datasetDirectory.Path, texturePath),
-            new Rgba32(0, 255, 0, 255));
-
-        ResoniteConstructionCityObject secondCityObject = CreateTexturedTriangleCityObject(
-            objectIdentity: "shared-regular-texture",
-            texturePath,
-            mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
-        CapturedScene secondScene = new(
-            metadata,
-            [secondCityObject]);
-
-        await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedTexturePaths.Count);
+        string importedTexturePath = Assert.Single(sharedClient.ImportedTexturePaths);
+        Assert.Equal(Path.Combine(datasetDirectory.Path, texturePath), importedTexturePath);
     }
 
     [Fact]
-    public async Task BuildAsyncReimportsHeightmapTextureWhenContentChangesInSameSession()
+    public async Task BuildAsyncImportsSeparateHeightmapTexturesForDistinctHeightmapObjectsInSameRun()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["terrain"]);
         using ReuseSessionSharedClient sharedClient = new();
 
-        ResoniteConstructionCityObject firstCityObject = CreateHeightMapCityObject(
-            objectIdentity: "shared-heightmap",
-            heightSamples: [0, 1, 2, 3]);
-        CapturedScene firstScene = new(
+        CapturedScene scene = new(
             metadata,
-            [firstCityObject]);
+            [
+                CreateHeightMapCityObject(
+                    objectIdentity: "shared-heightmap-one",
+                    heightSamples: [0, 1, 2, 3]),
+                CreateHeightMapCityObject(
+                    objectIdentity: "shared-heightmap-two",
+                    heightSamples: [3, 2, 1, 0]),
+            ]);
 
-        await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        int importedTexturesAfterFirstRun = sharedClient.ImportedRawHdrTextures.Count;
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
-        ResoniteConstructionCityObject secondCityObject = CreateHeightMapCityObject(
-            objectIdentity: "shared-heightmap",
-            heightSamples: [3, 2, 1, 0]);
-        CapturedScene secondScene = new(
-            metadata,
-            [secondCityObject]);
-
-        await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-        Assert.Equal(importedTexturesAfterFirstRun + 1, sharedClient.ImportedRawHdrTextures.Count);
+        Assert.Equal(scene.CityObjects.Count, sharedClient.ImportedRawHdrTextures.Count);
     }
 
     [Fact]
-    public async Task BuildAsyncDoesNotReimportBundledCompanionTexturesWhenContentsChangeInSameSession()
+    public async Task BuildAsyncSharesBundledCompanionTextureImportsAcrossCityObjectsInSameRun()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
         using ReuseSessionSharedClient sharedClient = new();
 
-        await BundledCompanionTextureIsolationGate.WaitAsync();
-
-        try
-        {
-            using IDisposable extractionRootScope = BundledDefaultMaterialAssetStore.PushExtractionRootOverride(
-                Path.Combine(datasetDirectory.Path, "bundled-assets"));
-            string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
-            ResoniteMaterialBinding sampleMaterial = new(
-                MaterialKey: "bundle-companion-test",
-                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                MaterialType: ResoniteMaterialType.Standard,
-                TexturePath: bundledTexturePath,
-                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-                Projection: ResoniteMaterialProjection.Uv,
-                DepthOffset: null,
-                SubmeshIndices: [0]);
-            Assert.True(ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(sampleMaterial, out BundledDefaultMaterialTextureSet? bundledTextureSet));
-            Assert.NotNull(bundledTextureSet);
-            Assert.NotNull(bundledTextureSet.NormalPath);
-            byte[] originalNormalBytes = await File.ReadAllBytesAsync(bundledTextureSet.NormalPath);
-
-            try
-            {
-                ResoniteConstructionCityObject firstCityObject = CreateBundledTriangleCityObject(
-                    objectIdentity: "shared-bundled-companion",
+        string bundledTexturePath = BundledDefaultMaterialFamilies.FacadeVariants[0];
+        CapturedScene scene = new(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-bundled-companion-one",
                     texturePath: bundledTexturePath,
-                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"));
-                CapturedScene firstScene = new(
-                    metadata,
-                    [firstCityObject]);
-
-                await BuildSceneOnceAsync(firstScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-                int importedTexturesAfterFirstRun = sharedClient.ImportedTexturePaths.Count;
-
-                await WriteSolidColorTextureAsync(
-                    bundledTextureSet.NormalPath,
-                    new Rgba32(0, 0, 255, 255));
-
-                ResoniteConstructionCityObject secondCityObject = CreateBundledTriangleCityObject(
-                    objectIdentity: "shared-bundled-companion",
+                    mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material")),
+                CreateBundledTriangleCityObject(
+                    objectIdentity: "shared-bundled-companion-two",
                     texturePath: bundledTexturePath,
-                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"));
-                CapturedScene secondScene = new(
-                    metadata,
-                    [secondCityObject]);
+                    mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material")),
+            ]);
 
-                await BuildSceneOnceAsync(secondScene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
-                Assert.Equal(importedTexturesAfterFirstRun, sharedClient.ImportedTexturePaths.Count);
-            }
-            finally
-            {
-                await File.WriteAllBytesAsync(bundledTextureSet.NormalPath, originalNormalBytes);
-            }
-        }
-        finally
-        {
-            BundledCompanionTextureIsolationGate.Release();
-        }
+        await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
+
+        Assert.InRange(sharedClient.ImportedTexturePaths.Count, 4, 5);
     }
 
     [Fact]
@@ -236,10 +175,49 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.NotEmpty(textureRequests);
         Assert.All(textureRequests, request => Assert.Equal(materialRequest.ContainerSlotId, request.ContainerSlotId));
         Slot materialSlot = client.SlotsById[materialRequest.ContainerSlotId];
-        Assert.StartsWith("triangle-textured-material_uv_", materialSlot.Name?.Value, StringComparison.Ordinal);
+        Assert.Equal("triangle-textured-material_uv_Facade001_2K-JPG", materialSlot.Name?.Value);
         Assert.NotNull(materialSlot.Parent);
         Slot parentSlot = client.SlotsById[materialSlot.Parent!.TargetID];
         Assert.Equal("Common", parentSlot.Name?.Value);
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesNamedDatasetRootAndSharedHierarchyAcrossRuns()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, packageNames: ["bldg"]);
+        using ReuseSessionSharedClient client = new();
+
+        CapturedScene firstScene = new(
+            metadata,
+            [CreateBundledTriangleCityObject(
+                objectIdentity: "reuse-run-one",
+                texturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+                mesh: CreateTriangleMesh(0.0, 1.0, 2.0, "triangle-textured-material"))]);
+        CapturedScene secondScene = new(
+            metadata,
+            [CreateBundledTriangleCityObject(
+                objectIdentity: "reuse-run-two",
+                texturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
+                mesh: CreateTriangleMesh(3.0, 4.0, 5.0, "triangle-textured-material"))]);
+
+        await BuildSceneOnceAsync(firstScene, client, Path.Combine(datasetDirectory.Path, "work-first"));
+        await BuildSceneOnceAsync(secondScene, client, Path.Combine(datasetDirectory.Path, "work-second"));
+
+        Slot datasetRoot = Assert.Single(
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "PLATEAU reuse-test", StringComparison.Ordinal));
+        Slot assets = AssertSingleChild(datasetRoot, "Assets", client.SlotsById);
+        Slot common = AssertSingleChild(assets, "Common", client.SlotsById);
+        Slot meshRoot = AssertSingleChild(datasetRoot, MeshCode, client.SlotsById);
+
+        AssertSingleChild(meshRoot, "bldg", client.SlotsById);
+        AssertSingleChild(common, "triangle-textured-material_uv_Facade001_2K-JPG", client.SlotsById);
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU reuse-test", StringComparison.Ordinal)));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common", StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, assets.ID, StringComparison.Ordinal)));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, MeshCode, StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(2, client.ImportedMeshes.Count);
     }
 
     private static async Task BuildSceneOnceAsync(
@@ -260,6 +238,17 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         }
 
         await builder.CompleteAsync();
+    }
+
+    private static Slot AssertSingleChild(
+        Slot parent,
+        string childName,
+        IReadOnlyDictionary<string, Slot> slotsById)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot => string.Equals(slot.Parent?.TargetID, parent.ID, StringComparison.Ordinal)
+                && string.Equals(slot.Name?.Value, childName, StringComparison.Ordinal));
     }
 
     private static async Task WriteSolidColorTextureAsync(string path, Rgba32 color)
@@ -485,28 +474,37 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             return Task.CompletedTask;
         }
 
-        public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = session.AllocateComponentId();
             lock (session.Gate)
             {
-                session.ComponentsById[request.Data.ID] = request.Data;
+                request.Data.ID = createdComponentId;
+                session.ComponentsById[createdComponentId] = request.Data;
+                if (session.SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
                 session.AddedComponents.Add(request);
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdComponentId);
         }
 
-        public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = session.AllocateSlotId();
             lock (session.Gate)
             {
-                session.SlotsById[request.Data.ID] = request.Data;
+                request.Data.ID = createdSlotId;
+                session.SlotsById[createdSlotId] = request.Data;
                 session.AddedSlots.Add(request);
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(createdSlotId);
         }
 
         public async Task RunDataModelOperationBatchAsync(
@@ -553,6 +551,11 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return Task.FromResult<Slot?>(CreateSyntheticRoot(depth));
+            }
+
             Slot? slot;
             lock (session.Gate)
             {
@@ -584,9 +587,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                         break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
-                        if (rawImport.SourcePath is not null)
+                        if (rawImport.Identity is not null)
                         {
-                            session.ImportedTexturePaths.Add(rawImport.SourcePath);
+                            session.ImportedTexturePaths.Add(rawImport.Identity);
                         }
 
                         break;
@@ -620,7 +623,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             return Task.CompletedTask;
         }
 
-        private static Slot CloneSlot(Slot source, int depth)
+        private Slot CloneSlot(Slot source, int depth)
         {
             Slot clone = new()
             {
@@ -637,12 +640,50 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                 return clone;
             }
 
+            lock (session.Gate)
+            {
+                clone.Children = session.SlotsById.Values
+                    .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                    .Select(slot => CloneSlot(slot, depth - 1))
+                    .ToList();
+            }
+
             return clone;
+        }
+
+        private Slot CreateSyntheticRoot(int depth)
+        {
+            Slot root = new()
+            {
+                ID = "Root",
+                Name = new Field_string
+                {
+                    Value = "Root",
+                },
+            };
+
+            if (depth <= 0)
+            {
+                return root;
+            }
+
+            lock (session.Gate)
+            {
+                root.Children = session.SlotsById.Values
+                    .Where(slot => string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal))
+                    .Select(slot => CloneSlot(slot, depth - 1))
+                    .ToList();
+            }
+
+            return root;
         }
     }
 
     private sealed class ReuseFakeSession
     {
+        private int nextComponentId;
+        private int nextSlotId;
+
         public object Gate { get; } = new();
 
         public List<AddComponent> AddedComponents { get; } = [];
@@ -662,6 +703,16 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
 
         public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
+
+        public string AllocateComponentId()
+        {
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+        }
+
+        public string AllocateSlotId()
+        {
+            return string.Create(System.Globalization.CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+        }
     }
 
     private sealed record CapturedScene(

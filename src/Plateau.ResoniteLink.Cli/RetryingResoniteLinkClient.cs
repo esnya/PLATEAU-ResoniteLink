@@ -61,18 +61,18 @@ internal sealed class RetryingResoniteLinkClient(
         throw lastException!;
     }
 
-    public Task AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
-        return ExecuteWithReconnectAsync(
+        return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.AddComponentAsync(state, ct),
             request,
             "AddComponent",
             cancellationToken);
     }
 
-    public Task AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
-        return ExecuteWithReconnectAsync(
+        return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.AddSlotAsync(state, ct),
             request,
             "AddSlot",
@@ -83,7 +83,7 @@ internal sealed class RetryingResoniteLinkClient(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
-        return ExecuteWithReconnectAsync(
+        return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.RunDataModelOperationBatchAsync(state, ct),
             operations,
             "RunDataModelOperationBatch",
@@ -110,7 +110,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        return ExecuteWithReconnectAsync(
+        return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.ImportMeshAsync(state, ct),
             request,
             "ImportMesh",
@@ -119,7 +119,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return ExecuteWithReconnectAsync(
+        return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
@@ -128,7 +128,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
     {
-        return ExecuteWithReconnectAsync(
+        return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.UpdateComponentAsync(state, ct),
             request,
             "UpdateComponent",
@@ -150,6 +150,52 @@ internal sealed class RetryingResoniteLinkClient(
             state,
             operationName,
             cancellationToken);
+    }
+
+    private async Task ExecuteWithoutReconnectAsync<TState>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task> operation,
+        TState state,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        await ExecuteWithoutReconnectAsync<TState, object?>(
+            async (client, innerState, ct) =>
+            {
+                await operation(client, innerState, ct);
+                return null;
+            },
+            state,
+            operationName,
+            cancellationToken);
+    }
+
+    private async Task<TResult> ExecuteWithoutReconnectAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        await operationGate.WaitAsync(cancellationToken);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await operation(inner, state, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            reporter?.Invoke(
+                $"[live][warn] ResoniteLink {operationName} failed without retry. "
+                + $"Reason: {exception.Message}");
+            throw;
+        }
+        finally
+        {
+            operationGate.Release();
+        }
     }
 
     [SuppressMessage(

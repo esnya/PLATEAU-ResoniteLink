@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
-using System.Text;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -20,28 +18,33 @@ internal interface ITerrainTextureAssetGenerator
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
-    private readonly ConcurrentDictionary<string, Lazy<Task<ResoniteRawTextureImport>>> cachedTextures = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<TerrainTextureOverlay, Lazy<Task<ResoniteRawTextureImport>>> cachedTextures = [];
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
-        string cacheKey = CreateCacheKey(terrainTextureOverlay);
 
         Lazy<Task<ResoniteRawTextureImport>> cachedTexture = cachedTextures.GetOrAdd(
-            cacheKey,
+            terrainTextureOverlay,
             _ => new Lazy<Task<ResoniteRawTextureImport>>(
-                () => CreateTextureAsync(terrainTextureOverlay, cancellationToken),
+                () => CreateTextureAsync(terrainTextureOverlay, CancellationToken.None),
                 LazyThreadSafetyMode.ExecutionAndPublication));
 
+        Task<ResoniteRawTextureImport> sharedTask = cachedTexture.Value;
         try
         {
-            return await cachedTexture.Value;
+            return await sharedTask.WaitAsync(cancellationToken);
         }
         catch
         {
-            cachedTextures.TryRemove(cacheKey, out _);
+            if (sharedTask.IsFaulted || sharedTask.IsCanceled)
+            {
+                cachedTextures.TryRemove(
+                    new KeyValuePair<TerrainTextureOverlay, Lazy<Task<ResoniteRawTextureImport>>>(terrainTextureOverlay, cachedTexture));
+            }
+
             throw;
         }
     }
@@ -77,7 +80,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             layoutPlan.CropHeight)));
 
         using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
-        return CreateRawTextureImport(outputImage);
+        return CreateRawTextureImport(outputImage, terrainTextureOverlay.TexturePath);
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
@@ -118,27 +121,15 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         return await Image.LoadAsync<Rgba32>(responseStream, cancellationToken);
     }
 
-    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image)
+    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image, string identity)
     {
         byte[] rawBytes = new byte[image.Width * image.Height * 4];
         image.CopyPixelDataTo(rawBytes);
-        return new ResoniteRawTextureImport(image.Width, image.Height, "sRGB", rawBytes);
-    }
-
-    private static string CreateCacheKey(TerrainTextureOverlay terrainTextureOverlay)
-    {
-        string fingerprint = string.Join(
-            "|",
-            terrainTextureOverlay.TexturePath,
-            terrainTextureOverlay.PackageName,
-            terrainTextureOverlay.UrlTemplate,
-            terrainTextureOverlay.ZoomLevel,
-            terrainTextureOverlay.GeographicBounds.MinLatitude,
-            terrainTextureOverlay.GeographicBounds.MaxLatitude,
-            terrainTextureOverlay.GeographicBounds.MinLongitude,
-            terrainTextureOverlay.GeographicBounds.MaxLongitude,
-            terrainTextureOverlay.MaxTextureSize);
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(fingerprint));
-        return Convert.ToHexString(hash);
+        return new ResoniteRawTextureImport(
+            image.Width,
+            image.Height,
+            "sRGB",
+            rawBytes,
+            identity);
     }
 }

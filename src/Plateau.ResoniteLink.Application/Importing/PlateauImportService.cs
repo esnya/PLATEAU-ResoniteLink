@@ -41,7 +41,7 @@ public sealed class PlateauImportService(
         try
         {
             Stopwatch connectStopwatch = Stopwatch.StartNew();
-            await sceneBuilder.EnsureConnectedAsync(resolvedRequest, cancellationToken);
+            await sceneBuilder.EnsureConnectedAsync(normalizedRequest, cancellationToken);
             connectStopwatch.Stop();
             ReportProgress(
                 $"[import] Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s.");
@@ -56,6 +56,7 @@ public sealed class PlateauImportService(
                 $"[import] Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s.");
 
             Stopwatch beginStopwatch = Stopwatch.StartNew();
+            ReportProgress("[import] Starting live scene initialization.");
             await sceneBuilder.BeginAsync(source.Metadata, workRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress($"[import] Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s.");
