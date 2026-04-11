@@ -111,8 +111,14 @@ public sealed class CliApplication
     {
         Action<string> reporter = static message =>
         {
+        };
+        PlateauLogLevel minimumLogLevel = options.VerboseLogging
+            ? PlateauLogLevel.Debug
+            : PlateauLogLevel.Info;
+        reporter = message =>
+        {
             string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
-            WriteLogLine(Console.Out, timestamp, message);
+            WriteLogLine(Console.Out, timestamp, message, minimumLogLevel);
         };
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
@@ -127,9 +133,19 @@ public sealed class CliApplication
             progressReporter: reporter);
     }
 
-    private static void WriteLogLine(TextWriter writer, string timestamp, string message)
+    private static void WriteLogLine(
+        TextWriter writer,
+        string timestamp,
+        string message,
+        PlateauLogLevel minimumLogLevel)
     {
-        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message);
+        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, GetLegacyDefaultLevel(message));
+
+        if (PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry filteredEntry)
+            && filteredEntry.Level < minimumLogLevel)
+        {
+            return;
+        }
 
         if (ReferenceEquals(writer, Console.Out)
             && !Console.IsOutputRedirected
@@ -146,6 +162,13 @@ public sealed class CliApplication
         }
 
         writer.WriteLine($"[{timestamp}] {normalizedMessage}");
+    }
+
+    private static PlateauLogLevel GetLegacyDefaultLevel(string message)
+    {
+        return message.StartsWith("[live]", StringComparison.Ordinal)
+            ? PlateauLogLevel.Debug
+            : PlateauLogLevel.Info;
     }
 
     private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)

@@ -36,6 +36,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.False(result.Options.EnableSendMetrics);
+        Assert.False(result.Options.VerboseLogging);
     }
 
     [Fact]
@@ -201,6 +202,27 @@ public sealed class CliArgumentsParserTests
             new Uri("https://example.invalid/plateau.zip"),
             result.Options.Request.ServerUri);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
+    }
+
+    [Fact]
+    public void ParseEnablesVerboseLoggingWhenRequested()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--verbose",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.True(result.Options!.VerboseLogging);
     }
 
     [Fact]

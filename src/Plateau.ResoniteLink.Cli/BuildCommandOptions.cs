@@ -7,4 +7,5 @@ public sealed record BuildCommandOptions(
     string WorkRoot,
     Uri? ResoniteLinkUri,
     int ResoniteLinkConnectionCount,
-    bool EnableSendMetrics);
+    bool EnableSendMetrics,
+    bool VerboseLogging);
