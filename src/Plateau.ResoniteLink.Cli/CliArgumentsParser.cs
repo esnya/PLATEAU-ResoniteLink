@@ -42,6 +42,7 @@ public static class CliArgumentsParser
           --resonitelink-connections <count>
                                                              Optional. Number of parallel ResoniteLink connections for live sends. Default: 4.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
+          --verbose              Optional. Include debug-level progress logs.
           -h, --help             Show this help text.
         """;
 
@@ -66,6 +67,7 @@ public static class CliArgumentsParser
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         bool enableSendMetrics = false;
+        bool verboseLogging = false;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
@@ -174,6 +176,9 @@ public static class CliArgumentsParser
                         }
                     case "--send-metrics":
                         enableSendMetrics = true;
+                        break;
+                    case "--verbose":
+                        verboseLogging = true;
                         break;
                     case "--source":
                         {
@@ -341,7 +346,8 @@ public static class CliArgumentsParser
                 workRoot,
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
-                enableSendMetrics));
+                enableSendMetrics,
+                verboseLogging));
     }
 
     private static string ReadValue(
