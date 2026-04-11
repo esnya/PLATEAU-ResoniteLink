@@ -2469,16 +2469,17 @@ public static partial class LocalCityGmlResonitePlanBuilder
             {
                 ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
                 foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(
-                        sourceFile.SourceFile,
-                        parsedSourceFile.CityObjects),
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject)))
+                    CreateGeometryProjectionContext(
+                        new CachedSourceFileDescriptor(
+                            sourceFile.SourceFile,
+                            parsedSourceFile.CityObjects),
+                        referenceSystem,
+                        globalOriginPoint,
+                        globalCartesian,
+                        demTerrainTextureOverlays,
+                        terrainHeightSampler,
+                        static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject)),
+                    request))
                 {
                     yield return cityObject;
                 }
@@ -2487,12 +2488,13 @@ public static partial class LocalCityGmlResonitePlanBuilder
             foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
             {
                 foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                    sourceFile,
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
+                    CreateGeometryProjectionContext(
+                        sourceFile,
+                        referenceSystem,
+                        globalOriginPoint,
+                        globalCartesian,
+                        demTerrainTextureOverlays,
+                        terrainHeightSampler),
                     request))
                 {
                     yield return cityObject;
@@ -2503,16 +2505,17 @@ public static partial class LocalCityGmlResonitePlanBuilder
             {
                 ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
                 foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(
-                        sourceFile.SourceFile,
-                        parsedSourceFile.CityObjects),
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    IsTerrainDependentCityObject))
+                    CreateGeometryProjectionContext(
+                        new CachedSourceFileDescriptor(
+                            sourceFile.SourceFile,
+                            parsedSourceFile.CityObjects),
+                        referenceSystem,
+                        globalOriginPoint,
+                        globalCartesian,
+                        demTerrainTextureOverlays,
+                        terrainHeightSampler,
+                        IsTerrainDependentCityObject),
+                    request))
                 {
                     yield return cityObject;
                 }
@@ -2653,14 +2656,15 @@ public static partial class LocalCityGmlResonitePlanBuilder
             cancellationToken.ThrowIfCancellationRequested();
 
             foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                         sourceFile,
-                         referenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         terrainHeightSampler,
-                         request,
-                         predicate))
+                         CreateGeometryProjectionContext(
+                             sourceFile,
+                             referenceSystem,
+                             globalOriginPoint,
+                             globalCartesian,
+                             demTerrainTextureOverlays,
+                             terrainHeightSampler,
+                             predicate),
+                         request))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await writer.WriteAsync(cityObject, cancellationToken);
@@ -2720,18 +2724,43 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
             cancellationToken.ThrowIfCancellationRequested();
             foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
-                         referenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         terrainHeightSampler,
+                         CreateGeometryProjectionContext(
+                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
+                             referenceSystem,
+                             globalOriginPoint,
+                             globalCartesian,
+                             demTerrainTextureOverlays,
+                             terrainHeightSampler),
                          request))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return cityObject;
             }
         }
+    }
+
+    private static LocalCityGmlGeometryProjectionContext CreateGeometryProjectionContext(
+        CachedSourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        Func<ParsedCityObject, bool>? predicate = null)
+    {
+        CachedSourceFileDescriptor projectedSourceFile = predicate is null
+            ? sourceFile
+            : new CachedSourceFileDescriptor(
+                sourceFile.SourceFile,
+                sourceFile.CityObjects.Where(predicate).ToArray());
+
+        return new LocalCityGmlGeometryProjectionContext(
+            new LocalCityGmlCachedSourceFileSnapshot(projectedSourceFile),
+            new LocalCityGmlReferenceSystemSnapshot(referenceSystem),
+            new LocalCityGmlGeodeticPointSnapshot(globalOriginPoint),
+            globalCartesian,
+            demTerrainTextureOverlays,
+            terrainHeightSampler is null ? null : new LocalCityGmlTerrainHeightSamplerSnapshot(terrainHeightSampler));
     }
 
     internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(

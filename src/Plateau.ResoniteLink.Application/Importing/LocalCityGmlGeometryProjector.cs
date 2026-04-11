@@ -9,6 +9,23 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
     public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+        LocalCityGmlGeometryProjectionContext projectionContext,
+        PlateauImportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(projectionContext);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return MaterializeLegacyCityObjects(
+            projectionContext.SourceFile.Legacy!,
+            projectionContext.ReferenceSystem.Legacy!,
+            projectionContext.GlobalOriginPoint.Legacy!,
+            projectionContext.GlobalCartesian,
+            projectionContext.DemTerrainTextureOverlays,
+            projectionContext.TerrainHeightSampler?.Legacy,
+            request);
+    }
+
+    private IEnumerable<ResoniteConstructionCityObject> MaterializeLegacyCityObjects(
         LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor sourceFile,
         LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem,
         LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,

@@ -21,6 +21,15 @@ public sealed class LocalCityGmlDocumentSet
         PackageNames = packageNames;
         TerrainTextureOverlays = terrainTextureOverlays;
         RequestedMeshCodes = requestedMeshCodes;
+        BootstrapState = new LocalCityGmlDocumentBootstrapState(
+            relativeSourceFiles,
+            packageNames,
+            terrainTextureOverlays,
+            requestedMeshCodes,
+            cachedDemSourceFiles.Select(static sourceFile => new LocalCityGmlCachedSourceFileSnapshot(sourceFile)).ToArray(),
+            new LocalCityGmlReferenceSystemSnapshot(referenceSystem),
+            new LocalCityGmlGeodeticPointSnapshot(globalOriginPoint),
+            terrainHeightSampler is null ? null : new LocalCityGmlTerrainHeightSamplerSnapshot(terrainHeightSampler));
         SourceFilePipelines = sourceFilePipelines;
         CachedDemSourceFiles = cachedDemSourceFiles;
         ReferenceSystem = referenceSystem;
@@ -37,6 +46,8 @@ public sealed class LocalCityGmlDocumentSet
     public IReadOnlyList<TerrainTextureOverlay> TerrainTextureOverlays { get; }
 
     public IReadOnlyList<string> RequestedMeshCodes { get; }
+
+    public LocalCityGmlDocumentBootstrapState BootstrapState { get; }
 
     internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] SourceFilePipelines { get; }
 
