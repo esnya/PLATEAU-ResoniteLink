@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
@@ -16,12 +17,15 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Plateau.ResoniteLink.Tests.Cli;
 
 [Collection(BundledCompanionTextureIsolationGroup.Name)]
+[Trait("Category", "Slow")]
 [SuppressMessage(
     "Reliability",
     "CA2000:Dispose objects before losing scope",
     Justification = "The test helper owns builder disposal for all streaming execution paths.")]
 public sealed class ResoniteLinkSceneBuilderTests
 {
+    private static readonly ConcurrentDictionary<PlateauImportRequest, CapturedResoniteScene> SceneCache = [];
+
     [Fact]
     public async Task BuildAsyncImportsAssetsAndBuildsLiveComponents()
     {
@@ -1550,6 +1554,34 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
         Assert.True(clients.All(client => client.ImportedMeshCount > 0));
         Assert.Equal(scene.CityObjects.Count, clients.Sum(client => client.ImportedMeshCount));
+    }
+
+    [Fact]
+    public async Task BuildAsyncReportsEachSentCityObjectAtInfoLevel()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        using FakeResoniteLinkClient fakeClient = new();
+        List<string> progressMessages = [];
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            progressReporter: progressMessages.Add);
+
+        await RunBuilderAsync(builder, scene);
+
+        string[] sentCityObjectMessages = progressMessages
+            .Where(static message => message.StartsWith("[live][info] Sent city object ", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(scene.CityObjects.Count, sentCityObjectMessages.Length);
     }
 
     [Fact]
@@ -4930,8 +4962,11 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private static CapturedResoniteScene LoadScene(PlateauImportRequest request)
     {
-        IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
-        return new CapturedResoniteScene(source.Metadata, source.ReadCityObjects().ToArray());
+        return SceneCache.GetOrAdd(request, static importRequest =>
+        {
+            IResoniteConstructionSource source = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(importRequest);
+            return new CapturedResoniteScene(source.Metadata, source.ReadCityObjects().ToArray());
+        });
     }
 
     private static ResoniteConstructionCityObject CreateDispatchTestCityObject(

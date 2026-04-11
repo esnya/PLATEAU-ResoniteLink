@@ -602,15 +602,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportProgress(
             $"[live] Sent city object {processedCount}: "
             + $"{preparedCityObject.CityObject.DisplayName} "
-            + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})");
+            + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
+            PlateauLogLevel.Info);
     }
 
     private void ReportProgress(string message)
     {
-        PlateauLogLevel defaultLevel = message.StartsWith("[live]", StringComparison.Ordinal)
+        ReportProgress(message, null);
+    }
+
+    private void ReportProgress(string message, PlateauLogLevel? defaultLevel)
+    {
+        PlateauLogLevel resolvedDefaultLevel = defaultLevel ?? (message.StartsWith("[live]", StringComparison.Ordinal)
             ? PlateauLogLevel.Debug
-            : PlateauLogLevel.Info;
-        progressReporter?.Invoke(PlateauLog.NormalizeLegacyMessage(message, defaultLevel));
+            : PlateauLogLevel.Info);
+        progressReporter?.Invoke(PlateauLog.NormalizeLegacyMessage(message, resolvedDefaultLevel));
     }
 
     private Task<PreparedCityObject> CreatePreparationTask(
