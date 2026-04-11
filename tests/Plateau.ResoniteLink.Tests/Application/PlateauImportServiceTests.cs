@@ -14,6 +14,7 @@ namespace Plateau.ResoniteLink.Tests.Application;
     "Reliability",
     "CA2000:Dispose objects before losing scope",
     Justification = "The tests intentionally hand ownership to PlateauImportService or helper methods.")]
+[Trait("Category", "Slow")]
 public sealed class PlateauImportServiceTests
 {
     [Fact]
@@ -60,6 +61,37 @@ public sealed class PlateauImportServiceTests
                 && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
                 && material.Projection == ResoniteMaterialProjection.Uv);
         Assert.Equal("stub://resonite", Assert.Single(result.Destinations));
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncUsesDatasetScopedWorkRoot()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+        using TemporaryDirectory workRoot = new();
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        string expectedDatasetRoot = Path.Combine(workRoot.Path, "tokyo23ku");
+        Assert.Equal(expectedDatasetRoot, Assert.Single(datasetSourceResolver.WorkRoots));
+        Assert.Equal(expectedDatasetRoot, Assert.Single(sceneBuilder.BeginWorkRoots));
     }
 
     [Fact]
@@ -1713,6 +1745,32 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncGuidesUserToArchiveWhenDatasetRootDirectoryIsPassedAsLocalSourcePath()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        string archivePath = Path.Combine(datasetRoot.Path, "source-archive-123456789abc.zip");
+        await File.WriteAllTextAsync(archivePath, string.Empty);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "14100-yokohama-shi",
+                    MeshCode: "53391570",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: datasetRoot.Path,
+                    ServerUri: null),
+                workRoot: "runtime/resonite"));
+
+        string message = Assert.Single(exception.Errors);
+        Assert.Contains($"mesh code '53391570' in '{datasetRoot.Path}'", message, StringComparison.Ordinal);
+        Assert.Contains($"'{archivePath}'", message, StringComparison.Ordinal);
+        Assert.Contains("contains udx/<package>/<mesh-code>/", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncRejectsUnsupportedPackagePatternWithValidationException()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -2187,14 +2245,14 @@ public sealed class PlateauImportServiceTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Resolved dataset source", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scene builder connection check completed", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scanned ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Parsed ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Prepared construction source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Resolved dataset source", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Scene builder connection check completed", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.Contains(" Scanned ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.Contains(" Parsed ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Prepared construction source", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization.", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Streamed ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scene builder completion finished", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Scene builder completion finished", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -2346,6 +2404,7 @@ public sealed class PlateauImportServiceTests
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<string> BeginWorkRoots { get; } = [];
         public int EnsureConnectedCallCount { get; private set; }
         public int DisposeCallCount { get; private set; }
         public PlateauImportRequest? LastEnsureConnectedRequest { get; private set; }
@@ -2376,6 +2435,7 @@ public sealed class PlateauImportServiceTests
         {
             ArgumentNullException.ThrowIfNull(metadata);
             ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
+            BeginWorkRoots.Add(workRoot);
             OnBegin?.Invoke();
             return Task.CompletedTask;
         }
@@ -2404,6 +2464,7 @@ public sealed class PlateauImportServiceTests
     private sealed class RecordingDatasetSourceResolver(PlateauImportRequest resolvedRequest) : IPlateauDatasetSourceResolver
     {
         public List<PlateauImportRequest> Requests { get; } = [];
+        public List<string> WorkRoots { get; } = [];
 
         public Task<PlateauImportRequest> ResolveAsync(
             PlateauImportRequest request,
@@ -2411,6 +2472,7 @@ public sealed class PlateauImportServiceTests
             CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            WorkRoots.Add(workRoot);
             return Task.FromResult(resolvedRequest);
         }
     }

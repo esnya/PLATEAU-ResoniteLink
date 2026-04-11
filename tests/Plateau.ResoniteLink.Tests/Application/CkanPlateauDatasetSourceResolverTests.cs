@@ -10,6 +10,7 @@ using SharpCompress.Writers.SevenZip;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
+[Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverTests
 {
     [Fact]
@@ -505,7 +506,13 @@ public sealed class CkanPlateauDatasetSourceResolverTests
     {
         Assert.NotNull(resolvedRequest.LocalSourcePath);
         Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
-        Assert.Equal(expectedArchiveFileName, Path.GetFileName(resolvedRequest.LocalSourcePath));
+        Assert.Equal(
+            Path.GetExtension(expectedArchiveFileName).ToLowerInvariant(),
+            Path.GetExtension(resolvedRequest.LocalSourcePath));
+        Assert.StartsWith(
+            "source-archive-",
+            Path.GetFileNameWithoutExtension(resolvedRequest.LocalSourcePath),
+            StringComparison.Ordinal);
 
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(resolvedRequest.LocalSourcePath);
         Assert.Contains(expectedRelativePath, datasetSource.EnumerateFiles());

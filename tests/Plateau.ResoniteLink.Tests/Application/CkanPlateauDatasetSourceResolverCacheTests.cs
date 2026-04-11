@@ -8,6 +8,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
+[Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverCacheTests
 {
     [Theory]
@@ -85,9 +86,10 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     }
 
     [Fact]
-    public async Task ResolveAsyncUsesUriHashInCachePathToAvoidFilenameCollisions()
+    public async Task ResolveAsyncUsesDistinctArchivePathsForDifferentSourceUrls()
     {
-        byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+        byte[] firstZipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>source-a</CityModel>"));
+        byte[] secondZipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel>source-b</CityModel>"));
         using TemporaryDirectory workRoot = new();
         using StubHttpMessageHandler handler = new(request =>
         {
@@ -97,7 +99,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
                     "https://example-a.test/533944.zip",
                     StringComparison.Ordinal))
             {
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(zipBytes) };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(firstZipBytes) };
             }
 
             if (request.RequestUri is not null
@@ -106,7 +108,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
                     "https://example-b.test/533944.zip",
                     StringComparison.Ordinal))
             {
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(zipBytes) };
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(secondZipBytes) };
             }
 
             return new HttpResponseMessage(HttpStatusCode.NotFound);
@@ -135,17 +137,22 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         Assert.NotNull(firstRequest.LocalSourcePath);
         Assert.NotNull(secondRequest.LocalSourcePath);
         Assert.NotEqual(firstRequest.LocalSourcePath, secondRequest.LocalSourcePath);
-        Assert.Equal("533944.zip", Path.GetFileName(firstRequest.LocalSourcePath));
-        Assert.Equal("533944.zip", Path.GetFileName(secondRequest.LocalSourcePath));
+        Assert.StartsWith(workRoot.Path, firstRequest.LocalSourcePath, StringComparison.Ordinal);
+        Assert.StartsWith(workRoot.Path, secondRequest.LocalSourcePath, StringComparison.Ordinal);
+        Assert.StartsWith("source-archive-", Path.GetFileNameWithoutExtension(firstRequest.LocalSourcePath), StringComparison.Ordinal);
+        Assert.StartsWith("source-archive-", Path.GetFileNameWithoutExtension(secondRequest.LocalSourcePath), StringComparison.Ordinal);
         Assert.True(File.Exists(firstRequest.LocalSourcePath));
         Assert.True(File.Exists(secondRequest.LocalSourcePath));
-        Assert.NotEqual(
-            Path.GetDirectoryName(firstRequest.LocalSourcePath),
-            Path.GetDirectoryName(secondRequest.LocalSourcePath));
+        Assert.Equal(
+            "<CityModel>source-a</CityModel>",
+            ReadZipEntry(firstRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
+        Assert.Equal(
+            "<CityModel>source-b</CityModel>",
+            ReadZipEntry(secondRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
     }
 
     [Fact]
-    public async Task ResolveAsyncReusesCachedArchiveAcrossMeshCodeChanges()
+    public async Task ResolveAsyncReusesDatasetScopedArchiveAcrossMeshCodeChanges()
     {
         byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
         int requestCount = 0;
@@ -187,18 +194,14 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     }
 
     [Fact]
-    public async Task ResolveAsyncMigratesLegacyMeshScopedCache()
+    public async Task ResolveAsyncUsesFixedMetadataPathNextToArchive()
     {
         byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
         using TemporaryDirectory workRoot = new();
         Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
-        string archiveHash = CreateArchiveCacheKey(archiveUri);
-        string legacyCacheRoot = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", "533944", archiveHash);
-        Directory.CreateDirectory(legacyCacheRoot);
-        string legacyArchivePath = Path.Combine(legacyCacheRoot, "533944.zip");
-        string legacyMetadataPath = $"{legacyArchivePath}.meta.json";
-        await File.WriteAllBytesAsync(legacyArchivePath, zipBytes);
-        await File.WriteAllTextAsync(legacyMetadataPath, """{"etag":"\"v1\"","lastModifiedUtc":"2026-01-01T00:00:00+00:00"}""");
+        string archivePath = GetExpectedArchivePath(workRoot.Path, archiveUri);
+        await File.WriteAllBytesAsync(archivePath, zipBytes);
+        await File.WriteAllTextAsync($"{archivePath}.meta.json", """{"etag":"\"v1\"","lastModifiedUtc":"2026-01-01T00:00:00+00:00"}""");
 
         using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotModified));
         using HttpClient httpClient = new(handler);
@@ -213,50 +216,9 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
                 ServerUri: archiveUri),
             workRoot.Path);
 
-        string newArchivePath = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", archiveHash, "533944.zip");
-        Assert.Equal(newArchivePath, resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(newArchivePath));
-        Assert.True(File.Exists($"{newArchivePath}.meta.json"));
-        Assert.False(Directory.Exists(legacyCacheRoot));
-    }
-
-    [Fact]
-    public async Task ResolveAsyncMigratesRegexRequestWithoutDeletingSiblingLegacyCaches()
-    {
-        byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
-        using TemporaryDirectory workRoot = new();
-        Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
-        string archiveHash = CreateArchiveCacheKey(archiveUri);
-        string legacyMeshRoot = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", "533944");
-        string legacyCacheRoot = Path.Combine(legacyMeshRoot, archiveHash);
-        Directory.CreateDirectory(legacyCacheRoot);
-        string legacyArchivePath = Path.Combine(legacyCacheRoot, "533944.zip");
-        string legacyMetadataPath = $"{legacyArchivePath}.meta.json";
-        await File.WriteAllBytesAsync(legacyArchivePath, zipBytes);
-        await File.WriteAllTextAsync(legacyMetadataPath, """{"etag":"\"v1\"","lastModifiedUtc":"2026-01-01T00:00:00+00:00"}""");
-
-        string siblingArchiveHash = CreateArchiveCacheKey(new Uri("https://example.test/other.zip", UriKind.Absolute));
-        string siblingLegacyCacheRoot = Path.Combine(legacyMeshRoot, siblingArchiveHash);
-        Directory.CreateDirectory(siblingLegacyCacheRoot);
-        await File.WriteAllTextAsync(Path.Combine(siblingLegacyCacheRoot, "other.zip"), "placeholder");
-
-        using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotModified));
-        using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
-
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394\\d",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: archiveUri),
-            workRoot.Path);
-
-        string newArchivePath = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", archiveHash, "533944.zip");
-        Assert.Equal(newArchivePath, resolvedRequest.LocalSourcePath);
-        Assert.True(File.Exists(newArchivePath));
-        Assert.True(Directory.Exists(siblingLegacyCacheRoot));
+        Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
+        Assert.True(File.Exists(archivePath));
+        Assert.True(File.Exists($"{archivePath}.meta.json"));
     }
 
     [Fact]
@@ -491,10 +453,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
         using TemporaryDirectory workRoot = new();
         Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
-        string archiveHash = CreateArchiveCacheKey(archiveUri);
-        string cacheRoot = Path.Combine(workRoot.Path, "cache", "remote", "tokyo23ku", archiveHash);
-        Directory.CreateDirectory(cacheRoot);
-        string archivePath = Path.Combine(cacheRoot, "533944.zip");
+        string archivePath = GetExpectedArchivePath(workRoot.Path, archiveUri);
+        Directory.CreateDirectory(workRoot.Path);
         await File.WriteAllBytesAsync(archivePath, zipBytes);
 
         using StubHttpMessageHandler handler = new(_ => throw new HttpRequestException("offline"));
@@ -544,7 +504,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     private static string CreateStaleMaterializedCacheDirectory(string workRoot, string localArchivePath)
     {
         string cacheName = GetMaterializedArchiveCacheKey(localArchivePath);
-        string materializedCachePath = Path.Combine(workRoot, ".generated-assets", ".dataset-cache", cacheName);
+        string materializedCachePath = Path.Combine(workRoot, "run", "stale-run", "materialized", cacheName);
         string staleFilePath = Path.Combine(materializedCachePath, "udx", "stale.dat");
         Directory.CreateDirectory(Path.GetDirectoryName(staleFilePath)!);
         File.WriteAllText(staleFilePath, "stale");
@@ -561,11 +521,13 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         return $"{fileStem}-{digest[..12]}";
     }
 
-    private static string CreateArchiveCacheKey(Uri archiveUri)
+    private static string GetExpectedArchivePath(string workRoot, Uri archiveUri)
     {
-        return Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.ToString())))
+        string extension = Path.GetExtension(archiveUri.LocalPath).ToLowerInvariant();
+        string digest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.AbsoluteUri)))
             .ToLowerInvariant();
+        return Path.Combine(workRoot, $"source-archive-{digest[..12]}{extension}");
     }
 
     private sealed class FailingHttpContent(byte[] content, int failAfterBytes) : HttpContent

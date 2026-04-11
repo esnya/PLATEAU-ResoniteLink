@@ -9,6 +9,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Plateau.ResoniteLink.Tests.Cli;
 
 [Collection(BundledCompanionTextureIsolationGroup.Name)]
+[Trait("Category", "Slow")]
 public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 {
     private const string DatasetName = "reuse-test";
@@ -67,7 +68,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
         string importedTexturePath = Assert.Single(sharedClient.ImportedTexturePaths);
-        Assert.Equal(Path.Combine(datasetDirectory.Path, texturePath), importedTexturePath);
+        Assert.Equal(texturePath, importedTexturePath);
+        ResoniteRawTextureImport importedRawTexture = Assert.Single(sharedClient.ImportedRawTextures);
+        Assert.Equal(texturePath, importedRawTexture.Identity);
     }
 
     [Fact]
@@ -528,7 +531,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TextureScale: textureScale),
+                    TextureScale: textureScale,
+                    AssetScope: ResoniteMaterialAssetScope.Common),
             ],
             SourceObjectKey: objectIdentity);
     }
@@ -708,7 +712,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public async Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
@@ -717,28 +721,56 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                 .OfType<AddSlot>()
                 .Where(static operation => !string.IsNullOrWhiteSpace(operation.Data.ID))
                 .ToDictionary(static operation => operation.Data.ID, _ => session.AllocateSlotId(), StringComparer.Ordinal);
+            Dictionary<string, string> localComponentIds = operations
+                .OfType<AddComponent>()
+                .Where(static operation => !string.IsNullOrWhiteSpace(operation.Data.ID))
+                .ToDictionary(static operation => operation.Data.ID, _ => session.AllocateComponentId(), StringComparer.Ordinal);
             lock (session.Gate)
             {
                 session.Batches.Add(operations.ToArray());
             }
 
+            List<Response> responses = [];
             foreach (DataModelOperation operation in operations)
             {
                 switch (operation)
                 {
                     case AddSlot addSlot:
-                        await AddSlotAsync(ResolveBatchAddSlot(addSlot, localSlotIds), cancellationToken);
+                        AddSlot resolvedAddSlot = ResolveBatchAddSlot(addSlot, localSlotIds);
+                        responses.Add(new NewEntityId
+                        {
+                            Success = true,
+                            SourceMessageID = addSlot.MessageID,
+                            EntityId = await AddSlotAsync(resolvedAddSlot, cancellationToken),
+                        });
                         break;
                     case AddComponent addComponent:
-                        await AddComponentAsync(ResolveBatchAddComponent(addComponent, localSlotIds), cancellationToken);
+                        AddComponent resolvedAddComponent = ResolveBatchAddComponent(addComponent, localSlotIds, localComponentIds);
+                        responses.Add(new NewEntityId
+                        {
+                            Success = true,
+                            SourceMessageID = addComponent.MessageID,
+                            EntityId = await AddComponentAsync(resolvedAddComponent, cancellationToken),
+                        });
                         break;
                     case UpdateComponent updateComponent:
                         await UpdateComponentAsync(updateComponent, cancellationToken);
+                        responses.Add(new Response
+                        {
+                            Success = true,
+                            SourceMessageID = updateComponent.MessageID,
+                        });
                         break;
                     default:
                         throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
                 }
             }
+
+            return new BatchResponse
+            {
+                Success = true,
+                Responses = responses,
+            };
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -850,18 +882,35 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
         private static AddComponent ResolveBatchAddComponent(
             AddComponent addComponent,
-            IReadOnlyDictionary<string, string> localSlotIds)
+            IReadOnlyDictionary<string, string> localSlotIds,
+            IReadOnlyDictionary<string, string> localComponentIds)
         {
             return new AddComponent
             {
+                MessageID = addComponent.MessageID,
                 ContainerSlotId = TryResolveLocalSlotId(addComponent.ContainerSlotId, localSlotIds),
-                Data = addComponent.Data,
+                Data = new Component
+                {
+                    ID = TryResolveLocalSlotId(addComponent.Data.ID, localComponentIds),
+                    ComponentType = addComponent.Data.ComponentType,
+                    Members = addComponent.Data.Members.ToDictionary(
+                        static pair => pair.Key,
+                        pair => pair.Value is Reference reference
+                            ? (Member)new Reference
+                            {
+                                TargetID = TryResolveLocalSlotId(
+                                    TryResolveLocalSlotId(reference.TargetID, localSlotIds),
+                                    localComponentIds),
+                            }
+                            : pair.Value,
+                        StringComparer.Ordinal),
+                },
             };
         }
 
-        private static string TryResolveLocalSlotId(string slotId, IReadOnlyDictionary<string, string> localSlotIds)
+        private static string TryResolveLocalSlotId(string slotId, IReadOnlyDictionary<string, string> localIds)
         {
-            return localSlotIds.TryGetValue(slotId, out string? resolvedSlotId)
+            return localIds.TryGetValue(slotId, out string? resolvedSlotId)
                 ? resolvedSlotId
                 : slotId;
         }

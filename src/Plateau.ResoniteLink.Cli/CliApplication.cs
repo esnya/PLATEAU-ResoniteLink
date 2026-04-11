@@ -111,9 +111,31 @@ public sealed class CliApplication
     {
         Action<string> reporter = static message =>
         {
-            string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
-            WriteLogLine(Console.Out, timestamp, message);
         };
+        PlateauLogLevel minimumLogLevel = options.VerboseLogging
+            ? PlateauLogLevel.Debug
+            : PlateauLogLevel.Info;
+        reporter = message =>
+        {
+            string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
+            WriteLogLine(Console.Out, timestamp, message, minimumLogLevel);
+        };
+        if (options.ResoniteLinkConnectionCount > 1)
+        {
+            reporter(
+                PlateauLog.Warning(
+                    "live",
+                    $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
+                    + "Use the default value 1 for reliable live sends."));
+        }
+        if (options.ResoniteLinkImportMeshTimeoutMilliseconds > 0)
+        {
+            reporter(
+                PlateauLog.Warning(
+                    "live",
+                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is diagnostic-only and experimental."));
+        }
+
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
             : ResoniteLinkSendDiagnostics.Disabled;
@@ -123,13 +145,25 @@ public sealed class CliApplication
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
                 diagnostics,
+                options.EnableMeshBake,
+                options.ResoniteLinkImportMeshTimeoutMilliseconds,
                 progressReporter: reporter),
             progressReporter: reporter);
     }
 
-    private static void WriteLogLine(TextWriter writer, string timestamp, string message)
+    private static void WriteLogLine(
+        TextWriter writer,
+        string timestamp,
+        string message,
+        PlateauLogLevel minimumLogLevel)
     {
-        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message);
+        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, PlateauLog.InferLegacyDefaultLevel(message));
+
+        if (PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry filteredEntry)
+            && filteredEntry.Level < minimumLogLevel)
+        {
+            return;
+        }
 
         if (ReferenceEquals(writer, Console.Out)
             && !Console.IsOutputRedirected
@@ -147,7 +181,6 @@ public sealed class CliApplication
 
         writer.WriteLine($"[{timestamp}] {normalizedMessage}");
     }
-
     private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)
     {
         return level switch

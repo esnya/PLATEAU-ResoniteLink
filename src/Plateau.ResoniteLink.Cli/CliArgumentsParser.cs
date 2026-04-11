@@ -36,12 +36,16 @@ public static class CliArgumentsParser
           --local-source-path <path>
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
           --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
-          --work-root <path>     Optional. Working directory for live-generated assets, remote download cache, and asset reuse state. Default: runtime/<os>/resonite.
+          --work-root <path>     Optional. Parent directory for dataset-local archive storage and live temporary files. Default: local.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
-                                                             Optional. Number of parallel ResoniteLink connections for live sends. Default: 4.
+                                                             Optional. Experimental parallel ResoniteLink connection count for live sends. Default: 1.
+          --resonitelink-import-mesh-timeout-ms <milliseconds>
+                                                            Optional. Experimental diagnostic timeout for ImportMesh. Default: 0 (disabled).
+          --no-mesh-bake       Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
+          --verbose              Optional. Include debug-level progress logs.
           -h, --help             Show this help text.
         """;
 
@@ -62,10 +66,13 @@ public static class CliArgumentsParser
         string? dataset = null;
         string? meshCode = null;
         string? localSourcePath = null;
-        string workRoot = Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite");
+        string workRoot = "local";
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
+        int resoniteLinkImportMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds;
+        bool enableMeshBake = true;
         bool enableSendMetrics = false;
+        bool verboseLogging = false;
         DatasetSourceKind sourceKind = DatasetSourceKind.Local;
         Uri? serverUri = null;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
@@ -172,8 +179,26 @@ public static class CliArgumentsParser
 
                             break;
                         }
+                    case "--resonitelink-import-mesh-timeout-ms":
+                        {
+                            string timeoutValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
+                            if (!int.TryParse(timeoutValue, out resoniteLinkImportMeshTimeoutMilliseconds)
+                                || resoniteLinkImportMeshTimeoutMilliseconds < 0)
+                            {
+                                return CliParseResult.Failure(
+                                    $"The value '{timeoutValue}' is not a valid ResoniteLink ImportMesh timeout.");
+                            }
+
+                            break;
+                        }
+                    case "--no-mesh-bake":
+                        enableMeshBake = false;
+                        break;
                     case "--send-metrics":
                         enableSendMetrics = true;
+                        break;
+                    case "--verbose":
+                        verboseLogging = true;
                         break;
                     case "--source":
                         {
@@ -341,7 +366,10 @@ public static class CliArgumentsParser
                 workRoot,
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
-                enableSendMetrics));
+                resoniteLinkImportMeshTimeoutMilliseconds,
+                enableMeshBake,
+                enableSendMetrics,
+                verboseLogging));
     }
 
     private static string ReadValue(
@@ -559,23 +587,4 @@ public static class CliArgumentsParser
             || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string GetCurrentOsDirectoryName()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return "windows";
-        }
-
-        if (OperatingSystem.IsLinux())
-        {
-            return "linux";
-        }
-
-        if (OperatingSystem.IsMacOS())
-        {
-            return "macos";
-        }
-
-        return "unknown";
-    }
 }

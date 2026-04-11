@@ -30,12 +30,13 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("53394525", result.Options.Request.MeshCode);
         Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
-        Assert.Equal(
-            Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
-            result.Options.WorkRoot);
+        Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(1, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(0, result.Options.ResoniteLinkImportMeshTimeoutMilliseconds);
+        Assert.True(result.Options.EnableMeshBake);
         Assert.False(result.Options.EnableSendMetrics);
+        Assert.False(result.Options.VerboseLogging);
     }
 
     [Fact]
@@ -204,6 +205,27 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseEnablesVerboseLoggingWhenRequested()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--verbose",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.True(result.Options!.VerboseLogging);
+    }
+
+    [Fact]
     public void ParseRejectsRemoteCommandWhenServerUrlIsNotDirectArchive()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -316,6 +338,62 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesResoniteLinkImportMeshTimeout()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-import-mesh-timeout-ms",
+                "45000",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(45000, result.Options!.ResoniteLinkImportMeshTimeoutMilliseconds);
+    }
+
+    [Fact]
+    public void ParseRejectsInvalidResoniteLinkImportMeshTimeout()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-import-mesh-timeout-ms",
+                "-1",
+            ]);
+
+        Assert.Equal("The value '-1' is not a valid ResoniteLink ImportMesh timeout.", result.Error);
+    }
+
+    [Fact]
+    public void HelpTextDocumentsExperimentalResoniteLinkConnections()
+    {
+        Assert.Contains(
+            "Experimental parallel ResoniteLink connection count for live sends. Default: 1.",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Optional. Experimental diagnostic timeout for ImportMesh. Default: 0 (disabled).",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ParseRejectsNumericDemTerrainMode()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -356,6 +434,27 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         Assert.True(result.Options!.EnableSendMetrics);
+    }
+
+    [Fact]
+    public void ParseDisablesMeshBakeWhenRequested()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--no-mesh-bake",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.False(result.Options!.EnableMeshBake);
     }
 
     [Fact]
@@ -443,25 +542,5 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("Specify either --resonitelink-port or --resonitelink-url.", result.Error);
-    }
-
-    private static string GetCurrentOsDirectoryName()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return "windows";
-        }
-
-        if (OperatingSystem.IsLinux())
-        {
-            return "linux";
-        }
-
-        if (OperatingSystem.IsMacOS())
-        {
-            return "macos";
-        }
-
-        return "unknown";
     }
 }

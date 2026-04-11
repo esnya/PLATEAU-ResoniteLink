@@ -8,29 +8,24 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
-- Build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full request completes.
+- After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 
 ## Runtime And Prerequisites
 
 - Target runtime: .NET SDK 10. Release assets also require .NET 10.
 - A running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url` is required.
-- Live adapter asset import currently uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures.
+- Live adapter asset import uses `ImportMesh(ImportMeshRawData)` for meshes. Textures stay on file import only for direct image assets such as bundled common materials, while dataset-derived or generated textures use `ImportTexture` raw payloads.
+- ResoniteLink entity IDs are treated as session-scoped opaque values. For successful create operations, the resolved `Response` ID is authoritative within the session; requested IDs are only batch-local hints for per-cityObject DataModel batches, must not be persisted or reused across sessions, and reuse discovery is handled separately from create confirmation.
 
 ## Quick Start
 
-Restore dependencies:
+Before opening or updating a pull request, run the canonical repository verification command:
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln
+bash scripts/verify-ci.sh
 ```
 
-For Codex Cloud or similar ephemeral environments, use:
-
-```bash
-./scripts/setup-codex-cloud.sh
-```
-
-That script bootstraps .NET 10 when needed, then runs the repository verification flow.
+For contributor workflow details, environment bootstrap guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Usage
 
@@ -58,15 +53,17 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search. Validate formatting, analyzers, build, and tests with:
+`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search.
 
-```bash
-bash scripts/verify-ci.sh
-```
+By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
+
+When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`.
 
 ## Further Reading
 
+- Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Product requirements: [docs/requirements.md](docs/requirements.md)
+- Live validation workflow: [docs/live-testing.md](docs/live-testing.md)
 
 ## License And Provenance
 

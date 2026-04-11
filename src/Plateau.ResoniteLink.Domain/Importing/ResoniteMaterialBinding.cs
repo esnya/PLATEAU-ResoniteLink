@@ -11,4 +11,5 @@ public sealed record ResoniteMaterialBinding(
     IReadOnlyList<int> SubmeshIndices,
     ResoniteFloat2? TextureScale = null,
     string? Family = null,
-    ResoniteFloat2? TextureOffset = null);
+    ResoniteFloat2? TextureOffset = null,
+    ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped);

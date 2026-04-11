@@ -23,13 +23,16 @@ release label は必須ではありませんが、付けておくと生成ノー
 
 label がない PR は、生成される release notes の catch-all である `Other changes` section に入ります。
 
-`dotnet` がない Codex Cloud / 一時環境では、`./scripts/setup-codex-cloud.sh` を実行すると SDK 10 の bootstrap と標準チェックをまとめて実行できます。
-
-可能なら次を実行してください。
+正本となる検証コマンドは次です。
 
 ```bash
-dotnet format whitespace . --folder --verify-no-changes
-dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false
+bash scripts/verify-ci.sh
 ```
+
+この script が repository 所有の検証フローです。ほかの文書では内部の restore / format / build / test 手順を複写したり順序を並べ替えたりせず、この script を参照してください。
+
+Codex Cloud / 一時環境で、PATH 上に互換な .NET 10 SDK が無い場合は、先に `./scripts/setup-codex-cloud.sh` を実行してください。この helper はそのような環境を bootstrap したうえで `bash scripts/verify-ci.sh` へ処理を渡すためのものです。
+
+大きな repository-improvement plan を一時的に保持したい場合は、`.tmp/plans/` 配下に置き、untracked のまま維持してください。その領域を canonical documentation として扱わず、active docs から現行運用の案内としてリンクせず、採用した結論だけを tracked documentation と review 成果物へ反映してください。
 
 PR の説明には、何を変えたか、なぜ変えたか、残っている limitation や follow-up work があれば書いてください。

@@ -1,8 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 using Plateau.ResoniteLink.Domain.Importing;
@@ -55,29 +52,20 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 [$"The direct archive URL '{remoteSource.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
         }
 
+        _ = WorkRootLayout.CreateSafePathSegment(request.Dataset);
+        _ = TryCreateSafePathSegment(request.MeshCode, out _);
+
         Uri archiveUri = remoteSource.ServerUri;
 
-        string safeDataset = CreateSafePathSegment(request.Dataset);
-        string archiveCacheKey = CreateArchiveCacheKey(archiveUri);
-        string cacheRoot = GetArchiveCacheRoot(workRoot, safeDataset, archiveCacheKey);
-        if (TryCreateSafePathSegment(request.MeshCode, out string? safeMeshCode))
-        {
-            TryMigrateLegacyArchiveCache(workRoot, safeDataset, safeMeshCode!, archiveCacheKey, cacheRoot);
-        }
-        else
-        {
-            TryMigrateLegacyArchiveCacheForRegex(workRoot, safeDataset, archiveCacheKey, cacheRoot);
-        }
-
-        Directory.CreateDirectory(cacheRoot);
-
         string archiveFileName = GetArchiveFileName(archiveUri);
-        string archivePath = Path.Combine(cacheRoot, archiveFileName);
-        string archiveMetadataPath = $"{archivePath}.{CreateArchiveMetadataFileName()}";
+        string archivePath = WorkRootLayout.GetSourceArchivePath(workRoot, archiveUri, archiveFileName);
+        string archiveMetadataPath = WorkRootLayout.GetSourceArchiveMetadataPath(archivePath);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
 
         if (File.Exists(archivePath))
         {
-            if (await TryReuseCachedArchiveAsync(archiveUri, archivePath, archiveMetadataPath, cancellationToken))
+            if (await TryReuseCachedArchiveAsync(workRoot, archiveUri, archivePath, archiveMetadataPath, cancellationToken))
             {
                 return request with
                 {
@@ -86,7 +74,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             }
         }
 
-        await DownloadArchiveAsync(archiveUri, archivePath, archiveMetadataPath, cancellationToken);
+        await DownloadArchiveAsync(workRoot, archiveUri, archivePath, archiveMetadataPath, cancellationToken);
 
         return request with
         {
@@ -95,6 +83,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
     }
 
     private async Task<bool> TryReuseCachedArchiveAsync(
+        string datasetRoot,
         Uri archiveUri,
         string archivePath,
         string metadataPath,
@@ -104,6 +93,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         if (metadata is null || (metadata.ETag is null && metadata.LastModifiedUtc is null))
         {
             return await TryRefreshCachedArchiveWithoutMetadataAsync(
+                datasetRoot,
                 archiveUri,
                 archivePath,
                 metadataPath,
@@ -138,7 +128,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
             response.EnsureSuccessStatusCode();
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateMaterializedCache(archivePath);
+            InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
             return true;
         }
         catch (HttpRequestException) when (File.Exists(archivePath))
@@ -148,6 +138,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
     }
 
     private async Task<bool> TryRefreshCachedArchiveWithoutMetadataAsync(
+        string datasetRoot,
         Uri archiveUri,
         string archivePath,
         string metadataPath,
@@ -161,7 +152,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 cancellationToken);
             response.EnsureSuccessStatusCode();
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateMaterializedCache(archivePath);
+            InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
             return true;
         }
         catch (HttpRequestException) when (File.Exists(archivePath))
@@ -171,6 +162,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
     }
 
     private async Task DownloadArchiveAsync(
+        string datasetRoot,
         Uri archiveUri,
         string archivePath,
         string metadataPath,
@@ -183,53 +175,33 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         response.EnsureSuccessStatusCode();
 
         await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-        InvalidateMaterializedCache(archivePath);
+        InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
     }
 
-    private static void InvalidateMaterializedCache(string archivePath)
+    private static void InvalidateTemporaryMaterializedFiles(string datasetRoot, string archivePath)
     {
-        string? cacheDirectory = Path.GetDirectoryName(archivePath);
-        while (!string.IsNullOrWhiteSpace(cacheDirectory))
+        string runRoot = Path.Combine(Path.GetFullPath(datasetRoot), "run");
+        if (!Directory.Exists(runRoot))
         {
-            if (string.Equals(Path.GetFileName(cacheDirectory), "cache", StringComparison.Ordinal))
-            {
-                string? workRoot = Path.GetDirectoryName(cacheDirectory);
-                if (string.IsNullOrWhiteSpace(workRoot))
-                {
-                    return;
-                }
-
-                InvalidateMaterializedCacheUnder(workRoot, archivePath);
-                return;
-            }
-
-            cacheDirectory = Path.GetDirectoryName(cacheDirectory);
+            return;
         }
-    }
 
-    private static void InvalidateMaterializedCacheUnder(string workRoot, string archivePath)
-    {
-        foreach (string archiveCacheName in PlateauDatasetContentSourceFactory.GetMaterializedArchiveCacheKeys(archivePath))
+        string archiveCacheName = WorkRootLayout.GetMaterializedArchiveCacheKey(archivePath);
+        try
         {
-            TryDeleteDirectory(Path.Combine(workRoot, ".dataset-cache", archiveCacheName));
-            TryDeleteDirectory(Path.Combine(workRoot, ".generated-assets", ".dataset-cache", archiveCacheName));
-
-            try
+            foreach (string materializedRoot in Directory.EnumerateDirectories(
+                         runRoot,
+                         "materialized",
+                         SearchOption.AllDirectories))
             {
-                foreach (string materializedCacheRoot in Directory.EnumerateDirectories(
-                             workRoot,
-                             ".dataset-cache",
-                             SearchOption.AllDirectories))
-                {
-                    TryDeleteDirectory(Path.Combine(materializedCacheRoot, archiveCacheName));
-                }
+                TryDeleteDirectory(Path.Combine(materializedRoot, archiveCacheName));
             }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 
@@ -367,8 +339,6 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
     }
 
-    private static string CreateArchiveMetadataFileName() => "meta.json";
-
     private static bool LooksLikeSupportedArchiveUri(Uri uri)
     {
         return TryGetArchiveKind(uri.AbsolutePath, out _);
@@ -386,35 +356,11 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         return fileName;
     }
 
-    private static string CreateSafePathSegment(string value)
-    {
-        string normalized = value.Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
-        }
-
-        char[] invalidCharacters = Path.GetInvalidFileNameChars();
-        invalidCharacters = invalidCharacters
-            .Concat(new[] { '/', '\\', Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar })
-            .Distinct()
-            .ToArray();
-
-        if (normalized.IndexOfAny(invalidCharacters) >= 0
-            || normalized.Equals("..", StringComparison.Ordinal)
-            || normalized.Equals(".", StringComparison.Ordinal))
-        {
-            throw new PlateauImportValidationException([$"Invalid path segment '{value}'."]);
-        }
-
-        return normalized;
-    }
-
     private static bool TryCreateSafePathSegment(string value, out string? safePathSegment)
     {
         try
         {
-            safePathSegment = CreateSafePathSegment(value);
+            safePathSegment = WorkRootLayout.CreateSafePathSegment(value);
             return true;
         }
         catch (PlateauImportValidationException)
@@ -441,117 +387,6 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             || normalized.Contains("..\\", StringComparison.Ordinal)
             || normalized.StartsWith("./", StringComparison.Ordinal)
             || normalized.StartsWith(".\\", StringComparison.Ordinal);
-    }
-
-    private static string CreateArchiveCacheKey(Uri archiveUri)
-    {
-        byte[] digest = SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.ToString()));
-
-        StringBuilder builder = new(capacity: digest.Length * 2);
-        for (int index = 0; index < digest.Length; index++)
-        {
-            _ = builder.Append(digest[index].ToString("x2", CultureInfo.InvariantCulture));
-        }
-
-        return builder.ToString();
-    }
-
-    private static string GetArchiveCacheRoot(string workRoot, string safeDataset, string archiveCacheKey)
-    {
-        return Path.GetFullPath(Path.Combine(
-            workRoot,
-            "cache",
-            "remote",
-            safeDataset,
-            archiveCacheKey));
-    }
-
-    private static string GetLegacyArchiveCacheRoot(
-        string workRoot,
-        string safeDataset,
-        string safeMeshCode,
-        string archiveCacheKey)
-    {
-        return Path.GetFullPath(Path.Combine(
-            workRoot,
-            "cache",
-            "remote",
-            safeDataset,
-            safeMeshCode,
-            archiveCacheKey));
-    }
-
-    private static void TryMigrateLegacyArchiveCache(
-        string workRoot,
-        string safeDataset,
-        string safeMeshCode,
-        string archiveCacheKey,
-        string cacheRoot)
-    {
-        if (Directory.Exists(cacheRoot))
-        {
-            return;
-        }
-
-        string legacyCacheRoot = GetLegacyArchiveCacheRoot(workRoot, safeDataset, safeMeshCode, archiveCacheKey);
-        if (!Directory.Exists(legacyCacheRoot))
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(cacheRoot)!);
-        Directory.Move(legacyCacheRoot, cacheRoot);
-        TryDeleteEmptyDirectory(Path.GetDirectoryName(legacyCacheRoot));
-    }
-
-    private static void TryMigrateLegacyArchiveCacheForRegex(
-        string workRoot,
-        string safeDataset,
-        string archiveCacheKey,
-        string cacheRoot)
-    {
-        if (Directory.Exists(cacheRoot))
-        {
-            return;
-        }
-
-        string datasetCacheRoot = Path.GetFullPath(Path.Combine(workRoot, "cache", "remote", safeDataset));
-        if (!Directory.Exists(datasetCacheRoot))
-        {
-            return;
-        }
-
-        string? legacyCacheRoot = Directory
-            .EnumerateDirectories(datasetCacheRoot)
-            .Select(directory => Path.Combine(directory, archiveCacheKey))
-            .FirstOrDefault(Directory.Exists);
-        if (legacyCacheRoot is null)
-        {
-            return;
-        }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(cacheRoot)!);
-        Directory.Move(legacyCacheRoot, cacheRoot);
-        TryDeleteEmptyDirectory(Path.GetDirectoryName(legacyCacheRoot));
-    }
-
-    private static void TryDeleteEmptyDirectory(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
-        {
-            return;
-        }
-
-        try
-        {
-            Directory.Delete(path, recursive: false);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
     }
 
     private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)

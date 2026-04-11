@@ -12,7 +12,7 @@ internal interface IResoniteLinkClient : IDisposable
 
     Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
 
-    Task RunDataModelOperationBatchAsync(
+    Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken);
 
@@ -76,7 +76,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         return ValidateCreatedEntityId(response.EntityId, "slot");
     }
 
-    public async Task RunDataModelOperationBatchAsync(
+    public async Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
@@ -84,7 +84,11 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(operations);
         if (operations.Count == 0)
         {
-            return;
+            return new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            };
         }
 
         BatchResponse response = await link.RunDataModelOperationBatch(operations.ToList());
@@ -95,6 +99,8 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
                     ? "ResoniteLink batch operation failed."
                     : $"ResoniteLink batch operation failed: {response.ErrorInfo}");
         }
+
+        return response;
     }
 
     public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)

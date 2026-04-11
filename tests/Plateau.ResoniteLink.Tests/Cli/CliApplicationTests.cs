@@ -95,6 +95,63 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncPassesMeshBakeDisableOptionToFactory()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        BuildCommandOptions? capturedOptions = null;
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            options =>
+            {
+                capturedOptions = options;
+                return new PlateauImportService(new StubSceneBuilder());
+            });
+
+        int exitCode = await application.RunAsync(
+            [
+                ..BuildLiveArgs(fixturePath),
+                "--no-mesh-bake",
+            ]);
+
+        Assert.Equal(0, exitCode);
+        Assert.NotNull(capturedOptions);
+        Assert.False(capturedOptions!.EnableMeshBake);
+    }
+
+    [Fact]
+    public async Task RunAsyncPassesImportMeshTimeoutOptionToFactory()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        BuildCommandOptions? capturedOptions = null;
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            options =>
+            {
+                capturedOptions = options;
+                return new PlateauImportService(new StubSceneBuilder());
+            });
+
+        int exitCode = await application.RunAsync(
+            [
+                ..BuildLiveArgs(fixturePath),
+                "--resonitelink-import-mesh-timeout-ms",
+                "45000",
+            ]);
+
+        Assert.Equal(0, exitCode);
+        Assert.NotNull(capturedOptions);
+        Assert.Equal(45000, capturedOptions!.ResoniteLinkImportMeshTimeoutMilliseconds);
+    }
+
+    [Fact]
     public async Task RunAsyncPropagatesCancellation()
     {
         using StringWriter standardOutput = new();

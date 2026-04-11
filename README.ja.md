@@ -8,29 +8,24 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
-- dataset / mesh-code branch を段階的に構築し、全処理完了前から Resonite 側に取り込み結果を出し始める。
+- source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 
 ## Runtime And Prerequisites
 
 - 対象 runtime は .NET SDK 10。release asset の実行にも .NET 10 が必要。
 - `--resonitelink-port` または `--resonitelink-url` で到達できる ResoniteLink listener が必要。
-- live adapter の asset import は現在、mesh に `ImportMesh(ImportMeshRawData)`、texture に `ImportTexture(ImportTexture2DFile)` を使います。
+- live adapter の asset import は mesh に `ImportMesh(ImportMeshRawData)` を使います。texture は bundled common material のような元から画像ファイルとして持つ asset だけ file import を維持し、dataset 由来または生成された texture は `ImportTexture` の raw payload を使います。
+- ResoniteLink の entity ID は session-scoped な opaque value として扱います。create が成功した場合、その session 内で正規 ID として扱うのは resolve 済み `Response` の ID です。requested ID は cityObject 単位の DataModel batch 内で使う参照ヒントに限定し、別 session へ永続化・再利用してはいけません。既存 entity の reuse 探索は、新規 create の確認とは別の仕組みとして扱います。
 
 ## Quick Start
 
-まず依存関係を復元します。
+pull request を作成または更新する前に、repository の正本となる検証コマンドを実行します。
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln
+bash scripts/verify-ci.sh
 ```
 
-Codex Cloud のような一時環境では次を使います。
-
-```bash
-./scripts/setup-codex-cloud.sh
-```
-
-この script は必要なら .NET 10 を bootstrap し、その後 repository の verify flow を実行します。
+contributor workflow、環境 bootstrap、検証フローの ownership は [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md) を参照してください。
 
 ## Usage
 
@@ -58,15 +53,17 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。formatting、analyzer、build、test の検証は次を使います。
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。
 
-```bash
-bash scripts/verify-ci.sh
-```
+CLI は既定でマイルストーン級の進捗だけを表示し、file ごとの詳細や live-send trace は隠します。debug レベルの import / ResoniteLink trace が必要なときは `--verbose` を付けてください。
 
-## Further Reading
+`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。
 
-- Product requirements: [docs/requirements.ja.md](docs/requirements.ja.md)
+## 参考資料
+
+- contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)
+- product requirements: [docs/requirements.ja.md](docs/requirements.ja.md)
+- live validation workflow: [docs/live-testing.ja.md](docs/live-testing.ja.md)
 
 ## License And Provenance
 

@@ -7,6 +7,7 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
+[Trait("Category", "Slow")]
 public sealed class ResoniteLinkSceneBuilderYOffsetTests
 {
     [Fact]
@@ -40,7 +41,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         Field_float3 datasetPosition = Assert.IsType<Field_float3>(datasetSlot.Position);
         Assert.Equal(0.0f, datasetPosition.Value.y);
 
-        Slot meshRootSlot = FindSlotByNameUnderAncestor(
+        Slot meshRootSlot = FindDirectChildSlotByName(
             fakeClient.SlotsById,
             datasetSlot.ID,
             meshCode);
@@ -159,8 +160,9 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         await builder.ProcessCityObjectAsync(buildingCityObject);
         _ = await builder.CompleteAsync();
 
-        Slot demRootSlot = FindSlotByName(fakeClient.SlotsById, "533945");
-        Slot buildingRootSlot = FindSlotByName(fakeClient.SlotsById, requestedMeshCode);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, $"PLATEAU {dataset}");
+        Slot demRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "533945");
+        Slot buildingRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, requestedMeshCode);
         Slot demCityObjectSlot = FindSlotByNameUnderAncestor(
             fakeClient.SlotsById,
             demRootSlot.ID,
@@ -232,8 +234,9 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         await builder.ProcessCityObjectAsync(detailedMeshBuilding);
         _ = await builder.CompleteAsync();
 
-        Slot parentRootSlot = FindSlotByName(fakeClient.SlotsById, "533945");
-        Slot detailedRootSlot = FindSlotByName(fakeClient.SlotsById, requestedMeshCode);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, $"PLATEAU {dataset}");
+        Slot parentRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "533945");
+        Slot detailedRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, requestedMeshCode);
         Slot parentCityObjectSlot = FindSlotByNameUnderAncestor(
             fakeClient.SlotsById,
             parentRootSlot.ID,
@@ -307,9 +310,10 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         IReadOnlyDictionary<string, Slot> slotsById,
         string slotName)
     {
-        return Assert.Single(
-            slotsById.Values,
-            slot => string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal));
+        Slot[] matches = slotsById.Values
+            .Where(slot => string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal))
+            .ToArray();
+        return SelectPreferredSlot(slotsById, matches);
     }
 
     private static Slot FindSlotByNameUnderAncestor(
@@ -317,11 +321,63 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         string ancestorSlotId,
         string slotName)
     {
+        Slot[] matches = slotsById.Values
+            .Where(slot =>
+                string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
+                && IsDescendantOfNonAssetPath(slotsById, slot, ancestorSlotId))
+            .ToArray();
+        return SelectPreferredSlot(slotsById, matches);
+    }
+
+    private static Slot SelectPreferredSlot(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        Slot[] matches)
+    {
+        if (matches.Length == 1)
+        {
+            return matches[0];
+        }
+
+        Slot[] positionedMatches = matches.Where(static slot => slot.Position is not null).ToArray();
+        if (positionedMatches.Length == 1)
+        {
+            return positionedMatches[0];
+        }
+
+        Slot[] componentRichMatches = matches
+            .OrderByDescending(static slot => slot.Components?.Count ?? 0)
+            .ToArray();
+        if ((componentRichMatches[0].Components?.Count ?? 0) > (componentRichMatches[1].Components?.Count ?? 0))
+        {
+            return componentRichMatches[0];
+        }
+
+        Slot[] descendantRichMatches = matches
+            .OrderByDescending(slot => CountDescendants(slotsById, slot.ID))
+            .ToArray();
+        if (CountDescendants(slotsById, descendantRichMatches[0].ID) > CountDescendants(slotsById, descendantRichMatches[1].ID))
+        {
+            return descendantRichMatches[0];
+        }
+
+        return Assert.Single(matches);
+    }
+
+    private static int CountDescendants(IReadOnlyDictionary<string, Slot> slotsById, string slotId)
+    {
+        return slotsById.Values.Count(slot => IsDescendantOf(slotsById, slot, slotId));
+    }
+
+    private static Slot FindDirectChildSlotByName(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string parentSlotId,
+        string slotName)
+    {
         return Assert.Single(
             slotsById.Values,
             slot =>
                 string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
-                && IsDescendantOf(slotsById, slot, ancestorSlotId));
+                && string.Equals(slot.Parent?.TargetID, parentSlotId, StringComparison.Ordinal));
     }
 
     private static bool IsDescendantOf(
@@ -335,6 +391,30 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             if (string.Equals(parentSlot.ID, ancestorSlotId, StringComparison.Ordinal))
             {
                 return true;
+            }
+
+            parent = parentSlot.Parent;
+        }
+
+        return false;
+    }
+
+    private static bool IsDescendantOfNonAssetPath(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        Slot slot,
+        string ancestorSlotId)
+    {
+        Reference? parent = slot.Parent;
+        while (parent is not null && slotsById.TryGetValue(parent.TargetID, out Slot? parentSlot))
+        {
+            if (string.Equals(parentSlot.ID, ancestorSlotId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(parentSlot.Name?.Value, "Assets", StringComparison.Ordinal))
+            {
+                return false;
             }
 
             parent = parentSlot.Parent;
@@ -396,12 +476,86 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             ]);
     }
 
-    private static IReadOnlyList<DataModelOperation> ResolveBatchLocalSlotReferences(
+    private static List<DataModelOperation> ResolveBatchLocalSlotReferences(
         IReadOnlyList<DataModelOperation> operations,
-        Func<string> allocateSlotId)
+        Func<string> allocateSlotId,
+        Func<string> allocateComponentId)
     {
-        _ = allocateSlotId;
-        return operations;
+        Dictionary<string, string> canonicalIdsByLocalId = new(StringComparer.Ordinal);
+        List<DataModelOperation> resolved = new(operations.Count);
+        foreach (DataModelOperation operation in operations)
+        {
+            switch (operation)
+            {
+                case AddSlot addSlot:
+                    {
+                        string canonicalSlotId = allocateSlotId();
+                        if (!string.IsNullOrWhiteSpace(addSlot.Data.ID))
+                        {
+                            canonicalIdsByLocalId[addSlot.Data.ID] = canonicalSlotId;
+                        }
+
+                        resolved.Add(
+                            new AddSlot
+                            {
+                                MessageID = addSlot.MessageID,
+                                Data = new Slot
+                                {
+                                    ID = canonicalSlotId,
+                                    Parent = addSlot.Data.Parent is null
+                                        ? null
+                                        : new Reference
+                                        {
+                                            TargetID = canonicalIdsByLocalId.GetValueOrDefault(
+                                                addSlot.Data.Parent.TargetID,
+                                                addSlot.Data.Parent.TargetID),
+                                        },
+                                    Name = addSlot.Data.Name,
+                                    Position = addSlot.Data.Position,
+                                    Rotation = addSlot.Data.Rotation,
+                                },
+                            });
+                        break;
+                    }
+                case AddComponent addComponent:
+                    {
+                        string canonicalComponentId = allocateComponentId();
+                        if (!string.IsNullOrWhiteSpace(addComponent.Data.ID))
+                        {
+                            canonicalIdsByLocalId[addComponent.Data.ID] = canonicalComponentId;
+                        }
+
+                        resolved.Add(
+                            new AddComponent
+                            {
+                                MessageID = addComponent.MessageID,
+                                ContainerSlotId = canonicalIdsByLocalId.GetValueOrDefault(
+                                    addComponent.ContainerSlotId,
+                                    addComponent.ContainerSlotId),
+                                Data = new Component
+                                {
+                                    ID = canonicalComponentId,
+                                    ComponentType = addComponent.Data.ComponentType,
+                                    Members = addComponent.Data.Members.ToDictionary(
+                                        static pair => pair.Key,
+                                        pair => pair.Value is Reference reference
+                                            ? (Member)new Reference
+                                            {
+                                                TargetID = canonicalIdsByLocalId.GetValueOrDefault(reference.TargetID, reference.TargetID),
+                                            }
+                                            : pair.Value,
+                                        StringComparer.Ordinal),
+                                },
+                            });
+                        break;
+                    }
+                default:
+                    resolved.Add(operation);
+                    break;
+            }
+        }
+
+        return resolved;
     }
 
     private sealed class YOffsetFakeClient : IResoniteLinkClient
@@ -459,31 +613,54 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public async Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
                 operations,
-                () => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"));
+                () => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"),
+                () => string.Create(CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}"));
+            List<Response> responses = [];
             foreach (DataModelOperation operation in resolvedOperations)
             {
                 switch (operation)
                 {
                     case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
+                        responses.Add(new NewEntityId
+                        {
+                            Success = true,
+                            SourceMessageID = addSlot.MessageID,
+                            EntityId = await AddSlotAsync(addSlot, cancellationToken),
+                        });
                         break;
                     case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
+                        responses.Add(new NewEntityId
+                        {
+                            Success = true,
+                            SourceMessageID = addComponent.MessageID,
+                            EntityId = await AddComponentAsync(addComponent, cancellationToken),
+                        });
                         break;
                     case UpdateComponent updateComponent:
                         await UpdateComponentAsync(updateComponent, cancellationToken);
+                        responses.Add(new Response
+                        {
+                            Success = true,
+                            SourceMessageID = updateComponent.MessageID,
+                        });
                         break;
                     default:
                         throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
                 }
             }
+
+            return new BatchResponse
+            {
+                Success = true,
+                Responses = responses,
+            };
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
