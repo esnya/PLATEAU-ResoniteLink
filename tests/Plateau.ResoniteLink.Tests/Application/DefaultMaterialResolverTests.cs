@@ -58,4 +58,30 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
     }
+
+    [Fact]
+    public void ResolveMaterialUsesPlaster002FallbackForCityFurniture()
+    {
+        ResolvedMaterial material = resolver.ResolveMaterial(
+            packageName: "frn",
+            texturePath: null,
+            preferUvProjection: false,
+            familyOverride: null,
+            variantSelectionKey: "frn:tri");
+
+        Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
+        Assert.Equal("default-materials/city-furniture/Plaster002_2K-JPG_Color.jpg", material.TexturePath);
+        Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
+        Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
+        Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
+        Assert.NotNull(material.TextureScale);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).X,
+            material.TextureScale!.X,
+            6);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).Y,
+            material.TextureScale.Y,
+            6);
+    }
 }
