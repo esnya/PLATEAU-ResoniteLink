@@ -613,9 +613,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private void ReportProgress(string message, PlateauLogLevel? defaultLevel)
     {
-        PlateauLogLevel resolvedDefaultLevel = defaultLevel ?? (message.StartsWith("[live]", StringComparison.Ordinal)
-            ? PlateauLogLevel.Debug
-            : PlateauLogLevel.Info);
+        PlateauLogLevel resolvedDefaultLevel = defaultLevel ?? PlateauLog.InferLegacyDefaultLevel(message);
         progressReporter?.Invoke(PlateauLog.NormalizeLegacyMessage(message, resolvedDefaultLevel));
     }
 

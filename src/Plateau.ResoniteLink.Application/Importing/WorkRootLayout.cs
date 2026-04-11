@@ -10,9 +10,10 @@ internal static class WorkRootLayout
         return Path.GetFullPath(Path.Combine(workRoot, safeDataset));
     }
 
-    public static string GetSourceArchivePath(string datasetRoot, string archiveFileName)
+    public static string GetSourceArchivePath(string datasetRoot, Uri archiveUri, string archiveFileName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
+        ArgumentNullException.ThrowIfNull(archiveUri);
         ArgumentException.ThrowIfNullOrWhiteSpace(archiveFileName);
 
         string extension = Path.GetExtension(archiveFileName);
@@ -25,7 +26,7 @@ internal static class WorkRootLayout
 
         return Path.Combine(
             Path.GetFullPath(datasetRoot),
-            $"source-archive{extension.ToLowerInvariant()}");
+            $"{GetSourceArchiveFileStem(archiveUri)}{extension.ToLowerInvariant()}");
     }
 
     public static string GetSourceArchiveMetadataPath(string archivePath)
@@ -65,6 +66,15 @@ internal static class WorkRootLayout
             System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fullArchivePath)))
             .ToLowerInvariant();
         return $"{fileStem}-{digest[..12]}";
+    }
+
+    private static string GetSourceArchiveFileStem(Uri archiveUri)
+    {
+        string archiveIdentity = archiveUri.AbsoluteUri;
+        string digest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(archiveIdentity)))
+            .ToLowerInvariant();
+        return $"source-archive-{digest[..12]}";
     }
 
     public static string CreateSafePathSegment(string value)

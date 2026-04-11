@@ -139,7 +139,7 @@ public sealed class CliApplication
         string message,
         PlateauLogLevel minimumLogLevel)
     {
-        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, GetLegacyDefaultLevel(message));
+        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, PlateauLog.InferLegacyDefaultLevel(message));
 
         if (PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry filteredEntry)
             && filteredEntry.Level < minimumLogLevel)
@@ -163,14 +163,6 @@ public sealed class CliApplication
 
         writer.WriteLine($"[{timestamp}] {normalizedMessage}");
     }
-
-    private static PlateauLogLevel GetLegacyDefaultLevel(string message)
-    {
-        return message.StartsWith("[live]", StringComparison.Ordinal)
-            ? PlateauLogLevel.Debug
-            : PlateauLogLevel.Info;
-    }
-
     private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)
     {
         return level switch

@@ -58,7 +58,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         Uri archiveUri = remoteSource.ServerUri;
 
         string archiveFileName = GetArchiveFileName(archiveUri);
-        string archivePath = WorkRootLayout.GetSourceArchivePath(workRoot, archiveFileName);
+        string archivePath = WorkRootLayout.GetSourceArchivePath(workRoot, archiveUri, archiveFileName);
         string archiveMetadataPath = WorkRootLayout.GetSourceArchiveMetadataPath(archivePath);
 
         Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
