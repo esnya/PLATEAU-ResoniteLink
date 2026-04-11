@@ -2,46 +2,21 @@
 
 <img width="2560" height="1440" alt="2026-04-08 03 02 41" src="https://github.com/user-attachments/assets/7dac58c7-8855-4362-855d-f12e884dc05e" />
 
-Plateau.ResoniteLink is a .NET 10 project for bringing [PLATEAU](https://www.mlit.go.jp/plateau/) datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). It streams CityGML-derived city objects directly into Resonite so imported content can begin appearing as it is processed.
-
-Import behavior and terminology are guided by [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/).
-
-GitHub Releases are the canonical changelog for this repository. Release tags use the `vX.Y.Z` format. Build outputs derive `Version`, `AssemblyVersion`, `FileVersion`, and `InformationalVersion` from those tags, emitting numeric assembly versions without the `v` prefix.
-
-Each tagged release publishes a framework-dependent CLI asset named `Plateau.ResoniteLink-cli-vX.Y.Z.zip`. The asset requires an installed .NET 10 runtime or SDK, and you can invoke it from the extracted directory with `dotnet Plateau.ResoniteLink.Cli.dll --help`.
-
+Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.go.jp/plateau/) CityGML datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). Import behavior and terminology stay aligned with [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/). GitHub Releases are the canonical changelog, and each `vX.Y.Z` release publishes a framework-dependent CLI asset named `Plateau.ResoniteLink-cli-vX.Y.Z.zip`.
 
 ## Scope
 
-- Stream PLATEAU CityGML datasets from local folders or the official CKAN-backed remote ZIP/7z flow into a running ResoniteLink listener.
-- Preserve deterministic mesh/material ordering, carry `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
-- Build dataset and mesh-code branches incrementally so large imports can start appearing in Resonite before the full request finishes.
-
-## Known Limitations
-
-- The current public surface is the CLI live-send pipeline; no standalone offline exporter or in-Resonite authoring workflow is shipped yet.
-- Remote import requires an explicit direct CityGML ZIP/7z archive URL and then reuses the same local importer against the downloaded archive-backed source.
-- The live adapter currently relies on `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures because that path returns usable asset URLs in the current ResoniteLink runtime.
+- Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
+- Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
+- Build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full request completes.
 
 ## Runtime And Prerequisites
 
-- Target runtime: .NET SDK 10.
-- Release asset runtime: the GitHub Release zip is framework-dependent and requires .NET 10.
-- Host assumption: a running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url`.
-- Live testing workflow: see [docs/live-testing.md](docs/live-testing.md).
-- Default material and DEM terrain imagery sources and provenance: see [docs/default-materials.md](docs/default-materials.md), `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`, and `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
+- Target runtime: .NET SDK 10. Release assets also require .NET 10.
+- A running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url` is required.
+- Live adapter asset import currently uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures.
 
-## Codex Cloud Setup
-
-For Codex Cloud / CI-like ephemeral environments, run the repository setup script:
-
-```bash
-./scripts/setup-codex-cloud.sh
-```
-
-The script bootstraps .NET SDK 10 when `dotnet` is missing, then runs restore + whitespace format verification + tests using the same command shape as this repository's CI policy.
-
-## Usage
+## Quick Start
 
 Restore dependencies:
 
@@ -49,29 +24,29 @@ Restore dependencies:
 dotnet restore Plateau.ResoniteLink.sln
 ```
 
-Import a local dataset root into a running ResoniteLink listener:
+For Codex Cloud or similar ephemeral environments, use:
+
+```bash
+./scripts/setup-codex-cloud.sh
+```
+
+That script bootstraps .NET 10 when needed, then runs the repository verification flow.
+
+## Usage
+
+Local import example:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset tokyo23ku \
   --mesh-code 53394525 \
-  --packages dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg \
   --source local \
   --local-source-path /path/to/plateau \
-  --dem-terrain-mode heightmap \
-  --dem-heightmap-meters-per-vertex 2.0 \
-  --dem-heightmap-max-resolution 1024 \
-  --resonitelink-port <port> \
-  --resonitelink-connections 4 \
-  --send-metrics
+  --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--work-root` defaults to `runtime/<os>/resonite/` and stores generated live assets, the remote download cache, and the live asset reuse state file `resonite-live-asset-state.json`; deleting that directory resets cached downloads and asset dedupe/reuse state. `--packages` accepts a comma-separated list of official PLATEAU `udx/<package>/` names; when omitted, the CLI defaults to `dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg`. `--resonitelink-connections` defaults to `4`. `--send-metrics` enables opt-in `System.Diagnostics.Metrics` instrumentation with low-cardinality counters, histograms, and a CLI summary. Filtering options are also available for global or package-specific LOD exclusion, marking inclusion, and package-specific object patterns; when `--exclude-lod-for-package` is omitted, the CLI applies the current default fallback `tran:1`, and `--exclude-lod-for-package tran:none` clears it explicitly. DEM output stays on the existing mesh path by default; `--dem-terrain-mode heightmap` switches `dem` to a `GridMesh` + height texture path, with `--dem-heightmap-meters-per-vertex` and `--dem-heightmap-max-resolution` controlling sampling density and the safety cap. Option names follow PLATEAU SDK for Unity where practical: `--local-source-path` matches `DatasetSourceConfigLocal.LocalSourcePath`, and `--server-url` matches `DatasetSourceConfigRemote.ServerUrl`.
-
-`--mesh-code` accepts either a literal 6/8 digit PLATEAU mesh code or a .NET regular expression. Literal 8 digit mesh codes keep the existing parent-mesh inclusion behavior. Regex matching applies against 6/8 digit mesh-code tokens found in CityGML filenames and `udx/<package>/<mesh-code>/` directory segments.
-
-Import an official PLATEAU CityGML ZIP/7z archive online from an explicit archive URL:
+Remote archive example:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
@@ -83,54 +58,23 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--source remote` does not perform any built-in dataset search. Use the official `www.geospatial.jp` dataset page slug as `--dataset`, pass `--server-url` as a direct CityGML ZIP/7z archive URL, and the CLI downloads it into `runtime/<os>/resonite/cache/remote/<dataset>/<archive-hash>/` before running the same local importer against the cached archive. The cache key is based on the archive URL rather than the requested mesh code, so repeated imports can reuse the same archive even when the detailed mesh code changes while keeping the same canonical dataset namespace.
-
-To find the official identifier and archive URL:
-
-1. Open the official PLATEAU dataset page on `www.geospatial.jp`.
-2. Copy the dataset page slug from the URL path, for example `plateau-20202-matsumoto-shi-2020`. Use that value as the canonical dataset identifier for `--dataset`.
-3. Open the `CityGML` resource on that page and copy the direct `.zip` or `.7z` download URL. Use that value for `--server-url`.
-
-Built-in search is intentionally out of scope so the CLI contract stays deterministic and aligned with explicit user-provided identifiers.
-
-To reuse already-downloaded data, switch back to local import and point `--local-source-path` at either a dataset directory, a cached ZIP/7z archive, or an ancestor directory under `runtime/<os>/resonite/cache/remote/<dataset>/`. The importer resolves the nearest descendant dataset root that contains `udx/`, and it can also open a cached archive file transparently.
-
-Build live into Resonite through ResoniteLink from Windows:
-
-```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
-  build \
-  --dataset plateau-20202-matsumoto-shi-2020 \
-  --mesh-code 533944 \
-  --source remote \
-  --server-url https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
-  --resonitelink-port <port>
-```
-
-The live path connects to `ws://localhost:<port>/`, opens as many ResoniteLink sessions as configured by `--resonitelink-connections` (default `4`, so four sessions by default), imports mesh and texture assets through official ResoniteLink import messages, creates dataset and mesh-code slots, attaches a dataset-level `License` component with PLATEAU attribution text, and then builds the required Resonite components for the imported scene. Shared slot and component IDs are initialized once and reused across workers, city objects already placed in the target session are skipped before mesh/material placement, and city-object sends are distributed across the configured connections so large mesh-code imports can overlap live output without requiring a full in-memory batch.
-
-Re-running `build` against the same ResoniteLink session and dataset appends new branches under the existing dataset instead of creating a separate dataset root. Each city object is placed under the mesh-code branch that actually owns its source data, so parent-mesh content can stay under a shorter mesh code such as `533945` while request-specific content stays under `53394525`. Mesh-code roots are positioned by slot offsets so neighboring imports line up, and already-placed objects under an existing mesh-code branch are not re-sent.
-
-The current live adapter uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures, because the current ResoniteLink runtime returns a usable mesh asset URL on the raw-data path.
-
-Validate formatting, analyzers, and tests:
+`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search. Validate formatting, analyzers, build, and tests with:
 
 ```bash
 bash scripts/verify-ci.sh
 ```
 
-## License Notes
+## Further Reading
 
-- The repository root is licensed under [MIT](LICENSE).
-- Imported PLATEAU datasets are not re-licensed by this repository. The MIT license for this repository applies to this codebase only, not to PLATEAU data, and each dataset keeps its own copyright holder, attribution requirements, and license terms.
-- Before importing, redistributing, or publishing derived content, treat the dataset's own README, metadata, download page, and attached rights notices as the authoritative source for its license, attribution text, edit-marking obligations, redistribution rules, and any other use conditions.
-- The [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) is only the portal-level default for PLATEAU website content when no separate rights statement is shown there; it does not override dataset-specific terms attached to a particular 3D city model package.
-- PLATEAU SDK for Unity is a separate upstream MIT-licensed project; a local copy of that license is tracked in `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt`.
-- Bundled default material textures under `src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/` are sourced from AmbientCG and tracked as CC0 1.0 in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
-- The default DEM terrain imagery overlay is not a bundled asset. It is generated from the Geospatial Information Authority of Japan (GSI) seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`; provenance and usage notes are tracked in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
-- NuGet and other runtime dependencies keep their own upstream licenses. Before redistributing binaries or vendored assets, review the package metadata and upstream license terms for the exact versions you ship.
+- Product requirements: [docs/requirements.md](docs/requirements.md)
 
-PLATEAU dataset guidance:
+## License And Provenance
 
-- The [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) states that 3D city model copyrights belong to the respective local governments, and PLATEAU datasets may be published under terms such as PDL 1.0, CC BY 4.0, ODC BY, or ODbL depending on the source dataset.
-- If a dataset page, bundled README, or source metadata states more specific conditions, treat those dataset-specific conditions as authoritative for attribution, edit-marking, redistribution, and any additional restrictions, including possible measurement-law or other statutory constraints.
+- The repository source code is licensed under [MIT](LICENSE).
+- Imported PLATEAU datasets are not re-licensed by this repository. Review each dataset's README, metadata, download page, and rights notices before importing, redistributing, or publishing derived content.
+- The [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) is only the portal-level default and does not override dataset-specific terms.
+- The [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) notes that dataset terms vary by source, including licenses such as PDL 1.0, CC BY 4.0, ODC BY, or ODbL.
+- PLATEAU SDK for Unity is a separate upstream MIT-licensed project. A local copy of that license is tracked in `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt`.
+- Bundled default material textures under `src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/` are sourced from AmbientCG and tracked in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
+- The default DEM terrain imagery overlay is not bundled. It is generated from the GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`, with repository-local notes in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
+- NuGet packages and other runtime dependencies keep their own upstream licenses. Review the exact versions you ship before redistributing binaries or vendored assets.
