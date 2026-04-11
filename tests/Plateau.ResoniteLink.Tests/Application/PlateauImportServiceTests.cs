@@ -1744,6 +1744,32 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncGuidesUserToArchiveWhenDatasetRootDirectoryIsPassedAsLocalSourcePath()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        string archivePath = Path.Combine(datasetRoot.Path, "source-archive.zip");
+        await File.WriteAllTextAsync(archivePath, string.Empty);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = new(sceneBuilder);
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
+            service.ExecuteAsync(
+                new PlateauImportRequest(
+                    Dataset: "14100-yokohama-shi",
+                    MeshCode: "53391570",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: datasetRoot.Path,
+                    ServerUri: null),
+                workRoot: "runtime/resonite"));
+
+        string message = Assert.Single(exception.Errors);
+        Assert.Contains($"mesh code '53391570' in '{datasetRoot.Path}'", message, StringComparison.Ordinal);
+        Assert.Contains($"'{archivePath}'", message, StringComparison.Ordinal);
+        Assert.Contains("contains udx/<package>/<mesh-code>/", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncRejectsUnsupportedPackagePatternWithValidationException()
     {
         StubResoniteSceneBuilder sceneBuilder = new();

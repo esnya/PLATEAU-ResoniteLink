@@ -36,7 +36,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
             throw new PlateauImportValidationException(
-                ["Local CityGML import requires --source local and a local source path via --local-source-path."]);
+                [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
         }
 
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
@@ -68,7 +68,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         if (sourceFiles.Length == 0)
         {
             throw new PlateauImportValidationException(
-                [$"No local PLATEAU CityGML files were found for mesh code '{request.MeshCode}' under udx/<package>/<mesh-code>/."]);
+                [LocalCityGmlImportErrorMessages.NoMatchingFiles(request, localSource.LocalSourcePath!)]);
         }
 
         // Create LOD filtering strategy from the request
