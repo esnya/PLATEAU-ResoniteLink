@@ -51,6 +51,31 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public void TryBufferFlushesOldestSparseCellWhenBufferedCellLimitIsExceeded()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 10,
+            maxVerticesPerBatch: 1000,
+            maxBufferedCells: 2);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0), out ResoniteConstructionCityObject? firstBaked));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("center", x: 80.0, z: 10.0), out ResoniteConstructionCityObject? secondBaked));
+
+        bool thirdBuffered = baker.TryBuffer(CreateTriangleBuilding("right", x: 138.0, z: 10.0), out ResoniteConstructionCityObject? flushed);
+
+        Assert.True(thirdBuffered);
+        Assert.Null(firstBaked);
+        Assert.Null(secondBaked);
+        Assert.NotNull(flushed);
+        Assert.Equal(new ResoniteFloat3(0.0, 0.0, 0.0), flushed.Transform.Position);
+
+        IReadOnlyList<ResoniteConstructionCityObject> remainingBatches = baker.FlushAll();
+        Assert.Equal(2, remainingBatches.Count);
+        Assert.Contains(remainingBatches, static cityObject => cityObject.Transform.Position == new ResoniteFloat3(64.0, 0.0, 0.0));
+        Assert.Contains(remainingBatches, static cityObject => cityObject.Transform.Position == new ResoniteFloat3(128.0, 0.0, 0.0));
+    }
+
+    [Fact]
     public void TryBufferSkipsNonTargetCityObjects()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 2, maxVerticesPerBatch: 1000);

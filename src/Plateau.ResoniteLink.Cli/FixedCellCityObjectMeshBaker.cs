@@ -9,30 +9,40 @@ internal sealed class FixedCellCityObjectMeshBaker
     internal const double DefaultCellSizeMeters = 128.0;
     internal const int DefaultMaxCityObjectsPerBatch = 64;
     internal const int DefaultMaxVerticesPerBatch = 200_000;
+    internal const int DefaultMaxBufferedCells = 32;
 
     private readonly double cellSizeMeters;
     private readonly int maxCityObjectsPerBatch;
     private readonly int maxVerticesPerBatch;
+    private readonly int maxBufferedCells;
     private readonly Dictionary<CellKey, CellBuffer> buffers = [];
     private readonly Dictionary<CellKey, int> flushSequenceByCell = [];
+    private long nextBufferSequence;
 
     public FixedCellCityObjectMeshBaker()
-        : this(DefaultCellSizeMeters, DefaultMaxCityObjectsPerBatch, DefaultMaxVerticesPerBatch)
+        : this(
+            DefaultCellSizeMeters,
+            DefaultMaxCityObjectsPerBatch,
+            DefaultMaxVerticesPerBatch,
+            DefaultMaxBufferedCells)
     {
     }
 
     internal FixedCellCityObjectMeshBaker(
         double cellSizeMeters,
         int maxCityObjectsPerBatch,
-        int maxVerticesPerBatch)
+        int maxVerticesPerBatch,
+        int maxBufferedCells = DefaultMaxBufferedCells)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(cellSizeMeters, 0.0);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCityObjectsPerBatch);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxVerticesPerBatch);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedCells);
 
         this.cellSizeMeters = cellSizeMeters;
         this.maxCityObjectsPerBatch = maxCityObjectsPerBatch;
         this.maxVerticesPerBatch = maxVerticesPerBatch;
+        this.maxBufferedCells = maxBufferedCells;
     }
 
     public int BakedInputCityObjectCount { get; private set; }
@@ -60,11 +70,13 @@ internal sealed class FixedCellCityObjectMeshBaker
 
         buffer.CityObjects.Add(cityObject);
         buffer.VertexCount += cityObject.Mesh.Vertices.Count;
+        buffer.LastTouchedSequence = nextBufferSequence++;
         BakedInputCityObjectCount++;
 
         if (buffer.CityObjects.Count < maxCityObjectsPerBatch
             && buffer.VertexCount < maxVerticesPerBatch)
         {
+            _ = TryFlushOldestBufferExcept(cellKey, out bakedCityObject);
             return true;
         }
 
@@ -109,6 +121,43 @@ internal sealed class FixedCellCityObjectMeshBaker
             cityObject.LodLevel,
             cellX,
             cellZ);
+    }
+
+    private bool TryFlushOldestBufferExcept(
+        CellKey protectedCellKey,
+        out ResoniteConstructionCityObject? bakedCityObject)
+    {
+        bakedCityObject = null;
+        if (buffers.Count <= maxBufferedCells)
+        {
+            return false;
+        }
+
+        KeyValuePair<CellKey, CellBuffer>? candidate = null;
+        foreach ((CellKey cellKey, CellBuffer buffer) in buffers)
+        {
+            if (cellKey == protectedCellKey)
+            {
+                continue;
+            }
+
+            if (candidate is null
+                || buffer.LastTouchedSequence < candidate.Value.Value.LastTouchedSequence
+                || (buffer.LastTouchedSequence == candidate.Value.Value.LastTouchedSequence
+                    && CellKeyComparer.Instance.Compare(cellKey, candidate.Value.Key) < 0))
+            {
+                candidate = new KeyValuePair<CellKey, CellBuffer>(cellKey, buffer);
+            }
+        }
+
+        if (candidate is null)
+        {
+            return false;
+        }
+
+        buffers.Remove(candidate.Value.Key);
+        bakedCityObject = BakeCell(candidate.Value.Key, candidate.Value.Value);
+        return true;
     }
 
     private ResoniteConstructionCityObject BakeCell(CellKey cellKey, CellBuffer buffer)
@@ -232,6 +281,8 @@ internal sealed class FixedCellCityObjectMeshBaker
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
 
         public int VertexCount { get; set; }
+
+        public long LastTouchedSequence { get; set; }
     }
 
     private sealed record CellKey(
