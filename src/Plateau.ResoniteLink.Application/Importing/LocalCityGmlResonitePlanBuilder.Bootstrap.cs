@@ -13,7 +13,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return CreateConstructionSourceCoreAsync(
+        return new LocalCityGmlConstructionSourceFactory().CreateAsync(
             request,
             progressReporter,
             cancellationToken);

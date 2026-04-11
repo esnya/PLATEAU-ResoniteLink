@@ -1945,6 +1945,12 @@ public sealed class ResoniteLinkSceneBuilderTests
             session.SlotsById.Values.Count(slot =>
                 string.Equals(slot.Name?.Value, "Building One", StringComparison.Ordinal)
                 && string.Equals(session.SlotPaths[slot.Parent!.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal)));
+        Assert.Contains(
+            session.AddedSlots,
+            addSlot =>
+                string.Equals(addSlot.Data.Name?.Value, "Building One", StringComparison.Ordinal)
+                && addSlot.Data.Parent is not null
+                && string.Equals(session.SlotPaths[addSlot.Data.Parent.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal));
         Assert.Equal(0, client.RejectedAliasMutationCount);
         Assert.Equal(scene.CityObjects.Count, client.BatchMutationCount);
     }

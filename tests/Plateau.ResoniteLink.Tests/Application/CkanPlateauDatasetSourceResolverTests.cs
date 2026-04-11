@@ -505,7 +505,9 @@ public sealed class CkanPlateauDatasetSourceResolverTests
     {
         Assert.NotNull(resolvedRequest.LocalSourcePath);
         Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
-        Assert.Equal(expectedArchiveFileName, Path.GetFileName(resolvedRequest.LocalSourcePath));
+        Assert.Equal(
+            $"source-archive{Path.GetExtension(expectedArchiveFileName).ToLowerInvariant()}",
+            Path.GetFileName(resolvedRequest.LocalSourcePath));
 
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(resolvedRequest.LocalSourcePath);
         Assert.Contains(expectedRelativePath, datasetSource.EnumerateFiles());

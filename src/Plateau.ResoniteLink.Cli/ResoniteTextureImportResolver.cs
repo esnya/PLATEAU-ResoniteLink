@@ -6,24 +6,24 @@ namespace Plateau.ResoniteLink.Cli;
 internal sealed class ResoniteTextureImportResolver
 {
     private readonly IPlateauDatasetContentSource datasetContentSource;
-    private readonly string generatedAssetsRoot;
+    private readonly string runRoot;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly TerrainTextureOverlayLookup terrainTextureOverlayLookup;
     private readonly AsyncCompletedResultCache<TextureReferenceKey, ResoniteTextureImport> resolvedTextureCache = new();
 
     public ResoniteTextureImportResolver(
         IPlateauDatasetContentSource datasetContentSource,
-        string generatedAssetsRoot,
+        string runRoot,
         IEnumerable<TerrainTextureOverlay> terrainTextureOverlays,
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ArgumentNullException.ThrowIfNull(datasetContentSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(generatedAssetsRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(runRoot);
         ArgumentNullException.ThrowIfNull(terrainTextureOverlays);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
         this.datasetContentSource = datasetContentSource;
-        this.generatedAssetsRoot = generatedAssetsRoot;
+        this.runRoot = runRoot;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator;
         terrainTextureOverlayLookup = new TerrainTextureOverlayLookup(terrainTextureOverlays);
     }
@@ -58,7 +58,7 @@ internal sealed class ResoniteTextureImportResolver
         {
             ResoniteTextureSourceKind.Dataset => await datasetContentSource.MaterializeFileAsync(
                 texturePath,
-                generatedAssetsRoot,
+                runRoot,
                 cancellationToken),
             ResoniteTextureSourceKind.Bundled => BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
             _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
