@@ -528,7 +528,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    TextureScale: textureScale),
+                    TextureScale: textureScale,
+                    AssetScope: ResoniteMaterialAssetScope.Common),
             ],
             SourceObjectKey: objectIdentity);
     }

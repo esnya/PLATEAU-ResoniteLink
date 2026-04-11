@@ -8,4 +8,5 @@ public sealed record ResolvedMaterial(
     ResoniteTextureSourceKind TextureSourceKind,
     ResoniteMaterialProjection Projection,
     string? Family,
-    ResoniteFloat2? TextureScale);
+    ResoniteFloat2? TextureScale,
+    ResoniteMaterialAssetScope AssetScope);

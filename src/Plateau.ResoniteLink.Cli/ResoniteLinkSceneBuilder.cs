@@ -816,9 +816,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             rootMeshCodePosition,
             null,
             cancellationToken);
-        CreatedSlot assetPackageSlot = await GetOrCreateSharedChildSlotAsync(
+        CreatedSlot assetMeshRootSlot = await GetOrCreateSharedChildSlotAsync(
             client,
             datasetAssetsRoot,
+            rootMeshCode,
+            null,
+            null,
+            cancellationToken);
+        CreatedSlot assetPackageSlot = await GetOrCreateSharedChildSlotAsync(
+            client,
+            assetMeshRootSlot,
             cityObject.PackageName,
             null,
             null,
@@ -846,6 +853,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         return new ObjectSlotHierarchy(
             meshRootSlot,
+            assetMeshRootSlot,
             assetPackageSlot,
             packageSlot,
             assetLodSlot,
@@ -881,14 +889,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
 
-        bool useCommonMaterialAssets = ShouldUseCommonMaterialAssets(material);
+        bool useCommonMaterialAssets = material.AssetScope == ResoniteMaterialAssetScope.Common;
         string materialScopeId = useCommonMaterialAssets
-            ? commonAssetsRootSlot.Value.SlotId
+            ? commonAssetsRootSlot!.Value.SlotId
             : objectSlots.MeshAssetSlot!.Value.SlotId;
-        string? materialSlotParentId = useCommonMaterialAssets ? commonAssetsRootSlot.Value.SlotId : null;
+        string? materialSlotParentId = useCommonMaterialAssets ? commonAssetsRootSlot!.Value.SlotId : null;
         string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets);
         return await materialAssetManager.CreateMaterialComponentAsync(
             client,
@@ -900,14 +907,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             objectSlots.AssetLodSlot.SlotId,
             objectSlots.MeshAssetSlot?.SlotId ?? objectSlots.AssetLodSlot.SlotId,
             cancellationToken);
-    }
-
-    private static bool ShouldUseCommonMaterialAssets(ResoniteMaterialBinding material)
-    {
-        return material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && !string.IsNullOrWhiteSpace(material.TexturePath)
-            && !IsGeneratedDemTexturePath(material.TexturePath)
-            && material.TexturePath.StartsWith("default-materials/", StringComparison.Ordinal);
     }
 
     private static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
@@ -1773,6 +1772,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private sealed record ObjectSlotHierarchy(
         CreatedSlot MeshRootSlot,
+        CreatedSlot AssetMeshRootSlot,
         CreatedSlot AssetPackageSlot,
         CreatedSlot PackageSlot,
         CreatedSlot AssetLodSlot,
