@@ -13,9 +13,11 @@ Do not use this skill for code-only review or static log reading. Use it only wh
 
 ## Dataset Defaults
 
-Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` for document-backed reproductions and comparisons. The local cache under `runtime/windows/resonite/cache/remote/20202_matsumoto-shi_city_2020_citygml_7_op/udx/bldg/` contains both files, with `54372778_bldg_6697_op.gml` and `54372788_bldg_6697_op.gml` plus matching appearance directories.
+Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` for document-backed reproductions and comparisons. Those two meshes are the default fixtures because this repo already contains successful live-send evidence for `54372778`, and the current workspace dataset sample includes detailed-building source files for both meshes.
 
-When the task specifically needs `frn` or city-furniture content, use Yokohama mesh `53391530` instead. The local cache contains `udx/frn/53391530_frn_6697_*` under `runtime/windows/resonite/cache/remote/14100-yokohama-shi/53391530/14100_yokohama-shi_city_2023_citygml_1_op/`, while the Matsumoto default pair above does not provide the same `frn` fixture.
+When the task specifically needs `frn` or city-furniture content, use Yokohama mesh `53391530` instead. This repo already contains successful Yokohama live-send logs for that mesh, and the current workspace dataset sample includes the needed `frn` source there, while the Matsumoto default pair above is for building-focused checks.
+
+Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actual local source path from the current dataset resolver behavior, and use the matching `--dry-run` import or live-send logs to confirm that the requested dataset and mesh resolve before running destructive steps.
 
 ## Quick Start
 
