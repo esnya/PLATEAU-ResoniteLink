@@ -1748,7 +1748,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncGuidesUserToArchiveWhenDatasetRootDirectoryIsPassedAsLocalSourcePath()
     {
         using TemporaryDirectory datasetRoot = new();
-        string archivePath = Path.Combine(datasetRoot.Path, "source-archive.zip");
+        string archivePath = Path.Combine(datasetRoot.Path, "source-archive-123456789abc.zip");
         await File.WriteAllTextAsync(archivePath, string.Empty);
 
         StubResoniteSceneBuilder sceneBuilder = new();

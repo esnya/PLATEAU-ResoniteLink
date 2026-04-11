@@ -38,13 +38,12 @@ internal static class LocalCityGmlImportErrorMessages
             return null;
         }
 
-        string zipPath = Path.Combine(fullPath, "source-archive.zip");
-        if (File.Exists(zipPath))
-        {
-            return zipPath;
-        }
-
-        string sevenZipPath = Path.Combine(fullPath, "source-archive.7z");
-        return File.Exists(sevenZipPath) ? sevenZipPath : null;
+        return Directory.EnumerateFiles(fullPath, "source-archive*", SearchOption.TopDirectoryOnly)
+            .Where(static path =>
+                string.Equals(Path.GetExtension(path), ".zip", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(Path.GetExtension(path), ".7z", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ThenBy(static path => path, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
     }
 }

@@ -92,6 +92,20 @@ public readonly record struct PlateauLogEntry(
 
 public static class PlateauLog
 {
+    public static PlateauLogLevel InferLegacyDefaultLevel(string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+
+        if (TryParseLegacyScopeAndLevel(message, out _, out PlateauLogLevel level, out _))
+        {
+            return level;
+        }
+
+        return message.StartsWith("[live]", StringComparison.Ordinal)
+            ? PlateauLogLevel.Debug
+            : PlateauLogLevel.Info;
+    }
+
     public static string NormalizeLegacyMessage(string message, PlateauLogLevel defaultLevel = PlateauLogLevel.Info)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
@@ -99,6 +113,11 @@ public static class PlateauLog
         if (PlateauLogEntry.TryParse(message, out _))
         {
             return message;
+        }
+
+        if (TryParseLegacyScopeAndLevel(message, out string? legacyScope, out PlateauLogLevel level, out string? legacyBody))
+        {
+            return new PlateauLogEntry(legacyScope, level, legacyBody).ToString();
         }
 
         if (message[0] != '[')
@@ -115,6 +134,49 @@ public static class PlateauLog
         string scope = message[1..scopeEnd];
         string body = message[(scopeEnd + 2)..];
         return new PlateauLogEntry(scope, defaultLevel, body).ToString();
+    }
+
+    private static bool TryParseLegacyScopeAndLevel(
+        string message,
+        out string scope,
+        out PlateauLogLevel level,
+        out string body)
+    {
+        scope = string.Empty;
+        level = default;
+        body = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(message) || message[0] != '[')
+        {
+            return false;
+        }
+
+        int scopeEnd = message.IndexOf(']');
+        if (scopeEnd <= 1
+            || scopeEnd + 2 >= message.Length
+            || message[scopeEnd + 1] != '[')
+        {
+            return false;
+        }
+
+        int levelStart = scopeEnd + 2;
+        int levelEnd = message.IndexOf(']', levelStart);
+        if (levelEnd <= levelStart
+            || levelEnd + 2 > message.Length
+            || message[levelEnd + 1] != ' ')
+        {
+            return false;
+        }
+
+        if (!PlateauLogEntry.TryParse($"[app][{message[levelStart..levelEnd]}] x", out PlateauLogEntry parsed))
+        {
+            return false;
+        }
+
+        scope = message[1..scopeEnd];
+        level = parsed.Level;
+        body = message[(levelEnd + 2)..];
+        return true;
     }
 
     public static string Debug(string scope, string message)
