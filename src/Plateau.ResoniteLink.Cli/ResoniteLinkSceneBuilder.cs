@@ -1264,7 +1264,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 Uri normalTextureUri = await ImportTextureAsync(
                     importClient,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.NormalPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 PendingBatchComponent normalTexture = batchBuilder.AddComponent(
                     materialSlot.LocalId,
@@ -1285,7 +1287,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 Uri heightTextureUri = await ImportTextureAsync(
                     importClient,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.HeightPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 PendingBatchComponent heightTexture = batchBuilder.AddComponent(
                     materialSlot.LocalId,
@@ -1305,7 +1309,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 Uri metallicTextureUri = await ImportTextureAsync(
                     importClient,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.MetallicPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
                     materialSlot.LocalId,
@@ -1325,7 +1331,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 Uri emissionTextureUri = await ImportTextureAsync(
                     importClient,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.EmissionPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 PendingBatchComponent emissionTexture = batchBuilder.AddComponent(
                     materialSlot.LocalId,
@@ -1873,7 +1881,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         return textureImport switch
         {
-            ResoniteFileTextureImport fileImport => new TextureImportCacheKey("file", fileImport.AbsolutePath),
             ResoniteRawTextureImport rawImport when rawImport.Identity is not null => new TextureImportCacheKey(
                 "raw",
                 rawImport.Identity,

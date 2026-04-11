@@ -148,7 +148,7 @@ public sealed class ResoniteMaterialAssetManagerTests
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
         {
             [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
-                ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
+                new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [0, 0, 0, byte.MaxValue], "textures/albedo.png"),
         };
         Task<CreatedMaterialAsset> pending = manager.CreateMaterialComponentAsync(
             client,
@@ -204,7 +204,7 @@ public sealed class ResoniteMaterialAssetManagerTests
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
         {
             [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
-                ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
+                new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [0, 0, 0, byte.MaxValue], "textures/albedo.png"),
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => manager.CreateMaterialComponentAsync(

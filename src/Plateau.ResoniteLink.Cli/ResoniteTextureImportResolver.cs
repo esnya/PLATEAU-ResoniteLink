@@ -53,8 +53,10 @@ internal sealed class ResoniteTextureImportResolver
         return textureSourceKind switch
         {
             ResoniteTextureSourceKind.Dataset => await CreateDatasetRawTextureImportAsync(texturePath, cancellationToken),
-            ResoniteTextureSourceKind.Bundled => ResoniteTextureImportFactory.CreateFromFile(
-                BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath)),
+            ResoniteTextureSourceKind.Bundled => await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
+                texturePath,
+                cancellationToken: cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
         };
     }

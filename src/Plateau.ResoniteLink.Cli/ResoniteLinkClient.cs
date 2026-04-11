@@ -151,11 +151,6 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(textureImport);
         AssetData result = textureImport switch
         {
-            ResoniteFileTextureImport fileImport => await link.ImportTexture(
-                new ImportTexture2DFile
-                {
-                    FilePath = fileImport.AbsolutePath,
-                }),
             ResoniteRawTextureImport rawImport => await link.ImportTexture(
                 new ImportTexture2DRawData
                 {

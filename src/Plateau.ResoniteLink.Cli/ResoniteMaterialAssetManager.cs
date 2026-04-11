@@ -137,7 +137,9 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled normal map from '{textureSet.NormalPath}'.");
                 normalTextureUri = await importTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.NormalPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 materialMembers["NormalScale"] = new Field_float
                 {
@@ -152,7 +154,9 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled height map from '{textureSet.HeightPath}'.");
                 heightTextureUri = await importTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.HeightPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 materialMembers["HeightScale"] = new Field_float
                 {
@@ -166,7 +170,9 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled metallic map from '{textureSet.MetallicPath}'.");
                 metallicTextureUri = await importTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.MetallicPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
             }
 
@@ -176,7 +182,9 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled emission map from '{textureSet.EmissionPath}'.");
                 emissionTextureUri = await importTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.EmissionPath,
+                        cancellationToken: cancellationToken),
                     cancellationToken);
                 materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
                     new ResoniteColor(1.0, 1.0, 1.0, 1.0));

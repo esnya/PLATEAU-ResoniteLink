@@ -2658,9 +2658,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
                         if (rawImport.Identity is not null)
@@ -3185,9 +3182,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
                         if (rawImport.Identity is not null)
@@ -3751,9 +3745,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
                         if (rawImport.Identity is not null)
@@ -3955,9 +3946,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 switch (textureImport)
                 {
-                    case ResoniteFileTextureImport fileImport:
-                        session.ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                        break;
                     case ResoniteRawTextureImport rawImport:
                         session.ImportedRawTextures.Add(rawImport);
                         if (rawImport.Identity is not null)

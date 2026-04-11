@@ -14,7 +14,7 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 
 - Target runtime: .NET SDK 10. Release assets also require .NET 10.
 - A running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url` is required.
-- Live adapter asset import uses `ImportMesh(ImportMeshRawData)` for meshes. Textures stay on file import only for direct image assets such as bundled common materials, while dataset-derived or generated textures use `ImportTexture` raw payloads.
+- Live adapter asset import uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture` raw payloads for all textures.
 - ResoniteLink entity IDs are treated as session-scoped opaque values. For successful create operations, the resolved `Response` ID is authoritative within the session; requested IDs are only batch-local hints for per-cityObject DataModel batches, must not be persisted or reused across sessions, and reuse discovery is handled separately from create confirmation.
 
 ## Quick Start
