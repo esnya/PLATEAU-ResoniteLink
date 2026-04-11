@@ -27,6 +27,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
+    private readonly int importMeshTimeoutMilliseconds;
     private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly ResoniteGeometryAssetAssembler geometryAssetAssembler;
@@ -58,12 +59,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private SceneAnchor? sceneAnchor;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
-        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter)
+        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds, progressReporter)
     {
     }
 
     public ResoniteLinkSceneBuilder(Uri endpoint, int connectionCount, Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter)
+        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds, progressReporter)
     {
     }
 
@@ -72,7 +73,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter)
+        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds, progressReporter)
     {
     }
 
@@ -81,8 +82,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         bool enableMeshBake,
+        int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
         Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake, progressReporter)
+        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake, importMeshTimeoutMilliseconds, progressReporter)
     {
     }
 
@@ -93,10 +95,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Func<IResoniteLinkClient> clientFactory,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
+        int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
         Action<string>? progressReporter = null)
     {
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
+        this.importMeshTimeoutMilliseconds = importMeshTimeoutMilliseconds;
         this.diagnostics = diagnostics;
         this.clientFactory = clientFactory;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator();
@@ -292,7 +296,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         IResoniteLinkClient client = new RetryingResoniteLinkClient(
             clientFactory,
-            ReportProgress);
+            ReportProgress,
+            importMeshTimeoutMilliseconds);
         return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
     }
 

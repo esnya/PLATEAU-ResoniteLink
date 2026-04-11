@@ -10,7 +10,7 @@ namespace Plateau.ResoniteLink.Cli;
 internal sealed class RetryingResoniteLinkClient(
     Func<IResoniteLinkClient> clientFactory,
     Action<string>? reporter = null,
-    int importMeshTimeoutMilliseconds = 30000) : IResoniteLinkClient
+    int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
     private readonly SemaphoreSlim operationGate = new(1, 1);

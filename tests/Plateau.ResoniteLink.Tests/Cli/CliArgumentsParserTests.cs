@@ -33,6 +33,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(1, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(0, result.Options.ResoniteLinkImportMeshTimeoutMilliseconds);
         Assert.True(result.Options.EnableMeshBake);
         Assert.False(result.Options.EnableSendMetrics);
         Assert.False(result.Options.VerboseLogging);
@@ -337,10 +338,57 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesResoniteLinkImportMeshTimeout()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-import-mesh-timeout-ms",
+                "45000",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(45000, result.Options!.ResoniteLinkImportMeshTimeoutMilliseconds);
+    }
+
+    [Fact]
+    public void ParseRejectsInvalidResoniteLinkImportMeshTimeout()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--resonitelink-import-mesh-timeout-ms",
+                "-1",
+            ]);
+
+        Assert.Equal("The value '-1' is not a valid ResoniteLink ImportMesh timeout.", result.Error);
+    }
+
+    [Fact]
     public void HelpTextDocumentsExperimentalResoniteLinkConnections()
     {
         Assert.Contains(
             "Experimental parallel ResoniteLink connection count for live sends. Default: 1.",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Optional. Experimental diagnostic timeout for ImportMesh. Default: 0 (disabled).",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
     }

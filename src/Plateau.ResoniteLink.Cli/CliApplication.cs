@@ -128,6 +128,13 @@ public sealed class CliApplication
                     $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
                     + "Use the default value 1 for reliable live sends."));
         }
+        if (options.ResoniteLinkImportMeshTimeoutMilliseconds > 0)
+        {
+            reporter(
+                PlateauLog.Warning(
+                    "live",
+                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is diagnostic-only and experimental."));
+        }
 
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
@@ -139,6 +146,7 @@ public sealed class CliApplication
                 options.ResoniteLinkConnectionCount,
                 diagnostics,
                 options.EnableMeshBake,
+                options.ResoniteLinkImportMeshTimeoutMilliseconds,
                 progressReporter: reporter),
             progressReporter: reporter);
     }
