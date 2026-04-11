@@ -9,6 +9,7 @@ using SixLabors.ImageSharp.PixelFormats;
 namespace Plateau.ResoniteLink.Tests.Cli;
 
 [Collection(BundledCompanionTextureIsolationGroup.Name)]
+[Trait("Category", "Slow")]
 public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 {
     private const string DatasetName = "reuse-test";

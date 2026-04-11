@@ -59,13 +59,19 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search. Validate formatting, analyzers, build, and tests with:
-
-By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
+`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search. For the full CI-equivalent validation, run:
 
 ```bash
 bash scripts/verify-ci.sh
 ```
+
+For the everyday edit-test loop, run the fast subset that excludes `Category=Slow` integration-style tests:
+
+```bash
+bash scripts/test-fast.sh
+```
+
+By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
 
 When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`.
 
