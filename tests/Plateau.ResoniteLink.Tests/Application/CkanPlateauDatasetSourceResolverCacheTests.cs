@@ -8,6 +8,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
+[Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverCacheTests
 {
     [Theory]

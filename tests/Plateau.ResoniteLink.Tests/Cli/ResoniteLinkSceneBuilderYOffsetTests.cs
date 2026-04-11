@@ -7,6 +7,7 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
+[Trait("Category", "Slow")]
 public sealed class ResoniteLinkSceneBuilderYOffsetTests
 {
     [Fact]

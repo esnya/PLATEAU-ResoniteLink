@@ -2,9 +2,11 @@ namespace Plateau.ResoniteLink.Tests;
 
 internal static class TestData
 {
+    private static readonly string RepositoryRoot = GetRepositoryRoot();
+
     public static string GetFixturePath(string fixtureName)
     {
-        return Path.Combine(GetRepositoryRoot(), "tests", "Fixtures", fixtureName);
+        return Path.Combine(RepositoryRoot, "tests", "Fixtures", fixtureName);
     }
 
     private static string GetRepositoryRoot()

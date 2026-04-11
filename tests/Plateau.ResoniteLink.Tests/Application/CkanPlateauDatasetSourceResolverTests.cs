@@ -10,6 +10,7 @@ using SharpCompress.Writers.SevenZip;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
+[Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverTests
 {
     [Fact]

@@ -14,6 +14,7 @@ namespace Plateau.ResoniteLink.Tests.Application;
     "Reliability",
     "CA2000:Dispose objects before losing scope",
     Justification = "The tests intentionally hand ownership to PlateauImportService or helper methods.")]
+[Trait("Category", "Slow")]
 public sealed class PlateauImportServiceTests
 {
     [Fact]
