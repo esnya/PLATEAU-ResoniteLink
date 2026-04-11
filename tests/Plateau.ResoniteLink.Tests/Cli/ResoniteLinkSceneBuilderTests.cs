@@ -97,7 +97,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             fakeClient.ImportedTexturePaths,
             path => string.Equals(
                 path,
-                Path.GetFullPath(Path.Combine(fixturePath, "udx/bldg/53394525/appearance/roof.png")),
+                "udx/bldg/53394525/appearance/roof.png",
                 StringComparison.Ordinal));
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
@@ -112,7 +112,12 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             static path => path.EndsWith("_Metallic.png", StringComparison.Ordinal));
-        Assert.Empty(fakeClient.ImportedRawTextures);
+        Assert.Contains(
+            fakeClient.ImportedRawTextures,
+            rawImport => string.Equals(
+                rawImport.Identity,
+                "udx/bldg/53394525/appearance/roof.png",
+                StringComparison.Ordinal));
 
         Assert.All(staticTextureRequests, request =>
         {

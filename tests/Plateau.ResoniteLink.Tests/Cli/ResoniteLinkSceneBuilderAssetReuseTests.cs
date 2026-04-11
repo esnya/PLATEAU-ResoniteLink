@@ -68,7 +68,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         await BuildSceneOnceAsync(scene, sharedClient, Path.Combine(datasetDirectory.Path, "work"));
 
         string importedTexturePath = Assert.Single(sharedClient.ImportedTexturePaths);
-        Assert.Equal(Path.Combine(datasetDirectory.Path, texturePath), importedTexturePath);
+        Assert.Equal(texturePath, importedTexturePath);
+        ResoniteRawTextureImport importedRawTexture = Assert.Single(sharedClient.ImportedRawTextures);
+        Assert.Equal(texturePath, importedRawTexture.Identity);
     }
 
     [Fact]
