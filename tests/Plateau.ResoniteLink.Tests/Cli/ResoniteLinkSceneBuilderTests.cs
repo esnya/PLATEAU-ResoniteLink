@@ -1832,7 +1832,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             static message => message.Contains("[live][error] Send lane 1/1 failed:", StringComparison.Ordinal));
         Assert.Contains(
             progressMessages,
-            static message => message.Contains("[live][info] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
+            static message => message.Contains("[live][debug] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
     }
 
     [Fact]
