@@ -24,7 +24,7 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
             globalOriginPoint.ToLegacy(),
             globalCartesian,
             demTerrainTextureOverlays,
-            terrainHeightSampler?.Legacy,
+            terrainHeightSampler?.ToLegacy(),
             request,
             materialResolver,
             predicate is null ? null : legacyCityObject => predicate(BootstrapParsedCityObject.FromLegacy(legacyCityObject)));

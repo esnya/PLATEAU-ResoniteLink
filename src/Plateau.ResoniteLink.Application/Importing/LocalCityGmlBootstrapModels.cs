@@ -58,6 +58,7 @@ internal sealed class SourceFilePipeline
 {
     private readonly object parseTaskGate = new();
     private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
+    private readonly LocalCityGmlResonitePlanBuilder.SourceFilePipeline? legacy;
     private Task<ParsedSourceFileResult>? parseTask;
 
     internal SourceFilePipeline(SourceFileDescriptor sourceFile, Func<Task<ParsedSourceFileResult>> parseTaskFactory)
@@ -71,10 +72,8 @@ internal sealed class SourceFilePipeline
             SourceFileDescriptor.FromLegacy(legacy.SourceFile),
             async () => ParsedSourceFileResult.FromLegacy(await legacy.GetParseTask().ConfigureAwait(false)))
     {
-        Legacy = legacy;
+        this.legacy = legacy;
     }
-
-    internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline? Legacy { get; }
 
     public SourceFileDescriptor SourceFile { get; }
 
@@ -89,7 +88,7 @@ internal sealed class SourceFilePipeline
 
     internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline ToLegacy()
     {
-        return Legacy ?? new LocalCityGmlResonitePlanBuilder.SourceFilePipeline(
+        return legacy ?? new LocalCityGmlResonitePlanBuilder.SourceFilePipeline(
             SourceFile.ToLegacy(),
             async () => (await GetParseTask().ConfigureAwait(false)).ToLegacy());
     }
@@ -349,16 +348,21 @@ internal sealed record BootstrapParsedCityObject(
 
 internal sealed class TerrainHeightSampler
 {
+    private readonly LocalCityGmlResonitePlanBuilder.TerrainHeightSampler legacy;
+
     internal TerrainHeightSampler(LocalCityGmlResonitePlanBuilder.TerrainHeightSampler legacy)
     {
-        Legacy = legacy;
+        this.legacy = legacy;
     }
-
-    internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler Legacy { get; }
 
     internal static TerrainHeightSampler? FromLegacy(LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler)
     {
         return terrainHeightSampler is null ? null : new TerrainHeightSampler(terrainHeightSampler);
+    }
+
+    internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler ToLegacy()
+    {
+        return legacy;
     }
 
     internal static TerrainHeightSampler Create(
