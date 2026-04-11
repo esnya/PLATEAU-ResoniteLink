@@ -26,7 +26,7 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         string expectedSafePath = Path.GetFullPath(
             Path.Combine(
                 outputRoot,
-                ".dataset-cache",
+                "materialized",
                 GetMaterializedArchiveCacheKey(archivePath),
                 safePath.Replace('/', Path.DirectorySeparatorChar)));
 
@@ -54,7 +54,7 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         string expectedUnsafePath = Path.GetFullPath(
             Path.Combine(
                 outputRoot,
-                ".dataset-cache",
+                "materialized",
                 GetMaterializedArchiveCacheKey(archivePath),
                 traversalPath.Replace('/', Path.DirectorySeparatorChar)));
 

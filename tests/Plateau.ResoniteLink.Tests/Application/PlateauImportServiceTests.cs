@@ -63,6 +63,37 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncUsesDatasetScopedWorkRoot()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+        using TemporaryDirectory workRoot = new();
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot.Path);
+
+        string expectedDatasetRoot = Path.Combine(workRoot.Path, "tokyo23ku");
+        Assert.Equal(expectedDatasetRoot, Assert.Single(datasetSourceResolver.WorkRoots));
+        Assert.Equal(expectedDatasetRoot, Assert.Single(sceneBuilder.BeginWorkRoots));
+    }
+
+    [Fact]
     public async Task ExecuteAsyncBuildsNormalizedSceneFromZipArchive()
     {
         using TemporaryDirectory archiveRoot = new();
@@ -2189,7 +2220,7 @@ public sealed class PlateauImportServiceTests
 
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Resolved dataset source", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Scene builder connection check completed", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Scanned ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scanned ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Parsed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Prepared construction source", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization.", StringComparison.Ordinal));
@@ -2346,6 +2377,7 @@ public sealed class PlateauImportServiceTests
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<string> BeginWorkRoots { get; } = [];
         public int EnsureConnectedCallCount { get; private set; }
         public int DisposeCallCount { get; private set; }
         public PlateauImportRequest? LastEnsureConnectedRequest { get; private set; }
@@ -2376,6 +2408,7 @@ public sealed class PlateauImportServiceTests
         {
             ArgumentNullException.ThrowIfNull(metadata);
             ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
+            BeginWorkRoots.Add(workRoot);
             OnBegin?.Invoke();
             return Task.CompletedTask;
         }
@@ -2404,6 +2437,7 @@ public sealed class PlateauImportServiceTests
     private sealed class RecordingDatasetSourceResolver(PlateauImportRequest resolvedRequest) : IPlateauDatasetSourceResolver
     {
         public List<PlateauImportRequest> Requests { get; } = [];
+        public List<string> WorkRoots { get; } = [];
 
         public Task<PlateauImportRequest> ResolveAsync(
             PlateauImportRequest request,
@@ -2411,6 +2445,7 @@ public sealed class PlateauImportServiceTests
             CancellationToken cancellationToken = default)
         {
             Requests.Add(request);
+            WorkRoots.Add(workRoot);
             return Task.FromResult(resolvedRequest);
         }
     }

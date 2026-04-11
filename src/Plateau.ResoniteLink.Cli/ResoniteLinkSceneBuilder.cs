@@ -40,7 +40,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private CreatedSlot? datasetAssetsRootSlot;
     private CreatedSlot? commonAssetsRootSlot;
     private ResoniteMaterialAssetManager? materialAssetManager;
-    private string? generatedAssetsRoot;
+    private string? runRoot;
     private AsyncCompletedResultCache<TextureImportCacheKey, Uri>? importedTextureUriCache;
     private DispatchLaneAllocator? dispatchLaneAllocator;
     private ResoniteTextureImportResolver? textureImportResolver;
@@ -120,7 +120,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         this.metadata = metadata;
         string resolvedWorkRoot = Path.GetFullPath(workRoot);
         Directory.CreateDirectory(resolvedWorkRoot);
-        generatedAssetsRoot = Path.Combine(resolvedWorkRoot, ".generated-assets");
+        runRoot = CreateRunRoot(resolvedWorkRoot);
+        Directory.CreateDirectory(runRoot);
         string completionMeshCode = ResolveCompletionMeshCode(metadata);
 
         ReportProgress(
@@ -149,7 +150,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(localSource.LocalSourcePath!, cancellationToken);
         textureImportResolver = new ResoniteTextureImportResolver(
             datasetContentSource,
-            generatedAssetsRoot,
+            runRoot,
             metadata.SourceDataset.TerrainTextureOverlays,
             terrainTextureAssetGenerator);
         ReportProgress("[live] Creating dataset root, asset groups, and anchor slots.");
@@ -547,7 +548,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             datasetAssetsRootSlot = null;
             commonAssetsRootSlot = null;
             materialAssetManager = null;
-            generatedAssetsRoot = null;
+            string? priorRunRoot = runRoot;
+            runRoot = null;
+            TryDeleteDirectory(priorRunRoot);
             sharedSlotCache.Clear();
             importedTextureUriCache = null;
             dispatchLaneAllocator = null;
@@ -560,6 +563,31 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             sceneBuildStopwatch = null;
             sceneAnchor = null;
         }
+    }
+
+    private static void TryDeleteDirectory(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(path, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string CreateRunRoot(string datasetRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
+        return Path.Combine(Path.GetFullPath(datasetRoot), "run", Guid.NewGuid().ToString("N"));
     }
 
     private async Task ProcessQueuedCityObjectAsync(

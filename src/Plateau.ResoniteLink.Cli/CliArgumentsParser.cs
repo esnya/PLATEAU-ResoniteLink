@@ -36,7 +36,7 @@ public static class CliArgumentsParser
           --local-source-path <path>
                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
           --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
-          --work-root <path>     Optional. Working directory for live-generated assets, remote download cache, and asset reuse state. Default: runtime/<os>/resonite.
+          --work-root <path>     Optional. Parent directory for dataset-local archive storage and live temporary files. Default: local.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
@@ -63,7 +63,7 @@ public static class CliArgumentsParser
         string? dataset = null;
         string? meshCode = null;
         string? localSourcePath = null;
-        string workRoot = Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite");
+        string workRoot = "local";
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         bool enableSendMetrics = false;
@@ -565,23 +565,4 @@ public static class CliArgumentsParser
             || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string GetCurrentOsDirectoryName()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return "windows";
-        }
-
-        if (OperatingSystem.IsLinux())
-        {
-            return "linux";
-        }
-
-        if (OperatingSystem.IsMacOS())
-        {
-            return "macos";
-        }
-
-        return "unknown";
-    }
 }

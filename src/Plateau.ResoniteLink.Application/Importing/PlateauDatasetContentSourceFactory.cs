@@ -1,6 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
-
 using SharpCompress.Archives;
 using SharpCompress.Readers;
 
@@ -72,32 +69,9 @@ public static class PlateauDatasetContentSourceFactory
                 .Where(static segment => segment.Length > 0));
     }
 
-    internal static IReadOnlyList<string> GetMaterializedArchiveCacheKeys(string archivePath)
-    {
-        string fullArchivePath = Path.GetFullPath(archivePath);
-        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
-        List<string> keys = [];
-
-        if (!string.IsNullOrWhiteSpace(fileStem))
-        {
-            string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath))).ToLowerInvariant();
-            keys.Add($"{fileStem}-{digest[..12]}");
-            keys.Add(fileStem);
-        }
-
-        return keys;
-    }
-
     internal static string GetMaterializedArchiveCacheKey(string archivePath)
     {
-        IReadOnlyList<string> keys = GetMaterializedArchiveCacheKeys(archivePath);
-        if (keys.Count == 0)
-        {
-            throw new PlateauImportValidationException(
-                [$"The archive path '{archivePath}' must have a non-empty file name before the extension to create a materialized archive cache key."]);
-        }
-
-        return keys[0];
+        return WorkRootLayout.GetMaterializedArchiveCacheKey(archivePath);
     }
 
     internal static string GetDirectoryPath(string relativePath)
@@ -256,10 +230,7 @@ public static class PlateauDatasetContentSourceFactory
             cancellationToken.ThrowIfCancellationRequested();
 
             string normalizedPath = NormalizeSafeRelativePath(relativePath);
-            string archiveCacheRoot = Path.Combine(
-                outputRoot,
-                ".dataset-cache",
-                GetMaterializedArchiveCacheKey(ArchivePath));
+            string archiveCacheRoot = WorkRootLayout.GetMaterializedArchiveRoot(outputRoot, ArchivePath);
             string destinationPath = ResolveMaterializedPath(archiveCacheRoot, normalizedPath);
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);

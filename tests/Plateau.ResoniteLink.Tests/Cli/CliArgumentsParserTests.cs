@@ -30,9 +30,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("53394525", result.Options.Request.MeshCode);
         Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
-        Assert.Equal(
-            Path.Combine("runtime", GetCurrentOsDirectoryName(), "resonite"),
-            result.Options.WorkRoot);
+        Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.False(result.Options.EnableSendMetrics);
@@ -465,25 +463,5 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("Specify either --resonitelink-port or --resonitelink-url.", result.Error);
-    }
-
-    private static string GetCurrentOsDirectoryName()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return "windows";
-        }
-
-        if (OperatingSystem.IsLinux())
-        {
-            return "linux";
-        }
-
-        if (OperatingSystem.IsMacOS())
-        {
-            return "macos";
-        }
-
-        return "unknown";
     }
 }

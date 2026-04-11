@@ -1943,6 +1943,12 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
         Assert.Equal(0, client.BatchMutationCount);
+        Assert.Contains(
+            session.AddedSlots,
+            addSlot =>
+                string.Equals(addSlot.Data.Name?.Value, "Building One", StringComparison.Ordinal)
+                && addSlot.Data.Parent is not null
+                && string.Equals(session.SlotPaths[addSlot.Data.Parent.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal));
         Assert.Equal(0, client.RejectedAliasMutationCount);
     }
 
@@ -3885,6 +3891,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+
     }
 
     private sealed class UncooperativeConnectClient : IResoniteLinkClient
@@ -4121,18 +4128,27 @@ public sealed class ResoniteLinkSceneBuilderTests
             cancellationToken.ThrowIfCancellationRequested();
             if (string.Equals(slotId, "Root", StringComparison.Ordinal))
             {
-                return Task.FromResult<Slot?>(new Slot
+                Slot root = new()
                 {
                     ID = "Root",
                     Name = new Field_string
                     {
                         Value = "Root",
                     },
-                });
+                };
+                if (depth > 0)
+                {
+                    root.Children = slotsById.Values
+                        .Where(static slot => string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal))
+                        .Select(slot => CloneSlot(slot, depth - 1))
+                        .ToList();
+                }
+
+                return Task.FromResult<Slot?>(root);
             }
 
             slotsById.TryGetValue(slotId, out Slot? slot);
-            return Task.FromResult(slot);
+            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -4152,6 +4168,41 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent is null ? null : new Reference
+                {
+                    TargetID = source.Parent.TargetID,
+                },
+                Name = source.Name is null ? null : new Field_string
+                {
+                    Value = source.Name.Value,
+                },
+                Position = source.Position,
+                Rotation = source.Rotation,
+                Scale = source.Scale,
+            };
+
+            if (source.Components is not null)
+            {
+                clone.Components = [.. source.Components];
+            }
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = slotsById.Values
+                .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
         }
     }
 
