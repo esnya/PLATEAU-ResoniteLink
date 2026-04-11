@@ -12,6 +12,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
         LocalCityGmlConstructionSourceFactory factory = new(reader, composer);
+        Action<string> progressReporter = _ => { };
 
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -20,10 +21,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
 
-        IResoniteConstructionSource result = await factory.CreateAsync(request);
+        IResoniteConstructionSource result = await factory.CreateAsync(request, progressReporter);
 
         Assert.Same(expectedSource, result);
         Assert.Same(request, reader.LastRequest);
+        Assert.Same(progressReporter, reader.LastProgressReporter);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(reader.DocumentSet, composer.LastDocumentSet);
     }
@@ -31,6 +33,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
         public PlateauImportRequest? LastRequest { get; private set; }
+
+        public Action<string>? LastProgressReporter { get; private set; }
 
         public LocalCityGmlDocumentSet DocumentSet { get; } = new(
             new EmptyDatasetContentSource(),
@@ -50,6 +54,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            LastProgressReporter = progressReporter;
             return Task.FromResult(DocumentSet);
         }
     }

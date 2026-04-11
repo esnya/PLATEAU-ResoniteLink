@@ -26,6 +26,16 @@ public sealed class LocalCityGmlDocumentSet
         ReferenceSystem = referenceSystem;
         GlobalOriginPoint = globalOriginPoint;
         TerrainHeightSampler = terrainHeightSampler;
+
+        BootstrapSourceFilePipelines = sourceFilePipelines
+            .Select(static pipeline => new SourceFilePipeline(pipeline))
+            .ToArray();
+        BootstrapCachedDemSourceFiles = cachedDemSourceFiles
+            .Select(CachedSourceFileDescriptor.FromLegacy)
+            .ToArray();
+        BootstrapReferenceSystem = CoordinateReferenceSystem.FromLegacy(referenceSystem);
+        BootstrapGlobalOriginPoint = GeodeticPoint.FromLegacy(globalOriginPoint);
+        BootstrapTerrainHeightSampler = global::Plateau.ResoniteLink.Application.Importing.TerrainHeightSampler.FromLegacy(terrainHeightSampler);
     }
 
     public IPlateauDatasetContentSource DatasetSource { get; }
@@ -47,4 +57,14 @@ public sealed class LocalCityGmlDocumentSet
     internal LocalCityGmlResonitePlanBuilder.GeodeticPoint GlobalOriginPoint { get; }
 
     internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? TerrainHeightSampler { get; }
+
+    internal IReadOnlyList<SourceFilePipeline> BootstrapSourceFilePipelines { get; }
+
+    internal IReadOnlyList<CachedSourceFileDescriptor> BootstrapCachedDemSourceFiles { get; }
+
+    internal CoordinateReferenceSystem BootstrapReferenceSystem { get; }
+
+    internal GeodeticPoint BootstrapGlobalOriginPoint { get; }
+
+    internal TerrainHeightSampler? BootstrapTerrainHeightSampler { get; }
 }

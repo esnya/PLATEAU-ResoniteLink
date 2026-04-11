@@ -119,51 +119,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
     {
-        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.WestLongitude, DefaultDemTerrainTextureZoomLevel);
-        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.EastLongitude, DefaultDemTerrainTextureZoomLevel);
-        double topPixel = WebMercatorTileMath.LatitudeToPixelY(demBounds.NorthLatitude, DefaultDemTerrainTextureZoomLevel);
-        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(demBounds.SouthLatitude, DefaultDemTerrainTextureZoomLevel);
-
-        List<TerrainTextureOverlay> overlays = [];
-        int row = 0;
-        for (double currentTop = topPixel; currentTop < bottomPixel - 1e-6; currentTop += DefaultDemTerrainTextureMaxSize, row++)
-        {
-            double currentBottom = Math.Min(currentTop + DefaultDemTerrainTextureMaxSize, bottomPixel);
-            int column = 0;
-            for (double currentLeft = leftPixel; currentLeft < rightPixel - 1e-6; currentLeft += DefaultDemTerrainTextureMaxSize, column++)
-            {
-                double currentRight = Math.Min(currentLeft + DefaultDemTerrainTextureMaxSize, rightPixel);
-                overlays.Add(CreateDemTerrainTextureOverlay(row, column, currentLeft, currentRight, currentTop, currentBottom));
-            }
-        }
-
-        if (overlays.Count == 0)
-        {
-            overlays.Add(CreateDemTerrainTextureOverlay(row: 0, column: 0, leftPixel, rightPixel, topPixel, bottomPixel));
-        }
-
-        return overlays.ToArray();
-    }
-
-    private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
-        int row,
-        int column,
-        double leftPixel,
-        double rightPixel,
-        double topPixel,
-        double bottomPixel)
-    {
-        return new TerrainTextureOverlay(
-            TexturePath: CreateDemTerrainTexturePath(leftPixel, rightPixel, topPixel, bottomPixel),
-            PackageName: "dem",
-            UrlTemplate: DefaultDemTerrainTextureUrlTemplate,
-            ZoomLevel: DefaultDemTerrainTextureZoomLevel,
-            GeographicBounds: new GeographicRectangle(
-                MinLatitude: WebMercatorTileMath.PixelYToLatitude(bottomPixel, DefaultDemTerrainTextureZoomLevel),
-                MaxLatitude: WebMercatorTileMath.PixelYToLatitude(topPixel, DefaultDemTerrainTextureZoomLevel),
-                MinLongitude: WebMercatorTileMath.PixelXToLongitude(leftPixel, DefaultDemTerrainTextureZoomLevel),
-                MaxLongitude: WebMercatorTileMath.PixelXToLongitude(rightPixel, DefaultDemTerrainTextureZoomLevel)),
-            MaxTextureSize: DefaultDemTerrainTextureMaxSize);
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(demBounds);
     }
 
     private static string CreateDemTerrainTexturePath(
@@ -336,70 +292,17 @@ public static partial class LocalCityGmlResonitePlanBuilder
             allPoints.Min(static point => point.Altitude));
     }
 
-    private static (
-        double minLatitude,
-        double maxLatitude,
-        double minLongitude,
-        double maxLongitude,
-        double minAltitude) MergeBounds(
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? current,
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) next)
-    {
-        if (current is null)
-        {
-            return next;
-        }
-
-        return (
-            Math.Min(current.Value.minLatitude, next.minLatitude),
-            Math.Max(current.Value.maxLatitude, next.maxLatitude),
-            Math.Min(current.Value.minLongitude, next.minLongitude),
-            Math.Max(current.Value.maxLongitude, next.maxLongitude),
-            Math.Min(current.Value.minAltitude, next.minAltitude));
-    }
-
     internal static MeshCodeArea? ResolveDemTerrainBounds(
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeArea? fallbackBounds)
     {
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds = null;
-
-        foreach (ParsedSourceFileResult parsedSourceFile in demParsedSourceFiles)
-        {
-            if (parsedSourceFile.CityObjects.Length == 0)
-            {
-                continue;
-            }
-
-            bounds = MergeBounds(bounds, GetBounds(parsedSourceFile.CityObjects));
-        }
-
-        return bounds is null
-            ? fallbackBounds
-            : new MeshCodeArea(
-                bounds.Value.minLatitude,
-                bounds.Value.maxLatitude,
-                bounds.Value.minLongitude,
-                bounds.Value.maxLongitude);
+        return LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(demParsedSourceFiles, fallbackBounds);
     }
 
-    private static IEnumerable<TerrainHeightTriangle> ExtractTerrainHeightTriangles(
+    private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        foreach (ParsedSurface surface in cityObjects.SelectMany(static cityObject => cityObject.Surfaces))
-        {
-            GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
-            if (vertices.Length < 3)
-            {
-                continue;
-            }
-
-            GeodeticPoint origin = vertices[0];
-            for (int index = 1; index + 1 < vertices.Length; index++)
-            {
-                yield return new TerrainHeightTriangle(origin, vertices[index], vertices[index + 1]);
-            }
-        }
+        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects);
     }
 
     private static ParsedCityObject ConformCityObjectToTerrain(
