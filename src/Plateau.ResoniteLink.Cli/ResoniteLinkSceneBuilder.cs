@@ -609,9 +609,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         QueuedCityObject queuedCityObject,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(setupClient is null, this);
         PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-        await BuildPreparedCityObjectAsync(setupClient, client, preparedCityObject, cancellationToken);
+        await BuildPreparedCityObjectAsync(client, client, preparedCityObject, cancellationToken);
 
         int processedCount = Interlocked.Increment(ref processedCityObjectCount);
         ReportProgress(
@@ -1671,7 +1670,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        return await sharedSlotCache.GetOrCreateAsync(
+        CreatedSlot createdSlot = await sharedSlotCache.GetOrCreateAsync(
             (parentId, slotName),
             ct => GetOrCreateSharedChildSlotCoreAsync(
                 client,
@@ -1681,6 +1680,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 rotation,
                 ct),
             cancellationToken);
+        await WaitForSlotAvailableAsync(client, createdSlot.SlotId, cancellationToken);
+        return createdSlot;
     }
 
     private static async Task<CreatedSlot> GetOrCreateSharedChildSlotCoreAsync(

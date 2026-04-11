@@ -1558,6 +1558,7 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
         Assert.True(clients.All(client => client.ImportedMeshCount > 0));
+        Assert.True(clients.All(client => client.BatchMutationCount > 0));
         Assert.Equal(scene.CityObjects.Count, clients.Sum(client => client.ImportedMeshCount));
     }
 
@@ -2556,6 +2557,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public int ImportedMeshCount { get; private set; }
 
+        public int BatchMutationCount { get; private set; }
+
         public void Dispose()
         {
         }
@@ -2624,6 +2627,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            BatchMutationCount++;
             lock (session.Gate)
             {
                 session.Batches.Add(operations.ToArray());
