@@ -10,26 +10,47 @@ public sealed class LocalCityGmlDocumentSet
         IReadOnlyList<string> packageNames,
         IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays,
         IReadOnlyList<string> requestedMeshCodes,
-        LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] sourceFilePipelines,
-        IReadOnlyList<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> cachedDemSourceFiles,
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
-        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler)
+        IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
+        IReadOnlyList<CachedSourceFileDescriptor> cachedDemSourceFiles,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        TerrainHeightSampler? terrainHeightSampler)
     {
         DatasetSource = datasetSource;
         RelativeSourceFiles = relativeSourceFiles;
         PackageNames = packageNames;
         TerrainTextureOverlays = terrainTextureOverlays;
         RequestedMeshCodes = requestedMeshCodes;
-        BootstrapSourceFilePipelines = sourceFilePipelines
-            .Select(static pipeline => new SourceFilePipeline(pipeline))
-            .ToArray();
-        BootstrapCachedDemSourceFiles = cachedDemSourceFiles
-            .Select(CachedSourceFileDescriptor.FromLegacy)
-            .ToArray();
-        BootstrapReferenceSystem = CoordinateReferenceSystem.FromLegacy(referenceSystem);
-        BootstrapGlobalOriginPoint = GeodeticPoint.FromLegacy(globalOriginPoint);
-        BootstrapTerrainHeightSampler = global::Plateau.ResoniteLink.Application.Importing.TerrainHeightSampler.FromLegacy(terrainHeightSampler);
+        BootstrapSourceFilePipelines = sourceFilePipelines;
+        BootstrapCachedDemSourceFiles = cachedDemSourceFiles;
+        BootstrapReferenceSystem = referenceSystem;
+        BootstrapGlobalOriginPoint = globalOriginPoint;
+        BootstrapTerrainHeightSampler = terrainHeightSampler;
+    }
+
+    internal LocalCityGmlDocumentSet(
+        IPlateauDatasetContentSource datasetSource,
+        IReadOnlyList<string> relativeSourceFiles,
+        IReadOnlyList<string> packageNames,
+        IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays,
+        IReadOnlyList<string> requestedMeshCodes,
+        LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] sourceFilePipelines,
+        IReadOnlyList<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> cachedDemSourceFiles,
+        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem,
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
+        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler)
+        : this(
+            datasetSource,
+            relativeSourceFiles,
+            packageNames,
+            terrainTextureOverlays,
+            requestedMeshCodes,
+            sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
+            cachedDemSourceFiles.Select(CachedSourceFileDescriptor.FromLegacy).ToArray(),
+            CoordinateReferenceSystem.FromLegacy(referenceSystem),
+            GeodeticPoint.FromLegacy(globalOriginPoint),
+            global::Plateau.ResoniteLink.Application.Importing.TerrainHeightSampler.FromLegacy(terrainHeightSampler))
+    {
     }
 
     public IPlateauDatasetContentSource DatasetSource { get; }

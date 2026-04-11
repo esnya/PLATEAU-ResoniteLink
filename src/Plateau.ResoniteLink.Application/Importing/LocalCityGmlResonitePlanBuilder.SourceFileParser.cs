@@ -38,8 +38,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             request.MeshCode,
             request.PackageNames);
         IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles = discoveryResult.SourceFiles;
-        SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
-            .Select(static descriptor => new SourceFileDescriptor(
+        global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
+            .Select(static descriptor => new global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor(
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
@@ -65,7 +65,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             packagePatterns: request.PackagePatterns,
             includeMarkingAlways: request.IncludeMarkingAlways);
 
-        SourceFilePipeline[] sourceFilePipelines = await CreateSourceFilePipelinesCoreAsync(
+        global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[] sourceFilePipelines = await CreateSourceFilePipelinesCoreAsync(
             sourceFiles,
             datasetSource,
             requestedMeshAreas,
@@ -77,19 +77,19 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
 
-        List<SourceFilePipeline> demPipelines = sourceFilePipelines
+        List<global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline> demPipelines = sourceFilePipelines
             .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
             .ToList();
         Stopwatch demStopwatch = Stopwatch.StartNew();
-        ParsedSourceFileResult[] demParsedSourceFiles = demPipelines.Count == 0
+        global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult[] demParsedSourceFiles = demPipelines.Count == 0
             ? []
             : await Task.WhenAll(demPipelines.Select(static pipeline => pipeline.GetParseTask()));
         demStopwatch.Stop();
 
-        CoordinateReferenceSystem? referenceSystem = null;
-        foreach (SourceFilePipeline pipeline in sourceFilePipelines)
+        global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem? referenceSystem = null;
+        foreach (global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline pipeline in sourceFilePipelines)
         {
-            ParsedSourceFileResult parsedSourceFile = await pipeline.GetParseTask();
+            global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult parsedSourceFile = await pipeline.GetParseTask();
             if (parsedSourceFile.ReferenceSystem is null)
             {
                 continue;
@@ -123,7 +123,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
-        GeodeticPoint globalOriginPoint = new(
+        global::Plateau.ResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint = new(
             resolvedLocalOrigin.Latitude,
             resolvedLocalOrigin.Longitude,
             0.0);
@@ -134,7 +134,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(demTerrainBounds)
             : [];
 
-        TerrainHeightSampler? terrainHeightSampler = LocalCityGmlDemBootstrapSupport.CreateTerrainHeightSampler(
+        global::Plateau.ResoniteLink.Application.Importing.TerrainHeightSampler? terrainHeightSampler = LocalCityGmlDemBootstrapSupport.CreateTerrainHeightSampler(
             referenceSystem.IsGeographic,
             demBootstrap.TerrainTriangles,
             globalOriginPoint,
@@ -165,8 +165,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             terrainHeightSampler);
     }
 
-    internal static Task<SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(
-        IReadOnlyList<SourceFileDescriptor> sourceFiles,
+    internal static Task<global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(
+        IReadOnlyList<global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         Action<string>? progressReporter,
@@ -176,7 +176,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return Task.FromResult(
             sourceFiles
                 .Select(sourceFile =>
-                    new SourceFilePipeline(
+                    new global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline(
                         sourceFile,
                         () => ParseSourceFileCoreAsync(
                             sourceFile,
@@ -188,8 +188,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 .ToArray());
     }
 
-    internal static async Task<ParsedSourceFileResult> ParseSourceFileCoreAsync(
-        SourceFileDescriptor sourceFile,
+    internal static async Task<global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult> ParseSourceFileCoreAsync(
+        global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         Action<string>? progressReporter,
@@ -201,7 +201,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Stopwatch fileStopwatch = Stopwatch.StartNew();
         List<ParsedCityObject> cityObjects = [];
         await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
-                           sourceFile,
+                           sourceFile.ToLegacy(),
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
@@ -218,8 +218,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             datasetSource,
             sourceFile.RelativePath,
             cancellationToken);
-        TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
+        global::Plateau.ResoniteLink.Application.Importing.TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray.Select(BootstrapParsedCityObject.FromLegacy))
             : [];
 
         progressReporter?.Invoke(
@@ -229,10 +229,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
                 + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-        return new ParsedSourceFileResult(
+        return new global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult(
             sourceFile,
-            cityObjectArray,
-            coordinateReferenceSystem,
+            cityObjectArray.Select(BootstrapParsedCityObject.FromLegacy).ToArray(),
+            global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem.FromLegacy(coordinateReferenceSystem),
             terrainTriangles,
             fileStopwatch.Elapsed);
     }

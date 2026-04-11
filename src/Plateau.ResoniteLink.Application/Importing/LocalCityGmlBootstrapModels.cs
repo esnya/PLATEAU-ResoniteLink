@@ -86,6 +86,13 @@ internal sealed class SourceFilePipeline
             return parseTask;
         }
     }
+
+    internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline ToLegacy()
+    {
+        return Legacy ?? new LocalCityGmlResonitePlanBuilder.SourceFilePipeline(
+            SourceFile.ToLegacy(),
+            async () => (await GetParseTask().ConfigureAwait(false)).ToLegacy());
+    }
 }
 
 internal sealed record ParsedSourceFileResult(

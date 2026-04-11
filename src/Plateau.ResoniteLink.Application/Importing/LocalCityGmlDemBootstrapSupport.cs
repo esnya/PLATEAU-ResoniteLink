@@ -9,15 +9,15 @@ namespace Plateau.ResoniteLink.Application.Importing;
 internal static class LocalCityGmlDemBootstrapSupport
 {
     internal static DemBootstrapAggregation AggregateDemParsedSourceFiles(
-        IReadOnlyList<LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult> demParsedSourceFiles)
+        IReadOnlyList<ParsedSourceFileResult> demParsedSourceFiles)
     {
         ArgumentNullException.ThrowIfNull(demParsedSourceFiles);
 
-        LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor[] cachedDemSourceFiles = demParsedSourceFiles
+        CachedSourceFileDescriptor[] cachedDemSourceFiles = demParsedSourceFiles
             .Where(static parsed => parsed.CityObjects.Length > 0)
-            .Select(static parsed => new LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor(parsed.SourceFile, parsed.CityObjects))
+            .Select(static parsed => new CachedSourceFileDescriptor(parsed.SourceFile, parsed.CityObjects))
             .ToArray();
-        LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle[] terrainTriangles = demParsedSourceFiles
+        TerrainHeightTriangle[] terrainTriangles = demParsedSourceFiles
             .SelectMany(static parsed => parsed.TerrainTriangles)
             .ToArray();
 
@@ -27,38 +27,62 @@ internal static class LocalCityGmlDemBootstrapSupport
             demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length));
     }
 
-    internal static LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle[] CreateTerrainHeightTriangles(
-        IEnumerable<LocalCityGmlResonitePlanBuilder.ParsedCityObject> cityObjects)
+    internal static DemBootstrapAggregation AggregateDemParsedSourceFiles(
+        IReadOnlyList<LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult> demParsedSourceFiles)
+    {
+        return AggregateDemParsedSourceFiles(
+            demParsedSourceFiles.Select(ParsedSourceFileResult.FromLegacy).ToArray());
+    }
+
+    internal static TerrainHeightTriangle[] CreateTerrainHeightTriangles(
+        IEnumerable<BootstrapParsedCityObject> cityObjects)
     {
         ArgumentNullException.ThrowIfNull(cityObjects);
 
-        List<LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle> terrainTriangles = [];
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSurface surface in cityObjects.SelectMany(static cityObject => cityObject.Surfaces))
+        List<TerrainHeightTriangle> terrainTriangles = [];
+        foreach (BootstrapParsedSurface surface in cityObjects.SelectMany(static cityObject => cityObject.Surfaces))
         {
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices = surface.Vertices.ToArray();
+            GeodeticPoint[] vertices = surface.Vertices.ToArray();
             if (vertices.Length < 3)
             {
                 continue;
             }
 
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint origin = vertices[0];
+            GeodeticPoint origin = vertices[0];
             for (int index = 1; index + 1 < vertices.Length; index++)
             {
-                terrainTriangles.Add(new LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle(origin, vertices[index], vertices[index + 1]));
+                terrainTriangles.Add(new TerrainHeightTriangle(origin, vertices[index], vertices[index + 1]));
             }
         }
 
         return terrainTriangles.ToArray();
     }
 
+    internal static LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle[] CreateTerrainHeightTriangles(
+        IEnumerable<LocalCityGmlResonitePlanBuilder.ParsedCityObject> cityObjects)
+    {
+        return CreateTerrainHeightTriangles(cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
+            .Select(static triangle => triangle.ToLegacy())
+            .ToArray();
+    }
+
     internal static LocalCityGmlResonitePlanBuilder.MeshCodeArea? ResolveDemTerrainBounds(
         IEnumerable<LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult> demParsedSourceFiles,
+        LocalCityGmlResonitePlanBuilder.MeshCodeArea? fallbackBounds)
+    {
+        return ResolveDemTerrainBounds(
+            demParsedSourceFiles.Select(ParsedSourceFileResult.FromLegacy),
+            fallbackBounds);
+    }
+
+    internal static LocalCityGmlResonitePlanBuilder.MeshCodeArea? ResolveDemTerrainBounds(
+        IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         LocalCityGmlResonitePlanBuilder.MeshCodeArea? fallbackBounds)
     {
         ArgumentNullException.ThrowIfNull(demParsedSourceFiles);
 
         (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds = null;
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult parsedSourceFile in demParsedSourceFiles)
+        foreach (ParsedSourceFileResult parsedSourceFile in demParsedSourceFiles)
         {
             if (parsedSourceFile.CityObjects.Length == 0)
             {
@@ -114,12 +138,29 @@ internal static class LocalCityGmlDemBootstrapSupport
         LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
         Geocentric? geocentric)
     {
+        return CreateTerrainHeightSampler(
+            isGeographicReferenceSystem,
+            terrainTriangles.Select(TerrainHeightTriangle.FromLegacy).ToArray(),
+            GeodeticPoint.FromLegacy(globalOriginPoint),
+            geocentric)?.Legacy;
+    }
+
+    internal static TerrainHeightSampler? CreateTerrainHeightSampler(
+        bool isGeographicReferenceSystem,
+        IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,
+        GeodeticPoint globalOriginPoint,
+        Geocentric? geocentric)
+    {
         if (!isGeographicReferenceSystem || terrainTriangles.Count == 0 || geocentric is null)
         {
             return null;
         }
 
-        return LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(terrainTriangles, globalOriginPoint, geocentric);
+        return TerrainHeightSampler.FromLegacy(
+            LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(
+                terrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
+                globalOriginPoint.ToLegacy(),
+                geocentric));
     }
 
     private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
@@ -161,9 +202,9 @@ internal static class LocalCityGmlDemBootstrapSupport
     }
 
     private static (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) GetBounds(
-        IEnumerable<LocalCityGmlResonitePlanBuilder.ParsedCityObject> cityObjects)
+        IEnumerable<BootstrapParsedCityObject> cityObjects)
     {
-        List<LocalCityGmlResonitePlanBuilder.GeodeticPoint> allPoints = cityObjects
+        List<GeodeticPoint> allPoints = cityObjects
             .SelectMany(static cityObject => cityObject.Surfaces)
             .SelectMany(static surface => surface.Vertices)
             .ToList();
@@ -200,6 +241,6 @@ internal static class LocalCityGmlDemBootstrapSupport
 }
 
 internal sealed record DemBootstrapAggregation(
-    LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor[] CachedDemSourceFiles,
-    LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle[] TerrainTriangles,
+    CachedSourceFileDescriptor[] CachedDemSourceFiles,
+    TerrainHeightTriangle[] TerrainTriangles,
     int ParsedCityObjectCount);

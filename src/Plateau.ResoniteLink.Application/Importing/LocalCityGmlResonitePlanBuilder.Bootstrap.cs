@@ -30,13 +30,15 @@ public static partial class LocalCityGmlResonitePlanBuilder
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
-        return await CreateSourceFilePipelinesCoreAsync(
-            sourceFiles,
+        global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[] pipelines = await CreateSourceFilePipelinesCoreAsync(
+            sourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor.FromLegacy).ToArray(),
             datasetSource,
             requestedMeshAreas,
             progressReporter,
             lodFilteringStrategy,
             cancellationToken);
+
+        return pipelines.Select(static pipeline => pipeline.ToLegacy()).ToArray();
     }
 
     internal static Task<ParsedSourceFileResult> ParseSourceFileAsync(
@@ -48,12 +50,17 @@ public static partial class LocalCityGmlResonitePlanBuilder
         CancellationToken cancellationToken)
     {
         return ParseSourceFileCoreAsync(
-            sourceFile,
-            datasetSource,
-            requestedMeshAreas,
-            progressReporter,
-            lodFilteringStrategy,
-            cancellationToken);
+                global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor.FromLegacy(sourceFile),
+                datasetSource,
+                requestedMeshAreas,
+                progressReporter,
+                lodFilteringStrategy,
+                cancellationToken)
+            .ContinueWith(
+                static task => task.GetAwaiter().GetResult().ToLegacy(),
+                cancellationToken,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
     }
 
     internal static IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(

@@ -8,31 +8,30 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
     [Fact]
     public void AggregateDemParsedSourceFilesCombinesCachedFilesAndTriangles()
     {
-        LocalCityGmlResonitePlanBuilder.SourceFileDescriptor sourceFile = new(
+        SourceFileDescriptor sourceFile = new(
             "udx/dem/53394525/sample.gml",
             "dem",
             "53394525",
             RequiresMeshAreaFilter: false);
 
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject();
-        LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult parsedWithCityObject = new(
+        BootstrapParsedCityObject cityObject = CreateCityObject();
+        ParsedSourceFileResult parsedWithCityObject = new(
             sourceFile,
             [cityObject],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            CoordinateReferenceSystem.Parse("EPSG:4326"),
             [CreateTerrainTriangle()],
             TimeSpan.FromSeconds(1.0));
-        LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult parsedWithoutCityObjects = new(
+        ParsedSourceFileResult parsedWithoutCityObjects = new(
             sourceFile with { RelativePath = "udx/dem/53394526/empty.gml" },
             [],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            CoordinateReferenceSystem.Parse("EPSG:4326"),
             [CreateTerrainTriangle(), CreateTerrainTriangle()],
             TimeSpan.FromSeconds(2.0));
 
         DemBootstrapAggregation result = LocalCityGmlDemBootstrapSupport.AggregateDemParsedSourceFiles(
             [parsedWithCityObject, parsedWithoutCityObjects]);
 
-        LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor cachedSourceFile =
-            Assert.Single(result.CachedDemSourceFiles);
+        CachedSourceFileDescriptor cachedSourceFile = Assert.Single(result.CachedDemSourceFiles);
         Assert.Equal("udx/dem/53394525/sample.gml", cachedSourceFile.RelativePath);
         Assert.Single(cachedSourceFile.CityObjects);
         Assert.Equal(3, result.TerrainTriangles.Length);
@@ -42,13 +41,13 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
     [Fact]
     public void CreateTerrainHeightTrianglesFanTriangulatesSurfaceVertices()
     {
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject();
+        BootstrapParsedCityObject cityObject = CreateCityObject();
 
-        LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle[] result = LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles([cityObject]);
+        TerrainHeightTriangle[] result = LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles([cityObject]);
 
         Assert.Equal(2, result.Length);
-        Assert.Equal(new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 10.0), result[0].Vertex0);
-        Assert.Equal(new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.003, 10.3), result[1].Vertex2);
+        Assert.Equal(new GeodeticPoint(35.0, 139.0, 10.0), result[0].Vertex0);
+        Assert.Equal(new GeodeticPoint(35.0, 139.003, 10.3), result[1].Vertex2);
     }
 
     [Fact]
@@ -67,9 +66,9 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
         Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, result[0].TexturePath);
     }
 
-    private static LocalCityGmlResonitePlanBuilder.ParsedCityObject CreateCityObject()
+    private static BootstrapParsedCityObject CreateCityObject()
     {
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices =
+        GeodeticPoint[] vertices =
         [
             new(35.0, 139.0, 10.0),
             new(35.0, 139.001, 10.1),
@@ -77,7 +76,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             new(35.0, 139.003, 10.3),
         ];
 
-        return new LocalCityGmlResonitePlanBuilder.ParsedCityObject(
+        return new BootstrapParsedCityObject(
             SlotKey: "dem-sample",
             DisplayName: "dem-sample",
             PackageName: "dem",
@@ -85,26 +84,26 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             LodLevel: null,
             Surfaces:
             [
-                new LocalCityGmlResonitePlanBuilder.ParsedSurface(
+                new BootstrapParsedSurface(
                     PolygonId: "surface",
-                    Semantic: LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic.Ground,
-                    ExteriorRing: new LocalCityGmlResonitePlanBuilder.ParsedRing("ring", vertices, null),
+                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new BootstrapParsedRing("ring", vertices, null),
                     InteriorRings: [],
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     TexturePath: null),
             ],
-            ReferenceSystem: LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceIdentity: "source",
             SharedAcrossMeshCodes: false,
             TerrainAligned: false,
             OriginOverride: null);
     }
 
-    private static LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle CreateTerrainTriangle()
+    private static TerrainHeightTriangle CreateTerrainTriangle()
     {
-        return new LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle(
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 10.0),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.001, 10.1),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.002, 10.2));
+        return new TerrainHeightTriangle(
+            new GeodeticPoint(35.0, 139.0, 10.0),
+            new GeodeticPoint(35.0, 139.001, 10.1),
+            new GeodeticPoint(35.0, 139.002, 10.2));
     }
 }
