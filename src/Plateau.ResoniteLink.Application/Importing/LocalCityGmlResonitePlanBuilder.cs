@@ -1262,7 +1262,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     DepthOffset: representativeSurface.DepthOffset,
                     SubmeshIndices: [materialIndex],
                     TextureScale: representativeSurface.Material.TextureScale,
-                    Family: representativeSurface.Material.Family));
+                    Family: representativeSurface.Material.Family,
+                    AssetScope: representativeSurface.Material.AssetScope));
         }
 
         return new ResoniteConstructionCityObject(
@@ -1314,7 +1315,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     ResoniteTextureSourceKind.Bundled,
                     ResoniteMaterialProjection.Uv,
                     Family: null,
-                    TextureScale: null),
+                    TextureScale: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
                 DepthOffset: null);
         }
 
@@ -1331,7 +1333,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                         ResoniteTextureSourceKind.Bundled,
                         ResoniteMaterialProjection.Uv,
                         Family: null,
-                        TextureScale: null),
+                        TextureScale: null,
+                        AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
                     DepthOffset: null);
             }
 
@@ -1343,7 +1346,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     ResoniteTextureSourceKind.Bundled,
                     ResoniteMaterialProjection.Uv,
                     Family: null,
-                    TextureScale: null),
+                    TextureScale: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
                 DepthOffset: null);
         }
 
@@ -1357,7 +1361,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     ResoniteTextureSourceKind.Bundled,
                     ResoniteMaterialProjection.Uv,
                     Family: null,
-                    TextureScale: null),
+                    TextureScale: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
                 DefaultTerrainAlignedMaterialDepthOffset);
         }
 
@@ -3283,7 +3288,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     SubmeshIndices: [materialIndex],
                     TextureScale: textureScale ?? representativeSurface.Material.TextureScale,
                     Family: representativeSurface.Material.Family,
-                    TextureOffset: textureOffset);
+                    TextureOffset: textureOffset,
+                    AssetScope: representativeSurface.Material.AssetScope);
             })
             .ToArray();
     }

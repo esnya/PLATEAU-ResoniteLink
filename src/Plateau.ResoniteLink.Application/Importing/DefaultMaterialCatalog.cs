@@ -19,7 +19,8 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
                 ResoniteTextureSourceKind.Bundled,
                 ResoniteMaterialProjection.Uv,
                 Family: null,
-                TextureScale: null);
+                TextureScale: null,
+                AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
         }
 
         if (!string.IsNullOrWhiteSpace(texturePath))
@@ -30,7 +31,8 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
                 ResoniteTextureSourceKind.Dataset,
                 ResoniteMaterialProjection.Uv,
                 Family: null,
-                TextureScale: null);
+                TextureScale: null,
+                AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
         }
 
         bool useFacadeUvProjection = ShouldUseFacadeUvProjection(packageName, preferUvProjection);
@@ -42,7 +44,8 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             ResoniteTextureSourceKind.Bundled,
             preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
             family,
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath));
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath),
+            ResoniteMaterialAssetScope.Common);
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)

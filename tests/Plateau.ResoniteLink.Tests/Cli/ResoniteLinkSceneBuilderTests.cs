@@ -66,7 +66,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             : "LOD0";
         Assert.Contains("PLATEAU tokyo23ku/Assets", fakeClient.SlotPaths.Values);
         Assert.Contains("PLATEAU tokyo23ku/Assets/Common", fakeClient.SlotPaths.Values);
-        Assert.Contains($"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
+        Assert.Contains($"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
         Assert.Contains($"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Textures", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Meshes", fakeClient.SlotPaths.Values);
@@ -141,7 +141,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             meshAssetRequests,
             request => string.Equals(
                 fakeClient.SlotPaths[request.ContainerSlotId],
-                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
+                $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One",
                 StringComparison.Ordinal));
 
         AddComponent[] materialRequests = fakeClient.AddedComponents
@@ -165,7 +165,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
                 return slotPath.StartsWith(
-                    $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One/",
+                    $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One/",
                     StringComparison.Ordinal);
             });
 
@@ -872,7 +872,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[displacementTextureSlot.ID], StringComparison.Ordinal);
         Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[materialTextureSlot.ID], StringComparison.Ordinal);
         Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/dem/LOD0/HeightMap Overlay Test/",
+            "PLATEAU tokyo23ku/Assets/53394525/dem/LOD0/HeightMap Overlay Test/",
             fakeClient.SlotPaths[materialTextureSlot.ID],
             StringComparison.Ordinal);
     }
@@ -1029,7 +1029,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 "[FrooxEngine]FrooxEngine.PBS_Metallic",
                 StringComparison.Ordinal));
         string materialPath = fakeClient.SlotPaths[materialRequest.ContainerSlotId];
-        Assert.StartsWith("PLATEAU tokyo23ku/Assets/tran/LOD1/", materialPath, StringComparison.Ordinal);
+        Assert.StartsWith("PLATEAU tokyo23ku/Assets/53394525/tran/LOD1/", materialPath, StringComparison.Ordinal);
         Assert.DoesNotContain("/Assets/Common", materialPath, StringComparison.Ordinal);
     }
 
@@ -1397,7 +1397,7 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
         Assert.Equal(["Assets", "53394525", "533945"], await GetDirectChildNamesAsync(fakeClient, datasetSlot.ID));
-        Slot anchorSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Slot anchorSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "53394525");
         Field_float3 anchorPosition = Assert.IsType<Field_float3>(anchorSlot.Position);
         Assert.Equal(0.0f, anchorPosition.Value.x, precision: 4);
         Assert.Equal(0.0f, anchorPosition.Value.y, precision: 4);
@@ -1425,8 +1425,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         await RunBuilderAsync(builder, scene);
 
         Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
-        Slot anchorMeshRootSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "53394525");
-        Slot parentMeshRootSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "533945");
+        Slot anchorMeshRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Slot parentMeshRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "533945");
         Field_float3 anchorMeshRootPosition = Assert.IsType<Field_float3>(anchorMeshRootSlot.Position);
         Field_float3 parentMeshRootPosition = Assert.IsType<Field_float3>(parentMeshRootSlot.Position);
         Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin anchorMeshCenter));
@@ -1450,7 +1450,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             CreateRegexRequestScene("5339452(56)"));
 
         Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
-        Slot completionAnchorSlot = FindSlotByNameUnderAncestor(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Slot completionAnchorSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "53394525");
         Assert.Contains("PLATEAU tokyo23ku/53394525", fakeClient.SlotPaths.Values);
         Assert.Equal(
             [$"ws://localhost:12345/#{completionAnchorSlot.ID}"],
@@ -1973,8 +1973,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             CreateAppendScene("53394526", "Building 26"));
 
         Slot datasetSlot = FindSlotByName(session.SlotsById, "PLATEAU tokyo23ku");
-        Slot firstMeshRootSlot = FindSlotByNameUnderAncestor(session.SlotsById, datasetSlot.ID, "53394525");
-        Slot secondMeshRootSlot = FindSlotByNameUnderAncestor(session.SlotsById, datasetSlot.ID, "53394526");
+        Slot firstMeshRootSlot = FindDirectChildSlotByName(session.SlotsById, datasetSlot.ID, "53394525");
+        Slot secondMeshRootSlot = FindDirectChildSlotByName(session.SlotsById, datasetSlot.ID, "53394526");
         Field_float3 firstMeshRootPosition = Assert.IsType<Field_float3>(firstMeshRootSlot.Position);
         Field_float3 secondMeshRootPosition = Assert.IsType<Field_float3>(secondMeshRootSlot.Position);
         Assert.True(PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin firstCenter));
@@ -4478,6 +4478,18 @@ public sealed class ResoniteLinkSceneBuilderTests
             slot =>
                 string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
                 && IsDescendantOf(slotsById, slot, ancestorSlotId));
+    }
+
+    private static Slot FindDirectChildSlotByName(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string parentSlotId,
+        string slotName)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot =>
+                string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
+                && string.Equals(slot.Parent?.TargetID, parentSlotId, StringComparison.Ordinal));
     }
 
     private static bool IsDescendantOf(
