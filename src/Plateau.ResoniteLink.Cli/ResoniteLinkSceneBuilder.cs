@@ -17,9 +17,6 @@ namespace Plateau.ResoniteLink.Cli;
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
-    private const int VisibilityPollDelayMilliseconds = 50;
-    private const int VisibilityPollAttemptLimit = 200;
-    private const int ExistingDatasetRootPollAttemptLimit = 30;
     private const int WorkerConnectTimeoutMilliseconds = 5000;
     private const string RootSlotId = "Root";
     private const string CommonAssetsSlotName = "Common";
@@ -239,12 +236,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string slotName,
         CancellationToken cancellationToken)
     {
-        await WaitForSlotAvailableAsync(client, RootSlotId, cancellationToken);
-        CreatedSlot? existingDatasetRoot = await TryGetUniqueChildSlotByNameWithPollingAsync(
+        CreatedSlot? existingDatasetRoot = await TryGetUniqueChildSlotByNameAsync(
             client,
             RootSlotId,
             slotName,
-            ExistingDatasetRootPollAttemptLimit,
             cancellationToken);
         if (existingDatasetRoot is not null)
         {
@@ -495,7 +490,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await allProcessingTasks.WaitAsync(cancellationToken);
         ReportProgress("[live] All send lanes drained.");
         diagnostics.CompleteSendWindow();
-        ReportProgress($"[live] Completed {processedCityObjectCount} city objects.");
+        ReportProgress(
+            $"[live] Completed {processedCityObjectCount} city objects.");
         ReportProgress(
             $"[live] Send summary: attempted={processedCityObjectCount} sent={processedCityObjectCount}.");
 
@@ -783,12 +779,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
         ObjectDisposedException.ThrowIf(sceneAnchor is null, this);
+        ObjectDisposedException.ThrowIf(setupClient is null, this);
 
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
         ReportBuildStep(cityObject, "Creating object slot hierarchy.");
         ObjectSlotHierarchy objectSlots = await CreateObjectSlotHierarchyAsync(
-            mutationClient,
+            setupClient,
             datasetRootSlot.Value,
             datasetAssetsRootSlot.Value,
             cityObject,
@@ -842,7 +839,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ReportBuildStep(cityObject, "Live build completed.");
         sendScope.MarkSent();
-
         if (Interlocked.CompareExchange(ref firstBuiltCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
@@ -1515,9 +1511,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             currentCenter.Altitude);
         return new ResoniteFloat3(
             X: eun.x,
-            // Mesh-root offsets should only reposition neighboring imports in-plane.
-            // Keeping the local tangent frame's vertical component here introduces a
-            // false Y drift between DEM parent meshes and detailed meshes.
             Y: 0.0,
             Z: eun.y);
     }
@@ -1580,46 +1573,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         bool datasetRootExisted,
         CancellationToken cancellationToken)
     {
-        await WaitForSlotAvailableAsync(client, datasetRoot.SlotId, cancellationToken);
-        Slot? lastVisibleReferenceMeshRoot = null;
-        int attemptLimit = datasetRootExisted ? VisibilityPollAttemptLimit : 1;
-        for (int attempt = 1; attempt <= attemptLimit; attempt++)
+        Slot? datasetRootSnapshot = await client.GetSlotAsync(datasetRoot.SlotId, 1, cancellationToken);
+        CreatedSlot? existingCompletionRoot = TryFindUniqueChildSlotByName(datasetRootSnapshot, completionMeshCode);
+        if (existingCompletionRoot is not null)
         {
-            Slot? datasetRootSnapshot = await client.GetSlotAsync(datasetRoot.SlotId, 1, cancellationToken);
-            CreatedSlot? existingCompletionRoot = TryFindUniqueChildSlotByName(datasetRootSnapshot, completionMeshCode);
-            if (existingCompletionRoot is not null)
-            {
-                await WaitForSlotAvailableAsync(client, existingCompletionRoot.Value.SlotId, cancellationToken);
-                Slot? completionSlot = await client.GetSlotAsync(existingCompletionRoot.Value.SlotId, 0, cancellationToken);
-                return new SceneAnchor(
-                    existingCompletionRoot.Value.SlotId,
-                    completionMeshCode,
-                    completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
-            }
-
-            Slot? referenceMeshRoot = datasetRootSnapshot?.Children?
-                .FirstOrDefault(static child => TryGetMeshCodeName(child, out _));
-            if (referenceMeshRoot is not null)
-            {
-                lastVisibleReferenceMeshRoot = referenceMeshRoot;
-            }
-
-            if (!datasetRootExisted)
-            {
-                break;
-            }
-
-            if (attempt < attemptLimit)
-            {
-                await Task.Delay(VisibilityPollDelayMilliseconds, cancellationToken);
-            }
+            Slot? completionSlot = await client.GetSlotAsync(existingCompletionRoot.Value.SlotId, 0, cancellationToken);
+            return new SceneAnchor(
+                existingCompletionRoot.Value.SlotId,
+                completionMeshCode,
+                completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
         }
 
-        ResoniteFloat3 anchorPosition = lastVisibleReferenceMeshRoot is null
+        Slot? referenceMeshRoot = datasetRootSnapshot?.Children?
+            .FirstOrDefault(static child => TryGetMeshCodeName(child, out _));
+        ResoniteFloat3 anchorPosition = referenceMeshRoot is null
             ? new ResoniteFloat3(0.0, 0.0, 0.0)
             : Add(
-                GetSlotPosition(lastVisibleReferenceMeshRoot),
-                ComputeMeshCodeOffset(lastVisibleReferenceMeshRoot.Name!.Value, completionMeshCode));
+                GetSlotPosition(referenceMeshRoot),
+                ComputeMeshCodeOffset(referenceMeshRoot.Name!.Value, completionMeshCode));
         CreatedSlot createdAnchor = await GetOrCreateSharedChildSlotAsync(
             client,
             datasetRoot,
@@ -1680,7 +1651,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 rotation,
                 ct),
             cancellationToken);
-        await WaitForSlotAvailableAsync(client, createdSlot.SlotId, cancellationToken);
         return createdSlot;
     }
 
@@ -1692,7 +1662,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        await WaitForSlotAvailableAsync(client, parentId, cancellationToken);
         CreatedSlot? existingSlot = await TryGetUniqueChildSlotByNameAsync(
             client,
             parentId,
@@ -1713,7 +1682,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         IReadOnlyDictionary<string, Member> members,
         CancellationToken cancellationToken)
     {
-        await WaitForSlotAvailableAsync(client, containerSlotId, cancellationToken);
         string responseComponentId = await client.AddComponentAsync(
             CreateAddComponentOperation(containerSlotId, componentType, members),
             cancellationToken);
@@ -1790,61 +1758,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             CreateAddSlotOperation(parentId, slotName, position, rotation),
             cancellationToken);
         return new CreatedSlot(responseSlotId, slotName);
-    }
-
-    private static async Task WaitForSlotAvailableAsync(
-        IResoniteLinkClient client,
-        string slotId,
-        CancellationToken cancellationToken)
-    {
-        if (string.Equals(slotId, RootSlotId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        for (int attempt = 1; attempt <= VisibilityPollAttemptLimit; attempt++)
-        {
-            Slot? slot = await client.GetSlotAsync(slotId, 0, cancellationToken);
-            if (slot is not null)
-            {
-                return;
-            }
-
-            if (attempt < VisibilityPollAttemptLimit)
-            {
-                await Task.Delay(VisibilityPollDelayMilliseconds, cancellationToken);
-            }
-        }
-
-        throw new InvalidOperationException($"ResoniteLink did not surface slot '{slotId}'.");
-    }
-
-    private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameWithPollingAsync(
-        IResoniteLinkClient client,
-        string parentId,
-        string slotName,
-        int attemptLimit,
-        CancellationToken cancellationToken)
-    {
-        for (int attempt = 1; attempt <= attemptLimit; attempt++)
-        {
-            CreatedSlot? childSlot = await TryGetUniqueChildSlotByNameAsync(
-                client,
-                parentId,
-                slotName,
-                cancellationToken);
-            if (childSlot is not null)
-            {
-                return childSlot.Value;
-            }
-
-            if (attempt < attemptLimit)
-            {
-                await Task.Delay(VisibilityPollDelayMilliseconds, cancellationToken);
-            }
-        }
-
-        return null;
     }
 
     private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameAsync(

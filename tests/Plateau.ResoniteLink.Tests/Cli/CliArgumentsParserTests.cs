@@ -32,7 +32,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
         Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(1, result.Options.ResoniteLinkConnectionCount);
         Assert.True(result.Options.EnableMeshBake);
         Assert.False(result.Options.EnableSendMetrics);
         Assert.False(result.Options.VerboseLogging);
@@ -334,6 +334,15 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Equal("The value '0' is not a valid ResoniteLink connection count.", result.Error);
+    }
+
+    [Fact]
+    public void HelpTextDocumentsExperimentalResoniteLinkConnections()
+    {
+        Assert.Contains(
+            "Experimental parallel ResoniteLink connection count for live sends. Default: 1.",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
     }
 
     [Fact]
