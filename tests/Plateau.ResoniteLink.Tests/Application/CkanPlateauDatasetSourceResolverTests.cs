@@ -14,29 +14,6 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class CkanPlateauDatasetSourceResolverTests
 {
     [Fact]
-    public async Task ResolveAsyncRejectsMissingServerUrl()
-    {
-        using TemporaryDirectory workRoot = new();
-        using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
-        using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
-
-        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => resolver.ResolveAsync(
-                new PlateauImportRequest(
-                    Dataset: "tokyo23ku",
-                    MeshCode: "533944",
-                    SourceKind: DatasetSourceKind.Remote,
-                    LocalSourcePath: null,
-                    ServerUri: null),
-                workRoot.Path));
-
-        Assert.Contains(
-            exception.Errors,
-            error => error.Contains("--server-url", StringComparison.Ordinal));
-    }
-
-    [Fact]
     public async Task ResolveAsyncAcceptsDirectArchiveUri()
     {
         byte[] zipBytes = CreateZipArchive(
@@ -60,18 +37,19 @@ public sealed class CkanPlateauDatasetSourceResolverTests
 
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+                new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "533944",
                 SourceKind: DatasetSourceKind.Remote,
                 LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/direct.zip", UriKind.Absolute)),
+                ServerUri: new Uri("https://example.test/direct.zip", UriKind.Absolute))),
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
         await AssertResolvedArchiveContainsAsync(
-            resolvedRequest,
+            resolvedRequest.ToImportRequest(),
             "direct.zip",
             "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml");
     }
@@ -100,18 +78,19 @@ public sealed class CkanPlateauDatasetSourceResolverTests
 
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+                new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "533944",
                 SourceKind: DatasetSourceKind.Remote,
                 LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/direct.7z", UriKind.Absolute)),
+                ServerUri: new Uri("https://example.test/direct.7z", UriKind.Absolute))),
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
         await AssertResolvedArchiveContainsAsync(
-            resolvedRequest,
+            resolvedRequest.ToImportRequest(),
             "direct.7z",
             "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml");
     }
@@ -140,18 +119,19 @@ public sealed class CkanPlateauDatasetSourceResolverTests
 
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+                new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394611",
                 SourceKind: DatasetSourceKind.Remote,
                 LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/wrapped.zip", UriKind.Absolute)),
+                ServerUri: new Uri("https://example.test/wrapped.zip", UriKind.Absolute))),
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
         await AssertResolvedArchiveContainsAsync(
-            resolvedRequest,
+            resolvedRequest.ToImportRequest(),
             "wrapped.zip",
             "udx/bldg/53394611_bldg_6697_2_op.gml");
     }
@@ -180,18 +160,19 @@ public sealed class CkanPlateauDatasetSourceResolverTests
 
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+                new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394611",
                 SourceKind: DatasetSourceKind.Remote,
                 LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/wrapped.7z", UriKind.Absolute)),
+                ServerUri: new Uri("https://example.test/wrapped.7z", UriKind.Absolute))),
             workRoot.Path);
 
         Assert.Equal(DatasetSourceKind.Local, resolvedRequest.SourceKind);
         await AssertResolvedArchiveContainsAsync(
-            resolvedRequest,
+            resolvedRequest.ToImportRequest(),
             "wrapped.7z",
             "udx/bldg/53394611_bldg_6697_2_op.gml");
     }
@@ -338,7 +319,9 @@ public sealed class CkanPlateauDatasetSourceResolverTests
 
         Assert.Contains(
             exception.Errors,
-            error => error.Contains("not a supported archive", StringComparison.Ordinal));
+            error => error.Contains(
+                "must point directly to a .zip or .7z CityGML archive",
+                StringComparison.Ordinal));
     }
 
     [Fact]
@@ -386,7 +369,9 @@ public sealed class CkanPlateauDatasetSourceResolverTests
 
         Assert.Contains(
             exception.Errors,
-            error => error.Contains("not a supported archive", StringComparison.Ordinal));
+            error => error.Contains(
+                "must point directly to a .zip or .7z CityGML archive",
+                StringComparison.Ordinal));
     }
 
     private static byte[] CreateZipArchive(params (string Path, string Content)[] entries)

@@ -26,31 +26,26 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         string workRoot,
         CancellationToken cancellationToken = default)
     {
+        ValidatedPlateauImportRequest validatedRequest =
+            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
+
+        return (await ResolveAsync(validatedRequest, workRoot, cancellationToken)).ToImportRequest();
+    }
+
+    public async Task<ValidatedPlateauImportRequest> ResolveAsync(
+        ValidatedPlateauImportRequest request,
+        string workRoot,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        if (request.Source is PlateauLocalImportSource)
+        if (request.Source is ValidatedPlateauLocalImportSource)
         {
             return request;
         }
 
-        if (request.Source is not PlateauRemoteImportSource remoteSource)
-        {
-            throw new PlateauImportValidationException(
-                ["Remote import requires --server-url to point directly to a .zip or .7z CityGML archive. Built-in dataset search is not supported."]);
-        }
-
-        if (remoteSource.ServerUri is null)
-        {
-            throw new PlateauImportValidationException(
-                ["Remote import requires --server-url to point directly to a .zip or .7z CityGML archive. Built-in dataset search is not supported."]);
-        }
-
-        if (!LooksLikeSupportedArchiveUri(remoteSource.ServerUri))
-        {
-            throw new PlateauImportValidationException(
-                [$"The direct archive URL '{remoteSource.ServerUri}' is not a supported archive. Supported extensions: .zip, .7z."]);
-        }
+        ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)request.Source;
 
         _ = WorkRootLayout.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
@@ -69,7 +64,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             {
                 return request with
                 {
-                    Source = new PlateauLocalImportSource(archivePath),
+                    Source = new ValidatedPlateauLocalImportSource(archivePath),
                 };
             }
         }
@@ -78,7 +73,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
         return request with
         {
-            Source = new PlateauLocalImportSource(archivePath),
+            Source = new ValidatedPlateauLocalImportSource(archivePath),
         };
     }
 
@@ -339,11 +334,6 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
     }
 
-    private static bool LooksLikeSupportedArchiveUri(Uri uri)
-    {
-        return TryGetArchiveKind(uri.AbsolutePath, out _);
-    }
-
     private static string GetArchiveFileName(Uri archiveUri)
     {
         string fileName = Path.GetFileName(archiveUri.LocalPath);
@@ -387,31 +377,6 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             || normalized.Contains("..\\", StringComparison.Ordinal)
             || normalized.StartsWith("./", StringComparison.Ordinal)
             || normalized.StartsWith(".\\", StringComparison.Ordinal);
-    }
-
-    private static bool TryGetArchiveKind(string path, out SupportedArchiveKind archiveKind)
-    {
-        string extension = Path.GetExtension(path);
-        if (string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase))
-        {
-            archiveKind = SupportedArchiveKind.Zip;
-            return true;
-        }
-
-        if (string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase))
-        {
-            archiveKind = SupportedArchiveKind.SevenZip;
-            return true;
-        }
-
-        archiveKind = default;
-        return false;
-    }
-
-    private enum SupportedArchiveKind
-    {
-        Zip,
-        SevenZip,
     }
 
     private sealed record ArchiveMetadata(

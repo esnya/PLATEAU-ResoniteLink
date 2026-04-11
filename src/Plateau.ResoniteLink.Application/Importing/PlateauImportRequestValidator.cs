@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
@@ -8,33 +10,62 @@ public static class PlateauImportRequestValidator
 
     public static IReadOnlyList<string> Validate(PlateauImportRequest request)
     {
+        _ = TryNormalizeAndValidate(request, out _, out IReadOnlyList<string> errors);
+        return errors;
+    }
+
+    public static bool TryNormalizeAndValidate(
+        PlateauImportRequest request,
+        out ValidatedPlateauImportRequest? validatedRequest,
+        out IReadOnlyList<string> errors)
+    {
         ArgumentNullException.ThrowIfNull(request);
 
-        List<string> errors = [];
+        PlateauImportRequest normalizedRequest = NormalizeRawRequest(request);
+        List<string> validationErrors = [];
+        Regex? meshCodePattern = null;
+        IReadOnlyList<string>? normalizedPackageNames = null;
+        IReadOnlyDictionary<string, IReadOnlySet<int>>? normalizedPackageExclusions = null;
+        IReadOnlyDictionary<string, string>? normalizedPackagePatterns = null;
+        ValidatedPlateauImportSource? validatedSource = null;
 
-        if (string.IsNullOrWhiteSpace(request.Dataset))
+        if (string.IsNullOrWhiteSpace(normalizedRequest.Dataset))
         {
-            errors.Add("The dataset value is required.");
+            validationErrors.Add("The dataset value is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.MeshCode))
+        if (string.IsNullOrWhiteSpace(normalizedRequest.MeshCode))
         {
-            errors.Add("The mesh code value is required.");
+            validationErrors.Add("The mesh code value is required.");
         }
-        else if (!MeshCodeInput.TryCreateRegex(request.MeshCode, out _, out string? meshCodeError))
+        else if (!MeshCodeInput.TryCreateRegex(normalizedRequest.MeshCode, out meshCodePattern, out string? meshCodeError))
         {
-            errors.Add(meshCodeError!);
+            validationErrors.Add(meshCodeError!);
+        }
+        else if (meshCodePattern is null)
+        {
+            meshCodePattern = new Regex(
+                $@"\A(?:{Regex.Escape(normalizedRequest.MeshCode)})\z",
+                RegexOptions.Compiled | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
+        }
+        else if (meshCodePattern is null)
+        {
+            meshCodePattern = new Regex(
+                $@"\A(?:{Regex.Escape(normalizedRequest.MeshCode)})\z",
+                RegexOptions.Compiled | RegexOptions.CultureInvariant,
+                TimeSpan.FromSeconds(1));
         }
 
-        if (request.PackageNames is not null)
+        if (normalizedRequest.PackageNames is not null)
         {
-            if (request.PackageNames.Count == 0)
+            if (normalizedRequest.PackageNames.Count == 0)
             {
-                errors.Add("At least one package name is required when packages are specified.");
+                validationErrors.Add("At least one package name is required when packages are specified.");
             }
             else
             {
-                string[] unsupportedPackageNames = request.PackageNames
+                string[] unsupportedPackageNames = normalizedRequest.PackageNames
                     .Select(static packageName => NormalizePackageNameInput(packageName))
                     .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -43,20 +74,24 @@ public static class PlateauImportRequestValidator
 
                 if (unsupportedPackageNames.Length > 0)
                 {
-                    errors.Add(
+                    validationErrors.Add(
                         $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+                }
+                else
+                {
+                    normalizedPackageNames = PlateauPackageCatalog.NormalizeRequestedPackageNames(normalizedRequest.PackageNames);
                 }
             }
         }
 
-        if (request.ExcludeLodLevelsByPackage is not null)
+        if (normalizedRequest.ExcludeLodLevelsByPackage is not null)
         {
             AddDuplicatePackageMapKeyError(
-                request.ExcludeLodLevelsByPackage.Keys,
+                normalizedRequest.ExcludeLodLevelsByPackage.Keys,
                 "ExcludeLodLevelsByPackage",
-                errors);
+                validationErrors);
 
-            string[] unsupportedPackageNames = request.ExcludeLodLevelsByPackage.Keys
+            string[] unsupportedPackageNames = normalizedRequest.ExcludeLodLevelsByPackage.Keys
                 .Select(static packageName => NormalizePackageNameInput(packageName))
                 .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -65,19 +100,23 @@ public static class PlateauImportRequestValidator
 
             if (unsupportedPackageNames.Length > 0)
             {
-                errors.Add(
+                validationErrors.Add(
                     $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+            else
+            {
+                normalizedPackageExclusions = NormalizePackageExclusionMap(normalizedRequest.ExcludeLodLevelsByPackage);
             }
         }
 
-        if (request.PackagePatterns is not null)
+        if (normalizedRequest.PackagePatterns is not null)
         {
             AddDuplicatePackageMapKeyError(
-                request.PackagePatterns.Keys,
+                normalizedRequest.PackagePatterns.Keys,
                 "PackagePatterns",
-                errors);
+                validationErrors);
 
-            string[] unsupportedPackageNames = request.PackagePatterns.Keys
+            string[] unsupportedPackageNames = normalizedRequest.PackagePatterns.Keys
                 .Select(static packageName => NormalizePackageNameInput(packageName))
                 .Where(static packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -86,59 +125,98 @@ public static class PlateauImportRequestValidator
 
             if (unsupportedPackageNames.Length > 0)
             {
-                errors.Add(
+                validationErrors.Add(
                     $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+            else
+            {
+                normalizedPackagePatterns = NormalizePackagePatternMap(normalizedRequest.PackagePatterns);
             }
         }
 
-        switch (request.Source)
+        switch (normalizedRequest.Source)
         {
             case PlateauLocalImportSource localSource:
                 if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
                 {
-                    errors.Add("The --local-source-path value is required when --source local is used.");
+                    validationErrors.Add("The --local-source-path value is required when --source local is used.");
                     break;
                 }
 
                 if (!Directory.Exists(localSource.LocalSourcePath)
                     && !File.Exists(localSource.LocalSourcePath))
                 {
-                    errors.Add($"The local source path '{localSource.LocalSourcePath}' does not exist.");
+                    validationErrors.Add($"The local source path '{localSource.LocalSourcePath}' does not exist.");
+                    break;
                 }
 
+                validatedSource = new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath);
                 break;
             case PlateauRemoteImportSource remoteSource:
                 if (remoteSource.ServerUri is null)
                 {
-                    errors.Add("The --server-url value is required when --source remote is used.");
+                    validationErrors.Add("The --server-url value is required when --source remote is used.");
                     break;
                 }
 
                 if (!remoteSource.ServerUri.IsAbsoluteUri)
                 {
-                    errors.Add("The --server-url value must be an absolute URI.");
+                    validationErrors.Add("The --server-url value must be an absolute URI.");
                     break;
                 }
 
                 if (!LooksLikeSupportedArchiveUri(remoteSource.ServerUri))
                 {
-                    errors.Add("The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
+                    validationErrors.Add("The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
+                    break;
                 }
 
+                validatedSource = new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri);
                 break;
         }
 
-        if (request.DemHeightmapMetersPerVertex <= 0)
+        if (normalizedRequest.DemHeightmapMetersPerVertex <= 0)
         {
-            errors.Add("The DEM heightmap meters-per-vertex value must be greater than zero.");
+            validationErrors.Add("The DEM heightmap meters-per-vertex value must be greater than zero.");
         }
 
-        if (request.DemHeightmapMaxResolution < 2)
+        if (normalizedRequest.DemHeightmapMaxResolution < 2)
         {
-            errors.Add("The DEM heightmap max resolution value must be at least 2.");
+            validationErrors.Add("The DEM heightmap max resolution value must be at least 2.");
         }
 
-        return errors;
+        if (validationErrors.Count > 0)
+        {
+            validatedRequest = null;
+            errors = validationErrors;
+            return false;
+        }
+
+        validatedRequest = new ValidatedPlateauImportRequest(
+            normalizedRequest.Dataset,
+            normalizedRequest.MeshCode,
+            meshCodePattern!,
+            validatedSource!,
+            normalizedPackageNames,
+            normalizedRequest.GlobalExcludeLodLevels,
+            normalizedPackageExclusions,
+            normalizedPackagePatterns,
+            normalizedRequest.IncludeMarkingAlways,
+            normalizedRequest.DemTerrainMode,
+            normalizedRequest.DemHeightmapMetersPerVertex,
+            normalizedRequest.DemHeightmapMaxResolution);
+        errors = Array.Empty<string>();
+        return true;
+    }
+
+    public static ValidatedPlateauImportRequest NormalizeAndValidateOrThrow(PlateauImportRequest request)
+    {
+        if (TryNormalizeAndValidate(request, out ValidatedPlateauImportRequest? validatedRequest, out IReadOnlyList<string> errors))
+        {
+            return validatedRequest!;
+        }
+
+        throw new PlateauImportValidationException(errors);
     }
 
     internal static bool LooksLikeSupportedArchiveUri(Uri serverUri)
@@ -191,5 +269,66 @@ public static class PlateauImportRequestValidator
         return PlateauPackageCatalog.TryNormalizePackageName(trimmedPackageName, out string normalizedPackageName)
             ? normalizedPackageName
             : null;
+    }
+
+    private static PlateauImportRequest NormalizeRawRequest(PlateauImportRequest request)
+    {
+        return request with
+        {
+            Dataset = TrimToEmpty(request.Dataset),
+            MeshCode = TrimToEmpty(request.MeshCode),
+            Source = NormalizeSource(request.Source),
+            PackageNames = request.PackageNames is null
+                ? null
+                : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
+        };
+    }
+
+    private static PlateauImportSource NormalizeSource(PlateauImportSource source)
+    {
+        return source switch
+        {
+            PlateauLocalImportSource localSource => new PlateauLocalImportSource(
+                string.IsNullOrWhiteSpace(localSource.LocalSourcePath)
+                    ? null
+                    : localSource.LocalSourcePath.Trim()),
+            PlateauRemoteImportSource remoteSource => remoteSource.ServerUri is null
+                ? new PlateauRemoteImportSource(null)
+                : remoteSource,
+            _ => source,
+        };
+    }
+
+    private static Dictionary<string, IReadOnlySet<int>> NormalizePackageExclusionMap(
+        IReadOnlyDictionary<string, IReadOnlySet<int>> exclusionsByPackage)
+    {
+        Dictionary<string, IReadOnlySet<int>> normalized = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string packageName, IReadOnlySet<int> excludedLods) in exclusionsByPackage)
+        {
+            PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName);
+            normalized[normalizedPackageName] = excludedLods;
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string> NormalizePackagePatternMap(
+        IReadOnlyDictionary<string, string> patternsByPackage)
+    {
+        Dictionary<string, string> normalized = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string packageName, string pattern) in patternsByPackage)
+        {
+            PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName);
+            normalized[normalizedPackageName] = pattern;
+        }
+
+        return normalized;
+    }
+
+    private static string TrimToEmpty(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
     }
 }

@@ -102,12 +102,12 @@ public static class CliArgumentsParser
                     case "--packages":
                         {
                             string packageValue = ReadValue(args, ref index, token);
-                            if (!TryParsePackageNames(packageValue, out string[]? parsedPackageNames, out string? packageError))
+                            packageNames = ParsePackageNames(packageValue, out string? packageError);
+                            if (packageError is not null)
                             {
-                                return CliParseResult.Failure(packageError!);
+                                return CliParseResult.Failure(packageError);
                             }
 
-                            packageNames = parsedPackageNames!;
                             break;
                         }
                     case "--tile":
@@ -252,12 +252,6 @@ public static class CliArgumentsParser
                                     $"The value '{serverUrl}' is not a valid absolute URL.");
                             }
 
-                            if (!LooksLikeSupportedArchiveUri(serverUri))
-                            {
-                                return CliParseResult.Failure(
-                                    "The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
-                            }
-
                             break;
                         }
                     case "--exclude-lod":
@@ -294,10 +288,10 @@ public static class CliArgumentsParser
                         }
                     default:
                         {
-                            if (TryParsePackagePatternOption(token, args, ref index, out string? normalizedPackageName, out string? patternValue))
+                            if (TryParsePackagePatternOption(token, args, ref index, out string? packageName, out string? patternValue))
                             {
-                                packagePatterns ??= new(StringComparer.OrdinalIgnoreCase);
-                                packagePatterns[normalizedPackageName!] = patternValue!;
+                                packagePatterns ??= new();
+                                packagePatterns[packageName!] = patternValue!;
                                 break;
                             }
 
@@ -395,12 +389,10 @@ public static class CliArgumentsParser
             out _);
     }
 
-    private static bool TryParsePackageNames(
+    private static string[] ParsePackageNames(
         string csvValue,
-        out string[]? packageNames,
         out string? error)
     {
-        packageNames = null;
         error = null;
 
         string[] parsedValues = csvValue
@@ -409,23 +401,9 @@ public static class CliArgumentsParser
         if (parsedValues.Length == 0)
         {
             error = "The --packages option requires at least one package name.";
-            return false;
         }
 
-        string[] unsupportedPackageNames = parsedValues
-            .Where(packageName => !PlateauPackageCatalog.TryNormalizePackageName(packageName, out _))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        if (unsupportedPackageNames.Length > 0)
-        {
-            error =
-                $"Unsupported package name(s): {string.Join(", ", unsupportedPackageNames)}. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.";
-            return false;
-        }
-
-        packageNames = PlateauPackageCatalog.NormalizeRequestedPackageNames(parsedValues);
-        return true;
+        return parsedValues;
     }
 
     private static bool TryParseLodExclusionRules(
@@ -477,7 +455,7 @@ public static class CliArgumentsParser
         string[] pairs = csvValue
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        Dictionary<string, HashSet<int>> map = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, HashSet<int>> map = new();
 
         foreach (string pair in pairs)
         {
@@ -492,16 +470,10 @@ public static class CliArgumentsParser
             string packageName = parts[0];
             string lodStr = parts[1];
 
-            if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string? normalizedName))
-            {
-                error = $"Unsupported package '{packageName}' in --exclude-lod-for-package.";
-                return false;
-            }
-
-            if (!map.TryGetValue(normalizedName!, out HashSet<int>? lodSet))
+            if (!map.TryGetValue(packageName, out HashSet<int>? lodSet))
             {
                 lodSet = new HashSet<int>();
-                map[normalizedName!] = lodSet;
+                map[packageName] = lodSet;
             }
 
             if (string.IsNullOrWhiteSpace(lodStr)
@@ -534,10 +506,10 @@ public static class CliArgumentsParser
         string token,
         string[] args,
         ref int index,
-        out string? normalizedPackageName,
+        out string? packageName,
         out string? patternValue)
     {
-        normalizedPackageName = null;
+        packageName = null;
         patternValue = null;
 
         const string suffix = "-pattern";
@@ -547,28 +519,8 @@ public static class CliArgumentsParser
             return false;
         }
 
-        string packageName = token[2..^suffix.Length];
-        if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string? normalized))
-        {
-            return false;
-        }
-
-        normalizedPackageName = normalized;
+        packageName = token[2..^suffix.Length];
         patternValue = ReadValue(args, ref index, token);
         return true;
     }
-
-    private static bool LooksLikeSupportedArchiveUri(Uri serverUri)
-    {
-        if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        string extension = Path.GetExtension(serverUri.AbsolutePath);
-        return string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
-    }
-
 }

@@ -55,7 +55,7 @@ public sealed class CliArgumentsParserTests
             ]);
 
         Assert.Null(result.Error);
-        Assert.Equal(["tran", "wtr", "brid"], result.Options!.Request.PackageNames);
+        Assert.Equal(["tran", "waterbody", "tran", "brid"], result.Options!.Request.PackageNames);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseRejectsUnsupportedPackageName()
+    public void ParseParsesUnsupportedPackageName()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -94,9 +94,8 @@ public sealed class CliArgumentsParserTests
                 "12345",
             ]);
 
-        Assert.Equal(
-            "Unsupported package name(s): unknown. Supported packages: area, bldg, brid, cons, dem, fld, frn, gen, htd, ifld, lsld, luse, rfld, rwy, squr, tnm, tran, trk, tun, ubld, unf, urf, veg, wtr, wwy.",
-            result.Error);
+        Assert.Null(result.Error);
+        Assert.Equal(["bldg", "unknown"], result.Options!.Request.PackageNames);
     }
 
     [Fact]
@@ -225,7 +224,7 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseRejectsRemoteCommandWhenServerUrlIsNotDirectArchive()
+    public void ParseParsesRemoteCommandWhenServerUrlIsNotDirectArchive()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -242,9 +241,10 @@ public sealed class CliArgumentsParserTests
                 "ws://localhost:12345/",
             ]);
 
+        Assert.Null(result.Error);
         Assert.Equal(
-            "The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.",
-            result.Error);
+            new Uri("https://example.invalid/plateau"),
+            result.Options!.Request.ServerUri);
     }
 
     [Fact]
@@ -268,7 +268,34 @@ public sealed class CliArgumentsParserTests
         Assert.Null(result.Error);
         Assert.NotNull(result.Options);
         Assert.NotNull(result.Options.Request.PackagePatterns);
-        Assert.Equal("*Water*", result.Options.Request.PackagePatterns["wtr"]);
+        Assert.Equal("*Water*", result.Options.Request.PackagePatterns["waterbody"]);
+    }
+
+    [Fact]
+    public void ParsePreservesPackageSpecificLodKeysWithoutSemanticNormalization()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--exclude-lod-for-package",
+                "waterbody:1,unknown:2",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.NotNull(result.Options!.Request.ExcludeLodLevelsByPackage);
+        Assert.Equal(2, result.Options.Request.ExcludeLodLevelsByPackage.Count);
+        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("waterbody", out IReadOnlySet<int>? waterbodyLods));
+        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("unknown", out IReadOnlySet<int>? unknownLods));
+        Assert.Equal(new HashSet<int> { 1 }, waterbodyLods);
+        Assert.Equal(new HashSet<int> { 2 }, unknownLods);
     }
 
     [Fact]
