@@ -2,6 +2,11 @@
 
 Use this reference after `SKILL.md` triggers.
 
+Default document fixtures:
+
+- Use `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` unless the task requires a different dataset.
+- Switch to Yokohama mesh `53391530` only when the task needs `frn` validation, because the local cache provides `udx/frn/53391530_frn_6697_*` there.
+
 ## Required Repo Artifacts
 
 Expect these files under the workspace root:

@@ -11,6 +11,12 @@ Warning: cleanup in this workflow can destroy live world results in the current 
 
 Do not use this skill for code-only review or static log reading. Use it only when the user wants a real Windows send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
 
+## Dataset Defaults
+
+Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` for document-backed reproductions and comparisons. The local cache under `runtime/windows/resonite/cache/remote/20202_matsumoto-shi_city_2020_citygml_7_op/udx/bldg/` contains both files, with `54372778_bldg_6697_op.gml` and `54372788_bldg_6697_op.gml` plus matching appearance directories.
+
+When the task specifically needs `frn` or city-furniture content, use Yokohama mesh `53391530` instead. The local cache contains `udx/frn/53391530_frn_6697_*` under `runtime/windows/resonite/cache/remote/14100-yokohama-shi/53391530/14100_yokohama-shi_city_2023_citygml_1_op/`, while the Matsumoto default pair above does not provide the same `frn` fixture.
+
 ## Quick Start
 
 Before any destructive live run, clear the local gate first:
