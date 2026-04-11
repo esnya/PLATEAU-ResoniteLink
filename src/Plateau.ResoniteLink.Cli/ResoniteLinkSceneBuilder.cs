@@ -1210,6 +1210,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
+        canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingOperations);
         _ = canonicalBatchEntityMap.ResolveSlot(meshAssetSlot);
         _ = canonicalBatchEntityMap.ResolveComponent(geometryComponent);
         _ = canonicalBatchEntityMap.ResolveSlot(presentationSlot);
@@ -1977,6 +1978,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string MessageId,
         string ComponentType);
 
+    private readonly record struct PendingBatchOperation(
+        string MessageId,
+        string Description);
+
     private readonly record struct MaterialReferenceTarget(
         string TargetId,
         ResoniteMaterialBinding? DedicatedMaterial)
@@ -1998,6 +2003,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         private int nextMessageId;
 
         public List<DataModelOperation> Operations { get; } = [];
+        public List<PendingBatchOperation> PendingOperations { get; } = [];
 
         public PendingBatchSlot AddSlot(
             string parentId,
@@ -2008,6 +2014,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             string localId = AllocateEntityId("local_slot");
             string messageId = AllocateMessageId();
             Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
+            PendingOperations.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
             return new PendingBatchSlot(localId, messageId, slotName);
         }
 
@@ -2019,6 +2026,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             string localId = AllocateEntityId("local_component");
             string messageId = AllocateMessageId();
             Operations.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
+            PendingOperations.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
             return new PendingBatchComponent(localId, messageId, componentType);
         }
 
@@ -2075,14 +2083,30 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return new CreatedComponent(newEntityId.EntityId, pendingComponent.ComponentType);
         }
 
+        public void ValidateAll(IReadOnlyList<PendingBatchOperation> pendingOperations)
+        {
+            ArgumentNullException.ThrowIfNull(pendingOperations);
+            foreach (PendingBatchOperation pendingOperation in pendingOperations)
+            {
+                _ = ResolveResponse(
+                    pendingOperation.MessageId,
+                    $"validate {pendingOperation.Description}");
+            }
+        }
+
         private Response ResolveResponse(string messageId)
+        {
+            return ResolveResponse(messageId, $"resolve batch message '{messageId}'");
+        }
+
+        private Response ResolveResponse(string messageId, string operationName)
         {
             if (!responsesByMessageId.TryGetValue(messageId, out Response? response))
             {
                 throw new InvalidOperationException($"Batch response did not include message '{messageId}'.");
             }
 
-            ResoniteLinkClient.EnsureSuccess(response, $"resolve batch message '{messageId}'");
+            ResoniteLinkClient.EnsureSuccess(response, operationName);
             return response;
         }
     }

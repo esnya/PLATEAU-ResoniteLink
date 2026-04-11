@@ -1917,6 +1917,35 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncFailsWhenUnresolvedBatchComponentResponseFails()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+
+        using ResponseAuthoritativeIdClient client = new(
+            session,
+            failedBatchComponentType: "[FrooxEngine]FrooxEngine.MeshCollider");
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await RunBuilderAsync(
+                new ResoniteLinkSceneBuilder(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    ResoniteLinkSendDiagnostics.Disabled,
+                    () => client),
+                scene));
+
+        Assert.Contains("validate component '[FrooxEngine]FrooxEngine.MeshCollider'", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(1, client.FailedBatchResponseCount);
+    }
+
+    [Fact]
     public async Task BuildAsyncIgnoresSameNameSiblingsDuringCreateCanonicalization()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
@@ -2872,10 +2901,12 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private sealed class ResponseAuthoritativeIdClient(
         FakeResoniteLinkSession session,
-        bool injectPreexistingPresentationSibling = false) : IResoniteLinkClient
+        bool injectPreexistingPresentationSibling = false,
+        string? failedBatchComponentType = null) : IResoniteLinkClient
     {
         private int nextResponseSlotId;
         private int nextResponseComponentId;
+        private int remainingFailedBatchComponentResponses = string.IsNullOrWhiteSpace(failedBatchComponentType) ? 0 : 1;
 
         public List<string> ReturnedSlotResponseIds { get; } = [];
 
@@ -2886,6 +2917,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         public int BatchMutationCount { get; private set; }
 
         public bool PreexistingPresentationSiblingInjected { get; private set; }
+
+        public int FailedBatchResponseCount { get; private set; }
 
         public void Dispose()
         {
@@ -3026,6 +3059,23 @@ public sealed class ResoniteLinkSceneBuilderTests
                             if (!string.IsNullOrWhiteSpace(addComponent.Data.ID))
                             {
                                 canonicalIdsByLocalId[addComponent.Data.ID] = createdComponentId;
+                            }
+
+                            if (remainingFailedBatchComponentResponses > 0
+                                && string.Equals(
+                                    addComponent.Data.ComponentType,
+                                    failedBatchComponentType,
+                                    StringComparison.Ordinal))
+                            {
+                                remainingFailedBatchComponentResponses--;
+                                FailedBatchResponseCount++;
+                                responses.Add(new Response
+                                {
+                                    Success = false,
+                                    ErrorInfo = "Simulated batch component failure.",
+                                    SourceMessageID = addComponent.MessageID,
+                                });
+                                break;
                             }
 
                             responses.Add(new NewEntityId
