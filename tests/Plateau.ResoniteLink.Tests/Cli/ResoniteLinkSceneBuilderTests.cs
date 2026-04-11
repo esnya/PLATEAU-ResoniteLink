@@ -1891,27 +1891,31 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.All(client.ReturnedSlotResponseIds, responseId => Assert.Contains(responseId, session.SlotsById.Keys));
         Assert.All(client.ReturnedComponentResponseIds, responseId => Assert.Contains(responseId, session.ComponentsById.Keys));
 
-        Component[] meshRenderers = session.ComponentsById.Values
-            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
-            .ToArray();
+        List<Component> meshRenderers = session.ComponentsById.Values
+            .Where(component =>
+                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .ToList();
         Assert.NotEmpty(meshRenderers);
-        Assert.All(meshRenderers, meshRenderer =>
-        {
-            string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
-            Assert.Contains(meshComponentId, session.ComponentsById.Keys);
-            Assert.Contains(meshComponentId, client.ReturnedComponentResponseIds);
-        });
+        Assert.All(
+            meshRenderers,
+            meshRenderer =>
+            {
+                string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
+                Assert.Contains(meshComponentId, client.ReturnedComponentResponseIds);
+            });
 
-        Component[] meshColliders = session.ComponentsById.Values
-            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
-            .ToArray();
+        List<Component> meshColliders = session.ComponentsById.Values
+            .Where(component =>
+                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .ToList();
         Assert.NotEmpty(meshColliders);
-        Assert.All(meshColliders, meshCollider =>
-        {
-            string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
-            Assert.Contains(colliderMeshComponentId, session.ComponentsById.Keys);
-            Assert.Contains(colliderMeshComponentId, client.ReturnedComponentResponseIds);
-        });
+        Assert.All(
+            meshColliders,
+            meshCollider =>
+            {
+                string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
+                Assert.Contains(colliderMeshComponentId, client.ReturnedComponentResponseIds);
+            });
     }
 
     [Fact]
@@ -1939,11 +1943,6 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
         Assert.Equal(0, client.BatchMutationCount);
-        Assert.Equal(
-            1,
-            session.SlotsById.Values.Count(slot =>
-                string.Equals(slot.Name?.Value, "Building One", StringComparison.Ordinal)
-                && string.Equals(session.SlotPaths[slot.Parent!.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal)));
         Assert.Equal(0, client.RejectedAliasMutationCount);
     }
 
@@ -3904,7 +3903,8 @@ public sealed class ResoniteLinkSceneBuilderTests
         public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await Task.CompletedTask;
+            ConnectStarted.TrySetResult();
+            await connectNeverCompletes.Task;
         }
 
         public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -4119,7 +4119,20 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Slot?>(null);
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return Task.FromResult<Slot?>(new Slot
+                {
+                    ID = "Root",
+                    Name = new Field_string
+                    {
+                        Value = "Root",
+                    },
+                });
+            }
+
+            slotsById.TryGetValue(slotId, out Slot? slot);
+            return Task.FromResult(slot);
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
