@@ -193,12 +193,16 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -289,12 +293,16 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)

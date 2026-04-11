@@ -83,7 +83,7 @@ internal sealed class RetryingResoniteLinkClient(
             cancellationToken);
     }
 
-    public Task RunDataModelOperationBatchAsync(
+    public Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {

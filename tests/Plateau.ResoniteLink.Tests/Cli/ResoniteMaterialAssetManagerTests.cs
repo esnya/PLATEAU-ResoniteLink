@@ -252,7 +252,12 @@ public sealed class ResoniteMaterialAssetManagerTests
 
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken) => Task.FromResult("srv_slot");
 
-        public Task RunDataModelOperationBatchAsync(IReadOnlyList<DataModelOperation> operations, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(IReadOnlyList<DataModelOperation> operations, CancellationToken cancellationToken) =>
+            Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
         {
