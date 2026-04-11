@@ -33,8 +33,8 @@ public sealed class LocalCityGmlConstructionComposerTests
             ["53394525"],
             [],
             [],
-            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697").ToLegacy(),
-            new GeodeticPoint(35.0, 139.0, 12.5).ToLegacy(),
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+            new GeodeticPoint(35.0, 139.0, 12.5),
             terrainHeightSampler: null);
 
         LocalCityGmlConstructionComposer composer = new(new ThrowingGeometryProjector());

@@ -27,13 +27,6 @@ internal static class LocalCityGmlDemBootstrapSupport
             demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length));
     }
 
-    internal static DemBootstrapAggregation AggregateDemParsedSourceFiles(
-        IReadOnlyList<LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult> demParsedSourceFiles)
-    {
-        return AggregateDemParsedSourceFiles(
-            demParsedSourceFiles.Select(ParsedSourceFileResult.FromLegacy).ToArray());
-    }
-
     internal static TerrainHeightTriangle[] CreateTerrainHeightTriangles(
         IEnumerable<BootstrapParsedCityObject> cityObjects)
     {
@@ -56,23 +49,6 @@ internal static class LocalCityGmlDemBootstrapSupport
         }
 
         return terrainTriangles.ToArray();
-    }
-
-    internal static LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle[] CreateTerrainHeightTriangles(
-        IEnumerable<LocalCityGmlResonitePlanBuilder.ParsedCityObject> cityObjects)
-    {
-        return CreateTerrainHeightTriangles(cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
-            .Select(static triangle => triangle.ToLegacy())
-            .ToArray();
-    }
-
-    internal static LocalCityGmlResonitePlanBuilder.MeshCodeArea? ResolveDemTerrainBounds(
-        IEnumerable<LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult> demParsedSourceFiles,
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? fallbackBounds)
-    {
-        return ResolveDemTerrainBounds(
-            demParsedSourceFiles.Select(ParsedSourceFileResult.FromLegacy),
-            fallbackBounds);
     }
 
     internal static LocalCityGmlResonitePlanBuilder.MeshCodeArea? ResolveDemTerrainBounds(
@@ -130,19 +106,6 @@ internal static class LocalCityGmlDemBootstrapSupport
         }
 
         return overlays.ToArray();
-    }
-
-    internal static LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? CreateTerrainHeightSampler(
-        bool isGeographicReferenceSystem,
-        IReadOnlyCollection<LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle> terrainTriangles,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
-        Geocentric? geocentric)
-    {
-        return CreateTerrainHeightSampler(
-            isGeographicReferenceSystem,
-            terrainTriangles.Select(TerrainHeightTriangle.FromLegacy).ToArray(),
-            GeodeticPoint.FromLegacy(globalOriginPoint),
-            geocentric)?.Legacy;
     }
 
     internal static TerrainHeightSampler? CreateTerrainHeightSampler(

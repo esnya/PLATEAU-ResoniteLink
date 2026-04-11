@@ -44,8 +44,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             [],
             [],
             [],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 0.0),
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+            new GeodeticPoint(35.0, 139.0, 0.0),
             terrainHeightSampler: null);
 
         public Task<LocalCityGmlDocumentSet> ReadAsync(

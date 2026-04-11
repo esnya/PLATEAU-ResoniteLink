@@ -295,13 +295,18 @@ public static partial class LocalCityGmlResonitePlanBuilder
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeArea? fallbackBounds)
     {
-        return LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(demParsedSourceFiles, fallbackBounds);
+        return LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+            demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
+            fallbackBounds);
     }
 
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects);
+        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
+                cityObjects.Select(global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy))
+            .Select(static triangle => triangle.ToLegacy())
+            .ToArray();
     }
 
     private static ParsedCityObject ConformCityObjectToTerrain(
