@@ -40,7 +40,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         Field_float3 datasetPosition = Assert.IsType<Field_float3>(datasetSlot.Position);
         Assert.Equal(0.0f, datasetPosition.Value.y);
 
-        Slot meshRootSlot = FindSlotByNameUnderAncestor(
+        Slot meshRootSlot = FindDirectChildSlotByName(
             fakeClient.SlotsById,
             datasetSlot.ID,
             meshCode);
@@ -159,8 +159,9 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         await builder.ProcessCityObjectAsync(buildingCityObject);
         _ = await builder.CompleteAsync();
 
-        Slot demRootSlot = FindSlotByName(fakeClient.SlotsById, "533945");
-        Slot buildingRootSlot = FindSlotByName(fakeClient.SlotsById, requestedMeshCode);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, $"PLATEAU {dataset}");
+        Slot demRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "533945");
+        Slot buildingRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, requestedMeshCode);
         Slot demCityObjectSlot = FindSlotByNameUnderAncestor(
             fakeClient.SlotsById,
             demRootSlot.ID,
@@ -232,8 +233,9 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         await builder.ProcessCityObjectAsync(detailedMeshBuilding);
         _ = await builder.CompleteAsync();
 
-        Slot parentRootSlot = FindSlotByName(fakeClient.SlotsById, "533945");
-        Slot detailedRootSlot = FindSlotByName(fakeClient.SlotsById, requestedMeshCode);
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, $"PLATEAU {dataset}");
+        Slot parentRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "533945");
+        Slot detailedRootSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, requestedMeshCode);
         Slot parentCityObjectSlot = FindSlotByNameUnderAncestor(
             fakeClient.SlotsById,
             parentRootSlot.ID,
@@ -321,7 +323,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         Slot[] matches = slotsById.Values
             .Where(slot =>
                 string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
-                && IsDescendantOf(slotsById, slot, ancestorSlotId))
+                && IsDescendantOfNonAssetPath(slotsById, slot, ancestorSlotId))
             .ToArray();
         return SelectPreferredSlot(slotsById, matches);
     }
@@ -365,6 +367,18 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         return slotsById.Values.Count(slot => IsDescendantOf(slotsById, slot, slotId));
     }
 
+    private static Slot FindDirectChildSlotByName(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        string parentSlotId,
+        string slotName)
+    {
+        return Assert.Single(
+            slotsById.Values,
+            slot =>
+                string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
+                && string.Equals(slot.Parent?.TargetID, parentSlotId, StringComparison.Ordinal));
+    }
+
     private static bool IsDescendantOf(
         IReadOnlyDictionary<string, Slot> slotsById,
         Slot slot,
@@ -376,6 +390,30 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             if (string.Equals(parentSlot.ID, ancestorSlotId, StringComparison.Ordinal))
             {
                 return true;
+            }
+
+            parent = parentSlot.Parent;
+        }
+
+        return false;
+    }
+
+    private static bool IsDescendantOfNonAssetPath(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        Slot slot,
+        string ancestorSlotId)
+    {
+        Reference? parent = slot.Parent;
+        while (parent is not null && slotsById.TryGetValue(parent.TargetID, out Slot? parentSlot))
+        {
+            if (string.Equals(parentSlot.ID, ancestorSlotId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(parentSlot.Name?.Value, "Assets", StringComparison.Ordinal))
+            {
+                return false;
             }
 
             parent = parentSlot.Parent;
