@@ -3891,6 +3891,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+
     }
 
     private sealed class UncooperativeConnectClient : IResoniteLinkClient
@@ -4056,11 +4057,10 @@ public sealed class ResoniteLinkSceneBuilderTests
             DisposeCallCount++;
         }
 
-        public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ConnectStarted.TrySetResult();
-            await connectNeverCompletes.Task;
+            return Task.CompletedTask;
         }
 
         public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -4126,7 +4126,29 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Slot?>(null);
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                Slot root = new()
+                {
+                    ID = "Root",
+                    Name = new Field_string
+                    {
+                        Value = "Root",
+                    },
+                };
+                if (depth > 0)
+                {
+                    root.Children = slotsById.Values
+                        .Where(static slot => string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal))
+                        .Select(slot => CloneSlot(slot, depth - 1))
+                        .ToList();
+                }
+
+                return Task.FromResult<Slot?>(root);
+            }
+
+            slotsById.TryGetValue(slotId, out Slot? slot);
+            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -4146,6 +4168,41 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent is null ? null : new Reference
+                {
+                    TargetID = source.Parent.TargetID,
+                },
+                Name = source.Name is null ? null : new Field_string
+                {
+                    Value = source.Name.Value,
+                },
+                Position = source.Position,
+                Rotation = source.Rotation,
+                Scale = source.Scale,
+            };
+
+            if (source.Components is not null)
+            {
+                clone.Components = [.. source.Components];
+            }
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = slotsById.Values
+                .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
         }
     }
 

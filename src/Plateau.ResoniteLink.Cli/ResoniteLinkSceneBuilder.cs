@@ -1023,7 +1023,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 mutationClient,
                 importClient,
                 objectSlots.AssetLodSlot.SlotId,
-                objectSlots.LodSlot.SlotId,
                 CreateMeshAssetSlotName(cityObject),
                 CreateHeightMapAssetSlotName(cityObject),
                 cityObject.DisplayName,
