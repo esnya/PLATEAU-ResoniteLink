@@ -360,4 +360,16 @@ internal sealed class TerrainHeightSampler
     {
         return terrainHeightSampler is null ? null : new TerrainHeightSampler(terrainHeightSampler);
     }
+
+    internal static TerrainHeightSampler Create(
+        IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,
+        GeodeticPoint globalOriginPoint,
+        Geocentric geocentric)
+    {
+        return new TerrainHeightSampler(
+            LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(
+                terrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
+                globalOriginPoint.ToLegacy(),
+                geocentric));
+    }
 }

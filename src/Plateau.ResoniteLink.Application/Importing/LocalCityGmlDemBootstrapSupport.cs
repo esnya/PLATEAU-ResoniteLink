@@ -119,11 +119,10 @@ internal static class LocalCityGmlDemBootstrapSupport
             return null;
         }
 
-        return TerrainHeightSampler.FromLegacy(
-            LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(
-                terrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
-                globalOriginPoint.ToLegacy(),
-                geocentric));
+        return TerrainHeightSampler.Create(
+            terrainTriangles,
+            globalOriginPoint,
+            geocentric);
     }
 
     private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
