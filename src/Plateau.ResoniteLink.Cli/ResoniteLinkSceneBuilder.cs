@@ -51,6 +51,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private Task[]? processingTasks;
     private CancellationTokenSource? processingCancellationSource;
     private TaskCompletionSource<Exception>? firstProcessingFailureSource;
+    private FixedCellCityObjectMeshBaker? meshBaker;
     private int processedCityObjectCount;
     private Stopwatch? sceneBuildStopwatch;
     private int firstQueuedCityObjectLogged;
@@ -60,12 +61,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private SceneAnchor? sceneAnchor;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
-        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), progressReporter)
+        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter)
     {
     }
 
     public ResoniteLinkSceneBuilder(Uri endpoint, int connectionCount, Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), progressReporter)
+        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter)
     {
     }
 
@@ -74,7 +75,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), progressReporter)
+        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter)
+    {
+    }
+
+    internal ResoniteLinkSceneBuilder(
+        Uri endpoint,
+        int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
+        bool enableMeshBake,
+        Action<string>? progressReporter = null)
+        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake, progressReporter)
     {
     }
 
@@ -84,6 +95,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteLinkSendDiagnostics diagnostics,
         Func<IResoniteLinkClient> clientFactory,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        bool enableMeshBake = true,
         Action<string>? progressReporter = null)
     {
         this.endpoint = endpoint;
@@ -91,9 +103,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         this.diagnostics = diagnostics;
         this.clientFactory = clientFactory;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator();
+        MeshBakeEnabled = enableMeshBake;
         this.progressReporter = progressReporter;
         geometryAssetAssembler = new ResoniteGeometryAssetAssembler(ReportProgress);
     }
+
+    internal bool MeshBakeEnabled { get; }
 
     public async Task EnsureConnectedAsync(
         PlateauImportRequest request,
@@ -184,6 +199,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
         firstBuiltCityObjectLogged = 0;
+        meshBaker = MeshBakeEnabled ? new FixedCellCityObjectMeshBaker() : null;
         diagnostics.StartSendWindow(connectionCount);
         processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -423,41 +439,39 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
 
-        await AwaitProcessingTasksIfCompletedAsync();
-
-        Task<PreparedCityObject> preparationTask = CreatePreparationTask(cityObject, cancellationToken);
-        if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
+        if (meshBaker?.TryBuffer(cityObject, out ResoniteConstructionCityObject? bakedCityObject) == true)
         {
-            ReportProgress(
-                $"[live] First city object queued after {GetSceneElapsedSeconds():F3}s: "
-                + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+            if (bakedCityObject is null)
+            {
+                return;
+            }
+
+            cityObject = bakedCityObject;
         }
 
-        ObjectDisposedException.ThrowIf(dispatchLaneAllocator is null, this);
-
-        int dispatchLane = dispatchLaneAllocator.GetLane(cityObject);
-        using CancellationTokenSource enqueueCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            processingCancellationSource?.Token ?? CancellationToken.None);
-        try
-        {
-            await cityObjectChannels[dispatchLane].Writer.WriteAsync(
-                new QueuedCityObject(cityObject, preparationTask),
-                enqueueCancellation.Token);
-        }
-        catch (OperationCanceledException) when (processingCancellationSource?.IsCancellationRequested == true)
-        {
-            await AwaitProcessingTasksIfCompletedAsync();
-            throw;
-        }
-
-        await AwaitProcessingTasksIfCompletedAsync();
+        await EnqueueCityObjectAsync(cityObject, cancellationToken);
     }
 
     public async Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
+
+        if (meshBaker is not null)
+        {
+            IReadOnlyList<ResoniteConstructionCityObject> bakedCityObjects = meshBaker.FlushAll();
+            foreach (ResoniteConstructionCityObject bakedCityObject in bakedCityObjects)
+            {
+                await EnqueueCityObjectAsync(bakedCityObject, cancellationToken);
+            }
+
+            if (meshBaker.BakedOutputCityObjectCount > 0)
+            {
+                ReportProgress(
+                    $"[live] MeshBake batched {meshBaker.BakedInputCityObjectCount} input city objects "
+                    + $"into {meshBaker.BakedOutputCityObjectCount} baked cell batches.");
+            }
+        }
 
         ReportProgress("[live] Completing live send. Closing lane writers.");
         foreach (Channel<QueuedCityObject> channel in cityObjectChannels)
@@ -556,6 +570,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             textureImportResolver = null;
             cityObjectChannels = null;
             processingTasks = null;
+            meshBaker = null;
             processingCancellationSource?.Dispose();
             processingCancellationSource = null;
             firstProcessingFailureSource = null;
@@ -604,6 +619,42 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             + $"{preparedCityObject.CityObject.DisplayName} "
             + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
             PlateauLogLevel.Info);
+    }
+
+    private async Task EnqueueCityObjectAsync(
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken cancellationToken)
+    {
+        await AwaitProcessingTasksIfCompletedAsync();
+
+        Task<PreparedCityObject> preparationTask = CreatePreparationTask(cityObject, cancellationToken);
+        if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
+        {
+            ReportProgress(
+                $"[live] First city object queued after {GetSceneElapsedSeconds():F3}s: "
+                + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+        }
+
+        ObjectDisposedException.ThrowIf(dispatchLaneAllocator is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
+
+        int dispatchLane = dispatchLaneAllocator.GetLane(cityObject);
+        using CancellationTokenSource enqueueCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            processingCancellationSource?.Token ?? CancellationToken.None);
+        try
+        {
+            await cityObjectChannels[dispatchLane].Writer.WriteAsync(
+                new QueuedCityObject(cityObject, preparationTask),
+                enqueueCancellation.Token);
+        }
+        catch (OperationCanceledException) when (processingCancellationSource?.IsCancellationRequested == true)
+        {
+            await AwaitProcessingTasksIfCompletedAsync();
+            throw;
+        }
+
+        await AwaitProcessingTasksIfCompletedAsync();
     }
 
     private void ReportProgress(string message)
