@@ -118,7 +118,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(demBounds);
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(demBounds));
     }
 
     private static string CreateDemTerrainTexturePath(
@@ -295,9 +296,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeArea? fallbackBounds)
     {
-        return LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+        global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
             demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
-            fallbackBounds);
+            fallbackBounds is null ? null : global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(fallbackBounds));
+        return bounds?.ToLegacy();
     }
 
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(

@@ -51,9 +51,9 @@ internal static class LocalCityGmlDemBootstrapSupport
         return terrainTriangles.ToArray();
     }
 
-    internal static LocalCityGmlResonitePlanBuilder.MeshCodeArea? ResolveDemTerrainBounds(
+    internal static DemTerrainBounds? ResolveDemTerrainBounds(
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? fallbackBounds)
+        DemTerrainBounds? fallbackBounds)
     {
         ArgumentNullException.ThrowIfNull(demParsedSourceFiles);
 
@@ -70,7 +70,7 @@ internal static class LocalCityGmlDemBootstrapSupport
 
         return bounds is null
             ? fallbackBounds
-            : new LocalCityGmlResonitePlanBuilder.MeshCodeArea(
+            : new DemTerrainBounds(
                 bounds.Value.minLatitude,
                 bounds.Value.maxLatitude,
                 bounds.Value.minLongitude,
@@ -78,7 +78,7 @@ internal static class LocalCityGmlDemBootstrapSupport
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea demBounds)
+        DemTerrainBounds demBounds)
     {
         ArgumentNullException.ThrowIfNull(demBounds);
 

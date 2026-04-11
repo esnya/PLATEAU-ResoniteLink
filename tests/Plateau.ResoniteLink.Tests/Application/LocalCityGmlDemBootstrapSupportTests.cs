@@ -53,7 +53,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
     [Fact]
     public void CreateDemTerrainTextureOverlaysReturnsDemTextureMetadata()
     {
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea demBounds = new(
+        DemTerrainBounds demBounds = new(
             SouthLatitude: 35.0,
             NorthLatitude: 35.0001,
             WestLongitude: 139.0,

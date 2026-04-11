@@ -127,8 +127,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
             resolvedLocalOrigin.Latitude,
             resolvedLocalOrigin.Longitude,
             0.0);
-        MeshCodeArea? demTerrainBounds = referenceSystem.IsGeographic
-            ? LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(demParsedSourceFiles, effectiveRequestedMeshArea)
+        DemTerrainBounds? demTerrainBounds = referenceSystem.IsGeographic
+            ? LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+                demParsedSourceFiles,
+                effectiveRequestedMeshArea is null ? null : DemTerrainBounds.FromLegacy(effectiveRequestedMeshArea))
             : null;
         TerrainTextureOverlay[] terrainTextureOverlays = demTerrainBounds is not null && demPipelines.Count > 0
             ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(demTerrainBounds)

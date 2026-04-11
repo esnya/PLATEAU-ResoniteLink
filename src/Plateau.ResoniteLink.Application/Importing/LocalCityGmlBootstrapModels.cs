@@ -160,6 +160,31 @@ internal sealed record TerrainHeightTriangle(
     }
 }
 
+internal sealed record DemTerrainBounds(
+    double SouthLatitude,
+    double NorthLatitude,
+    double WestLongitude,
+    double EastLongitude)
+{
+    internal static DemTerrainBounds FromLegacy(LocalCityGmlResonitePlanBuilder.MeshCodeArea bounds)
+    {
+        return new DemTerrainBounds(
+            bounds.SouthLatitude,
+            bounds.NorthLatitude,
+            bounds.WestLongitude,
+            bounds.EastLongitude);
+    }
+
+    internal LocalCityGmlResonitePlanBuilder.MeshCodeArea ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.MeshCodeArea(
+            SouthLatitude,
+            NorthLatitude,
+            WestLongitude,
+            EastLongitude);
+    }
+}
+
 internal sealed record CoordinateReferenceSystem(
     string SrsName,
     Geocentric? Geocentric,
