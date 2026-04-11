@@ -15,6 +15,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 - 対象 runtime は .NET SDK 10。release asset の実行にも .NET 10 が必要。
 - `--resonitelink-port` または `--resonitelink-url` で到達できる ResoniteLink listener が必要。
 - live adapter の asset import は現在、mesh に `ImportMesh(ImportMeshRawData)`、texture に `ImportTexture(ImportTexture2DFile)` を使います。
+- live create response は session 内の authoritative な ID として扱います。requested ID は batch 内の参照ヒントに限定し、cityObject ごとに独立した DataModel batch を組み、requested ID を session をまたいで再利用してはいけません。
 
 ## Quick Start
 
@@ -58,11 +59,13 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。formatting、analyzer、build、test の検証は次を使います。
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。CLI は既定でマイルストーン級の進捗だけを表示し、file ごとの詳細や live-send trace は隠します。debug レベルの import / ResoniteLink trace が必要なときは `--verbose` を付けてください。formatting、analyzer、build、test の検証は次を使います。
 
 ```bash
 bash scripts/verify-ci.sh
 ```
+
+`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。
 
 ## Further Reading
 

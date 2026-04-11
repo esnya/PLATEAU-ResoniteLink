@@ -29,12 +29,12 @@ internal sealed class MetricsResoniteLinkClient(
         return await inner.AddSlotAsync(request, cancellationToken);
     }
 
-    public async Task RunDataModelOperationBatchAsync(
+    public async Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("batch");
-        await inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
+        return await inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
     }
 
     public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)

@@ -15,6 +15,7 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 - Target runtime: .NET SDK 10. Release assets also require .NET 10.
 - A running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url` is required.
 - Live adapter asset import currently uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture(ImportTexture2DFile)` for textures.
+- Live create responses are authoritative inside a session. Requested IDs are only batch-local hints, each city object is emitted as its own DataModel batch, and requested IDs must not be reused across sessions.
 
 ## Quick Start
 
@@ -60,9 +61,13 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 `--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search. Validate formatting, analyzers, build, and tests with:
 
+By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
+
 ```bash
 bash scripts/verify-ci.sh
 ```
+
+When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`.
 
 ## Further Reading
 

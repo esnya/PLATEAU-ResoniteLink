@@ -13,7 +13,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return CreateConstructionSourceCoreAsync(request, progressReporter, cancellationToken);
+        return CreateConstructionSourceCoreAsync(
+            request,
+            progressReporter,
+            cancellationToken);
     }
 
     public static IResoniteConstructionSource CreateConstructionSource(
@@ -60,7 +63,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         MeshCodeArea? effectiveRequestedMeshArea = MeshCodeArea.TryMerge(requestedMeshAreas);
         scanStopwatch.Stop();
         progressReporter?.Invoke(
-            PlateauLog.Info("import", $"Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s."));
+            PlateauLog.Debug("import", $"Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s."));
 
         if (sourceFiles.Length == 0)
         {
@@ -123,7 +126,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         if (demPipelines.Count > 0)
         {
             progressReporter?.Invoke(
-                PlateauLog.Info(
+                PlateauLog.Debug(
                     "import",
                     $"DEM bootstrap parsed {demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length)} city objects "
                     + $"from {demPipelines.Count} files in {demStopwatch.Elapsed.TotalSeconds:F3}s."));
@@ -159,8 +162,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             : null;
         progressReporter?.Invoke(
             terrainHeightSampler is null
-                ? PlateauLog.Info("import", "Terrain height sampler disabled for this dataset.")
-                : PlateauLog.Info("import", $"Terrain height sampler indexed {demTerrainTriangles.Count} DEM triangles."));
+                ? PlateauLog.Debug("import", "Terrain height sampler disabled for this dataset.")
+                : PlateauLog.Debug("import", $"Terrain height sampler indexed {demTerrainTriangles.Count} DEM triangles."));
         ResoniteAttribution attribution = PlateauResoniteAttributionFactory.Create(request);
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -182,7 +185,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 Altitude: globalOriginPoint.Altitude));
         totalStopwatch.Stop();
         progressReporter?.Invoke(
-            PlateauLog.Info("import", $"Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
+            PlateauLog.Debug("import", $"Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
 
         return new ConstructionSource(
             metadata,
@@ -190,19 +193,20 @@ public static partial class LocalCityGmlResonitePlanBuilder
             cachedDemSourceFiles,
             sourceFilePipelines
                 .Where(static pipeline => !string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                .ToArray(),
+            .ToArray(),
             referenceSystem,
             globalOriginPoint,
-            terrainHeightSampler);
+            terrainHeightSampler,
+            new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()));
     }
 
-    private static ResoniteLocalOrigin? ResolveLocalOrigin(
+    internal static ResoniteLocalOrigin? ResolveLocalOrigin(
         MeshCodeArea? requestedMeshArea)
     {
         return requestedMeshArea?.GetCenter();
     }
 
-    private static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
+    internal static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -224,7 +228,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .ToArray();
     }
 
-    private static async Task<ParsedSourceFileResult> ParseSourceFileAsync(
+    internal static async Task<ParsedSourceFileResult> ParseSourceFileAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -259,7 +263,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             : [];
 
         progressReporter?.Invoke(
-            PlateauLog.Info(
+            PlateauLog.Debug(
                 "import",
                 $"Parsed file '{sourceFile.RelativePath}' "
                 + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
@@ -273,7 +277,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             fileStopwatch.Elapsed);
     }
 
-    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
+    internal static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -297,7 +301,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
     }
 
-    private static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
+    internal static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
         IPlateauDatasetContentSource datasetSource,
         string relativePath,
         CancellationToken cancellationToken)

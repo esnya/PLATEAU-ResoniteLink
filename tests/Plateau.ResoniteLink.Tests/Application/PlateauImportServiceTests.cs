@@ -2189,8 +2189,8 @@ public sealed class PlateauImportServiceTests
 
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Resolved dataset source", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scene builder connection check completed", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Scanned ", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Parsed ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Scanned ", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Parsed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Prepared construction source", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization.", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Streamed ", StringComparison.Ordinal));

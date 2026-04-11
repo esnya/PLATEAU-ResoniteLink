@@ -2,9 +2,9 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal static class DefaultMaterialCatalog
+internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 {
-    public static ResolvedMaterial ResolveMaterial(
+    public ResolvedMaterial ResolveMaterial(
         string packageName,
         string? texturePath,
         bool preferUvProjection,
@@ -19,7 +19,8 @@ internal static class DefaultMaterialCatalog
                 ResoniteTextureSourceKind.Bundled,
                 ResoniteMaterialProjection.Uv,
                 Family: null,
-                TextureScale: null);
+                TextureScale: null,
+                AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
         }
 
         if (!string.IsNullOrWhiteSpace(texturePath))
@@ -30,7 +31,8 @@ internal static class DefaultMaterialCatalog
                 ResoniteTextureSourceKind.Dataset,
                 ResoniteMaterialProjection.Uv,
                 Family: null,
-                TextureScale: null);
+                TextureScale: null,
+                AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
         }
 
         bool useFacadeUvProjection = ShouldUseFacadeUvProjection(packageName, preferUvProjection);
@@ -42,7 +44,8 @@ internal static class DefaultMaterialCatalog
             ResoniteTextureSourceKind.Bundled,
             preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
             family,
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath));
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath),
+            ResoniteMaterialAssetScope.Common);
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)
@@ -93,12 +96,4 @@ internal static class DefaultMaterialCatalog
         int index = hashCode % variants.Count;
         return variants[index];
     }
-
-    internal sealed record ResolvedMaterial(
-        ResoniteMaterialType MaterialType,
-        string? TexturePath,
-        ResoniteTextureSourceKind TextureSourceKind,
-        ResoniteMaterialProjection Projection,
-        string? Family,
-        ResoniteFloat2? TextureScale);
 }

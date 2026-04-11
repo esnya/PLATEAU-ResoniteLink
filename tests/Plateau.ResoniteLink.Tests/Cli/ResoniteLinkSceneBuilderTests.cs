@@ -66,7 +66,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             : "LOD0";
         Assert.Contains("PLATEAU tokyo23ku/Assets", fakeClient.SlotPaths.Values);
         Assert.Contains("PLATEAU tokyo23ku/Assets/Common", fakeClient.SlotPaths.Values);
-        Assert.Contains($"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
+        Assert.Contains($"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
         Assert.Contains($"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Textures", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Meshes", fakeClient.SlotPaths.Values);
@@ -141,7 +141,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             meshAssetRequests,
             request => string.Equals(
                 fakeClient.SlotPaths[request.ContainerSlotId],
-                $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One",
+                $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One",
                 StringComparison.Ordinal));
 
         AddComponent[] materialRequests = fakeClient.AddedComponents
@@ -165,7 +165,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             {
                 string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
                 return slotPath.StartsWith(
-                    $"PLATEAU tokyo23ku/Assets/bldg/{buildingLodSlotName}/Building One/",
+                    $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One/",
                     StringComparison.Ordinal);
             });
 
@@ -630,7 +630,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
                 && request.Data.Members.ContainsKey("Readable")
                 && request.Data.Members.ContainsKey("Uncompressed"));
-        Assert.Equal(displacementTexture.TargetID, heightTextureRequest.Data.ID);
+        Assert.False(string.IsNullOrWhiteSpace(displacementTexture.TargetID));
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["Readable"]).Value);
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["Uncompressed"]).Value);
         Assert.True(Assert.IsType<Field_bool>(heightTextureRequest.Data.Members["DirectLoad"]).Value);
@@ -651,18 +651,16 @@ public sealed class ResoniteLinkSceneBuilderTests
                     string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
                     && string.Equals(request.ContainerSlotId, reliefSlotId, StringComparison.Ordinal))
                 .Select(static request => request.Data));
-        Assert.Equal(
-            gridMeshRequest.Data.ID,
-            Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID);
+        string renderedGridMeshId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
+        Assert.False(string.IsNullOrWhiteSpace(renderedGridMeshId));
 
         Component collider = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
                     string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal)
                     && string.Equals(request.ContainerSlotId, reliefSlotId, StringComparison.Ordinal))
                 .Select(static request => request.Data));
-        Assert.Equal(
-            gridMeshRequest.Data.ID,
-            Assert.IsType<Reference>(collider.Members["Mesh"]).TargetID);
+        string colliderGridMeshId = Assert.IsType<Reference>(collider.Members["Mesh"]).TargetID;
+        Assert.Equal(renderedGridMeshId, colliderGridMeshId);
     }
 
     [Fact]
@@ -872,7 +870,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[displacementTextureSlot.ID], StringComparison.Ordinal);
         Assert.DoesNotContain("/Assets/Common/", fakeClient.SlotPaths[materialTextureSlot.ID], StringComparison.Ordinal);
         Assert.StartsWith(
-            "PLATEAU tokyo23ku/Assets/dem/LOD0/HeightMap Overlay Test/",
+            "PLATEAU tokyo23ku/Assets/53394525/dem/LOD0/HeightMap Overlay Test/",
             fakeClient.SlotPaths[materialTextureSlot.ID],
             StringComparison.Ordinal);
     }
@@ -1029,7 +1027,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 "[FrooxEngine]FrooxEngine.PBS_Metallic",
                 StringComparison.Ordinal));
         string materialPath = fakeClient.SlotPaths[materialRequest.ContainerSlotId];
-        Assert.StartsWith("PLATEAU tokyo23ku/Assets/tran/LOD1/", materialPath, StringComparison.Ordinal);
+        Assert.StartsWith("PLATEAU tokyo23ku/Assets/53394525/tran/LOD1/", materialPath, StringComparison.Ordinal);
         Assert.DoesNotContain("/Assets/Common", materialPath, StringComparison.Ordinal);
     }
 
@@ -1832,7 +1830,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             static message => message.Contains("[live][error] Send lane 1/1 failed:", StringComparison.Ordinal));
         Assert.Contains(
             progressMessages,
-            static message => message.Contains("[live][info] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
+            static message => message.Contains("[live][debug] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1885,31 +1883,37 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.Single(destinations);
         Assert.Equal(0, client.RejectedAliasMutationCount);
-        Assert.Equal(0, client.BatchMutationCount);
+        Assert.Equal(scene.CityObjects.Count, client.BatchMutationCount);
         Assert.NotEmpty(client.ReturnedSlotResponseIds);
         Assert.NotEmpty(client.ReturnedComponentResponseIds);
         Assert.All(client.ReturnedSlotResponseIds, responseId => Assert.Contains(responseId, session.SlotsById.Keys));
         Assert.All(client.ReturnedComponentResponseIds, responseId => Assert.Contains(responseId, session.ComponentsById.Keys));
 
-        Component[] meshRenderers = session.ComponentsById.Values
-            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
-            .ToArray();
+        List<Component> meshRenderers = session.ComponentsById.Values
+            .Where(component =>
+                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .ToList();
         Assert.NotEmpty(meshRenderers);
-        Assert.All(meshRenderers, meshRenderer =>
-        {
-            string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
-            Assert.Contains(meshComponentId, session.ComponentsById.Keys);
-        });
+        Assert.All(
+            meshRenderers,
+            meshRenderer =>
+            {
+                string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
+                Assert.Contains(meshComponentId, client.ReturnedComponentResponseIds);
+            });
 
-        Component[] meshColliders = session.ComponentsById.Values
-            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
-            .ToArray();
+        List<Component> meshColliders = session.ComponentsById.Values
+            .Where(component =>
+                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .ToList();
         Assert.NotEmpty(meshColliders);
-        Assert.All(meshColliders, meshCollider =>
-        {
-            string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
-            Assert.Contains(colliderMeshComponentId, session.ComponentsById.Keys);
-        });
+        Assert.All(
+            meshColliders,
+            meshCollider =>
+            {
+                string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
+                Assert.Contains(colliderMeshComponentId, client.ReturnedComponentResponseIds);
+            });
     }
 
     [Fact]
@@ -1937,11 +1941,52 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
         Assert.Equal(
-            1,
+            2,
             session.SlotsById.Values.Count(slot =>
                 string.Equals(slot.Name?.Value, "Building One", StringComparison.Ordinal)
                 && string.Equals(session.SlotPaths[slot.Parent!.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal)));
         Assert.Equal(0, client.RejectedAliasMutationCount);
+        Assert.Equal(scene.CityObjects.Count, client.BatchMutationCount);
+    }
+
+    [Fact]
+    public async Task BuildAsyncUsesOneDataModelBatchPerCityObject()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        using FakeResoniteLinkClient client = new();
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => client),
+            scene);
+
+        Assert.Single(destinations);
+        Assert.Equal(scene.CityObjects.Count, client.Batches.Count);
+        Assert.All(client.Batches, batch =>
+        {
+            Assert.Single(
+                batch.OfType<AddComponent>(),
+                static operation => string.Equals(
+                    operation.Data.ComponentType,
+                    "[FrooxEngine]FrooxEngine.MeshRenderer",
+                    StringComparison.Ordinal));
+            Assert.Single(
+                batch.OfType<AddComponent>(),
+                static operation => string.Equals(
+                    operation.Data.ComponentType,
+                    "[FrooxEngine]FrooxEngine.MeshCollider",
+                    StringComparison.Ordinal));
+        });
     }
 
     [Fact]
@@ -2186,12 +2231,191 @@ public sealed class ResoniteLinkSceneBuilderTests
             component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
     }
 
-    private static IReadOnlyList<DataModelOperation> ResolveBatchLocalSlotReferences(
+    private static List<DataModelOperation> ResolveBatchLocalSlotReferences(
         IReadOnlyList<DataModelOperation> operations,
-        Func<string> allocateSlotId)
+        Func<string> allocateSlotId,
+        Func<string> allocateComponentId)
     {
-        _ = allocateSlotId;
-        return operations;
+        Dictionary<string, string> canonicalIdsByLocalId = new(StringComparer.Ordinal);
+        List<DataModelOperation> resolved = new(operations.Count);
+
+        foreach (DataModelOperation operation in operations)
+        {
+            switch (operation)
+            {
+                case AddSlot addSlot:
+                    {
+                        string canonicalSlotId = allocateSlotId();
+                        if (!string.IsNullOrWhiteSpace(addSlot.Data.ID))
+                        {
+                            canonicalIdsByLocalId[addSlot.Data.ID] = canonicalSlotId;
+                        }
+
+                        resolved.Add(
+                            new AddSlot
+                            {
+                                MessageID = addSlot.MessageID,
+                                Data = new Slot
+                                {
+                                    ID = canonicalSlotId,
+                                    Parent = addSlot.Data.Parent is null
+                                        ? null
+                                        : new Reference
+                                        {
+                                            TargetID = ResolveCanonicalId(addSlot.Data.Parent.TargetID, canonicalIdsByLocalId),
+                                        },
+                                    Name = addSlot.Data.Name,
+                                    Position = addSlot.Data.Position,
+                                    Rotation = addSlot.Data.Rotation,
+                                },
+                            });
+                        break;
+                    }
+                case AddComponent addComponent:
+                    {
+                        string canonicalComponentId = allocateComponentId();
+                        if (!string.IsNullOrWhiteSpace(addComponent.Data.ID))
+                        {
+                            canonicalIdsByLocalId[addComponent.Data.ID] = canonicalComponentId;
+                        }
+
+                        resolved.Add(
+                            new AddComponent
+                            {
+                                MessageID = addComponent.MessageID,
+                                ContainerSlotId = ResolveCanonicalId(addComponent.ContainerSlotId, canonicalIdsByLocalId),
+                                Data = new Component
+                                {
+                                    ID = canonicalComponentId,
+                                    ComponentType = addComponent.Data.ComponentType,
+                                    Members = addComponent.Data.Members.ToDictionary(
+                                        static pair => pair.Key,
+                                        pair => CloneMemberWithResolvedReferences(pair.Value, canonicalIdsByLocalId),
+                                        StringComparer.Ordinal),
+                                },
+                            });
+                        break;
+                    }
+                case UpdateComponent updateComponent:
+                    resolved.Add(new UpdateComponent
+                    {
+                        MessageID = updateComponent.MessageID,
+                        Data = new Component
+                        {
+                            ID = ResolveCanonicalId(updateComponent.Data.ID, canonicalIdsByLocalId),
+                            ComponentType = updateComponent.Data.ComponentType,
+                            Members = updateComponent.Data.Members.ToDictionary(
+                                static pair => pair.Key,
+                                pair => CloneMemberWithResolvedReferences(pair.Value, canonicalIdsByLocalId),
+                                StringComparer.Ordinal),
+                        },
+                    });
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+            }
+        }
+
+        return resolved;
+    }
+
+    private static async Task<BatchResponse> ExecuteBatchOperationsAsync(
+        IReadOnlyList<DataModelOperation> operations,
+        Func<string> allocateSlotId,
+        Func<string> allocateComponentId,
+        Func<AddSlot, CancellationToken, Task<string>> addSlotAsync,
+        Func<AddComponent, CancellationToken, Task<string>> addComponentAsync,
+        Func<UpdateComponent, CancellationToken, Task> updateComponentAsync,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+            operations,
+            allocateSlotId,
+            allocateComponentId);
+        List<Response> responses = [];
+        foreach (DataModelOperation operation in resolvedOperations)
+        {
+            switch (operation)
+            {
+                case AddSlot addSlot:
+                    {
+                        string entityId = await addSlotAsync(addSlot, cancellationToken);
+                        responses.Add(
+                            new NewEntityId
+                            {
+                                Success = true,
+                                SourceMessageID = addSlot.MessageID,
+                                EntityId = entityId,
+                            });
+                        break;
+                    }
+                case AddComponent addComponent:
+                    {
+                        string entityId = await addComponentAsync(addComponent, cancellationToken);
+                        responses.Add(
+                            new NewEntityId
+                            {
+                                Success = true,
+                                SourceMessageID = addComponent.MessageID,
+                                EntityId = entityId,
+                            });
+                        break;
+                    }
+                case UpdateComponent updateComponent:
+                    await updateComponentAsync(updateComponent, cancellationToken);
+                    responses.Add(new Response
+                    {
+                        Success = true,
+                        SourceMessageID = updateComponent.MessageID,
+                    });
+                    break;
+                default:
+                    throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+            }
+        }
+
+        return new BatchResponse
+        {
+            Success = true,
+            Responses = responses,
+        };
+    }
+
+    private static string ResolveCanonicalId(string targetId, IReadOnlyDictionary<string, string> canonicalIdsByLocalId)
+    {
+        return canonicalIdsByLocalId.TryGetValue(targetId, out string? canonicalId) ? canonicalId : targetId;
+    }
+
+    private static Member CloneMemberWithResolvedReferences(
+        Member member,
+        IReadOnlyDictionary<string, string> canonicalIdsByLocalId)
+    {
+        return member switch
+        {
+            Reference reference => new Reference
+            {
+                TargetID = ResolveCanonicalId(reference.TargetID, canonicalIdsByLocalId),
+            },
+            SyncList syncList => new SyncList
+            {
+                Elements = syncList.Elements
+                    .Select(element => CloneMemberWithResolvedReferences(element, canonicalIdsByLocalId))
+                    .ToList(),
+            },
+            EmptyElement => new EmptyElement(),
+            Field_bool value => new Field_bool { Value = value.Value },
+            Field_string value => new Field_string { Value = value.Value },
+            Field_float value => new Field_float { Value = value.Value },
+            Field_float2 value => new Field_float2 { Value = value.Value },
+            Field_float3 value => new Field_float3 { Value = value.Value },
+            Field_floatQ value => new Field_floatQ { Value = value.Value },
+            Field_int2 value => new Field_int2 { Value = value.Value },
+            Field_Enum value => new Field_Enum { Value = value.Value },
+            Field_Nullable_Enum value => new Field_Nullable_Enum { Value = value.Value },
+            Field_Uri value => new Field_Uri { Value = value.Value },
+            Field_colorX value => new Field_colorX { Value = value.Value },
+            _ => member,
+        };
     }
 
     private sealed class FakeResoniteLinkClient : IResoniteLinkClient
@@ -2297,36 +2521,24 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
-                operations,
-                session.AllocateSlotId);
             lock (session.Gate)
             {
-                session.Batches.Add(resolvedOperations.ToArray());
+                session.Batches.Add(operations.ToArray());
             }
 
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                    default:
-                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
-                }
-            }
+            return ExecuteBatchOperationsAsync(
+                operations,
+                session.AllocateSlotId,
+                session.AllocateComponentId,
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -2500,28 +2712,18 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+            return ExecuteBatchOperationsAsync(
                 operations,
-                session.AllocateSlotId);
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                }
-            }
+                session.AllocateSlotId,
+                session.AllocateComponentId,
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -2764,13 +2966,88 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public async Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             BatchMutationCount++;
-            throw new InvalidOperationException("Unexpected batch mutation in response-authoritative create path.");
+            Dictionary<string, string> canonicalIdsByLocalId = new(StringComparer.Ordinal);
+            List<Response> responses = [];
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        {
+                            AddSlot resolvedAddSlot = CloneAddSlot(addSlot);
+                            if (resolvedAddSlot.Data.Parent is not null
+                                && canonicalIdsByLocalId.TryGetValue(resolvedAddSlot.Data.Parent.TargetID, out string? canonicalParentId))
+                            {
+                                resolvedAddSlot.Data.Parent = new Reference
+                                {
+                                    TargetID = canonicalParentId,
+                                };
+                            }
+
+                            string createdSlotId = await AddSlotAsync(resolvedAddSlot, cancellationToken);
+                            if (!string.IsNullOrWhiteSpace(addSlot.Data.ID))
+                            {
+                                canonicalIdsByLocalId[addSlot.Data.ID] = createdSlotId;
+                            }
+
+                            responses.Add(new NewEntityId
+                            {
+                                Success = true,
+                                SourceMessageID = addSlot.MessageID,
+                                EntityId = createdSlotId,
+                            });
+                            break;
+                        }
+                    case AddComponent addComponent:
+                        {
+                            AddComponent resolvedAddComponent = CloneAddComponent(addComponent);
+                            if (canonicalIdsByLocalId.TryGetValue(resolvedAddComponent.ContainerSlotId, out string? canonicalContainerId))
+                            {
+                                resolvedAddComponent.ContainerSlotId = canonicalContainerId;
+                            }
+
+                            resolvedAddComponent.Data.Members = resolvedAddComponent.Data.Members.ToDictionary(
+                                static pair => pair.Key,
+                                pair => ResolveBatchMember(pair.Value, canonicalIdsByLocalId),
+                                StringComparer.Ordinal);
+                            string createdComponentId = await AddComponentAsync(resolvedAddComponent, cancellationToken);
+                            if (!string.IsNullOrWhiteSpace(addComponent.Data.ID))
+                            {
+                                canonicalIdsByLocalId[addComponent.Data.ID] = createdComponentId;
+                            }
+
+                            responses.Add(new NewEntityId
+                            {
+                                Success = true,
+                                SourceMessageID = addComponent.MessageID,
+                                EntityId = createdComponentId,
+                            });
+                            break;
+                        }
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        responses.Add(new Response
+                        {
+                            Success = true,
+                            SourceMessageID = updateComponent.MessageID,
+                        });
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
+
+            return new BatchResponse
+            {
+                Success = true,
+                Responses = responses,
+            };
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -2861,7 +3138,9 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             if (!injectPreexistingPresentationSibling
                 || PreexistingPresentationSiblingInjected
-                || !string.Equals(slot.Name?.Value, "LOD2", StringComparison.Ordinal))
+                || !string.Equals(slot.Name?.Value, "LOD2", StringComparison.Ordinal)
+                || !session.SlotPaths.TryGetValue(slotId, out string? slotPath)
+                || slotPath.Contains("/Assets/", StringComparison.Ordinal))
             {
                 return;
             }
@@ -2915,6 +3194,28 @@ public sealed class ResoniteLinkSceneBuilderTests
                     ComponentType = request.Data.ComponentType,
                     Members = new Dictionary<string, Member>(request.Data.Members, StringComparer.Ordinal),
                 },
+            };
+        }
+
+        private static Member ResolveBatchMember(
+            Member member,
+            IReadOnlyDictionary<string, string> canonicalIdsByLocalId)
+        {
+            return member switch
+            {
+                Reference reference => new Reference
+                {
+                    TargetID = canonicalIdsByLocalId.TryGetValue(reference.TargetID, out string? canonicalId)
+                        ? canonicalId
+                        : reference.TargetID,
+                },
+                SyncList syncList => new SyncList
+                {
+                    Elements = syncList.Elements
+                        .Select(element => ResolveBatchMember(element, canonicalIdsByLocalId))
+                        .ToList(),
+                },
+                _ => member,
             };
         }
 
@@ -3028,28 +3329,18 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+            return ExecuteBatchOperationsAsync(
                 operations,
-                session.AllocateSlotId);
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                }
-            }
+                session.AllocateSlotId,
+                session.AllocateComponentId,
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -3301,36 +3592,24 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
-                operations,
-                session.AllocateSlotId);
             lock (session.Gate)
             {
-                session.Batches.Add(resolvedOperations.ToArray());
+                session.Batches.Add(operations.ToArray());
             }
 
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                    default:
-                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
-                }
-            }
+            return ExecuteBatchOperationsAsync(
+                operations,
+                session.AllocateSlotId,
+                session.AllocateComponentId,
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -3504,36 +3783,24 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
-                operations,
-                session.AllocateSlotId);
             lock (session.Gate)
             {
-                session.Batches.Add(resolvedOperations.ToArray());
+                session.Batches.Add(operations.ToArray());
             }
 
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                    default:
-                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
-                }
-            }
+            return ExecuteBatchOperationsAsync(
+                operations,
+                session.AllocateSlotId,
+                session.AllocateComponentId,
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -3729,34 +3996,24 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+            Batches.Add(operations.ToArray());
+            return ExecuteBatchOperationsAsync(
                 operations,
                 () => string.Create(
                     System.Globalization.CultureInfo.InvariantCulture,
-                    $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"));
-            Batches.Add(resolvedOperations.ToArray());
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                    default:
-                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
-                }
-            }
+                    $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"),
+                () => string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"srv_component_{Interlocked.Increment(ref nextComponentId)}"),
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -3846,12 +4103,16 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(request.Data.ID);
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -3883,6 +4144,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+
     }
 
     private sealed class UncooperativeConnectClient : IResoniteLinkClient
@@ -3917,12 +4179,16 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(request.Data.ID);
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -3992,12 +4258,16 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(request.Data.ID);
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -4080,31 +4350,19 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(createdSlotId);
         }
 
-        public async Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+            return ExecuteBatchOperationsAsync(
                 operations,
-                () => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"));
-            foreach (DataModelOperation operation in resolvedOperations)
-            {
-                switch (operation)
-                {
-                    case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
-                        break;
-                    case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
-                        break;
-                    case UpdateComponent updateComponent:
-                        await UpdateComponentAsync(updateComponent, cancellationToken);
-                        break;
-                    default:
-                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
-                }
-            }
+                () => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"),
+                () => string.Create(CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}"),
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -4119,18 +4377,27 @@ public sealed class ResoniteLinkSceneBuilderTests
             cancellationToken.ThrowIfCancellationRequested();
             if (string.Equals(slotId, "Root", StringComparison.Ordinal))
             {
-                return Task.FromResult<Slot?>(new Slot
+                Slot root = new()
                 {
                     ID = "Root",
                     Name = new Field_string
                     {
                         Value = "Root",
                     },
-                });
+                };
+                if (depth > 0)
+                {
+                    root.Children = slotsById.Values
+                        .Where(static slot => string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal))
+                        .Select(slot => CloneSlot(slot, depth - 1))
+                        .ToList();
+                }
+
+                return Task.FromResult<Slot?>(root);
             }
 
             slotsById.TryGetValue(slotId, out Slot? slot);
-            return Task.FromResult(slot);
+            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -4150,6 +4417,41 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent is null ? null : new Reference
+                {
+                    TargetID = source.Parent.TargetID,
+                },
+                Name = source.Name is null ? null : new Field_string
+                {
+                    Value = source.Name.Value,
+                },
+                Position = source.Position,
+                Rotation = source.Rotation,
+                Scale = source.Scale,
+            };
+
+            if (source.Components is not null)
+            {
+                clone.Components = [.. source.Components];
+            }
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = slotsById.Values
+                .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
         }
     }
 
@@ -4207,7 +4509,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             return Task.FromResult(createdSlotId);
         }
 
-        public Task RunDataModelOperationBatchAsync(
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
@@ -4410,9 +4712,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         IReadOnlyDictionary<string, Slot> slotsById,
         string slotName)
     {
-        return Assert.Single(
-            slotsById.Values,
-            slot => string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal));
+        Slot[] matches = slotsById.Values
+            .Where(slot => string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal))
+            .ToArray();
+        return SelectPreferredSlot(slotsById, matches);
     }
 
     private static Slot FindSlotByNameUnderAncestor(
@@ -4420,11 +4723,51 @@ public sealed class ResoniteLinkSceneBuilderTests
         string ancestorSlotId,
         string slotName)
     {
-        return Assert.Single(
-            slotsById.Values,
-            slot =>
+        Slot[] matches = slotsById.Values
+            .Where(slot =>
                 string.Equals(slot.Name?.Value, slotName, StringComparison.Ordinal)
-                && IsDescendantOf(slotsById, slot, ancestorSlotId));
+                && IsDescendantOf(slotsById, slot, ancestorSlotId))
+            .ToArray();
+        return SelectPreferredSlot(slotsById, matches);
+    }
+
+    private static Slot SelectPreferredSlot(
+        IReadOnlyDictionary<string, Slot> slotsById,
+        Slot[] matches)
+    {
+        if (matches.Length == 1)
+        {
+            return matches[0];
+        }
+
+        Slot[] positionedMatches = matches.Where(static slot => slot.Position is not null).ToArray();
+        if (positionedMatches.Length == 1)
+        {
+            return positionedMatches[0];
+        }
+
+        Slot[] componentRichMatches = matches
+            .OrderByDescending(static slot => slot.Components?.Count ?? 0)
+            .ToArray();
+        if ((componentRichMatches[0].Components?.Count ?? 0) > (componentRichMatches[1].Components?.Count ?? 0))
+        {
+            return componentRichMatches[0];
+        }
+
+        Slot[] descendantRichMatches = matches
+            .OrderByDescending(slot => CountDescendants(slotsById, slot.ID))
+            .ToArray();
+        if (CountDescendants(slotsById, descendantRichMatches[0].ID) > CountDescendants(slotsById, descendantRichMatches[1].ID))
+        {
+            return descendantRichMatches[0];
+        }
+
+        return Assert.Single(matches);
+    }
+
+    private static int CountDescendants(IReadOnlyDictionary<string, Slot> slotsById, string slotId)
+    {
+        return slotsById.Values.Count(slot => IsDescendantOf(slotsById, slot, slotId));
     }
 
     private static bool IsDescendantOf(
