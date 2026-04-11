@@ -145,11 +145,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         PlateauLocalImportSource localSource = metadata.Request.Source as PlateauLocalImportSource
             ?? throw new InvalidOperationException("Live scene building requires a resolved local dataset source.");
 
-        ReportProgress("[live] Opening resolved dataset content source for texture materialization.");
+        ReportProgress("[live] Opening resolved dataset content source for texture imports.");
         datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(localSource.LocalSourcePath!, cancellationToken);
         textureImportResolver = new ResoniteTextureImportResolver(
             datasetContentSource,
-            runRoot,
             metadata.SourceDataset.TerrainTextureOverlays,
             terrainTextureAssetGenerator);
         ReportProgress("[live] Creating dataset root, asset groups, and anchor slots.");

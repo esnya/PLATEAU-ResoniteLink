@@ -10,10 +10,9 @@ namespace Plateau.ResoniteLink.Tests.Cli;
 public sealed class ResoniteTextureImportResolverTests
 {
     [Fact]
-    public async Task ResolveAsyncMaterializesDatasetTextureAndCachesResult()
+    public async Task ResolveAsyncReadsDatasetTextureAsRawAndCachesResult()
     {
         using TemporaryDirectory datasetRoot = new();
-        using TemporaryDirectory workRoot = new();
 
         string relativeTexturePath = "textures/albedo.png";
         WriteDatasetImage(datasetRoot.Path, relativeTexturePath);
@@ -22,7 +21,6 @@ public sealed class ResoniteTextureImportResolverTests
 
         ResoniteTextureImportResolver resolver = new(
             datasetContentSource,
-            workRoot.Path,
             [],
             terrainTextureAssetGenerator);
 
@@ -36,11 +34,14 @@ public sealed class ResoniteTextureImportResolverTests
             CancellationToken.None);
 
         Assert.Same(firstResolution, secondResolution);
-        Assert.Equal(1, datasetContentSource.MaterializeCount);
+        Assert.Equal(1, datasetContentSource.OpenReadCount);
         Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
 
-        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(firstResolution);
-        Assert.StartsWith(workRoot.Path, fileImport.AbsolutePath, StringComparison.Ordinal);
+        ResoniteRawTextureImport rawImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution);
+        Assert.Equal(1, rawImport.Width);
+        Assert.Equal(1, rawImport.Height);
+        Assert.Equal("sRGB", rawImport.ColorProfile);
+        Assert.Equal(relativeTexturePath, rawImport.Identity);
     }
 
     [Fact]
@@ -64,7 +65,6 @@ public sealed class ResoniteTextureImportResolverTests
 
         ResoniteTextureImportResolver resolver = new(
             datasetContentSource,
-            workRoot.Path,
             [terrainTextureOverlay],
             terrainTextureAssetGenerator);
 
@@ -79,7 +79,7 @@ public sealed class ResoniteTextureImportResolverTests
 
         Assert.Same(firstResolution, secondResolution);
         Assert.Single(terrainTextureAssetGenerator.RequestedOverlays);
-        Assert.Equal(0, datasetContentSource.MaterializeCount);
+        Assert.Equal(0, datasetContentSource.OpenReadCount);
 
         ResoniteRawTextureImport rawTextureImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution);
         Assert.Equal(1, rawTextureImport.Width);
@@ -92,16 +92,14 @@ public sealed class ResoniteTextureImportResolverTests
     public async Task ResolveAsyncDoesNotPoisonSharedResolutionWhenFirstWaiterIsCanceled()
     {
         using TemporaryDirectory datasetRoot = new();
-        using TemporaryDirectory workRoot = new();
 
         string relativeTexturePath = "textures/albedo.png";
         WriteDatasetImage(datasetRoot.Path, relativeTexturePath);
-        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path, materializeDelay: TimeSpan.FromMilliseconds(100));
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path, openReadDelay: TimeSpan.FromMilliseconds(100));
         StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
 
         ResoniteTextureImportResolver resolver = new(
             datasetContentSource,
-            workRoot.Path,
             [],
             terrainTextureAssetGenerator);
 
@@ -118,20 +116,18 @@ public sealed class ResoniteTextureImportResolverTests
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
 
-        Assert.Equal(1, datasetContentSource.MaterializeCount);
+        Assert.Equal(1, datasetContentSource.OpenReadCount);
         Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
-        Assert.IsType<ResoniteFileTextureImport>(successfulResolution);
+        Assert.IsType<ResoniteRawTextureImport>(successfulResolution);
     }
 
     [Fact]
     public async Task ResolveAsyncDoesNotLetCallerCancellationPoisonSharedResolution()
     {
-        using TemporaryDirectory workRoot = new();
         DelayedDatasetContentSource datasetContentSource = new();
         StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteTextureImportResolver resolver = new(
             datasetContentSource,
-            workRoot.Path,
             [],
             terrainTextureAssetGenerator);
         using CancellationTokenSource cancellationTokenSource = new();
@@ -141,33 +137,31 @@ public sealed class ResoniteTextureImportResolverTests
             ResoniteTextureSourceKind.Dataset,
             cancellationTokenSource.Token);
 
-        await datasetContentSource.MaterializeStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await datasetContentSource.OpenReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await cancellationTokenSource.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             async () => await canceledRequest);
 
-        datasetContentSource.AllowMaterializeCompletion.SetResult();
+        datasetContentSource.AllowOpenReadCompletion.SetResult();
 
         ResoniteTextureImport resolvedTexture = await resolver.ResolveAsync(
             "textures/albedo.png",
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
 
-        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(resolvedTexture);
-        Assert.Equal("/generated/textures/albedo.png", fileImport.AbsolutePath);
-        Assert.Equal(1, datasetContentSource.MaterializeCount);
+        ResoniteRawTextureImport rawImport = Assert.IsType<ResoniteRawTextureImport>(resolvedTexture);
+        Assert.Equal("textures/albedo.png", rawImport.Identity);
+        Assert.Equal(1, datasetContentSource.OpenReadCount);
     }
 
     [Fact]
     public async Task ResolveAsyncRemovesFaultedSharedResolutionAndRetries()
     {
-        using TemporaryDirectory workRoot = new();
         FlakyDatasetContentSource datasetContentSource = new();
         StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
         ResoniteTextureImportResolver resolver = new(
             datasetContentSource,
-            workRoot.Path,
             [],
             terrainTextureAssetGenerator);
 
@@ -182,9 +176,9 @@ public sealed class ResoniteTextureImportResolverTests
             ResoniteTextureSourceKind.Dataset,
             CancellationToken.None);
 
-        ResoniteFileTextureImport fileImport = Assert.IsType<ResoniteFileTextureImport>(resolvedTexture);
-        Assert.Equal("/generated/textures/albedo.png", fileImport.AbsolutePath);
-        Assert.Equal(2, datasetContentSource.MaterializeCount);
+        ResoniteRawTextureImport rawImport = Assert.IsType<ResoniteRawTextureImport>(resolvedTexture);
+        Assert.Equal("textures/albedo.png", rawImport.Identity);
+        Assert.Equal(2, datasetContentSource.OpenReadCount);
     }
 
     private static void WriteDatasetImage(string datasetRoot, string relativePath)
@@ -195,9 +189,9 @@ public sealed class ResoniteTextureImportResolverTests
         image.SaveAsPng(absolutePath);
     }
 
-    private sealed class FakeDatasetContentSource(string sourceRoot, TimeSpan? materializeDelay = null) : IPlateauDatasetContentSource
+    private sealed class FakeDatasetContentSource(string sourceRoot, TimeSpan? openReadDelay = null) : IPlateauDatasetContentSource
     {
-        public int MaterializeCount { get; private set; }
+        public int OpenReadCount { get; private set; }
 
         public string SourcePath => sourceRoot;
 
@@ -216,9 +210,7 @@ public sealed class ResoniteTextureImportResolverTests
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-#pragma warning disable CA2000
-            return ValueTask.FromResult<Stream>(File.OpenRead(GetAbsolutePath(relativePath)));
-#pragma warning restore CA2000
+            return OpenReadCoreAsync(relativePath, cancellationToken);
         }
 
         public async Task<string> MaterializeFileAsync(
@@ -226,20 +218,21 @@ public sealed class ResoniteTextureImportResolverTests
             string outputRoot,
             CancellationToken cancellationToken = default)
         {
+            throw new NotSupportedException();
+        }
+
+        private async ValueTask<Stream> OpenReadCoreAsync(string relativePath, CancellationToken cancellationToken)
+        {
             cancellationToken.ThrowIfCancellationRequested();
-            if (materializeDelay is { } delay)
+            if (openReadDelay is { } delay)
             {
                 await Task.Delay(delay, cancellationToken);
             }
 
-            string sourcePath = GetAbsolutePath(relativePath);
-            string outputPath = Path.GetFullPath(Path.Combine(outputRoot, relativePath));
-            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            await using FileStream sourceStream = new(sourcePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            await using FileStream outputStream = new(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            await sourceStream.CopyToAsync(outputStream, cancellationToken);
-            MaterializeCount++;
-            return outputPath;
+            OpenReadCount++;
+#pragma warning disable CA2000
+            return File.OpenRead(GetAbsolutePath(relativePath));
+#pragma warning restore CA2000
         }
 
         private string GetAbsolutePath(string relativePath)
@@ -270,11 +263,11 @@ public sealed class ResoniteTextureImportResolverTests
 
     private sealed class DelayedDatasetContentSource : IPlateauDatasetContentSource
     {
-        public TaskCompletionSource MaterializeStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource OpenReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public TaskCompletionSource AllowMaterializeCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource AllowOpenReadCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public int MaterializeCount { get; private set; }
+        public int OpenReadCount { get; private set; }
 
         public string SourcePath => "/dataset";
 
@@ -283,25 +276,28 @@ public sealed class ResoniteTextureImportResolverTests
         public bool FileExists(string relativePath) => true;
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
+            => OpenReadCoreAsync(cancellationToken);
 
         public async Task<string> MaterializeFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
         {
-            MaterializeStarted.TrySetResult();
-            await AllowMaterializeCompletion.Task.WaitAsync(cancellationToken);
-            MaterializeCount++;
-            return "/generated/" + relativePath.Replace('\\', '/');
+            throw new NotSupportedException();
+        }
+
+        private async ValueTask<Stream> OpenReadCoreAsync(CancellationToken cancellationToken)
+        {
+            OpenReadStarted.TrySetResult();
+            await AllowOpenReadCompletion.Task.WaitAsync(cancellationToken);
+            OpenReadCount++;
+            return new MemoryStream(CreateSinglePixelPng(), writable: false);
         }
     }
 
     private sealed class FlakyDatasetContentSource : IPlateauDatasetContentSource
     {
-        public int MaterializeCount { get; private set; }
+        public int OpenReadCount { get; private set; }
 
         public string SourcePath => "/dataset";
 
@@ -310,23 +306,37 @@ public sealed class ResoniteTextureImportResolverTests
         public bool FileExists(string relativePath) => true;
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
+            => OpenReadCoreAsync(cancellationToken);
 
         public Task<string> MaterializeFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
         {
+            throw new NotSupportedException();
+        }
+
+        private ValueTask<Stream> OpenReadCoreAsync(CancellationToken cancellationToken)
+        {
             cancellationToken.ThrowIfCancellationRequested();
-            MaterializeCount++;
-            if (MaterializeCount == 1)
+            OpenReadCount++;
+            if (OpenReadCount == 1)
             {
-                throw new InvalidOperationException("Simulated materialization failure.");
+                throw new InvalidOperationException("Simulated open-read failure.");
             }
 
-            return Task.FromResult("/generated/" + relativePath.Replace('\\', '/'));
+            return ValueTask.FromResult<Stream>(new MemoryStream(CreateSinglePixelPng(), writable: false));
         }
+    }
+
+    private static byte[] CreateSinglePixelPng()
+    {
+        using MemoryStream stream = new();
+        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
+        {
+            image.SaveAsPng(stream);
+        }
+
+        return stream.ToArray();
     }
 }

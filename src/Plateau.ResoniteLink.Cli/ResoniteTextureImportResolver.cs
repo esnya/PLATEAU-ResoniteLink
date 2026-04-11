@@ -6,24 +6,20 @@ namespace Plateau.ResoniteLink.Cli;
 internal sealed class ResoniteTextureImportResolver
 {
     private readonly IPlateauDatasetContentSource datasetContentSource;
-    private readonly string runRoot;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly TerrainTextureOverlayLookup terrainTextureOverlayLookup;
     private readonly AsyncCompletedResultCache<TextureReferenceKey, ResoniteTextureImport> resolvedTextureCache = new();
 
     public ResoniteTextureImportResolver(
         IPlateauDatasetContentSource datasetContentSource,
-        string runRoot,
         IEnumerable<TerrainTextureOverlay> terrainTextureOverlays,
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ArgumentNullException.ThrowIfNull(datasetContentSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(runRoot);
         ArgumentNullException.ThrowIfNull(terrainTextureOverlays);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
         this.datasetContentSource = datasetContentSource;
-        this.runRoot = runRoot;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator;
         terrainTextureOverlayLookup = new TerrainTextureOverlayLookup(terrainTextureOverlays);
     }
@@ -54,16 +50,23 @@ internal sealed class ResoniteTextureImportResolver
                 cancellationToken);
         }
 
-        string absoluteTexturePath = textureSourceKind switch
+        return textureSourceKind switch
         {
-            ResoniteTextureSourceKind.Dataset => await datasetContentSource.MaterializeFileAsync(
-                texturePath,
-                runRoot,
-                cancellationToken),
-            ResoniteTextureSourceKind.Bundled => BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
+            ResoniteTextureSourceKind.Dataset => await CreateDatasetRawTextureImportAsync(texturePath, cancellationToken),
+            ResoniteTextureSourceKind.Bundled => ResoniteTextureImportFactory.CreateFromFile(
+                BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath)),
             _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
         };
+    }
 
-        return ResoniteTextureImportFactory.CreateFromFile(absoluteTexturePath);
+    private async Task<ResoniteRawTextureImport> CreateDatasetRawTextureImportAsync(
+        string texturePath,
+        CancellationToken cancellationToken)
+    {
+        await using Stream textureStream = await datasetContentSource.OpenReadAsync(texturePath, cancellationToken);
+        return await ResoniteTextureImportFactory.CreateRawFromStreamAsync(
+            textureStream,
+            texturePath,
+            cancellationToken: cancellationToken);
     }
 }

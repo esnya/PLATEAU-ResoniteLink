@@ -53,6 +53,28 @@ internal static class ResoniteTextureImportFactory
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
 
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(absolutePath, cancellationToken);
+        return CreateRawFromImage(image, colorProfile, absolutePath);
+    }
+
+    public static async Task<ResoniteRawTextureImport> CreateRawFromStreamAsync(
+        Stream stream,
+        string identity,
+        string colorProfile = ResoniteTextureColorProfiles.Srgb,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
+        ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
+
+        using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
+        return CreateRawFromImage(image, colorProfile, identity);
+    }
+
+    private static ResoniteRawTextureImport CreateRawFromImage(
+        Image<Rgba32> image,
+        string colorProfile,
+        string identity)
+    {
         byte[] rawBytes = new byte[image.Width * image.Height * 4];
         image.CopyPixelDataTo(rawBytes);
         return new ResoniteRawTextureImport(
@@ -60,6 +82,6 @@ internal static class ResoniteTextureImportFactory
             image.Height,
             colorProfile,
             rawBytes,
-            absolutePath);
+            identity);
     }
 }
