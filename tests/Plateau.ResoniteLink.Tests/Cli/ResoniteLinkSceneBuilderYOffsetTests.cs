@@ -396,6 +396,14 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             ]);
     }
 
+    private static IReadOnlyList<DataModelOperation> ResolveBatchLocalSlotReferences(
+        IReadOnlyList<DataModelOperation> operations,
+        Func<string> allocateSlotId)
+    {
+        _ = allocateSlotId;
+        return operations;
+    }
+
     private sealed class YOffsetFakeClient : IResoniteLinkClient
     {
         private readonly object gate = new();
@@ -439,7 +447,9 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string createdSlotId = string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            string createdSlotId = string.IsNullOrWhiteSpace(request.Data.ID)
+                ? string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}")
+                : request.Data.ID;
             lock (gate)
             {
                 request.Data.ID = createdSlotId;
@@ -454,7 +464,10 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (DataModelOperation operation in operations)
+            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+                operations,
+                () => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"));
+            foreach (DataModelOperation operation in resolvedOperations)
             {
                 switch (operation)
                 {

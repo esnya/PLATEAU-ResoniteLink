@@ -50,7 +50,6 @@ internal sealed class ResoniteGeometryAssetAssembler(
         IResoniteLinkClient mutationClient,
         IResoniteLinkClient importClient,
         string assetLodSlotId,
-        string cityObjectSlotId,
         string meshAssetSlotName,
         string heightMapAssetSlotName,
         string displayName,
@@ -89,7 +88,7 @@ internal sealed class ResoniteGeometryAssetAssembler(
             + $"({geometry.Width}x{geometry.Height}, displacement={displacementMagnitude:F3}).");
         ResoniteLinkSceneBuilder.CreatedComponent gridMesh = await createComponentAsync(
             mutationClient,
-            cityObjectSlotId,
+            meshAssetSlot.SlotId,
             "[FrooxEngine]FrooxEngine.GridMesh",
             new Dictionary<string, Member>(StringComparer.Ordinal)
             {

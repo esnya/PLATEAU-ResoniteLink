@@ -695,7 +695,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string createdSlotId = session.AllocateSlotId();
+            string createdSlotId = string.IsNullOrWhiteSpace(request.Data.ID)
+                ? session.AllocateSlotId()
+                : request.Data.ID;
             lock (session.Gate)
             {
                 request.Data.ID = createdSlotId;
@@ -711,6 +713,10 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Dictionary<string, string> localSlotIds = operations
+                .OfType<AddSlot>()
+                .Where(static operation => !string.IsNullOrWhiteSpace(operation.Data.ID))
+                .ToDictionary(static operation => operation.Data.ID, _ => session.AllocateSlotId(), StringComparer.Ordinal);
             lock (session.Gate)
             {
                 session.Batches.Add(operations.ToArray());
@@ -721,10 +727,10 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                 switch (operation)
                 {
                     case AddSlot addSlot:
-                        await AddSlotAsync(addSlot, cancellationToken);
+                        await AddSlotAsync(ResolveBatchAddSlot(addSlot, localSlotIds), cancellationToken);
                         break;
                     case AddComponent addComponent:
-                        await AddComponentAsync(addComponent, cancellationToken);
+                        await AddComponentAsync(ResolveBatchAddComponent(addComponent, localSlotIds), cancellationToken);
                         break;
                     case UpdateComponent updateComponent:
                         await UpdateComponentAsync(updateComponent, cancellationToken);
@@ -820,6 +826,44 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             }
 
             return Task.CompletedTask;
+        }
+
+        private static AddSlot ResolveBatchAddSlot(AddSlot addSlot, IReadOnlyDictionary<string, string> localSlotIds)
+        {
+            return new AddSlot
+            {
+                Data = new Slot
+                {
+                    ID = TryResolveLocalSlotId(addSlot.Data.ID, localSlotIds),
+                    Parent = addSlot.Data.Parent is null
+                        ? null
+                        : new Reference
+                        {
+                            TargetID = TryResolveLocalSlotId(addSlot.Data.Parent.TargetID, localSlotIds),
+                        },
+                    Name = addSlot.Data.Name,
+                    Position = addSlot.Data.Position,
+                    Rotation = addSlot.Data.Rotation,
+                },
+            };
+        }
+
+        private static AddComponent ResolveBatchAddComponent(
+            AddComponent addComponent,
+            IReadOnlyDictionary<string, string> localSlotIds)
+        {
+            return new AddComponent
+            {
+                ContainerSlotId = TryResolveLocalSlotId(addComponent.ContainerSlotId, localSlotIds),
+                Data = addComponent.Data,
+            };
+        }
+
+        private static string TryResolveLocalSlotId(string slotId, IReadOnlyDictionary<string, string> localSlotIds)
+        {
+            return localSlotIds.TryGetValue(slotId, out string? resolvedSlotId)
+                ? resolvedSlotId
+                : slotId;
         }
 
         private Slot CloneSlot(Slot source, int depth)
