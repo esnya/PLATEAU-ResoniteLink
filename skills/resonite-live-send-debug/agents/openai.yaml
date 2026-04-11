@@ -1,0 +1,4 @@
+interface:
+  display_name: "Resonite Live Send Debug"
+  short_description: "Run real live-send repros with cleanup"
+  default_prompt: "Use $resonite-live-send-debug to run a cleaned Windows live-send repro and inspect the resulting Resonite world state."
