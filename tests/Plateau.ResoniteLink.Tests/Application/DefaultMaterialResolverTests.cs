@@ -60,7 +60,7 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
-    public void ResolveMaterialUsesFacade001FallbackForCityFurniture()
+    public void ResolveMaterialUsesPlaster002FallbackForCityFurniture()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(
             packageName: "frn",
@@ -70,7 +70,7 @@ public sealed class DefaultMaterialResolverTests
             variantSelectionKey: "frn:tri");
 
         Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
-        Assert.Equal("default-materials/facade/Facade001_2K-JPG_Color.jpg", material.TexturePath);
+        Assert.Equal("default-materials/city-furniture/Plaster002_2K-JPG_Color.jpg", material.TexturePath);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
         Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);

@@ -132,9 +132,9 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Assert.True(resolved);
         Assert.NotNull(textureSet);
         Assert.Null(textureSet.EmissionPath);
-        Assert.EndsWith("Facade001_2K-JPG_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
-        Assert.EndsWith("Facade001_2K-JPG_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
-        Assert.EndsWith("Facade001_2K-JPG_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
+        Assert.EndsWith("Plaster002_2K-JPG_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
+        Assert.EndsWith("Plaster002_2K-JPG_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
+        Assert.EndsWith("Plaster002_2K-JPG_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
             out string absolutePath);
 
         Assert.True(resolved);
-        Assert.EndsWith("Facade001_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
+        Assert.EndsWith("Plaster002_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
         Assert.True(File.Exists(absolutePath));
     }
 }
