@@ -385,7 +385,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int laneIndex,
         CancellationToken cancellationToken)
     {
-        Task connectTask = client.ConnectAsync(endpoint, cancellationToken);
+        using CancellationTokenSource connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task connectTask = client.ConnectAsync(endpoint, connectCancellation.Token);
         if (connectTask.IsCompleted)
         {
             await connectTask;
@@ -401,6 +402,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return;
         }
 
+        await connectCancellation.CancelAsync();
+        _ = connectTask.ContinueWith(
+            static completedConnectTask => _ = completedConnectTask.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
         cancellationToken.ThrowIfCancellationRequested();
         throw new TimeoutException(
             $"ResoniteLink worker session {laneIndex + 1}/{connectionCount} did not connect within {WorkerConnectTimeoutMilliseconds}ms.");
@@ -515,43 +522,44 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         if (!processingTasksDrained)
         {
-            ReportProgress("[live][warn] DisposeAsync timed out waiting for send lanes. Leaving clients alive.");
-            return;
+            ReportProgress("[live][warn] DisposeAsync timed out waiting for send lanes. Disposing clients anyway.");
         }
 
-        if (setupClient is not null)
+        try
         {
-            setupClient.Dispose();
-        }
+            setupClient?.Dispose();
 
-        if (backgroundClients is not null)
-        {
-            foreach (IResoniteLinkClient client in backgroundClients)
+            if (backgroundClients is not null)
             {
-                client.Dispose();
+                foreach (IResoniteLinkClient client in backgroundClients)
+                {
+                    client.Dispose();
+                }
             }
         }
-
-        setupClient = null;
-        backgroundClients = null;
-        metadata = null;
-        datasetContentSource = null;
-        datasetRootSlot = null;
-        datasetAssetsRootSlot = null;
-        commonAssetsRootSlot = null;
-        materialAssetManager = null;
-        generatedAssetsRoot = null;
-        sharedSlotCache.Clear();
-        importedTextureUriCache = null;
-        dispatchLaneAllocator = null;
-        textureImportResolver = null;
-        cityObjectChannels = null;
-        processingTasks = null;
-        processingCancellationSource?.Dispose();
-        processingCancellationSource = null;
-        firstProcessingFailureSource = null;
-        sceneBuildStopwatch = null;
-        sceneAnchor = null;
+        finally
+        {
+            setupClient = null;
+            backgroundClients = null;
+            metadata = null;
+            datasetContentSource = null;
+            datasetRootSlot = null;
+            datasetAssetsRootSlot = null;
+            commonAssetsRootSlot = null;
+            materialAssetManager = null;
+            generatedAssetsRoot = null;
+            sharedSlotCache.Clear();
+            importedTextureUriCache = null;
+            dispatchLaneAllocator = null;
+            textureImportResolver = null;
+            cityObjectChannels = null;
+            processingTasks = null;
+            processingCancellationSource?.Dispose();
+            processingCancellationSource = null;
+            firstProcessingFailureSource = null;
+            sceneBuildStopwatch = null;
+            sceneAnchor = null;
+        }
     }
 
     private async Task ProcessQueuedCityObjectAsync(

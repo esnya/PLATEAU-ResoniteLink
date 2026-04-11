@@ -39,8 +39,8 @@ Codex Cloud のような一時環境では次を使います。
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
-  --dataset tokyo23ku \
-  --mesh-code 53394525 \
+  --dataset plateau-20202-matsumoto-shi-2020 \
+  --mesh-code 54372778 \
   --source local \
   --local-source-path /path/to/plateau \
   --resonitelink-port <port>
@@ -52,7 +52,7 @@ remote archive import 例:
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
-  --mesh-code 533944 \
+  --mesh-code 54372788 \
   --source remote \
   --server-url https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
   --resonitelink-port <port>

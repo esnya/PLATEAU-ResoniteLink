@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
 
@@ -1646,6 +1647,77 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task CompleteAsyncCancelsTimedOutWorkerConnect()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        FakeResoniteLinkSession session = new();
+        using FakeResoniteLinkClient firstClient = new(session);
+        using CancellationAwareConnectClient secondClient = new();
+        int factoryIndex = 0;
+        using TemporaryDirectory workDirectory = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            2,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => Interlocked.Increment(ref factoryIndex) switch
+            {
+                1 => (IResoniteLinkClient)firstClient,
+                2 => secondClient,
+                _ => throw new InvalidOperationException("Unexpected client factory call."),
+            });
+
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path).WaitAsync(TimeSpan.FromSeconds(2));
+        await secondClient.ConnectStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        await Assert.ThrowsAsync<TimeoutException>(async () =>
+            await builder.CompleteAsync().WaitAsync(TimeSpan.FromSeconds(8)));
+
+        await secondClient.ConnectCanceled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task DisposeAsyncDisposesClientsEvenWhenLaneDrainTimesOut()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        using NonCancelableBlockingResoniteLinkClient client = new();
+        using TemporaryDirectory workDirectory = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => client);
+
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path).WaitAsync(TimeSpan.FromSeconds(2));
+        await builder.ProcessCityObjectAsync(scene.CityObjects[0]).WaitAsync(TimeSpan.FromSeconds(2));
+        await client.ImportStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        await builder.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(3));
+        stopwatch.Stop();
+
+        Assert.Equal(1, client.DisposeCallCount);
+        Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(900));
+        await Assert.ThrowsAsync<ObjectDisposedException>(async () =>
+            await builder.CompleteAsync().WaitAsync(TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public void GetDispatchLaneKeepsSameCityObjectIdentityOnSameConnection()
     {
         ResoniteLinkSceneBuilder.DispatchLaneAllocator dispatchLaneAllocator = new(4);
@@ -1819,31 +1891,27 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.All(client.ReturnedSlotResponseIds, responseId => Assert.Contains(responseId, session.SlotsById.Keys));
         Assert.All(client.ReturnedComponentResponseIds, responseId => Assert.Contains(responseId, session.ComponentsById.Keys));
 
-        List<Component> meshRenderers = session.ComponentsById.Values
-            .Where(component =>
-                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
-            .ToList();
+        Component[] meshRenderers = session.ComponentsById.Values
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .ToArray();
         Assert.NotEmpty(meshRenderers);
-        Assert.All(
-            meshRenderers,
-            meshRenderer =>
-            {
-                string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
-                Assert.Contains(meshComponentId, client.ReturnedComponentResponseIds);
-            });
+        Assert.All(meshRenderers, meshRenderer =>
+        {
+            string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
+            Assert.Contains(meshComponentId, session.ComponentsById.Keys);
+            Assert.Contains(meshComponentId, client.ReturnedComponentResponseIds);
+        });
 
-        List<Component> meshColliders = session.ComponentsById.Values
-            .Where(component =>
-                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
-            .ToList();
+        Component[] meshColliders = session.ComponentsById.Values
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .ToArray();
         Assert.NotEmpty(meshColliders);
-        Assert.All(
-            meshColliders,
-            meshCollider =>
-            {
-                string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
-                Assert.Contains(colliderMeshComponentId, client.ReturnedComponentResponseIds);
-            });
+        Assert.All(meshColliders, meshCollider =>
+        {
+            string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
+            Assert.Contains(colliderMeshComponentId, session.ComponentsById.Keys);
+            Assert.Contains(colliderMeshComponentId, client.ReturnedComponentResponseIds);
+        });
     }
 
     [Fact]
@@ -1871,6 +1939,11 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
         Assert.Equal(0, client.BatchMutationCount);
+        Assert.Equal(
+            1,
+            session.SlotsById.Values.Count(slot =>
+                string.Equals(slot.Name?.Value, "Building One", StringComparison.Ordinal)
+                && string.Equals(session.SlotPaths[slot.Parent!.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal)));
         Assert.Equal(0, client.RejectedAliasMutationCount);
     }
 
@@ -3831,8 +3904,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ConnectStarted.TrySetResult();
-            await connectNeverCompletes.Task;
+            await Task.CompletedTask;
         }
 
         public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -3871,6 +3943,190 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(new Uri("resdb:///mesh/0", UriKind.Absolute));
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class CancellationAwareConnectClient : IResoniteLinkClient
+    {
+        public TaskCompletionSource ConnectStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ConnectCanceled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+        }
+
+        public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            ConnectStarted.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                ConnectCanceled.TrySetResult();
+                throw;
+            }
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(request.Data.ID);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(request.Data.ID);
+        }
+
+        public Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Component?>(null);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(null);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///mesh/0", UriKind.Absolute));
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///texture/0", UriKind.Absolute));
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NonCancelableBlockingResoniteLinkClient : IResoniteLinkClient
+    {
+        private readonly Dictionary<string, Component> componentsById = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Slot> slotsById = new(StringComparer.Ordinal);
+        private readonly TaskCompletionSource meshImportNeverCompletes = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int nextComponentId;
+        private int nextSlotId;
+
+        public int DisposeCallCount { get; private set; }
+
+        public TaskCompletionSource ImportStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+            DisposeCallCount++;
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = string.Create(CultureInfo.InvariantCulture, $"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+            request.Data.ID = createdComponentId;
+            componentsById[createdComponentId] = request.Data;
+            if (slotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+            {
+                containerSlot.Components ??= [];
+                containerSlot.Components.Add(request.Data);
+            }
+
+            return Task.FromResult(createdComponentId);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = string.IsNullOrWhiteSpace(request.Data.ID)
+                ? string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}")
+                : request.Data.ID;
+            request.Data.ID = createdSlotId;
+            slotsById[createdSlotId] = request.Data;
+            return Task.FromResult(createdSlotId);
+        }
+
+        public async Task RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<DataModelOperation> resolvedOperations = ResolveBatchLocalSlotReferences(
+                operations,
+                () => string.Create(CultureInfo.InvariantCulture, $"srv_slot_{Interlocked.Increment(ref nextSlotId)}"));
+            foreach (DataModelOperation operation in resolvedOperations)
+            {
+                switch (operation)
+                {
+                    case AddComponent addComponent:
+                        await AddComponentAsync(addComponent, cancellationToken);
+                        break;
+                    case AddSlot addSlot:
+                        await AddSlotAsync(addSlot, cancellationToken);
+                        break;
+                    case UpdateComponent updateComponent:
+                        await UpdateComponentAsync(updateComponent, cancellationToken);
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unsupported batch operation '{operation.GetType().Name}'.");
+                }
+            }
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            componentsById.TryGetValue(componentId, out Component? component);
+            return Task.FromResult(component);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(null);
+        }
+
+        public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            ImportStarted.TrySetResult();
+            await meshImportNeverCompletes.Task;
+            throw new InvalidOperationException("Unreachable.");
         }
 
         public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
