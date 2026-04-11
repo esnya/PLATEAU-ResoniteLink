@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Threading.Channels;
 
 using GeographicLib;
@@ -2005,6 +2006,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private sealed class CityObjectBatchBuilder
     {
+        private readonly string batchScopeToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
         private int nextEntityId;
         private int nextMessageId;
 
@@ -2038,12 +2040,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         private string AllocateEntityId(string prefix)
         {
-            return string.Create(CultureInfo.InvariantCulture, $"{prefix}_{++nextEntityId}");
+            return string.Create(CultureInfo.InvariantCulture, $"{prefix}_{batchScopeToken}_{++nextEntityId}");
         }
 
         private string AllocateMessageId()
         {
-            return string.Create(CultureInfo.InvariantCulture, $"batch_message_{++nextMessageId}");
+            return string.Create(CultureInfo.InvariantCulture, $"batch_message_{batchScopeToken}_{++nextMessageId}");
         }
     }
 

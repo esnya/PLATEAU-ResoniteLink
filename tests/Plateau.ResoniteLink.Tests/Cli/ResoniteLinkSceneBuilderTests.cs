@@ -2057,6 +2057,32 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncUsesGloballyUniqueBatchLocalIdsAcrossParallelWorkers()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+        HashSet<string> claimedLocalIds = new(StringComparer.Ordinal);
+
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                2,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => new GlobalLocalIdRejectingBatchClient(session, claimedLocalIds)),
+            scene);
+
+        Assert.Single(destinations);
+        Assert.Equal(scene.CityObjects.Count, session.Batches.Count);
+    }
+
+    [Fact]
     public async Task BuildAsyncAppendsDifferentMeshCodeUsingExistingMeshRootAsAnchor()
     {
         FakeResoniteLinkSession session = new();
@@ -2928,6 +2954,172 @@ public sealed class ResoniteLinkSceneBuilderTests
                 .Select(slot => CloneSlot(slot, depth - 1))
                 .ToList();
             return root;
+        }
+    }
+
+    private sealed class GlobalLocalIdRejectingBatchClient(
+        FakeResoniteLinkSession session,
+        HashSet<string> claimedLocalIds) : IResoniteLinkClient
+    {
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdComponentId = session.AllocateComponentId();
+            lock (session.Gate)
+            {
+                request.Data.ID = createdComponentId;
+                session.ComponentsById[createdComponentId] = request.Data;
+                if (session.SlotsById.TryGetValue(request.ContainerSlotId, out Slot? containerSlot))
+                {
+                    containerSlot.Components ??= [];
+                    containerSlot.Components.Add(request.Data);
+                }
+
+                session.AddedComponents.Add(request);
+            }
+
+            return Task.FromResult(createdComponentId);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string createdSlotId = string.IsNullOrWhiteSpace(request.Data.ID)
+                ? session.AllocateSlotId()
+                : request.Data.ID;
+            lock (session.Gate)
+            {
+                request.Data.ID = createdSlotId;
+                session.SlotsById[createdSlotId] = request.Data;
+                session.AddedSlots.Add(request);
+                session.SlotPaths[createdSlotId] = CreateSlotPath(session.SlotPaths, request.Data);
+            }
+
+            return Task.FromResult(createdSlotId);
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                foreach (string localId in operations
+                    .OfType<AddSlot>()
+                    .Select(static addSlot => addSlot.Data.ID)
+                    .Concat(operations.OfType<AddComponent>().Select(static addComponent => addComponent.Data.ID))
+                    .Where(static id => !string.IsNullOrWhiteSpace(id)))
+                {
+                    if (!claimedLocalIds.Add(localId))
+                    {
+                        throw new InvalidOperationException($"ResoniteLink validate slot failed: ID '{localId}' is already in use");
+                    }
+                }
+
+                session.Batches.Add(operations.ToArray());
+            }
+
+            return ExecuteBatchOperationsAsync(
+                operations,
+                session.AllocateSlotId,
+                session.AllocateComponentId,
+                AddSlotAsync,
+                AddComponentAsync,
+                UpdateComponentAsync,
+                cancellationToken);
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ComponentsById.TryGetValue(componentId, out Component? component);
+                return Task.FromResult(component);
+            }
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+                {
+                    return Task.FromResult<Slot?>(CreateSyntheticRootSlot(session, depth, CloneSlot));
+                }
+
+                session.SlotsById.TryGetValue(slotId, out Slot? slot);
+                return Task.FromResult(slot is null ? null : CloneSlot(slot, depth));
+            }
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                session.ImportedMeshes.Add(request);
+                return Task.FromResult(new Uri($"resdb:///mesh/{session.ImportedMeshes.Count - 1}", UriKind.Absolute));
+            }
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                return Task.FromResult(new Uri($"resdb:///texture/{session.ImportedTexturePaths.Count + session.ImportedRawTextures.Count + session.ImportedRawHdrTextures.Count}", UriKind.Absolute));
+            }
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (session.Gate)
+            {
+                Component existing = session.ComponentsById[request.Data.ID];
+                foreach ((string memberName, Member member) in request.Data.Members)
+                {
+                    existing.Members[memberName] = member;
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = session.SlotsById.Values
+                .Where(slot => string.Equals(slot.Parent?.TargetID, source.ID, StringComparison.Ordinal))
+                .Select(slot => CloneSlot(slot, depth - 1))
+                .ToList();
+            return clone;
         }
     }
 
