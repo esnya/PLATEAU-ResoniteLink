@@ -129,6 +129,7 @@ public sealed class CliApplication
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
                 diagnostics,
+                options.EnableMeshBake,
                 progressReporter: reporter),
             progressReporter: reporter);
     }

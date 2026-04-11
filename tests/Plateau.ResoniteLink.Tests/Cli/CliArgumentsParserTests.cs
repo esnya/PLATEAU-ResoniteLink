@@ -33,6 +33,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
+        Assert.True(result.Options.EnableMeshBake);
         Assert.False(result.Options.EnableSendMetrics);
         Assert.False(result.Options.VerboseLogging);
     }
@@ -376,6 +377,27 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         Assert.True(result.Options!.EnableSendMetrics);
+    }
+
+    [Fact]
+    public void ParseDisablesMeshBakeWhenRequested()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--no-mesh-bake",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.False(result.Options!.EnableMeshBake);
     }
 
     [Fact]
