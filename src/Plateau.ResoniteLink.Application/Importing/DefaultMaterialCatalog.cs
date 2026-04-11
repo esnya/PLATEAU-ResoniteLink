@@ -2,9 +2,9 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal static class DefaultMaterialCatalog
+internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 {
-    public static ResolvedMaterial ResolveMaterial(
+    public ResolvedMaterial ResolveMaterial(
         string packageName,
         string? texturePath,
         bool preferUvProjection,
@@ -93,12 +93,4 @@ internal static class DefaultMaterialCatalog
         int index = hashCode % variants.Count;
         return variants[index];
     }
-
-    internal sealed record ResolvedMaterial(
-        ResoniteMaterialType MaterialType,
-        string? TexturePath,
-        ResoniteTextureSourceKind TextureSourceKind,
-        ResoniteMaterialProjection Projection,
-        string? Family,
-        ResoniteFloat2? TextureScale);
 }
