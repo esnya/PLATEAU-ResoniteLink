@@ -17,25 +17,13 @@ Unless the user asks for a different target, use the Matsumoto dataset `plateau-
 
 When the task specifically needs `frn` or city-furniture content, use Yokohama mesh `53391530` instead. This repo already contains successful Yokohama live-send logs for that mesh, and the current workspace dataset sample includes the needed `frn` source there, while the Matsumoto default pair above is for building-focused checks.
 
-Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actual local source path from the current dataset resolver behavior, and use the matching `--dry-run` import or live-send logs to confirm that the requested dataset and mesh resolve before running destructive steps.
+Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actual local source path from the current dataset resolver behavior, confirm that the dataset root exists on disk, and use prior live-send evidence or repo fixtures to confirm that the requested dataset and mesh resolve before running destructive steps.
 
-## Quick Start
+## Canonical Procedure
 
-Before any destructive live run, clear the local gate first:
+Follow [docs/live-testing.md](../../../docs/live-testing.md) for the repository's live-send procedure. This skill does not redefine cleanup, send, or comparison steps.
 
-1. Run the repo CI-equivalent verification.
-2. Run one matching `--dry-run` import for the dataset and mesh code you intend to send.
-3. Then continue with the live workflow below.
-
-```powershell
-cmd.exe /c "cd /d C:\path\to\repo && bash scripts/verify-ci.sh"
-dotnet run --project C:\path\to\repo\src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --mesh-code <mesh-code> --source local --local-source-path <dataset-root> --dry-run
-powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\discover-session.ps1 -TimeoutSeconds 20 -MaxAnnouncements 5
-powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset>
-powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath <dataset-root> -Dataset <dataset> -MeshCode <mesh-code> -DemTerrainMode heightmap -Connections 8 -LogPrefix send.<mesh-code>.heightmap.1 -NoWait
-```
-
-Record the returned `ProcessId`, `StdoutLog`, and `StderrLog` values immediately, then tail those exact files.
+Use [references/workflow.md](./references/workflow.md) only for skill-specific defaults, guardrails, and script inventory.
 
 ## Run Worksheet
 
@@ -52,32 +40,6 @@ Keep these facts fixed or explicitly updated between comparison runs:
 - log prefix
 - launched PID
 - launched CLI binary path and last write time
-
-## Workflow
-
-1. Locate the workspace root.
-Look for `scripts/ResoniteAdmin`. Use the bundled skill scripts for execution.
-
-2. Read the skill contract before running.
-Read [references/workflow.md](./references/workflow.md). Follow the Windows-process and cleanup rules exactly.
-
-3. Verify the listener and target session.
-Resolve the active ResoniteLink listener from UDP `12512` or the in-game session UI. Do not guess the port. Prefer UDP discovery when it yields `sessionID`; otherwise require explicit UI confirmation and record any disagreement as invalid. Match the session by `sessionID` first, then `sessionName`.
-
-4. Invalidate stale test state before every comparison run.
-Remove any existing dataset root for the target dataset from the live world, then verify that zero matching roots remain. Poll every 2 seconds for up to 20 seconds before accepting cleanup. Clear local runtime artifacts before the next run. If cleanup is incomplete, treat the run as invalid and redo it.
-
-5. Run the send from Windows, not WSL.
-Use the bundled PowerShell scripts under `skills/resonite-live-send-debug/scripts/`. Prefer asynchronous launch with unique log prefixes so the logs can be tailed while the send is still running.
-
-6. Compare like for like.
-When isolating mode-sensitive failures, keep dataset, mesh code, connection count, source path, and listener constant. Re-run listener discovery before each comparison run and confirm the same `sessionName` or `sessionID`. Alternate modes such as `heightmap -> cleanup -> mesh -> cleanup -> heightmap` so differences are attributable to the mode, not to accumulated world state.
-
-7. Inspect both logs and world state.
-Check `stderr` first, then `stdout`. Distinguish parse or materialization work from live-send stalls. Record the launched PID, whether it is still alive, and its exit code once it exits. Sample logs at least twice with recorded timestamps before calling a hang. When checking world state during a quiet interval, take at least two timestamped snapshots. Do not assume the last visible `Sent city object ...` line is the true stop point.
-
-8. Report facts, not guesses.
-State the exact command, listener endpoint, cleanup result, launched PID, exit status, exit code, last timestamped `import` line, last timestamped `live` line, and whether the world contained the expected dataset root, top-level child slots, and suspicious slot component counts. If a run was contaminated by stale state, say so and discard the conclusion.
 
 ## Rules
 

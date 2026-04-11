@@ -23,13 +23,16 @@ Release labels are optional, but using them keeps generated notes readable:
 
 Unlabeled PRs fall through to the catch-all `Other changes` section in the generated release notes.
 
-For Codex Cloud / ephemeral agents where `dotnet` is missing, run `./scripts/setup-codex-cloud.sh` to bootstrap SDK 10 and execute the standard checks.
-
-If you can, run:
+The canonical verification command is:
 
 ```bash
-dotnet format whitespace . --folder --verify-no-changes
-dotnet test Plateau.ResoniteLink.sln --configuration Release -m:1 -p:UseSharedCompilation=false
+bash scripts/verify-ci.sh
 ```
+
+That script is the repository-owned verification workflow. Keep other documents at the command level and refer back to this script instead of copying or reordering its internal restore/format/build/test sequence.
+
+For Codex Cloud / ephemeral agents where PATH does not already provide a compatible .NET 10 SDK, run `./scripts/setup-codex-cloud.sh` first. That helper exists only to bootstrap such environments and then hand off to `bash scripts/verify-ci.sh`.
+
+If you need to keep a large repository-improvement plan around temporarily, keep it under `.tmp/plans/` and leave it untracked. Do not treat that area as canonical documentation, do not link it from active docs as current operating guidance, and reflect only adopted conclusions in tracked documentation and code review artifacts.
 
 In the PR description, explain what changed, why, and any remaining limitations or follow-up work.

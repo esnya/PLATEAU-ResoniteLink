@@ -8,7 +8,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
-- dataset / mesh-code branch を段階的に構築し、全処理完了前から Resonite 側に取り込み結果を出し始める。
+- source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 
 ## Runtime And Prerequisites
 
@@ -19,19 +19,13 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 
 ## Quick Start
 
-まず依存関係を復元します。
+pull request を作成または更新する前に、repository の正本となる検証コマンドを実行します。
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln
+bash scripts/verify-ci.sh
 ```
 
-Codex Cloud のような一時環境では次を使います。
-
-```bash
-./scripts/setup-codex-cloud.sh
-```
-
-この script は必要なら .NET 10 を bootstrap し、その後 repository の verify flow を実行します。
+contributor workflow、環境 bootstrap、検証フローの ownership は [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md) を参照してください。
 
 ## Usage
 
@@ -59,25 +53,17 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。CI 相当の formatting、analyzer、build、test の検証は次を使います。
-
-```bash
-bash scripts/verify-ci.sh
-```
-
-日常の編集ループでは、`Category=Slow` の integration 寄りテストを除いた高速サブセットを使えます。
-
-```bash
-bash scripts/test-fast.sh
-```
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。
 
 CLI は既定でマイルストーン級の進捗だけを表示し、file ごとの詳細や live-send trace は隠します。debug レベルの import / ResoniteLink trace が必要なときは `--verbose` を付けてください。
 
 `--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。
 
-## Further Reading
+## 参考資料
 
-- Product requirements: [docs/requirements.ja.md](docs/requirements.ja.md)
+- contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)
+- product requirements: [docs/requirements.ja.md](docs/requirements.ja.md)
+- live validation workflow: [docs/live-testing.ja.md](docs/live-testing.ja.md)
 
 ## License And Provenance
 

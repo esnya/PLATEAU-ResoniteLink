@@ -8,7 +8,7 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
-- Build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full request completes.
+- After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 
 ## Runtime And Prerequisites
 
@@ -19,19 +19,13 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 
 ## Quick Start
 
-Restore dependencies:
+Before opening or updating a pull request, run the canonical repository verification command:
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln
+bash scripts/verify-ci.sh
 ```
 
-For Codex Cloud or similar ephemeral environments, use:
-
-```bash
-./scripts/setup-codex-cloud.sh
-```
-
-That script bootstraps .NET 10 when needed, then runs the repository verification flow.
+For contributor workflow details, environment bootstrap guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Usage
 
@@ -59,17 +53,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search. For the full CI-equivalent validation, run:
-
-```bash
-bash scripts/verify-ci.sh
-```
-
-For the everyday edit-test loop, run the fast subset that excludes `Category=Slow` integration-style tests:
-
-```bash
-bash scripts/test-fast.sh
-```
+`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search.
 
 By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
 
@@ -77,7 +61,9 @@ When `--work-root` is omitted, the CLI stores dataset-local archives and live te
 
 ## Further Reading
 
+- Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Product requirements: [docs/requirements.md](docs/requirements.md)
+- Live validation workflow: [docs/live-testing.md](docs/live-testing.md)
 
 ## License And Provenance
 
