@@ -11,6 +11,7 @@ public static class BundledDefaultMaterialProfiles
     public static readonly ResoniteFloat2 RoofingTiles014BTilesPerMeter = CreateTilesPerMeter(2.9, 2.9);
     public static readonly ResoniteFloat2 Asphalt020LTilesPerMeter = CreateTilesPerMeter(4.6, 4.6);
     public static readonly ResoniteFloat2 Asphalt023LTilesPerMeter = CreateTilesPerMeter(2.5, 2.5);
+    public static readonly ResoniteFloat2 Plaster002TilesPerMeter = CreateTilesPerMeter(2.5, 2.5);
     public static readonly ResoniteFloat2 Ground054TilesPerMeter = CreateTilesPerMeter(3.5, 3.5);
 
     public static ResoniteFloat2 GetTilesPerMeter(string texturePath)
@@ -27,6 +28,7 @@ public static class BundledDefaultMaterialProfiles
             "default-materials/roof/roofingtiles014b_2k-jpg_color.jpg" => RoofingTiles014BTilesPerMeter,
             "default-materials/road/asphalt020l_2k-jpg_color.jpg" => Asphalt020LTilesPerMeter,
             "default-materials/road/asphalt023l_2k-jpg_color.jpg" => Asphalt023LTilesPerMeter,
+            "default-materials/city-furniture/plaster002_2k-jpg_color.jpg" => Plaster002TilesPerMeter,
             "default-materials/other/concrete012_2k-jpg_color.jpg" => ConcreteDefaultTilesPerMeter,
             "default-materials/other/ground054_2k-jpg_color.jpg" => Ground054TilesPerMeter,
             _ => BundledDefaultMaterialTiling.DefaultTilesPerMeter,

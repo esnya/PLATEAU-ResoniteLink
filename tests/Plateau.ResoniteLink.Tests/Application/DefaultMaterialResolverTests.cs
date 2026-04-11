@@ -76,11 +76,11 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
         Assert.NotNull(material.TextureScale);
         Assert.Equal(
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).X,
+            BundledDefaultMaterialProfiles.Plaster002TilesPerMeter.X,
             material.TextureScale!.X,
             6);
         Assert.Equal(
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(material.TexturePath!).Y,
+            BundledDefaultMaterialProfiles.Plaster002TilesPerMeter.Y,
             material.TextureScale.Y,
             6);
     }
