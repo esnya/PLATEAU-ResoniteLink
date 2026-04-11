@@ -2,7 +2,7 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal static class CliDefaultOptions
 {
-    public const int ResoniteLinkConnectionCount = 4;
+    public const int ResoniteLinkConnectionCount = 1;
 
     public static readonly string[] PackageNames =
     [

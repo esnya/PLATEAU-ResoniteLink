@@ -120,6 +120,15 @@ public sealed class CliApplication
             string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
             WriteLogLine(Console.Out, timestamp, message, minimumLogLevel);
         };
+        if (options.ResoniteLinkConnectionCount > 1)
+        {
+            reporter(
+                PlateauLog.Warning(
+                    "live",
+                    $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
+                    + "Use the default value 1 for reliable live sends."));
+        }
+
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
             : ResoniteLinkSendDiagnostics.Disabled;

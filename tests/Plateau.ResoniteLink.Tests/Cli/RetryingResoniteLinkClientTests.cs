@@ -132,6 +132,42 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
+    public async Task ImportMeshAsyncTimesOutWhenInnerClientStopsResponding()
+    {
+        List<string> progressMessages = [];
+        using BlockingReconnectableClient innerClient = new();
+        using RetryingResoniteLinkClient client = new(
+            () => innerClient,
+            progressMessages.Add,
+            importMeshTimeoutMilliseconds: 100);
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+
+        Task<Uri> importTask = client.ImportMeshAsync(
+            new ImportMeshRawData
+            {
+                RawBinaryPayload = [1, 2, 3],
+                VertexCount = 3,
+            },
+            CancellationToken.None);
+
+        await innerClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        TimeoutException exception = await Assert.ThrowsAsync<TimeoutException>(() => importTask);
+
+        Assert.Contains("did not complete within 100ms", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("pending_responses=2", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("failure_exception=InvalidOperationException", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("ImportMesh failed without retry", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][diagnostic] ImportMesh timeout", StringComparison.Ordinal));
+        Assert.Equal(1, innerClient.ImportMeshCallCount);
+    }
+
+    [Fact]
     public async Task AddSlotAsyncReturnsCreatedIdFromInnerClient()
     {
         using StubReconnectableClient innerClient = new();
@@ -253,6 +289,7 @@ public sealed class RetryingResoniteLinkClientTests
 
     private sealed class BlockingReconnectableClient : IResoniteLinkClient
     {
+        private readonly FakeLinkDiagnostics link = new();
         private int nextComponentId;
         private int nextSlotId;
 
@@ -336,6 +373,25 @@ public sealed class RetryingResoniteLinkClientTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
+        }
+
+        private sealed class FakeLinkDiagnostics
+        {
+            private readonly FakeWebSocket _client = new();
+            private readonly Dictionary<string, string> _pendingResponses = new()
+            {
+                ["req-1"] = "pending",
+                ["req-2"] = "pending",
+            };
+
+            public Exception FailureException { get; } = new InvalidOperationException("receiver failed");
+
+            public bool IsConnected { get; } = true;
+        }
+
+        private sealed class FakeWebSocket
+        {
+            public string State { get; } = "Open";
         }
     }
 }
