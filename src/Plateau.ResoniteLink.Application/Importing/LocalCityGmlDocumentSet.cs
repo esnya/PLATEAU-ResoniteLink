@@ -21,12 +21,6 @@ public sealed class LocalCityGmlDocumentSet
         PackageNames = packageNames;
         TerrainTextureOverlays = terrainTextureOverlays;
         RequestedMeshCodes = requestedMeshCodes;
-        SourceFilePipelines = sourceFilePipelines;
-        CachedDemSourceFiles = cachedDemSourceFiles;
-        ReferenceSystem = referenceSystem;
-        GlobalOriginPoint = globalOriginPoint;
-        TerrainHeightSampler = terrainHeightSampler;
-
         BootstrapSourceFilePipelines = sourceFilePipelines
             .Select(static pipeline => new SourceFilePipeline(pipeline))
             .ToArray();
@@ -47,16 +41,6 @@ public sealed class LocalCityGmlDocumentSet
     public IReadOnlyList<TerrainTextureOverlay> TerrainTextureOverlays { get; }
 
     public IReadOnlyList<string> RequestedMeshCodes { get; }
-
-    internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] SourceFilePipelines { get; }
-
-    internal IReadOnlyList<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> CachedDemSourceFiles { get; }
-
-    internal LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem ReferenceSystem { get; }
-
-    internal LocalCityGmlResonitePlanBuilder.GeodeticPoint GlobalOriginPoint { get; }
-
-    internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? TerrainHeightSampler { get; }
 
     internal IReadOnlyList<SourceFilePipeline> BootstrapSourceFilePipelines { get; }
 

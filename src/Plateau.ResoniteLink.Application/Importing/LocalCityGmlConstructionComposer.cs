@@ -25,9 +25,9 @@ internal sealed class LocalCityGmlConstructionComposer(ICityGmlGeometryProjector
                 RequestedMeshCodes: documentSet.RequestedMeshCodes),
             Attribution: attribution,
             LocalOrigin: new ResoniteLocalOrigin(
-                Latitude: documentSet.GlobalOriginPoint.Latitude,
-                Longitude: documentSet.GlobalOriginPoint.Longitude,
-                Altitude: documentSet.GlobalOriginPoint.Altitude));
+                Latitude: documentSet.BootstrapGlobalOriginPoint.Latitude,
+                Longitude: documentSet.BootstrapGlobalOriginPoint.Longitude,
+                Altitude: documentSet.BootstrapGlobalOriginPoint.Altitude));
 
         return new LocalCityGmlConstructionSource(
             metadata,

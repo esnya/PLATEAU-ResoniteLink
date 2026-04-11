@@ -48,9 +48,9 @@ public sealed class LocalCityGmlConstructionComposerTests
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(documentSet.TerrainTextureOverlays, source.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Equal(documentSet.RequestedMeshCodes, source.Metadata.SourceDataset.RequestedMeshCodes);
-        Assert.Equal(documentSet.GlobalOriginPoint.Latitude, source.Metadata.LocalOrigin.Latitude);
-        Assert.Equal(documentSet.GlobalOriginPoint.Longitude, source.Metadata.LocalOrigin.Longitude);
-        Assert.Equal(documentSet.GlobalOriginPoint.Altitude, source.Metadata.LocalOrigin.Altitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Latitude, source.Metadata.LocalOrigin.Latitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Longitude, source.Metadata.LocalOrigin.Longitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Altitude, source.Metadata.LocalOrigin.Altitude);
     }
 
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
