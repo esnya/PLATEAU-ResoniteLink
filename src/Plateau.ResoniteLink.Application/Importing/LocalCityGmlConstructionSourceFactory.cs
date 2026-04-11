@@ -7,15 +7,6 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
     private readonly ICityGmlDocumentReader documentReader;
     private readonly IResoniteConstructionComposer constructionComposer;
 
-    public LocalCityGmlConstructionSourceFactory()
-        : this(
-            new LocalCityGmlDocumentReader(),
-            new LocalCityGmlConstructionComposer(
-                new LocalCityGmlGeometryProjector(
-                    new DefaultMaterialResolver())))
-    {
-    }
-
     internal LocalCityGmlConstructionSourceFactory(
         ICityGmlDocumentReader documentReader,
         IResoniteConstructionComposer constructionComposer)

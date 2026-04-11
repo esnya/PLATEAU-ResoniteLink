@@ -1,8 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
 
 using Plateau.ResoniteLink.Application.Importing;
-using Plateau.ResoniteLink.Application.Logging;
 
 namespace Plateau.ResoniteLink.Cli;
 
@@ -35,10 +33,7 @@ public sealed class CliApplication
 
     public static CliApplication CreateDefault()
     {
-        return new CliApplication(
-            Console.Out,
-            Console.Error,
-            CreateImportService);
+        return CliCompositionRoot.CreateDefaultApplication();
     }
 
     [SuppressMessage(
@@ -103,76 +98,4 @@ public sealed class CliApplication
         }
     }
 
-    [SuppressMessage(
-        "Reliability",
-        "CA2000:Dispose objects before losing scope",
-        Justification = "PlateauImportService owns the scene builder lifetime and disposes it after each execution.")]
-    private static PlateauImportService CreateImportService(BuildCommandOptions options)
-    {
-        Action<string> reporter = static message =>
-        {
-        };
-        PlateauLogLevel minimumLogLevel = options.VerboseLogging
-            ? PlateauLogLevel.Debug
-            : PlateauLogLevel.Info;
-        reporter = message =>
-        {
-            string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
-            WriteLogLine(Console.Out, timestamp, message, minimumLogLevel);
-        };
-        ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
-            ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
-            : ResoniteLinkSendDiagnostics.Disabled;
-
-        return new PlateauImportService(
-            new ResoniteLinkSceneBuilder(
-                options.ResoniteLinkUri!,
-                options.ResoniteLinkConnectionCount,
-                diagnostics,
-                options.EnableMeshBake,
-                progressReporter: reporter),
-            progressReporter: reporter);
-    }
-
-    private static void WriteLogLine(
-        TextWriter writer,
-        string timestamp,
-        string message,
-        PlateauLogLevel minimumLogLevel)
-    {
-        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, PlateauLog.InferLegacyDefaultLevel(message));
-
-        if (PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry filteredEntry)
-            && filteredEntry.Level < minimumLogLevel)
-        {
-            return;
-        }
-
-        if (ReferenceEquals(writer, Console.Out)
-            && !Console.IsOutputRedirected
-            && PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry entry))
-        {
-            ConsoleColor originalForeground = Console.ForegroundColor;
-            Console.Write($"[{timestamp}] ");
-            Console.ForegroundColor = GetLogLevelColor(entry.Level);
-            Console.Write($"[{entry.Scope}][{entry.LevelToken}]");
-            Console.ForegroundColor = originalForeground;
-            Console.Write(' ');
-            Console.WriteLine(entry.Message);
-            return;
-        }
-
-        writer.WriteLine($"[{timestamp}] {normalizedMessage}");
-    }
-    private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)
-    {
-        return level switch
-        {
-            PlateauLogLevel.Debug => ConsoleColor.DarkGray,
-            PlateauLogLevel.Info => Console.ForegroundColor,
-            PlateauLogLevel.Warning => ConsoleColor.Yellow,
-            PlateauLogLevel.Error => ConsoleColor.Red,
-            _ => Console.ForegroundColor,
-        };
-    }
 }

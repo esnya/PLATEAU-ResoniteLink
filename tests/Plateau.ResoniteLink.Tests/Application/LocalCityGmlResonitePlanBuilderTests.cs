@@ -5,6 +5,17 @@ namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class LocalCityGmlResonitePlanBuilderTests
 {
+    private static PlateauImportService CreateService(IResoniteSceneBuilder sceneBuilder)
+    {
+        return new PlateauImportService(
+            sceneBuilder,
+            new CkanPlateauDatasetSourceResolver(),
+            new LocalCityGmlConstructionSourceFactory(
+                new LocalCityGmlDocumentReader(),
+                new LocalCityGmlConstructionComposer(
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+    }
+
     [Fact]
     public async Task SplitParsedCityObjectPreservesNonGeneratedDemSurfacesWhenOverlaysSplit()
     {
@@ -12,7 +23,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         CreateRuntimeMixedSurfaceDemFixture(datasetRoot.Path);
 
         await using StubSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
