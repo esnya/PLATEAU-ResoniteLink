@@ -12,6 +12,15 @@ internal sealed record SourceFileDescriptor(
     string MatchedMeshCode,
     bool RequiresMeshAreaFilter)
 {
+    internal LocalCityGmlResonitePlanBuilder.SourceFileDescriptor ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.SourceFileDescriptor(
+            RelativePath,
+            PackageName,
+            MatchedMeshCode,
+            RequiresMeshAreaFilter);
+    }
+
     internal static SourceFileDescriptor FromLegacy(LocalCityGmlResonitePlanBuilder.SourceFileDescriptor sourceFile)
     {
         return new SourceFileDescriptor(
@@ -29,6 +38,13 @@ internal sealed record CachedSourceFileDescriptor(
     public string RelativePath => SourceFile.RelativePath;
 
     public string PackageName => SourceFile.PackageName;
+
+    internal LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor(
+            SourceFile.ToLegacy(),
+            CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray());
+    }
 
     internal static CachedSourceFileDescriptor FromLegacy(LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor sourceFile)
     {
@@ -79,6 +95,16 @@ internal sealed record ParsedSourceFileResult(
     TerrainHeightTriangle[] TerrainTriangles,
     TimeSpan Elapsed)
 {
+    internal LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult(
+            SourceFile.ToLegacy(),
+            CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray(),
+            ReferenceSystem?.ToLegacy(),
+            TerrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
+            Elapsed);
+    }
+
     internal static ParsedSourceFileResult FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult sourceFile)
     {
         return new ParsedSourceFileResult(
@@ -95,6 +121,11 @@ internal sealed record GeodeticPoint(
     double Longitude,
     double Altitude)
 {
+    internal LocalCityGmlResonitePlanBuilder.GeodeticPoint ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.GeodeticPoint(Latitude, Longitude, Altitude);
+    }
+
     internal static GeodeticPoint FromLegacy(LocalCityGmlResonitePlanBuilder.GeodeticPoint point)
     {
         return new GeodeticPoint(point.Latitude, point.Longitude, point.Altitude);
@@ -106,6 +137,14 @@ internal sealed record TerrainHeightTriangle(
     GeodeticPoint Vertex1,
     GeodeticPoint Vertex2)
 {
+    internal LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle(
+            Vertex0.ToLegacy(),
+            Vertex1.ToLegacy(),
+            Vertex2.ToLegacy());
+    }
+
     internal static TerrainHeightTriangle FromLegacy(LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle triangle)
     {
         return new TerrainHeightTriangle(
@@ -160,6 +199,14 @@ internal sealed record CoordinateReferenceSystem(
         return new CoordinateReferenceSystem(referenceSystem.SrsName, referenceSystem.Geocentric, referenceSystem.CompatibilityKey);
     }
 
+    internal LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem(
+            SrsName,
+            Geocentric,
+            CompatibilityKey);
+    }
+
     private static (Geocentric Geocentric, string CompatibilityKey) ResolveGeocentric(string srsName)
     {
         if (srsName.EndsWith("/6697", StringComparison.Ordinal)
@@ -185,6 +232,14 @@ internal sealed record BootstrapParsedRing(
     GeodeticPoint[] Vertices,
     IReadOnlyList<ResoniteFloat2>? UVs)
 {
+    internal LocalCityGmlResonitePlanBuilder.ParsedRing ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.ParsedRing(
+            RingId,
+            Vertices.Select(static point => point.ToLegacy()).ToArray(),
+            UVs);
+    }
+
     internal static BootstrapParsedRing FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedRing ring)
     {
         return new BootstrapParsedRing(
@@ -216,6 +271,17 @@ internal sealed record BootstrapParsedSurface(
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
 
+    internal LocalCityGmlResonitePlanBuilder.ParsedSurface ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.ParsedSurface(
+            PolygonId,
+            (LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic)Semantic,
+            ExteriorRing.ToLegacy(),
+            InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
+            BaseColor,
+            TexturePath);
+    }
+
     internal static BootstrapParsedSurface FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
     {
         return new BootstrapParsedSurface(
@@ -241,6 +307,22 @@ internal sealed record BootstrapParsedCityObject(
     bool TerrainAligned = false,
     GeodeticPoint? OriginOverride = null)
 {
+    internal LocalCityGmlResonitePlanBuilder.ParsedCityObject ToLegacy()
+    {
+        return new LocalCityGmlResonitePlanBuilder.ParsedCityObject(
+            SlotKey,
+            DisplayName,
+            PackageName,
+            ActualMeshCode,
+            LodLevel,
+            Surfaces.Select(static surface => surface.ToLegacy()).ToArray(),
+            ReferenceSystem.ToLegacy(),
+            SourceIdentity,
+            SharedAcrossMeshCodes,
+            TerrainAligned,
+            OriginOverride?.ToLegacy());
+    }
+
     internal static BootstrapParsedCityObject FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject)
     {
         return new BootstrapParsedCityObject(

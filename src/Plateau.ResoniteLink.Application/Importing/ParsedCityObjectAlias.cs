@@ -1,1 +1,0 @@
-global using ParsedCityObject = Plateau.ResoniteLink.Application.Importing.LocalCityGmlResonitePlanBuilder.ParsedCityObject;

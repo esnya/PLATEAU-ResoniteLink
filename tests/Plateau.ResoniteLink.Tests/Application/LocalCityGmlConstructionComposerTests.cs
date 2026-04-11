@@ -33,9 +33,8 @@ public sealed class LocalCityGmlConstructionComposerTests
             ["53394525"],
             [],
             [],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse(
-                "http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 12.5),
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697").ToLegacy(),
+            new GeodeticPoint(35.0, 139.0, 12.5).ToLegacy(),
             terrainHeightSampler: null);
 
         LocalCityGmlConstructionComposer composer = new(new ThrowingGeometryProjector());
@@ -57,14 +56,14 @@ public sealed class LocalCityGmlConstructionComposerTests
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
     {
         public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
-            LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor sourceFile,
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem,
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
+            CachedSourceFileDescriptor sourceFile,
+            CoordinateReferenceSystem referenceSystem,
+            GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler,
+            TerrainHeightSampler? terrainHeightSampler,
             PlateauImportRequest request,
-            Func<LocalCityGmlResonitePlanBuilder.ParsedCityObject, bool>? predicate = null)
+            Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
             throw new InvalidOperationException("Compose should not materialize geometry.");
         }
