@@ -15,6 +15,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 - 対象 runtime は .NET SDK 10。release asset の実行にも .NET 10 が必要。
 - `--resonitelink-port` または `--resonitelink-url` で到達できる ResoniteLink listener が必要。
 - live adapter の asset import は現在、mesh に `ImportMesh(ImportMeshRawData)`、texture に `ImportTexture(ImportTexture2DFile)` を使います。
+- ResoniteLink の entity ID は session-scoped な opaque value として扱います。create が成功した場合、その session 内で正規 ID として扱うのは resolve 済み `Response` の ID です。要求 ID は request-local なヒントにすぎず、別 session へ永続化・再利用してはいけません。既存 entity の reuse 探索は、新規 create の確認とは別の仕組みとして扱います。
 
 ## Quick Start
 

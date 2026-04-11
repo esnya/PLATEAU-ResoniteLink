@@ -1943,6 +1943,12 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
         Assert.Equal(0, client.BatchMutationCount);
+        Assert.Contains(
+            session.AddedSlots,
+            addSlot =>
+                string.Equals(addSlot.Data.Name?.Value, "Building One", StringComparison.Ordinal)
+                && addSlot.Data.Parent is not null
+                && string.Equals(session.SlotPaths[addSlot.Data.Parent.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal));
         Assert.Equal(0, client.RejectedAliasMutationCount);
     }
 
@@ -4050,10 +4056,11 @@ public sealed class ResoniteLinkSceneBuilderTests
             DisposeCallCount++;
         }
 
-        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.CompletedTask;
+            ConnectStarted.TrySetResult();
+            await connectNeverCompletes.Task;
         }
 
         public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -4119,20 +4126,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
-            {
-                return Task.FromResult<Slot?>(new Slot
-                {
-                    ID = "Root",
-                    Name = new Field_string
-                    {
-                        Value = "Root",
-                    },
-                });
-            }
-
-            slotsById.TryGetValue(slotId, out Slot? slot);
-            return Task.FromResult(slot);
+            return Task.FromResult<Slot?>(null);
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
