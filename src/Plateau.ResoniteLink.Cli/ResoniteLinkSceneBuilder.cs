@@ -408,7 +408,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
-
         cancellationToken.ThrowIfCancellationRequested();
         throw new TimeoutException(
             $"ResoniteLink worker session {laneIndex + 1}/{connectionCount} did not connect within {WorkerConnectTimeoutMilliseconds}ms.");

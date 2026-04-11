@@ -117,7 +117,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             SharedAcrossMeshCodes: sharedAcrossMeshCodes);
     }
 
-    private static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
     {
         double leftPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.WestLongitude, DefaultDemTerrainTextureZoomLevel);
         double rightPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.EastLongitude, DefaultDemTerrainTextureZoomLevel);
@@ -358,7 +358,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             Math.Min(current.Value.minAltitude, next.minAltitude));
     }
 
-    private static MeshCodeArea? ResolveDemTerrainBounds(
+    internal static MeshCodeArea? ResolveDemTerrainBounds(
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeArea? fallbackBounds)
     {
@@ -732,14 +732,14 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static ParsedSurface[] ConformSurfacesToTerrain(
         string packageName,
-        IReadOnlyList<ParsedSurface> surfaces,
+        ParsedSurface[] surfaces,
         TerrainHeightSampler terrainHeightSampler,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
         ref bool terrainAligned)
     {
-        ParsedSurface[] conformedSurfaces = new ParsedSurface[surfaces.Count];
-        for (int index = 0; index < surfaces.Count; index++)
+        ParsedSurface[] conformedSurfaces = new ParsedSurface[surfaces.Length];
+        for (int index = 0; index < surfaces.Length; index++)
         {
             ParsedSurface surface = surfaces[index];
             conformedSurfaces[index] = ShouldConformSurfaceToTerrain(
@@ -755,7 +755,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     }
 
     private static ParsedSurface[] ConformRoadSurfacesToTerrainWithFallback(
-        IReadOnlyList<ParsedSurface> surfaces,
+        ParsedSurface[] surfaces,
         TerrainHeightSampler terrainHeightSampler,
         ref bool terrainAligned)
     {
@@ -776,8 +776,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return [.. surfaces];
         }
 
-        ParsedSurface[] conformedSurfaces = new ParsedSurface[surfaces.Count];
-        for (int index = 0; index < surfaces.Count; index++)
+        ParsedSurface[] conformedSurfaces = new ParsedSurface[surfaces.Length];
+        for (int index = 0; index < surfaces.Length; index++)
         {
             conformedSurfaces[index] = ConformRoadSurfaceToTerrainWithFallback(
                 surfaces[index],
@@ -1178,11 +1178,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
             ?? throw new PlateauImportValidationException(["No CityGML coordinate reference system was resolved."]);
     }
 
-    private static ResoniteConstructionCityObject MaterializeCityObject(
+    internal static ResoniteConstructionCityObject MaterializeCityObject(
         ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
-        TerrainTextureOverlay? demTerrainTextureOverlay)
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        IDefaultMaterialResolver materialResolver)
     {
         GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
 
@@ -1204,10 +1205,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         List<MaterializedSurface> materializedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface)),
+            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, materialResolver)),
         ];
 
-        IReadOnlyList<IGrouping<string, MaterializedSurface>> materialGroups = materializedSurfaces
+        IGrouping<string, MaterializedSurface>[] materialGroups = materializedSurfaces
             .GroupBy(
                 static materializedSurface => CreateMaterialKey(
                     materializedSurface.Material.MaterialType,
@@ -1222,7 +1223,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
 
-        for (int materialIndex = 0; materialIndex < materialGroups.Count; materialIndex++)
+        for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
         {
             IGrouping<string, MaterializedSurface> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
@@ -1300,13 +1301,14 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
-        ParsedSurface surface)
+        ParsedSurface surface,
+        IDefaultMaterialResolver materialResolver)
     {
         if (IsGeneratedDemTexturePath(surface.TexturePath))
         {
             return new MaterializedSurface(
                 surface,
-                new DefaultMaterialCatalog.ResolvedMaterial(
+                new ResolvedMaterial(
                     ResoniteMaterialType.Standard,
                     surface.TexturePath,
                     ResoniteTextureSourceKind.Bundled,
@@ -1323,7 +1325,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             {
                 return new MaterializedSurface(
                     surface,
-                    new DefaultMaterialCatalog.ResolvedMaterial(
+                    new ResolvedMaterial(
                         ResoniteMaterialType.VertexColor,
                         TexturePath: null,
                         ResoniteTextureSourceKind.Bundled,
@@ -1335,7 +1337,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
             return new MaterializedSurface(
                 surface with { BaseColor = DefaultVegetationMaterialColor },
-                new DefaultMaterialCatalog.ResolvedMaterial(
+                new ResolvedMaterial(
                     ResoniteMaterialType.Standard,
                     TexturePath: null,
                     ResoniteTextureSourceKind.Bundled,
@@ -1349,7 +1351,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         {
             return new MaterializedSurface(
                 surface,
-                new DefaultMaterialCatalog.ResolvedMaterial(
+                new ResolvedMaterial(
                     ResoniteMaterialType.VertexColor,
                     TexturePath: null,
                     ResoniteTextureSourceKind.Bundled,
@@ -1364,7 +1366,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             surface,
             cityObjectOrigin,
             cityObjectCartesian);
-        DefaultMaterialCatalog.ResolvedMaterial resolvedMaterial = DefaultMaterialCatalog.ResolveMaterial(
+        ResolvedMaterial resolvedMaterial = materialResolver.ResolveMaterial(
             cityObject.PackageName,
             surface.TexturePath,
             preferUvProjection,
@@ -1567,14 +1569,14 @@ public static partial class LocalCityGmlResonitePlanBuilder
     // Each source point moves toward the nearest target point, matching upstream behavior.
     // Upstream MIT license text is stored in THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt.
     private static GeodeticPoint[] MoveTowardCrossSection(
-        IReadOnlyList<GeodeticPoint> sourceWay,
-        IReadOnlyList<GeodeticPoint> targetWay,
+        GeodeticPoint[] sourceWay,
+        GeodeticPoint[] targetWay,
         ResoniteFloat3[] sourcePositions,
         ResoniteFloat3[] targetPositions,
         double distance)
     {
-        if (sourceWay.Count != 2
-            || targetWay.Count != 2
+        if (sourceWay.Length != 2
+            || targetWay.Length != 2
             || sourcePositions.Length != 2
             || targetPositions.Length != 2
             || distance <= 0.0)
@@ -1618,7 +1620,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static void TriangulateSurface(
         ParsedSurface surface,
-        DefaultMaterialCatalog.ResolvedMaterial material,
+        ResolvedMaterial material,
         string packageName,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -2411,7 +2413,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
 
-    private sealed class ConstructionSource : IResoniteConstructionSource
+    internal sealed class ConstructionSource : IResoniteConstructionSource
     {
         private readonly PlateauImportRequest request;
         private readonly IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles;
@@ -2420,6 +2422,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         private readonly GeodeticPoint globalOriginPoint;
         private readonly TerrainHeightSampler? terrainHeightSampler;
         private readonly TerrainTextureOverlay[] demTerrainTextureOverlays;
+        private readonly ICityGmlGeometryProjector geometryProjector;
 
         public ConstructionSource(
             ResoniteConstructionMetadata metadata,
@@ -2428,7 +2431,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             IReadOnlyList<SourceFilePipeline> deferredSourceFiles,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
-            TerrainHeightSampler? terrainHeightSampler)
+            TerrainHeightSampler? terrainHeightSampler,
+            ICityGmlGeometryProjector geometryProjector)
         {
             Metadata = metadata;
             this.request = request;
@@ -2437,6 +2441,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             this.referenceSystem = referenceSystem;
             this.globalOriginPoint = globalOriginPoint;
             this.terrainHeightSampler = terrainHeightSampler;
+            this.geometryProjector = geometryProjector;
             demTerrainTextureOverlays = metadata.SourceDataset.TerrainTextureOverlays
                 .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
@@ -2458,7 +2463,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
             {
                 ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
+                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
                     new CachedSourceFileDescriptor(
                         sourceFile.SourceFile,
                         parsedSourceFile.CityObjects),
@@ -2476,7 +2481,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
             foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
             {
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
+                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
                     sourceFile,
                     referenceSystem,
                     globalOriginPoint,
@@ -2492,7 +2497,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
             {
                 ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-                foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
+                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
                     new CachedSourceFileDescriptor(
                         sourceFile.SourceFile,
                         parsedSourceFile.CityObjects),
@@ -2539,6 +2544,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 Task.Run(
                     () => ProduceDeferredCityObjectsAsync(
                         channel.Writer,
+                        geometryProjector,
                         deferredSourceFiles,
                         referenceSystem,
                         globalOriginPoint,
@@ -2552,6 +2558,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 Task.Run(
                     () => ProduceCachedCityObjectsAsync(
                         channel.Writer,
+                        geometryProjector,
                         demSourceFiles,
                         referenceSystem,
                         globalOriginPoint,
@@ -2565,6 +2572,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 Task.Run(
                     () => ProduceDeferredCityObjectsAsync(
                         channel.Writer,
+                        geometryProjector,
                         deferredSourceFiles,
                         referenceSystem,
                         globalOriginPoint,
@@ -2589,6 +2597,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static async Task ProduceDeferredCityObjectsAsync(
         ChannelWriter<ResoniteConstructionCityObject> writer,
+        ICityGmlGeometryProjector geometryProjector,
         IReadOnlyList<SourceFilePipeline> sourceFiles,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2605,6 +2614,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
             await foreach (ResoniteConstructionCityObject cityObject in StreamMaterializedCityObjectsAsync(
                                sourceFile,
+                               geometryProjector,
                                referenceSystem,
                                globalOriginPoint,
                                globalCartesian,
@@ -2622,6 +2632,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static async Task ProduceCachedCityObjectsAsync(
         ChannelWriter<ResoniteConstructionCityObject> writer,
+        ICityGmlGeometryProjector geometryProjector,
         IReadOnlyList<CachedSourceFileDescriptor> sourceFiles,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2636,7 +2647,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            foreach (ResoniteConstructionCityObject cityObject in MaterializeCityObjects(
+            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
                          sourceFile,
                          referenceSystem,
                          globalOriginPoint,
@@ -2678,6 +2689,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static async IAsyncEnumerable<ResoniteConstructionCityObject> StreamMaterializedCityObjectsAsync(
         SourceFilePipeline sourceFile,
+        ICityGmlGeometryProjector geometryProjector,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -2702,8 +2714,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (ResoniteConstructionCityObject cityObject in MaterializeParsedCityObject(
-                         parsedCityObject,
+            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
+                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
+                         referenceSystem,
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
@@ -2716,7 +2729,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
     }
 
-    private static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+    internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2724,6 +2737,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
         Func<ParsedCityObject, bool>? predicate = null)
     {
         ValidateCompatibleReferenceSystem(
@@ -2743,20 +2757,22 @@ public static partial class LocalCityGmlResonitePlanBuilder
                          globalCartesian,
                          demTerrainTextureOverlays,
                          terrainHeightSampler,
-                         request))
+                         request,
+                         materialResolver))
             {
                 yield return cityObject;
             }
         }
     }
 
-    private static IEnumerable<ResoniteConstructionCityObject> MaterializeParsedCityObject(
+    internal static IEnumerable<ResoniteConstructionCityObject> MaterializeParsedCityObject(
         ParsedCityObject parsedCityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request)
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
         List<ResoniteConstructionCityObject> materializedCityObjects = [];
@@ -2774,13 +2790,15 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     globalCartesian,
                     splitCityObject.Overlay,
                     request,
+                    materialResolver,
                     out ResoniteConstructionCityObject? heightMapCityObject)
                     ? heightMapCityObject!
                     : MaterializeCityObject(
                         splitCityObject.CityObject,
                         globalOriginPoint,
                         globalCartesian,
-                        splitCityObject.Overlay);
+                        splitCityObject.Overlay,
+                        materialResolver);
 
             if (HasRenderableGeometry(cityObject))
             {
@@ -2808,7 +2826,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
-                splitCityObject.Overlay) with
+                splitCityObject.Overlay,
+                materialResolver) with
             {
                 CollisionEnabled = false,
             };
@@ -3075,6 +3094,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
         out ResoniteConstructionCityObject? heightMapCityObject)
     {
         heightMapCityObject = null;
@@ -3176,7 +3196,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
-            demTerrainTextureOverlay);
+            demTerrainTextureOverlay,
+            materialResolver);
         if (materials.Length == 0)
         {
             return false;
@@ -3216,11 +3237,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
-        TerrainTextureOverlay? demTerrainTextureOverlay)
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        IDefaultMaterialResolver materialResolver)
     {
         List<MaterializedSurface> materializedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface)),
+            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, materialResolver)),
         ];
 
         return materializedSurfaces
@@ -3687,12 +3709,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
-        IReadOnlyList<IGrouping<string, ParsedSurface>> groups = generatedSurfaces
+        IGrouping<string, ParsedSurface>[] groups = generatedSurfaces
             .GroupBy(static surface => surface.TexturePath!, StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
 
-        if (groups.Count == 1 && nonGeneratedSurfaces.Length == 0)
+        if (groups.Length == 1 && nonGeneratedSurfaces.Length == 0)
         {
             yield return (
                 parsedCityObject with
@@ -3704,9 +3726,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
-        bool suffixGeneratedObjects = groups.Count > 1 || nonGeneratedSurfaces.Length > 0;
+        bool suffixGeneratedObjects = groups.Length > 1 || nonGeneratedSurfaces.Length > 0;
 
-        for (int index = 0; index < groups.Count; index++)
+        for (int index = 0; index < groups.Length; index++)
         {
             IGrouping<string, ParsedSurface> group = groups[index];
             yield return (
@@ -3776,7 +3798,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             && minLongitude <= overlay.GeographicBounds.MaxLongitude);
     }
 
-    private sealed record ParsedCityObject(
+    internal sealed record ParsedCityObject(
         string SlotKey,
         string DisplayName,
         string PackageName,
@@ -3789,13 +3811,13 @@ public static partial class LocalCityGmlResonitePlanBuilder
         bool TerrainAligned = false,
         GeodeticPoint? OriginOverride = null);
 
-    private sealed record SourceFileDescriptor(
+    internal sealed record SourceFileDescriptor(
         string RelativePath,
         string PackageName,
         string MatchedMeshCode,
         bool RequiresMeshAreaFilter);
 
-    private sealed record CachedSourceFileDescriptor(
+    internal sealed record CachedSourceFileDescriptor(
         SourceFileDescriptor SourceFile,
         ParsedCityObject[] CityObjects)
     {
@@ -3804,7 +3826,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         public string PackageName => SourceFile.PackageName;
     }
 
-    private sealed class SourceFilePipeline
+    internal sealed class SourceFilePipeline
     {
         private readonly object parseTaskGate = new();
         private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
@@ -3830,14 +3852,14 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
     }
 
-    private sealed record ParsedSourceFileResult(
+    internal sealed record ParsedSourceFileResult(
         SourceFileDescriptor SourceFile,
         ParsedCityObject[] CityObjects,
         CoordinateReferenceSystem? ReferenceSystem,
         TerrainHeightTriangle[] TerrainTriangles,
         TimeSpan Elapsed);
 
-    private sealed record MeshCodeArea(
+    internal sealed record MeshCodeArea(
         double SouthLatitude,
         double NorthLatitude,
         double WestLongitude,
@@ -3894,7 +3916,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
     }
 
-    private sealed record ParsedRing(
+    internal sealed record ParsedRing(
         string RingId,
         GeodeticPoint[] Vertices,
         IReadOnlyList<ResoniteFloat2>? UVs);
@@ -4033,7 +4055,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat2? UV,
         double LateralPosition);
 
-    private sealed record ParsedSurface(
+    internal sealed record ParsedSurface(
         string PolygonId,
         ParsedSurfaceSemantic Semantic,
         ParsedRing ExteriorRing,
@@ -4045,9 +4067,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
     }
 
-    private sealed record MaterializedSurface(
+    internal sealed record MaterializedSurface(
         ParsedSurface Surface,
-        DefaultMaterialCatalog.ResolvedMaterial Material,
+        ResolvedMaterial Material,
         ResoniteMaterialDepthOffset? DepthOffset);
 
     private sealed record TessellatedVertex(
@@ -4072,7 +4094,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         ResoniteFloat3 AxisU,
         ResoniteFloat3 AxisV);
 
-    private enum ParsedSurfaceSemantic
+    internal enum ParsedSurfaceSemantic
     {
         Unknown = 0,
         Wall = 1,
@@ -4083,7 +4105,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         OuterFloor = 6,
     }
 
-    private sealed record GeodeticPoint(
+    internal sealed record GeodeticPoint(
         double Latitude,
         double Longitude,
         double Altitude);
@@ -4095,7 +4117,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double X,
         double Z);
 
-    private sealed record TerrainHeightTriangle(
+    internal sealed record TerrainHeightTriangle(
         GeodeticPoint Vertex0,
         GeodeticPoint Vertex1,
         GeodeticPoint Vertex2);
@@ -4109,7 +4131,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double MinZ,
         double MaxZ);
 
-    private sealed class TerrainHeightSampler
+    internal sealed class TerrainHeightSampler
     {
         private readonly LocalCartesian cartesian;
         private readonly double cellSize;
@@ -4606,7 +4628,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private readonly record struct TerrainGridCell(int X, int Z);
 
-    private sealed record CoordinateReferenceSystem(
+    internal sealed record CoordinateReferenceSystem(
         string SrsName,
         Geocentric? Geocentric,
         string CompatibilityKey)

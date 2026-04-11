@@ -13,7 +13,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return CreateConstructionSourceCoreAsync(request, progressReporter, cancellationToken);
+        return new LocalCityGmlConstructionSourceFactory().CreateAsync(
+            request,
+            progressReporter,
+            cancellationToken);
     }
 
     public static IResoniteConstructionSource CreateConstructionSource(
@@ -190,19 +193,20 @@ public static partial class LocalCityGmlResonitePlanBuilder
             cachedDemSourceFiles,
             sourceFilePipelines
                 .Where(static pipeline => !string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                .ToArray(),
+            .ToArray(),
             referenceSystem,
             globalOriginPoint,
-            terrainHeightSampler);
+            terrainHeightSampler,
+            new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()));
     }
 
-    private static ResoniteLocalOrigin? ResolveLocalOrigin(
+    internal static ResoniteLocalOrigin? ResolveLocalOrigin(
         MeshCodeArea? requestedMeshArea)
     {
         return requestedMeshArea?.GetCenter();
     }
 
-    private static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
+    internal static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -224,7 +228,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .ToArray();
     }
 
-    private static async Task<ParsedSourceFileResult> ParseSourceFileAsync(
+    internal static async Task<ParsedSourceFileResult> ParseSourceFileAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -273,7 +277,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             fileStopwatch.Elapsed);
     }
 
-    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
+    internal static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -297,7 +301,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
     }
 
-    private static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
+    internal static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
         IPlateauDatasetContentSource datasetSource,
         string relativePath,
         CancellationToken cancellationToken)

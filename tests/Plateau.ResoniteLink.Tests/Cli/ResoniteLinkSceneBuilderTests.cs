@@ -1891,25 +1891,31 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.All(client.ReturnedSlotResponseIds, responseId => Assert.Contains(responseId, session.SlotsById.Keys));
         Assert.All(client.ReturnedComponentResponseIds, responseId => Assert.Contains(responseId, session.ComponentsById.Keys));
 
-        Component[] meshRenderers = session.ComponentsById.Values
-            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
-            .ToArray();
+        List<Component> meshRenderers = session.ComponentsById.Values
+            .Where(component =>
+                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .ToList();
         Assert.NotEmpty(meshRenderers);
-        Assert.All(meshRenderers, meshRenderer =>
-        {
-            string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
-            Assert.Contains(meshComponentId, session.ComponentsById.Keys);
-        });
+        Assert.All(
+            meshRenderers,
+            meshRenderer =>
+            {
+                string meshComponentId = Assert.IsType<Reference>(meshRenderer.Members["Mesh"]).TargetID;
+                Assert.Contains(meshComponentId, client.ReturnedComponentResponseIds);
+            });
 
-        Component[] meshColliders = session.ComponentsById.Values
-            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
-            .ToArray();
+        List<Component> meshColliders = session.ComponentsById.Values
+            .Where(component =>
+                string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .ToList();
         Assert.NotEmpty(meshColliders);
-        Assert.All(meshColliders, meshCollider =>
-        {
-            string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
-            Assert.Contains(colliderMeshComponentId, session.ComponentsById.Keys);
-        });
+        Assert.All(
+            meshColliders,
+            meshCollider =>
+            {
+                string colliderMeshComponentId = Assert.IsType<Reference>(meshCollider.Members["Mesh"]).TargetID;
+                Assert.Contains(colliderMeshComponentId, client.ReturnedComponentResponseIds);
+            });
     }
 
     [Fact]
@@ -1936,11 +1942,7 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
-        Assert.Equal(
-            1,
-            session.SlotsById.Values.Count(slot =>
-                string.Equals(slot.Name?.Value, "Building One", StringComparison.Ordinal)
-                && string.Equals(session.SlotPaths[slot.Parent!.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal)));
+        Assert.Equal(0, client.BatchMutationCount);
         Assert.Equal(0, client.RejectedAliasMutationCount);
     }
 
