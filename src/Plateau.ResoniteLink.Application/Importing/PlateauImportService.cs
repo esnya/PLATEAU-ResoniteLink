@@ -33,9 +33,10 @@ public sealed class PlateauImportService(
         }
 
         PlateauImportRequest normalizedRequest = NormalizeRequest(validationRequest);
+        string datasetWorkRoot = WorkRootLayout.ResolveDatasetRoot(workRoot, normalizedRequest.Dataset);
 
         PlateauImportRequest resolvedRequest =
-            await datasetSourceResolver.ResolveAsync(normalizedRequest, workRoot, cancellationToken);
+            await datasetSourceResolver.ResolveAsync(normalizedRequest, datasetWorkRoot, cancellationToken);
         ReportProgress(
             PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
@@ -58,7 +59,7 @@ public sealed class PlateauImportService(
 
             Stopwatch beginStopwatch = Stopwatch.StartNew();
             ReportProgress(PlateauLog.Info("import", "Starting live scene initialization."));
-            await sceneBuilder.BeginAsync(source.Metadata, workRoot, cancellationToken);
+            await sceneBuilder.BeginAsync(source.Metadata, datasetWorkRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
 

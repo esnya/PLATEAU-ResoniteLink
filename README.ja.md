@@ -65,6 +65,8 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 bash scripts/verify-ci.sh
 ```
 
+`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。
+
 ## Further Reading
 
 - Product requirements: [docs/requirements.ja.md](docs/requirements.ja.md)

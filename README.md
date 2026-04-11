@@ -67,6 +67,8 @@ By default, the CLI prints milestone-level progress and keeps detailed per-file 
 bash scripts/verify-ci.sh
 ```
 
+When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`.
+
 ## Further Reading
 
 - Product requirements: [docs/requirements.md](docs/requirements.md)
