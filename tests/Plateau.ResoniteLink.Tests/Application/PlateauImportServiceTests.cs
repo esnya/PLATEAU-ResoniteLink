@@ -1153,29 +1153,35 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public void ExtendBoundaryConnectedMissingHeightMapBandsFillsMultiColumnEdgeRuns()
+    public void ExtendBoundaryConnectedMissingHeightMapBandsPreservesSeaLevelForBoundaryConnectedRuns()
     {
         double[] localHeights =
         [
-            0.0, 0.0, 10.0, 20.0,
-            0.0, 11.0, 12.0, 13.0,
-            0.0, 21.0, 22.0, 23.0,
-            30.0, 31.0, 32.0, 33.0,
+            0.0, 0.0, 10.0, 20.0, 30.0,
+            0.0, 0.0, 12.0, 22.0, 32.0,
+            0.0, 0.0, 14.0, 24.0, 34.0,
+            0.0, 0.0, 16.0, 26.0, 36.0,
+            0.0, 0.0, 18.0, 28.0, 38.0,
         ];
         bool[] sampledInsideTriangles =
         [
-            false, false, true, true,
-            false, true, true, true,
-            false, true, true, true,
-            true, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
         ];
 
-        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 5, height: 5);
 
-        Assert.Equal(10.0, localHeights[0]);
-        Assert.Equal(10.0, localHeights[1]);
-        Assert.Equal(11.0, localHeights[4]);
-        Assert.Equal(21.0, localHeights[8]);
+        Assert.Equal(0.0, localHeights[0]);
+        Assert.Equal(0.0, localHeights[5]);
+        Assert.Equal(0.0, localHeights[10]);
+        Assert.Equal(0.0, localHeights[15]);
+        Assert.Equal(0.0, localHeights[20]);
+        Assert.Equal(0.0, localHeights[6]);
+        Assert.Equal(0.0, localHeights[11]);
+        Assert.Equal(0.0, localHeights[16]);
     }
 
     [Fact]
@@ -1205,29 +1211,35 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public void ExtendBoundaryConnectedMissingHeightMapBandsDoesNotPropagateSingleHighEdgeSampleAcrossEmptyRows()
+    public void ExtendBoundaryConnectedMissingHeightMapBandsDoesNotLiftSeaLevelBoundaryTowardHighInteriorSamples()
     {
         double[] localHeights =
         [
-            0.0, 0.0, 100.0, 100.0,
-            0.0, 0.0, 10.0, 10.0,
-            0.0, 0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 100.0, 100.0, 100.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
         ];
         bool[] sampledInsideTriangles =
         [
-            false, false, true, true,
-            false, false, true, true,
-            false, false, false, false,
-            false, false, false, false,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
         ];
 
-        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 5, height: 5);
 
-        Assert.Equal(100.0, localHeights[0]);
-        Assert.Equal(10.0, localHeights[4]);
-        Assert.Equal(10.0, localHeights[8]);
-        Assert.Equal(10.0, localHeights[12]);
+        Assert.Equal(0.0, localHeights[0]);
+        Assert.Equal(0.0, localHeights[5]);
+        Assert.Equal(0.0, localHeights[10]);
+        Assert.Equal(0.0, localHeights[15]);
+        Assert.Equal(0.0, localHeights[20]);
+        Assert.Equal(0.0, localHeights[6]);
+        Assert.Equal(0.0, localHeights[11]);
+        Assert.Equal(0.0, localHeights[16]);
     }
 
     [Fact]
