@@ -134,6 +134,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             diagnostics,
             new ResoniteLinkSceneBuilderDependencies(clientFactory, new TerrainTextureAssetGenerator()),
             enableMeshBake: true,
+            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
             progressReporter)
     {
     }
@@ -152,6 +153,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             diagnostics,
             new ResoniteLinkSceneBuilderDependencies(clientFactory, terrainTextureAssetGenerator),
             enableMeshBake,
+            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
             progressReporter)
     {
     }

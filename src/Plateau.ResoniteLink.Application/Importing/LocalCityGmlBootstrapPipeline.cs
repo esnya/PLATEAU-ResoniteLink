@@ -166,10 +166,10 @@ internal static class LocalCityGmlBootstrapPipeline
                 .ToArray(),
             terrainTextureOverlays,
             discoveryResult.RequestedMeshCodes,
-            sourceFilePipelines,
-            cachedDemSourceFiles,
-            referenceSystem,
-            globalOriginPoint,
-            terrainHeightSampler);
+            sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
+            cachedDemSourceFiles.Select(CachedSourceFileDescriptor.FromLegacy).ToArray(),
+            CoordinateReferenceSystem.FromLegacy(referenceSystem),
+            GeodeticPoint.FromLegacy(globalOriginPoint),
+            TerrainHeightSampler.FromLegacy(terrainHeightSampler));
     }
 }

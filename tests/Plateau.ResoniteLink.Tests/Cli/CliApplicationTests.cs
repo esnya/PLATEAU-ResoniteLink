@@ -147,7 +147,7 @@ public sealed class CliApplicationTests
             options =>
             {
                 capturedOptions = options;
-                return new PlateauImportService(new StubSceneBuilder());
+                return CreateImportService(new StubSceneBuilder());
             });
 
         int exitCode = await application.RunAsync(

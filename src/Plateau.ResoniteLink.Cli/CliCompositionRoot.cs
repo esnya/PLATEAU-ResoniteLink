@@ -33,6 +33,21 @@ public static class CliCompositionRoot
             string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
             WriteLogLine(Console.Out, timestamp, message, minimumLogLevel);
         };
+        if (options.ResoniteLinkConnectionCount > 1)
+        {
+            reporter(
+                PlateauLog.Warning(
+                    "live",
+                    $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
+                    + "Use the default value 1 for reliable live sends."));
+        }
+        if (options.ResoniteLinkImportMeshTimeoutMilliseconds > 0)
+        {
+            reporter(
+                PlateauLog.Warning(
+                    "live",
+                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is diagnostic-only and experimental."));
+        }
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
             : ResoniteLinkSendDiagnostics.Disabled;
@@ -44,6 +59,7 @@ public static class CliCompositionRoot
                 diagnostics,
                 CreateSceneBuilderDependencies(),
                 options.EnableMeshBake,
+                options.ResoniteLinkImportMeshTimeoutMilliseconds,
                 progressReporter: reporter),
             CreateDatasetSourceResolver(),
             CreateConstructionSourceFactory(),

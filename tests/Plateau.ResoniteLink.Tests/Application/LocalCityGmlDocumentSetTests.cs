@@ -8,11 +8,11 @@ public sealed class LocalCityGmlDocumentSetTests
     public void ConstructorStoresBootstrapStateVerbatim()
     {
         IPlateauDatasetContentSource datasetSource = new EmptyDatasetContentSource();
-        LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] sourceFilePipelines = [];
-        IReadOnlyList<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> cachedDemSourceFiles = [];
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem =
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+        SourceFilePipeline[] sourceFilePipelines = [];
+        IReadOnlyList<CachedSourceFileDescriptor> cachedDemSourceFiles = [];
+        CoordinateReferenceSystem referenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
 
         LocalCityGmlDocumentSet documentSet = new(
             datasetSource,
@@ -31,13 +31,11 @@ public sealed class LocalCityGmlDocumentSetTests
         Assert.Equal(["bldg"], documentSet.PackageNames);
         Assert.Empty(documentSet.TerrainTextureOverlays);
         Assert.Equal(["53394525"], documentSet.RequestedMeshCodes);
-        Assert.Same(sourceFilePipelines, documentSet.SourceFilePipelines);
-        Assert.Same(cachedDemSourceFiles, documentSet.CachedDemSourceFiles);
-        Assert.Equal(referenceSystem, documentSet.ReferenceSystem);
-        Assert.Equal(globalOriginPoint, documentSet.GlobalOriginPoint);
-        Assert.Null(documentSet.TerrainHeightSampler);
-        Assert.Equal(["bldg"], documentSet.BootstrapState.PackageNames);
-        Assert.Equal("http://www.opengis.net/def/crs/EPSG/0/6697", documentSet.BootstrapState.ReferenceSystem.SrsName);
+        Assert.Same(sourceFilePipelines, documentSet.BootstrapSourceFilePipelines);
+        Assert.Same(cachedDemSourceFiles, documentSet.BootstrapCachedDemSourceFiles);
+        Assert.Equal(referenceSystem, documentSet.BootstrapReferenceSystem);
+        Assert.Equal(globalOriginPoint, documentSet.BootstrapGlobalOriginPoint);
+        Assert.Null(documentSet.BootstrapTerrainHeightSampler);
     }
 
     private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
