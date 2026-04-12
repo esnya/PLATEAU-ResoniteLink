@@ -73,9 +73,8 @@ internal sealed class FixedCellCityObjectMeshBaker
         buffer.LastTouchedSequence = nextBufferSequence++;
         BakedInputCityObjectCount++;
 
-        if (IsMeshCodeWideBake(cellKey)
-            || (buffer.CityObjects.Count < maxCityObjectsPerBatch
-                && buffer.VertexCount < maxVerticesPerBatch))
+        if (buffer.CityObjects.Count < maxCityObjectsPerBatch
+            && buffer.VertexCount < maxVerticesPerBatch)
         {
             _ = TryFlushOldestBufferExcept(cellKey, out bakedCityObject);
             return true;
@@ -138,13 +137,6 @@ internal sealed class FixedCellCityObjectMeshBaker
     {
         return CanBake(cityObject)
             && cityObject.ActualMeshCode.Length == 8;
-    }
-
-    private static bool IsMeshCodeWideBake(CellKey cellKey)
-    {
-        return cellKey.ActualMeshCode.Length == 8
-            && cellKey.CellX == 0
-            && cellKey.CellZ == 0;
     }
 
     private bool TryFlushOldestBufferExcept(
