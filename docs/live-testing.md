@@ -19,6 +19,7 @@ bash scripts/verify-ci.sh
 
 - Confirm the target dataset root exists on disk before cleanup or send steps.
 - Build outputs do not need to exist ahead of time; the helper scripts build the CLI or admin utility on demand.
+- For live sends, prefer the reliable path `-Connections 1` unless you are explicitly testing the experimental multi-connection mode.
 - The cleanup steps below are destructive. They remove matching dataset roots from the current Resonite session and stop matching live-send CLI processes launched from the same repository.
 - For this workflow, use the bundled scripts under `skills/resonite-live-send-debug/scripts/` as the operator-facing command surface. The root `scripts/` PowerShell helpers remain lower-level repository utilities and are not the procedural source for live runs.
 - If you need a disposable listener and have a local Resonite headless installation, prefer the bundled headless wrapper instead of manually preparing a session in the UI.
@@ -120,8 +121,10 @@ Continue only if list mode reports zero matching dataset roots within the pollin
 Then launch the send from Windows with the bundled wrapper:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 8 -LogPrefix <name> -NoWait"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
 ```
+
+The wrapper rebuilds the Windows CLI output before the send unless you explicitly pass `-SkipBuild`. Treat the run as invalid if the wrapper returns an unexpectedly old `CliDllLastWriteTime` or a non-Windows output path.
 
 The wrapper returns:
 

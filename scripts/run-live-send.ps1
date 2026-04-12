@@ -12,7 +12,8 @@ param(
     [string]$Connections = '8',
     [string]$LogPrefix = 'live-send',
     [string]$RepoPath = '',
-    [switch]$NoWait
+    [switch]$NoWait,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -74,20 +75,65 @@ function Resolve-DotNetExePath {
     throw 'Unable to locate dotnet.exe. Set DOTNET_EXE, DOTNET_HOST_PATH, or DOTNET_ROOT, or ensure dotnet is available on PATH.'
 }
 
+function Ensure-CliBuildOutput {
+    param(
+        [string]$DotNetPath,
+        [string]$ProjectPath,
+        [string]$ExpectedDllPath,
+        [switch]$SkipBuild
+    )
+
+    if (-not $SkipBuild) {
+        $buildStdout = [System.IO.Path]::GetTempFileName()
+        $buildStderr = [System.IO.Path]::GetTempFileName()
+        try {
+            $buildProcess = Start-Process `
+                -FilePath $DotNetPath `
+                -ArgumentList @('build', $ProjectPath, '-c', 'Release', '-p:RepositoryHostOs=windows') `
+                -Wait `
+                -PassThru `
+                -RedirectStandardOutput $buildStdout `
+                -RedirectStandardError $buildStderr
+
+            if (Test-Path -LiteralPath $buildStdout) {
+                Get-Content -LiteralPath $buildStdout | Out-Host
+            }
+
+            if (Test-Path -LiteralPath $buildStderr) {
+                Get-Content -LiteralPath $buildStderr | Out-Host
+            }
+
+            $buildExitCode = $buildProcess.ExitCode
+        }
+        finally {
+            foreach ($tempPath in @($buildStdout, $buildStderr)) {
+                if (Test-Path -LiteralPath $tempPath) {
+                    Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        if ($buildExitCode -ne 0) {
+            throw "CLI build failed before live send. ExitCode=$buildExitCode"
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $ExpectedDllPath -PathType Leaf)) {
+        throw "CLI build output not found: $ExpectedDllPath"
+    }
+
+    return (Get-Item -LiteralPath $ExpectedDllPath)
+}
+
 $repoRoot = Resolve-RepositoryRoot -ConfiguredRepoPath $RepoPath
 $dotNetExePath = Resolve-DotNetExePath
 $runtimeRoot = Join-Path $repoRoot 'runtime\windows\resonite'
 $stdoutLog = Join-Path $runtimeRoot ("{0}.stdout.log" -f $LogPrefix)
 $stderrLog = Join-Path $runtimeRoot ("{0}.stderr.log" -f $LogPrefix)
 $workRoot = $runtimeRoot
+$cliProjectPath = Join-Path $repoRoot 'src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj'
 $cliDllPath = Join-Path $repoRoot 'artifacts\build\windows\bin\Plateau.ResoniteLink.Cli\Release\net10.0\Plateau.ResoniteLink.Cli.dll'
-
-if (-not (Test-Path $cliDllPath)) {
-    & $dotNetExePath build (Join-Path $repoRoot 'src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj') -c Release -p:RepositoryHostOs=windows | Out-Host
-    if (-not (Test-Path $cliDllPath)) {
-        throw "CLI build output not found: $cliDllPath"
-    }
-}
+$cliDll = Ensure-CliBuildOutput -DotNetPath $dotNetExePath -ProjectPath $cliProjectPath -ExpectedDllPath $cliDllPath -SkipBuild:$SkipBuild
 
 foreach ($path in @($stdoutLog, $stderrLog)) {
     if (Test-Path $path) {
@@ -123,7 +169,7 @@ if ($NoWait) {
         StdoutLog           = $stdoutLog
         StderrLog           = $stderrLog
         CliDllPath          = $cliDllPath
-        CliDllLastWriteTime = (Get-Item $cliDllPath).LastWriteTime
+        CliDllLastWriteTime = $cliDll.LastWriteTime
     }
     exit 0
 }
@@ -140,5 +186,5 @@ $process.Refresh()
     StdoutLog           = $stdoutLog
     StderrLog           = $stderrLog
     CliDllPath          = $cliDllPath
-    CliDllLastWriteTime = (Get-Item $cliDllPath).LastWriteTime
+    CliDllLastWriteTime = $cliDll.LastWriteTime
 }

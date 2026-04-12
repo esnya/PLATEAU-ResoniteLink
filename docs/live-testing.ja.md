@@ -19,6 +19,7 @@ bash scripts/verify-ci.sh
 
 - cleanup や send に入る前に、対象 dataset root がローカルに存在することを確認してください。
 - CLI や admin utility の build 産物は事前に無くても構いません。bundled helper script が必要に応じて build します。
+- live send は、experimental な multi-connection mode を明示的に検証したい場合を除き、まず `-Connections 1` の reliable path を使ってください。
 - 下記の cleanup は破壊的です。現在の Resonite session から一致する dataset root を削除し、同じ repository から起動した live-send CLI process も停止します。
 - この workflow では、operator 向けの command surface を `skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。root `scripts/` 配下の PowerShell helper は下位の repository utility であり、live run の手順正本ではありません。
 - 破棄可能な listener が必要で、local の Resonite headless install がある場合は、UI で session を手作業で用意するより bundled headless wrapper を優先します。
@@ -120,8 +121,10 @@ polling window 内に list mode が 0 件を返した場合だけ次へ進みま
 その後、bundled wrapper を使って Windows 側から send を起動します。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 8 -LogPrefix <name> -NoWait"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
 ```
+
+この wrapper は、明示的に `-SkipBuild` を渡さない限り、send 前に Windows 向け CLI build output を rebuild します。返り値の `CliDllLastWriteTime` が不自然に古い場合や、出力 path が Windows build でない場合は、その run を invalid としてください。
 
 wrapper は次を返します。
 
