@@ -12,6 +12,14 @@ internal static class LocalCityGmlBootstrapPipeline
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
+        return await ReadDocumentSetCoreAsync(request, progressReporter, cancellationToken);
+    }
+
+    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
+        PlateauImportRequest request,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(request);
 
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))

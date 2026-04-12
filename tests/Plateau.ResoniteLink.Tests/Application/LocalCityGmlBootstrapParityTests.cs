@@ -6,7 +6,7 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class LocalCityGmlBootstrapParityTests
 {
     [Fact]
-    public async Task ReadAsyncMatchesLegacyDocumentSetForMixedObjectFixture()
+    public async Task ReadAsyncMatchesDocumentReaderForMixedObjectFixture()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -17,9 +17,48 @@ public sealed class LocalCityGmlBootstrapParityTests
             ServerUri: null);
 
         LocalCityGmlDocumentSet pipelineDocumentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
-        LocalCityGmlDocumentSet legacyDocumentSet = await LocalCityGmlResonitePlanBuilder.ReadDocumentSetAsync(request);
+        LocalCityGmlDocumentSet readerDocumentSet = await new LocalCityGmlDocumentReader().ReadAsync(request);
+        LocalCityGmlDocumentSet compatibilityDocumentSet = await LocalCityGmlResonitePlanBuilder.ReadDocumentSetAsync(request);
 
-        AssertDocumentSetParity(pipelineDocumentSet, legacyDocumentSet);
+        AssertDocumentSetParity(pipelineDocumentSet, readerDocumentSet);
+        AssertDocumentSetParity(pipelineDocumentSet, compatibilityDocumentSet);
+        AssertBootstrapSnapshot(
+            pipelineDocumentSet,
+            expectedRelativeSourceFiles: [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+                "udx/luse/53394525/plateau_tokyo23ku_luse_53394525.gml",
+                "udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
+            expectedPackageNames: ["bldg", "dem", "luse", "tran"],
+            expectedRequestedMeshCodes: ["53394525"],
+            expectedTerrainSamplerPresent: true);
+    }
+
+    [Fact]
+    public async Task ReadAsyncMatchesDocumentReaderForParentMeshPackageFixture()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
+            PackageNames: ["bldg", "dem", "luse", "tran"],
+            ServerUri: null);
+
+        LocalCityGmlDocumentSet pipelineDocumentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
+        LocalCityGmlDocumentSet readerDocumentSet = await new LocalCityGmlDocumentReader().ReadAsync(request);
+
+        AssertDocumentSetParity(pipelineDocumentSet, readerDocumentSet);
+        AssertBootstrapSnapshot(
+            pipelineDocumentSet,
+            expectedRelativeSourceFiles: [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
+                "udx/luse/533945/plateau_tokyo23ku_luse_533945.gml",
+                "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml"],
+            expectedPackageNames: ["bldg", "dem", "luse", "tran"],
+            expectedRequestedMeshCodes: ["533945", "53394525"],
+            expectedTerrainSamplerPresent: true);
     }
 
     private static void AssertDocumentSetParity(
@@ -59,5 +98,21 @@ public sealed class LocalCityGmlBootstrapParityTests
             Assert.Equal(expectedParsed.CityObjects.Length, actualParsed.CityObjects.Length);
             Assert.Equal(expectedParsed.TerrainTriangles.Length, actualParsed.TerrainTriangles.Length);
         }
+    }
+
+    private static void AssertBootstrapSnapshot(
+        LocalCityGmlDocumentSet documentSet,
+        IReadOnlyList<string> expectedRelativeSourceFiles,
+        IReadOnlyList<string> expectedPackageNames,
+        IReadOnlyList<string> expectedRequestedMeshCodes,
+        bool expectedTerrainSamplerPresent)
+    {
+        Assert.Equal(expectedRelativeSourceFiles, documentSet.RelativeSourceFiles);
+        Assert.Equal(expectedPackageNames, documentSet.PackageNames);
+        Assert.Equal(expectedRequestedMeshCodes, documentSet.RequestedMeshCodes);
+        Assert.Equal("http://www.opengis.net/def/crs/EPSG/0/6697", documentSet.BootstrapReferenceSystem.SrsName);
+        Assert.True(documentSet.BootstrapReferenceSystem.IsGeographic);
+        Assert.Equal(expectedTerrainSamplerPresent, documentSet.BootstrapTerrainHeightSampler is not null);
+        Assert.NotEmpty(documentSet.BootstrapCachedDemSourceFiles);
     }
 }
