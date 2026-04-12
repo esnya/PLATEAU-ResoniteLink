@@ -846,14 +846,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         ObjectDisposedException.ThrowIf(datasetRootSlot is null, this);
         ObjectDisposedException.ThrowIf(datasetAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
         ObjectDisposedException.ThrowIf(sceneAnchor is null, this);
 
-        IResoniteLinkClient mutationClient = clientSession.SetupClient;
+        IResoniteLinkClient mutationClient = GetMutationClient();
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
@@ -866,57 +865,29 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
-        if (await TryGetUniqueChildSlotByTagAsync(
+        if (await TrySkipDuplicateCityObjectAsync(
                 mutationClient,
-                objectSlots.LodSlot.SlotId,
-                objectSlots.CityObjectIdentityTag,
-                cancellationToken) is not null)
+                objectSlots,
+                sendScope,
+                cancellationToken))
         {
-            sendScope.MarkSkippedDuplicate();
             return false;
         }
 
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
-            static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
-                texture.TexturePath,
-                texture.TextureSourceKind),
-            static texture => texture.TextureImport);
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = CreatePreparedTextureDataByKey(preparedCityObject);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         Stopwatch geometryStopwatch = new();
-        List<MaterialReferenceTarget> materialTargets = [];
-        List<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks = [];
+        (IReadOnlyList<MaterialReferenceTarget> materialTargets, IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks) = await PrepareMaterialTargetsAsync(
+            importClient,
+            cityObject,
+            preparedTextureDataByKey,
+            objectSlots,
+            buildStepCancellation.Token);
         PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets;
         PreparedGeometryAssetBatch preparedGeometryBatch;
         try
         {
-            for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
-            {
-                ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
-                ReportBuildStep(
-                    cityObject,
-                    $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
-                if (material.AssetScope == ResoniteMaterialAssetScope.Common)
-                {
-                    CreatedMaterialAsset materialAsset = await CreateMaterialComponentAsync(
-                        importClient,
-                        material,
-                        preparedTextureDataByKey,
-                        objectSlots,
-                        buildStepCancellation.Token);
-                    materialTargets.Add(MaterialReferenceTarget.FromCanonical(materialAsset.MaterialComponentId));
-                }
-                else
-                {
-                    materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
-                    dedicatedMaterialPreparationTasks.Add(
-                        PrepareDedicatedMaterialAssetsAsync(
-                            importClient,
-                            material,
-                            preparedTextureDataByKey,
-                            buildStepCancellation.Token));
-                }
-            }
             preparedDedicatedMaterialAssets = dedicatedMaterialPreparationTasks.Count == 0
                 ? []
                 : await AwaitDedicatedMaterialPreparationsAsync(
@@ -974,6 +945,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         return true;
+    }
+
+    private static Dictionary<TextureReferenceKey, ResoniteTextureImport> CreatePreparedTextureDataByKey(
+        PreparedCityObject preparedCityObject)
+    {
+        return preparedCityObject.Textures.ToDictionary(
+            static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
+                texture.TexturePath,
+                texture.TextureSourceKind),
+            static texture => texture.TextureImport);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -1126,7 +1107,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private async Task<CreatedMaterialAsset> CreateMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
         ObjectSlotHierarchy objectSlots,
         CancellationToken cancellationToken)
     {
@@ -1151,14 +1132,40 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private async Task<IReadOnlyList<MaterialReferenceTarget>> ResolveMaterialTargetsAsync(
+    private IResoniteLinkClient GetMutationClient()
+    {
+        ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
+        return clientSession.SetupClient;
+    }
+
+    private static async Task<bool> TrySkipDuplicateCityObjectAsync(
+        IResoniteLinkClient mutationClient,
+        ObjectSlotHierarchy objectSlots,
+        ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope,
+        CancellationToken cancellationToken)
+    {
+        if (await TryGetUniqueChildSlotByTagAsync(
+                mutationClient,
+                objectSlots.LodSlot.SlotId,
+                objectSlots.CityObjectIdentityTag,
+                cancellationToken) is null)
+        {
+            return false;
+        }
+
+        sendScope.MarkSkippedDuplicate();
+        return true;
+    }
+
+    private async Task<(IReadOnlyList<MaterialReferenceTarget> MaterialTargets, IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> DedicatedMaterialPreparationTasks)> PrepareMaterialTargetsAsync(
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
         ObjectSlotHierarchy objectSlots,
         CancellationToken cancellationToken)
     {
         List<MaterialReferenceTarget> materialTargets = [];
+        List<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks = [];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
             ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
@@ -1178,10 +1185,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             else
             {
                 materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
+                dedicatedMaterialPreparationTasks.Add(
+                    PrepareDedicatedMaterialAssetsAsync(
+                        importClient,
+                        material,
+                        preparedTextureDataByKey,
+                        cancellationToken));
             }
         }
 
-        return materialTargets;
+        return (materialTargets, dedicatedMaterialPreparationTasks);
     }
 
     private static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)

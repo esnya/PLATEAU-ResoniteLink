@@ -19,7 +19,7 @@ internal sealed class ResoniteMaterialAssetManager(
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private readonly AsyncCompletedResultCache<(string ScopeSlotId, string MaterialSlotName), ResoniteLinkSceneBuilder.CreatedComponent> materialComponentCache = new();
+    private readonly AsyncCompletedResultCache<(string ScopeSlotId, string MaterialSlotName, string MaterialComponentType), ResoniteLinkSceneBuilder.CreatedComponent> materialComponentCache = new();
 
     public async Task<CreatedMaterialAsset> CreateMaterialComponentAsync(
         IResoniteLinkClient client,
@@ -40,6 +40,7 @@ internal sealed class ResoniteMaterialAssetManager(
         ArgumentException.ThrowIfNullOrWhiteSpace(rendererSlotId);
         ArgumentException.ThrowIfNullOrWhiteSpace(textureOverrideAssetSlotId);
         ReportProgress($"[live] Material '{material.MaterialKey}' queued.");
+        string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
 
         ResoniteLinkSceneBuilder.CreatedComponent materialComponent = await GetOrCreateMaterialComponentAsync(
             client,
@@ -48,6 +49,7 @@ internal sealed class ResoniteMaterialAssetManager(
             materialSlotId,
             materialSlotParentId,
             materialSlotName,
+            materialComponentType,
             cancellationToken: cancellationToken);
         return new CreatedMaterialAsset(materialComponent.ComponentId, null);
     }
@@ -59,10 +61,14 @@ internal sealed class ResoniteMaterialAssetManager(
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
+        string materialComponentType,
         bool suppressAlbedoTexture = false,
         CancellationToken cancellationToken = default)
     {
-        (string ScopeSlotId, string MaterialSlotName) materialTaskKey = (materialSlotId, materialSlotName);
+        (string ScopeSlotId, string MaterialSlotName, string MaterialComponentType) materialTaskKey = (
+            materialSlotId,
+            materialSlotName,
+            materialComponentType);
         return await materialComponentCache.GetOrCreateAsync(
             materialTaskKey,
             ct => CreateMaterialComponentCoreAsync(
@@ -72,6 +78,7 @@ internal sealed class ResoniteMaterialAssetManager(
                 materialSlotId,
                 materialSlotParentId,
                 materialSlotName,
+                materialComponentType,
                 suppressAlbedoTexture,
                 ct),
             cancellationToken);
@@ -84,6 +91,7 @@ internal sealed class ResoniteMaterialAssetManager(
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
+        string materialComponentType,
         bool suppressAlbedoTexture,
         CancellationToken cancellationToken)
     {
@@ -112,7 +120,6 @@ internal sealed class ResoniteMaterialAssetManager(
                 ct);
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
-        string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
         ReportProgress(
             $"[live] Material '{material.MaterialKey}' resolving as '{materialComponentType}' "
             + $"(projection={material.Projection}, texture={material.TexturePath ?? "none"}).");
