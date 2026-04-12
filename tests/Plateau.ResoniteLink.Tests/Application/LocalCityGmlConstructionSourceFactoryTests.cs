@@ -11,39 +11,42 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         StubConstructionSource expectedSource = new();
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
-        LocalCityGmlConstructionSourceFactory factory = CreateFactory(reader, composer);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer);
+        Action<string> progressReporter = _ => { };
 
-        PlateauImportRequest request = CreateRequest();
-
-        IResoniteConstructionSource result = await factory.CreateAsync(request);
-
-        Assert.Same(expectedSource, result);
-        Assert.Same(request, reader.LastRequest);
-        Assert.Same(request, composer.LastRequest);
-        Assert.Same(reader.DocumentSet, composer.LastDocumentSet);
-    }
-
-    private static LocalCityGmlConstructionSourceFactory CreateFactory(
-        ICityGmlDocumentReader documentReader,
-        IResoniteConstructionComposer constructionComposer)
-    {
-        return new LocalCityGmlConstructionSourceFactory(documentReader, constructionComposer);
-    }
-
-    private static PlateauImportRequest CreateRequest()
-    {
-        return new PlateauImportRequest(
+        PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
+
+        IResoniteConstructionSource result = await factory.CreateAsync(request, progressReporter);
+
+        Assert.Same(expectedSource, result);
+        Assert.Same(request, reader.LastRequest);
+        Assert.Same(progressReporter, reader.LastProgressReporter);
+        Assert.Same(request, composer.LastRequest);
+        Assert.Same(reader.DocumentSet, composer.LastDocumentSet);
     }
+
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentSet DocumentSet { get; } = CreateDocumentSet();
+        public Action<string>? LastProgressReporter { get; private set; }
+
+        public LocalCityGmlDocumentSet DocumentSet { get; } = new(
+            new EmptyDatasetContentSource(),
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+            new GeodeticPoint(35.0, 139.0, 0.0),
+            terrainHeightSampler: null);
 
         public Task<LocalCityGmlDocumentSet> ReadAsync(
             PlateauImportRequest request,
@@ -51,23 +54,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            LastProgressReporter = progressReporter;
             return Task.FromResult(DocumentSet);
         }
-    }
-
-    private static LocalCityGmlDocumentSet CreateDocumentSet()
-    {
-        return new LocalCityGmlDocumentSet(
-            new EmptyDatasetContentSource(),
-            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
-            ["bldg"],
-            [],
-            ["53394525"],
-            [],
-            [],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
     }
 
     private sealed class RecordingComposer(IResoniteConstructionSource source) : IResoniteConstructionComposer

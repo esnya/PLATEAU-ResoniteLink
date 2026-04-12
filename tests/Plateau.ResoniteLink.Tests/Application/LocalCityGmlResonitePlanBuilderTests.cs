@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -14,6 +16,37 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+    }
+
+    [Fact]
+    [SuppressMessage(
+        "Performance",
+        "CA1849:Call async methods when in an async method",
+        Justification = "This test intentionally compares the sync wrapper against the async entrypoint.")]
+    public async Task CreateConstructionSourceAsyncMatchesCreateConstructionSourceForCanonicalBootstrap()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: fixturePath,
+            ServerUri: null);
+
+        IResoniteConstructionSource asyncSource = await LocalCityGmlResonitePlanBuilder.CreateConstructionSourceAsync(request);
+        IResoniteConstructionSource syncSource = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
+
+        Assert.Equal(asyncSource.Metadata.SchemaVersion, syncSource.Metadata.SchemaVersion);
+        Assert.Equal(asyncSource.Metadata.WorldName, syncSource.Metadata.WorldName);
+        Assert.Same(request, asyncSource.Metadata.Request);
+        Assert.Same(request, syncSource.Metadata.Request);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.PackageNames, syncSource.Metadata.SourceDataset.PackageNames);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.SourceFiles, syncSource.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(
+            asyncSource.Metadata.SourceDataset.TerrainTextureOverlays,
+            syncSource.Metadata.SourceDataset.TerrainTextureOverlays);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.RequestedMeshCodes, syncSource.Metadata.SourceDataset.RequestedMeshCodes);
+        Assert.Equal(asyncSource.Metadata.LocalOrigin, syncSource.Metadata.LocalOrigin);
     }
 
     [Fact]

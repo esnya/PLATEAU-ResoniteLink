@@ -1,3 +1,5 @@
+using GeographicLib;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -6,7 +8,7 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class LocalCityGmlConstructionComposerTests
 {
     [Fact]
-    public void ComposeCopiesDocumentSetStateIntoConstructionMetadata()
+    public void ComposeMapsDocumentSetBoundaryIntoConstructionMetadata()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -14,8 +16,28 @@ public sealed class LocalCityGmlConstructionComposerTests
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
-        LocalCityGmlDocumentSet documentSet = CreateDocumentSet();
-        LocalCityGmlConstructionComposer composer = new(new StubGeometryProjector());
+
+        TerrainTextureOverlay overlay = new(
+            TexturePath: "appearance/overlay.png",
+            PackageName: "bldg",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 14,
+            GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
+            MaxTextureSize: 1024);
+
+        LocalCityGmlDocumentSet documentSet = new(
+            new EmptyDatasetContentSource(),
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+            ["bldg", "dem"],
+            [overlay],
+            ["53394525"],
+            [],
+            [],
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+            new GeodeticPoint(35.0, 139.0, 12.5),
+            terrainHeightSampler: null);
+
+        LocalCityGmlConstructionComposer composer = new(new ThrowingGeometryProjector());
 
         IResoniteConstructionSource source = composer.Compose(request, documentSet);
 
@@ -26,33 +48,24 @@ public sealed class LocalCityGmlConstructionComposerTests
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(documentSet.TerrainTextureOverlays, source.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Equal(documentSet.RequestedMeshCodes, source.Metadata.SourceDataset.RequestedMeshCodes);
-        Assert.Equal(documentSet.GlobalOriginPoint.Latitude, source.Metadata.LocalOrigin.Latitude);
-        Assert.Equal(documentSet.GlobalOriginPoint.Longitude, source.Metadata.LocalOrigin.Longitude);
-        Assert.Equal(documentSet.GlobalOriginPoint.Altitude, source.Metadata.LocalOrigin.Altitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Latitude, source.Metadata.LocalOrigin.Latitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Longitude, source.Metadata.LocalOrigin.Longitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Altitude, source.Metadata.LocalOrigin.Altitude);
     }
 
-    private static LocalCityGmlDocumentSet CreateDocumentSet()
-    {
-        return new LocalCityGmlDocumentSet(
-            new EmptyDatasetContentSource(),
-            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
-            ["bldg"],
-            [],
-            ["53394525"],
-            [],
-            [],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
-    }
-
-    private sealed class StubGeometryProjector : ICityGmlGeometryProjector
+    private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
     {
         public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
-            LocalCityGmlGeometryProjectionContext projectionContext,
-            PlateauImportRequest request)
+            CachedSourceFileDescriptor sourceFile,
+            CoordinateReferenceSystem referenceSystem,
+            GeodeticPoint globalOriginPoint,
+            LocalCartesian? globalCartesian,
+            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+            TerrainHeightSampler? terrainHeightSampler,
+            PlateauImportRequest request,
+            Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
-            return [];
+            throw new InvalidOperationException("Compose should not materialize geometry.");
         }
     }
 

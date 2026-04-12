@@ -9,41 +9,24 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
     public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
-        LocalCityGmlGeometryProjectionContext projectionContext,
-        PlateauImportRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(projectionContext);
-        ArgumentNullException.ThrowIfNull(request);
-
-        return MaterializeLegacyCityObjects(
-            projectionContext.SourceFile.Legacy!,
-            projectionContext.ReferenceSystem.Legacy!,
-            projectionContext.GlobalOriginPoint.Legacy!,
-            projectionContext.GlobalCartesian,
-            projectionContext.DemTerrainTextureOverlays,
-            projectionContext.TerrainHeightSampler?.Legacy,
-            request);
-    }
-
-    private IEnumerable<ResoniteConstructionCityObject> MaterializeLegacyCityObjects(
-        LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor sourceFile,
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
+        CachedSourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler,
+        TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        Func<LocalCityGmlResonitePlanBuilder.ParsedCityObject, bool>? predicate = null)
+        Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
         return LocalCityGmlResonitePlanBuilder.MaterializeCityObjects(
-            sourceFile,
-            referenceSystem,
-            globalOriginPoint,
+            sourceFile.ToLegacy(),
+            referenceSystem.ToLegacy(),
+            globalOriginPoint.ToLegacy(),
             globalCartesian,
             demTerrainTextureOverlays,
-            terrainHeightSampler,
+            terrainHeightSampler?.ToLegacy(),
             request,
             materialResolver,
-            predicate);
+            predicate is null ? null : legacyCityObject => predicate(BootstrapParsedCityObject.FromLegacy(legacyCityObject)));
     }
 }

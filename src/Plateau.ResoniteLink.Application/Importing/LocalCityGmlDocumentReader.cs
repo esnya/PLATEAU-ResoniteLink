@@ -9,6 +9,9 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await LocalCityGmlBootstrapPipeline.ReadAsync(request, progressReporter, cancellationToken);
+        return await LocalCityGmlResonitePlanBuilder.ReadDocumentSetAsync(
+            request,
+            progressReporter,
+            cancellationToken);
     }
 }

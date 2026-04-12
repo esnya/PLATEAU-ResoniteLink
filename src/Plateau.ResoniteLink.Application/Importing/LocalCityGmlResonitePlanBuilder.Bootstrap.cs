@@ -1,7 +1,3 @@
-using System.Diagnostics;
-using System.Xml.Linq;
-
-using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
@@ -13,7 +9,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return CreateConstructionSourceFactory().CreateAsync(
+        return PlateauImportApplicationComposition.CreateConstructionSourceFactory().CreateAsync(
             request,
             progressReporter,
             cancellationToken);
@@ -26,17 +22,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return CreateConstructionSourceAsync(request, progressReporter).GetAwaiter().GetResult();
     }
 
-    private static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
-    {
-        return PlateauImportApplicationComposition.CreateConstructionSourceFactory();
-    }
-
-    internal static ResoniteLocalOrigin? ResolveLocalOrigin(
-        MeshCodeArea? requestedMeshArea)
-    {
-        return requestedMeshArea?.GetCenter();
-    }
-
     internal static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
@@ -45,21 +30,18 @@ public static partial class LocalCityGmlResonitePlanBuilder
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
-        return sourceFiles
-            .Select(sourceFile =>
-                new SourceFilePipeline(
-                    sourceFile,
-                    () => ParseSourceFileAsync(
-                        sourceFile,
-                        datasetSource,
-                        requestedMeshAreas,
-                        progressReporter,
-                        lodFilteringStrategy,
-                        cancellationToken)))
-            .ToArray();
+        global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[] pipelines = await CreateSourceFilePipelinesCoreAsync(
+            sourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor.FromLegacy).ToArray(),
+            datasetSource,
+            requestedMeshAreas,
+            progressReporter,
+            lodFilteringStrategy,
+            cancellationToken);
+
+        return pipelines.Select(static pipeline => pipeline.ToLegacy()).ToArray();
     }
 
-    internal static async Task<ParsedSourceFileResult> ParseSourceFileAsync(
+    internal static Task<ParsedSourceFileResult> ParseSourceFileAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
@@ -67,86 +49,43 @@ public static partial class LocalCityGmlResonitePlanBuilder
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        Stopwatch fileStopwatch = Stopwatch.StartNew();
-        List<ParsedCityObject> cityObjects = [];
-        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsAsync(
-                           sourceFile,
-                           datasetSource,
-                           requestedMeshAreas,
-                           lodFilteringStrategy,
-                           cancellationToken))
-        {
-            cityObjects.Add(cityObject);
-        }
-        fileStopwatch.Stop();
-
-        ParsedCityObject[] cityObjectArray = cityObjects
-            .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
-            .ToArray();
-        CoordinateReferenceSystem coordinateReferenceSystem = await ReadDocumentReferenceSystemAsync(
-            datasetSource,
-            sourceFile.RelativePath,
-            cancellationToken);
-        TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? [.. ExtractTerrainHeightTriangles(cityObjectArray)]
-            : [];
-
-        progressReporter?.Invoke(
-            PlateauLog.Debug(
-                "import",
-                $"Parsed file '{sourceFile.RelativePath}' "
-                + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
-                + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s."));
-
-        return new ParsedSourceFileResult(
-            sourceFile,
-            cityObjectArray,
-            coordinateReferenceSystem,
-            terrainTriangles,
-            fileStopwatch.Elapsed);
+        return ParseSourceFileCoreAsync(
+                global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor.FromLegacy(sourceFile),
+                datasetSource,
+                requestedMeshAreas,
+                progressReporter,
+                lodFilteringStrategy,
+                cancellationToken)
+            .ContinueWith(
+                static task => task.GetAwaiter().GetResult().ToLegacy(),
+                cancellationToken,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
     }
 
-    internal static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
+    internal static IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
-        lodFilteringStrategy ??= new LodFilteringStrategy();
-        await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
-        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        ParsedCityObject[] cityObjects = ParseCityObjects(
-            document,
+        return StreamParsedCityObjectsCoreAsync(
             sourceFile,
             datasetSource,
             requestedMeshAreas,
-            lodFilteringStrategy);
-
-        foreach (ParsedCityObject cityObject in cityObjects)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return cityObject;
-        }
+            lodFilteringStrategy,
+            cancellationToken);
     }
 
-    internal static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
+    internal static Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemAsync(
         IPlateauDatasetContentSource datasetSource,
         string relativePath,
         CancellationToken cancellationToken)
     {
-        await using Stream stream = await datasetSource.OpenReadAsync(relativePath, cancellationToken);
-        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        try
-        {
-            return CoordinateReferenceSystem.Parse(document);
-        }
-        catch (PlateauImportValidationException)
-        {
-            throw new PlateauImportValidationException(
-                [$"CityGML file '{NormalizePath(relativePath)}' does not declare a supported coordinate reference system."]);
-        }
+        return ReadDocumentReferenceSystemCoreAsync(
+            datasetSource,
+            relativePath,
+            cancellationToken);
     }
 }
