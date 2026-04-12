@@ -66,12 +66,14 @@ if (-not $ListOnly) {
         }
 }
 
+if (Test-Path -LiteralPath $adminDll) {
+    Remove-Item -LiteralPath $adminDll -Force
+}
+
+$buildOutput = & "$dotnet" build $adminProject -c Release 2>&1
+$buildOutput | Out-Host
 if (-not (Test-Path $adminDll)) {
-    $buildOutput = & "$dotnet" build $adminProject -c Release 2>&1
-    $buildOutput | Out-Host
-    if (-not (Test-Path $adminDll)) {
-        throw "ResoniteAdmin build output not found: $adminDll"
-    }
+    throw "ResoniteAdmin build output not found: $adminDll"
 }
 
 if ($stoppedProcessIds.Count -gt 0) {

@@ -49,8 +49,11 @@ function Get-DotNetCommandPath {
 }
 
 $repoRoot = (Split-Path -Parent $PSScriptRoot)
+$projectPath = Join-Path $repoRoot 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
 $dllPath = Join-Path $repoRoot 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll'
 $dotnet = Get-DotNetCommandPath
+$buildOutput = & "$dotnet" build $projectPath -c Release 2>&1
+$buildOutput | Out-Host
 $arguments = @($dllPath, $Endpoint, $Dataset)
 if ($ListOnly) {
     $arguments += '--list-only'
