@@ -22,6 +22,7 @@ internal sealed class RetryingResoniteLinkClient(
     private readonly SemaphoreSlim importGate = new(MaxConcurrentImports, MaxConcurrentImports);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private readonly object clientStateGate = new();
+    private readonly HashSet<CancellationTokenSource> activeImportCancellations = [];
     private IResoniteLinkClient inner = clientFactory();
     private Uri? endpoint;
     private int generation;
@@ -301,12 +302,15 @@ internal sealed class RetryingResoniteLinkClient(
                 cancellationToken.ThrowIfCancellationRequested();
                 Task reconnectTask;
                 IResoniteLinkClient? client = null;
+                CancellationTokenSource? importCancellation = null;
                 lock (clientStateGate)
                 {
                     if (!reconnectPending)
                     {
                         activeImportCount++;
                         client = inner;
+                        importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        activeImportCancellations.Add(importCancellation);
                         reconnectTask = Task.CompletedTask;
                     }
                     else
@@ -323,11 +327,11 @@ internal sealed class RetryingResoniteLinkClient(
 
                 try
                 {
-                    return await operation(client, state, cancellationToken);
+                    return await operation(client, state, importCancellation!.Token);
                 }
                 finally
                 {
-                    ReleaseActiveImport();
+                    ReleaseActiveImport(importCancellation!);
                 }
             }
         }
@@ -349,12 +353,13 @@ internal sealed class RetryingResoniteLinkClient(
         }
     }
 
-    private void ReleaseActiveImport()
+    private void ReleaseActiveImport(CancellationTokenSource importCancellation)
     {
         TaskCompletionSource<bool>? importDrainSignal = null;
         lock (clientStateGate)
         {
             activeImportCount--;
+            activeImportCancellations.Remove(importCancellation);
             if (activeImportCount == 0 && reconnectPending)
             {
                 importDrainSignal = importDrainCompletion;
@@ -362,6 +367,7 @@ internal sealed class RetryingResoniteLinkClient(
             }
         }
 
+        importCancellation.Dispose();
         importDrainSignal?.TrySetResult(true);
     }
 
@@ -560,14 +566,25 @@ internal sealed class RetryingResoniteLinkClient(
             }
 
             Task waitForImportsTask;
+            CancellationTokenSource[] activeImportCancellationsSnapshot;
             TaskCompletionSource<bool> reconnectCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (clientStateGate)
             {
                 reconnectPending = true;
                 reconnectCompletion = reconnectCompletionSource;
+                activeImportCancellationsSnapshot = activeImportCancellations.ToArray();
                 waitForImportsTask = activeImportCount == 0
                     ? Task.CompletedTask
                     : (importDrainCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+            }
+
+            if (activeImportCancellationsSnapshot.Length > 0)
+            {
+                reporter?.Invoke(
+                    PlateauLog.Warning(
+                        "live",
+                        $"Reconnect canceling {activeImportCancellationsSnapshot.Length} active import(s) before retry."));
+                await Task.WhenAll(activeImportCancellationsSnapshot.Select(static cancellation => cancellation.CancelAsync()));
             }
 
             await waitForImportsTask.WaitAsync(cancellationToken);
