@@ -13,26 +13,41 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Get-DotNetCommandPath {
-    if ($env:DOTNET_EXE -and (Test-Path $env:DOTNET_EXE)) {
-        return (Get-Item $env:DOTNET_EXE).FullName
+    $candidates = @()
+
+    if (-not [string]::IsNullOrWhiteSpace($env:DOTNET_EXE)) {
+        $candidates += $env:DOTNET_EXE
     }
 
-    if ($env:DOTNET_HOST_PATH -and (Test-Path $env:DOTNET_HOST_PATH)) {
-        return (Get-Item $env:DOTNET_HOST_PATH).FullName
+    if (-not [string]::IsNullOrWhiteSpace($env:DOTNET_HOST_PATH)) {
+        $candidates += $env:DOTNET_HOST_PATH
     }
 
-    if ($env:DOTNET_ROOT) {
-        foreach ($candidate in @(
-            (Join-Path $env:DOTNET_ROOT 'dotnet.exe'),
-            (Join-Path $env:DOTNET_ROOT 'dotnet')
-        )) {
-            if (Test-Path $candidate) {
-                return (Get-Item $candidate).FullName
-            }
+    if (-not [string]::IsNullOrWhiteSpace($env:DOTNET_ROOT)) {
+        $candidates += (Join-Path $env:DOTNET_ROOT 'dotnet.exe')
+    }
+
+    $command = Get-Command -Name dotnet.exe -CommandType Application -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    $command = Get-Command -Name dotnet -CommandType Application -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+        $candidates += (Join-Path $env:ProgramFiles 'dotnet\dotnet.exe')
+    }
+
+    foreach ($candidate in $candidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
+            return (Get-Item -LiteralPath $candidate).FullName
         }
     }
 
-    return (Get-Command dotnet -ErrorAction Stop).Source
+    throw 'Unable to locate dotnet.exe. Set DOTNET_EXE, DOTNET_HOST_PATH, or DOTNET_ROOT, or ensure dotnet is available on PATH.'
 }
 
 $dotnet = Get-DotNetCommandPath
@@ -52,7 +67,8 @@ if (-not $ListOnly) {
 }
 
 if (-not (Test-Path $adminDll)) {
-    & $dotnet build $adminProject -c Release | Out-Host
+    $buildOutput = & "$dotnet" build $adminProject -c Release 2>&1
+    $buildOutput | Out-Host
     if (-not (Test-Path $adminDll)) {
         throw "ResoniteAdmin build output not found: $adminDll"
     }
@@ -66,14 +82,15 @@ Write-Output ("AdminDllPath={0}" -f $adminDll)
 Write-Output ("AdminDllLastWriteTime={0:o}" -f (Get-Item $adminDll).LastWriteTime)
 
 if (-not $ListOnly) {
-    & $dotnet $adminDll $Endpoint $Dataset | Out-Host
+    $cleanupOutput = & "$dotnet" $adminDll $Endpoint $Dataset 2>&1
+    $cleanupOutput | Out-Host
 }
 
 $verification = @()
 $deadline = (Get-Date).AddSeconds($VerificationTimeoutSeconds)
 
 do {
-    $verification = & $dotnet $adminDll $Endpoint $Dataset --list-only
+    $verification = & "$dotnet" $adminDll $Endpoint $Dataset --list-only
     $verification | Out-Host
 
     if ($verification -match "Found 0 dataset root slot\(s\)") {

@@ -132,6 +132,12 @@
       "plateau.resonitelink.domain": {
         "type": "Project"
       },
+      "resoniteadmin": {
+        "type": "Project",
+        "dependencies": {
+          "YellowDogMan.ResoniteLink": "[0.13.1, )"
+        }
+      },
       "GeographicLib.NET": {
         "type": "CentralTransitive",
         "requested": "[2.3.2, )",

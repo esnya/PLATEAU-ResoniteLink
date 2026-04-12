@@ -20,6 +20,7 @@
     <ProjectReference Include="..\..\src\Plateau.ResoniteLink.Application\Plateau.ResoniteLink.Application.csproj" />
     <ProjectReference Include="..\..\src\Plateau.ResoniteLink.Domain\Plateau.ResoniteLink.Domain.csproj" />
     <ProjectReference Include="..\..\src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj" />
+    <ProjectReference Include="..\..\scripts\ResoniteAdmin\ResoniteAdmin.csproj" />
   </ItemGroup>
 
 </Project>
