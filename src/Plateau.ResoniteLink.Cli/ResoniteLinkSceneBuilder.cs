@@ -812,26 +812,32 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
+        Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportBuildStep(cityObject, "Creating object slot hierarchy.");
+        Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
         ObjectSlotHierarchy objectSlots = await CreateObjectSlotHierarchyAsync(
             setupClient,
             datasetRootSlot.Value,
             datasetAssetsRootSlot.Value,
             cityObject,
             cancellationToken);
+        slotHierarchyStopwatch.Stop();
 
         ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
+        Stopwatch geometryStopwatch = Stopwatch.StartNew();
         PreparedGeometryAssetBatch preparedGeometryBatch = await PrepareGeometryBatchAsync(
             importClient,
             cityObject,
             preparedCityObject,
             cancellationToken);
+        geometryStopwatch.Stop();
 
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
                 texture.TexturePath,
                 texture.TextureSourceKind),
             static texture => texture.TextureImport);
+        Stopwatch materialStopwatch = Stopwatch.StartNew();
         List<MaterialReferenceTarget> materialTargets = [];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
@@ -854,8 +860,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
             }
         }
+        materialStopwatch.Stop();
 
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
+        Stopwatch batchStopwatch = Stopwatch.StartNew();
         await CreateCityObjectBatchAsync(
             mutationClient,
             importClient,
@@ -865,8 +873,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             preparedGeometryBatch,
             materialTargets,
             cancellationToken);
+        batchStopwatch.Stop();
 
         ReportBuildStep(cityObject, "Live build completed.");
+        cityObjectStopwatch.Stop();
+        ReportProgress(
+            PlateauLog.Debug(
+                "live",
+                $"City object '{cityObject.DisplayName}' phase timings: "
+                + $"slot_hierarchy_s={slotHierarchyStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"geometry_assets_s={geometryStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"materials_s={materialStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"batch_s={batchStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"total_send_s={cityObjectStopwatch.Elapsed.TotalSeconds:F3}."));
         sendScope.MarkSent();
         if (Interlocked.CompareExchange(ref firstBuiltCityObjectLogged, 1, 0) == 0)
         {

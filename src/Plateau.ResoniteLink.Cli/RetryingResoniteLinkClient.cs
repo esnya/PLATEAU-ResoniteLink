@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
 using System.Reflection;
 
 using Plateau.ResoniteLink.Application.Logging;
@@ -13,6 +14,9 @@ internal sealed class RetryingResoniteLinkClient(
     int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
+    private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan SlowImportMeshThreshold = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan SlowImportTextureThreshold = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private IResoniteLinkClient inner = clientFactory();
@@ -89,10 +93,11 @@ internal sealed class RetryingResoniteLinkClient(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
-        return ExecuteWithoutReconnectAsync(
+        return ExecuteTimedWithoutReconnectAsync(
             static (client, state, ct) => client.RunDataModelOperationBatchAsync(state, ct),
             operations,
             "RunDataModelOperationBatch",
+            SlowBatchThreshold,
             cancellationToken);
     }
 
@@ -116,7 +121,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        return ExecuteWithoutReconnectAsync(
+        return ExecuteTimedWithoutReconnectAsync(
             (client, state, ct) => ExecuteImportMeshWithTimeoutAsync(
                 client,
                 state,
@@ -125,15 +130,17 @@ internal sealed class RetryingResoniteLinkClient(
                 ct),
             request,
             "ImportMesh",
+            SlowImportMeshThreshold,
             cancellationToken);
     }
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return ExecuteWithoutReconnectAsync(
+        return ExecuteTimedWithoutReconnectAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
+            SlowImportTextureThreshold,
             cancellationToken);
     }
 
@@ -208,6 +215,37 @@ internal sealed class RetryingResoniteLinkClient(
         {
             operationGate.Release();
         }
+    }
+
+    private async Task<TResult> ExecuteTimedWithoutReconnectAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        TimeSpan slowThreshold,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TResult result = await ExecuteWithoutReconnectAsync(
+            operation,
+            state,
+            operationName,
+            cancellationToken);
+        stopwatch.Stop();
+
+        reporter?.Invoke(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
+        if (stopwatch.Elapsed >= slowThreshold)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
+                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+        }
+
+        return result;
     }
 
     private static async Task<Uri> ExecuteImportMeshWithTimeoutAsync(
