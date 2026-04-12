@@ -89,6 +89,33 @@ public sealed class ResoniteTextureImportResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncReadsBundledTextureAsRawAndCachesResult()
+    {
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteTextureImportResolver resolver = new(
+            new FakeDatasetContentSource(Path.GetTempPath()),
+            [],
+            terrainTextureAssetGenerator);
+
+        ResoniteTextureImport firstResolution = await resolver.ResolveAsync(
+            BundledDefaultMaterialFamilies.FacadeVariants[0],
+            ResoniteTextureSourceKind.Bundled,
+            CancellationToken.None);
+        ResoniteTextureImport secondResolution = await resolver.ResolveAsync(
+            BundledDefaultMaterialFamilies.FacadeVariants[0],
+            ResoniteTextureSourceKind.Bundled,
+            CancellationToken.None);
+
+        Assert.Same(firstResolution, secondResolution);
+        Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
+
+        ResoniteRawTextureImport rawImport = Assert.IsType<ResoniteRawTextureImport>(firstResolution);
+        Assert.Equal("sRGB", rawImport.ColorProfile);
+        Assert.NotNull(rawImport.Identity);
+        Assert.EndsWith(".jpg", rawImport.Identity, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ResolveAsyncDoesNotPoisonSharedResolutionWhenFirstWaiterIsCanceled()
     {
         using TemporaryDirectory datasetRoot = new();

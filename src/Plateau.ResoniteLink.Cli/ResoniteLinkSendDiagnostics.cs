@@ -32,7 +32,7 @@ internal sealed class ResoniteLinkSendDiagnostics
     private readonly AsyncLocal<CityObjectSendScope?> currentScope = new();
     private readonly ConcurrentDictionary<string, long> rpcCallsByOperation = new(StringComparer.Ordinal);
     private long sentCityObjectCount;
-    private long skippedExistingCityObjectCount;
+    private long skippedMeshImportFailureCityObjectCount;
     private long totalRpcCalls;
     private long totalRpcCallsForSentObjects;
     private double totalPrepareDurationSeconds;
@@ -78,7 +78,7 @@ internal sealed class ResoniteLinkSendDiagnostics
         SendWindowDurationHistogram.Record(elapsedSeconds);
 
         long sentCount = Interlocked.Read(ref sentCityObjectCount);
-        long skippedCount = Interlocked.Read(ref skippedExistingCityObjectCount);
+        long skippedMeshImportFailureCount = Interlocked.Read(ref skippedMeshImportFailureCityObjectCount);
         long rpcCalls = Interlocked.Read(ref totalRpcCalls);
         long rpcCallsForSentObjects = Interlocked.Read(ref totalRpcCallsForSentObjects);
         double prepareSeconds = Interlocked.CompareExchange(ref totalPrepareDurationSeconds, 0.0, 0.0);
@@ -96,7 +96,7 @@ internal sealed class ResoniteLinkSendDiagnostics
         reporter?.Invoke(
             PlateauLog.Info(
                 "live-metrics",
-                $"send_window_s={elapsedSeconds:F3} sent={sentCount} skipped_existing={skippedCount} "
+                $"send_window_s={elapsedSeconds:F3} sent={sentCount} skipped_mesh_import_failure={skippedMeshImportFailureCount} "
                 + $"throughput_obj_per_s={throughput:F2} avg_prepare_s={averagePrepareSeconds:F4} "
                 + $"avg_send_s={averageSendSeconds:F4} avg_rpc_per_sent={averageRpcPerSentCityObject:F2} total_rpc={rpcCalls}"));
 
@@ -180,11 +180,10 @@ internal sealed class ResoniteLinkSendDiagnostics
                     { "package", packageName },
                 });
         }
-        else if (string.Equals(outcome, "skipped_existing", StringComparison.Ordinal))
+        else if (string.Equals(outcome, "skipped_mesh_import_failure", StringComparison.Ordinal))
         {
-            Interlocked.Increment(ref skippedExistingCityObjectCount);
+            Interlocked.Increment(ref skippedMeshImportFailureCityObjectCount);
         }
-
         AddDouble(ref totalSendDurationSeconds, elapsedSeconds);
     }
 
@@ -233,9 +232,9 @@ internal sealed class ResoniteLinkSendDiagnostics
             Complete("sent");
         }
 
-        public void MarkSkippedExisting()
+        public void MarkSkippedMeshImportFailure()
         {
-            Complete("skipped_existing");
+            Complete("skipped_mesh_import_failure");
         }
 
         public void Dispose()
