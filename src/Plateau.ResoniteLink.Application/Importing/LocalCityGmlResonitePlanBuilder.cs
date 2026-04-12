@@ -2667,11 +2667,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         HeightMapChunkAlignmentState rightState,
         HeightMapSampleUnionFind unionFind)
     {
-        if (leftState.Geometry.Height != rightState.Geometry.Height)
-        {
-            return false;
-        }
-
         const double boundaryTolerance = 1e-3;
         double leftMaxX = leftState.CityObject.Transform.Position.X + (leftState.Geometry.Size.X / 2.0);
         double rightMinX = rightState.CityObject.Transform.Position.X - (rightState.Geometry.Size.X / 2.0);
@@ -2684,20 +2679,23 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double leftMaxZ = leftState.CityObject.Transform.Position.Z + (leftState.Geometry.Size.Y / 2.0);
         double rightMinZ = rightState.CityObject.Transform.Position.Z - (rightState.Geometry.Size.Y / 2.0);
         double rightMaxZ = rightState.CityObject.Transform.Position.Z + (rightState.Geometry.Size.Y / 2.0);
-        if (Math.Abs(leftMinZ - rightMinZ) > boundaryTolerance
-            || Math.Abs(leftMaxZ - rightMaxZ) > boundaryTolerance)
+        if (Math.Min(leftMaxZ, rightMaxZ) < Math.Max(leftMinZ, rightMinZ) - boundaryTolerance)
         {
             return false;
         }
 
-        for (int row = 0; row < leftState.Geometry.Height; row++)
-        {
-            int leftSampleIndex = (row * leftState.Geometry.Width) + (leftState.Geometry.Width - 1);
-            int rightSampleIndex = row * rightState.Geometry.Width;
-            unionFind.Union(leftState.SampleOffset + leftSampleIndex, rightState.SampleOffset + rightSampleIndex);
-        }
-
-        return true;
+        return TryUnionBoundarySamplesByCoordinate(
+            leftState.Geometry.Height,
+            leftMinZ,
+            leftMaxZ,
+            static (state, index) => (index * state.Geometry.Width) + (state.Geometry.Width - 1),
+            leftState,
+            rightState.Geometry.Height,
+            rightMinZ,
+            rightMaxZ,
+            static (state, index) => index * state.Geometry.Width,
+            rightState,
+            unionFind);
     }
 
     private static bool TryUnionHorizontalHeightMapBoundary(
@@ -2705,11 +2703,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         HeightMapChunkAlignmentState northState,
         HeightMapSampleUnionFind unionFind)
     {
-        if (southState.Geometry.Width != northState.Geometry.Width)
-        {
-            return false;
-        }
-
         const double boundaryTolerance = 1e-3;
         double southMaxZ = southState.CityObject.Transform.Position.Z + (southState.Geometry.Size.Y / 2.0);
         double northMinZ = northState.CityObject.Transform.Position.Z - (northState.Geometry.Size.Y / 2.0);
@@ -2722,20 +2715,99 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double southMaxX = southState.CityObject.Transform.Position.X + (southState.Geometry.Size.X / 2.0);
         double northMinX = northState.CityObject.Transform.Position.X - (northState.Geometry.Size.X / 2.0);
         double northMaxX = northState.CityObject.Transform.Position.X + (northState.Geometry.Size.X / 2.0);
-        if (Math.Abs(southMinX - northMinX) > boundaryTolerance
-            || Math.Abs(southMaxX - northMaxX) > boundaryTolerance)
+        if (Math.Min(southMaxX, northMaxX) < Math.Max(southMinX, northMinX) - boundaryTolerance)
         {
             return false;
         }
 
-        int southRowStart = (southState.Geometry.Height - 1) * southState.Geometry.Width;
-        for (int column = 0; column < southState.Geometry.Width; column++)
+        return TryUnionBoundarySamplesByCoordinate(
+            southState.Geometry.Width,
+            southMinX,
+            southMaxX,
+            static (state, index) => ((state.Geometry.Height - 1) * state.Geometry.Width) + index,
+            southState,
+            northState.Geometry.Width,
+            northMinX,
+            northMaxX,
+            static (state, index) => index,
+            northState,
+            unionFind);
+    }
+
+    private static bool TryUnionBoundarySamplesByCoordinate(
+        int firstSampleCount,
+        double firstMinCoordinate,
+        double firstMaxCoordinate,
+        Func<HeightMapChunkAlignmentState, int, int> firstSampleIndexSelector,
+        HeightMapChunkAlignmentState firstState,
+        int secondSampleCount,
+        double secondMinCoordinate,
+        double secondMaxCoordinate,
+        Func<HeightMapChunkAlignmentState, int, int> secondSampleIndexSelector,
+        HeightMapChunkAlignmentState secondState,
+        HeightMapSampleUnionFind unionFind)
+    {
+        const double coordinateTolerance = 1e-3;
+        double overlapMin = Math.Max(firstMinCoordinate, secondMinCoordinate);
+        double overlapMax = Math.Min(firstMaxCoordinate, secondMaxCoordinate);
+        if (overlapMax < overlapMin - coordinateTolerance)
         {
-            int southSampleIndex = southRowStart + column;
-            unionFind.Union(southState.SampleOffset + southSampleIndex, northState.SampleOffset + column);
+            return false;
         }
 
-        return true;
+        double firstStep = firstSampleCount <= 1 ? 0.0 : (firstMaxCoordinate - firstMinCoordinate) / (firstSampleCount - 1);
+        double secondStep = secondSampleCount <= 1 ? 0.0 : (secondMaxCoordinate - secondMinCoordinate) / (secondSampleCount - 1);
+
+        int firstIndex = 0;
+        int secondIndex = 0;
+        bool matchedSample = false;
+
+        while (firstIndex < firstSampleCount && secondIndex < secondSampleCount)
+        {
+            double firstCoordinate = firstMinCoordinate + (firstStep * firstIndex);
+            double secondCoordinate = secondMinCoordinate + (secondStep * secondIndex);
+
+            if (firstCoordinate < overlapMin - coordinateTolerance)
+            {
+                firstIndex++;
+                continue;
+            }
+
+            if (secondCoordinate < overlapMin - coordinateTolerance)
+            {
+                secondIndex++;
+                continue;
+            }
+
+            if (firstCoordinate > overlapMax + coordinateTolerance
+                || secondCoordinate > overlapMax + coordinateTolerance)
+            {
+                break;
+            }
+
+            double difference = firstCoordinate - secondCoordinate;
+            if (Math.Abs(difference) <= coordinateTolerance)
+            {
+                unionFind.Union(
+                    firstState.SampleOffset + firstSampleIndexSelector(firstState, firstIndex),
+                    secondState.SampleOffset + secondSampleIndexSelector(secondState, secondIndex));
+                matchedSample = true;
+                firstIndex++;
+                secondIndex++;
+                continue;
+            }
+
+            if (difference < 0.0)
+            {
+                firstIndex++;
+            }
+            else
+            {
+                secondIndex++;
+            }
+        }
+
+        return matchedSample;
     }
 
     private sealed class HeightMapChunkAlignmentState
