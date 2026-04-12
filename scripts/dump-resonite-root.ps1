@@ -48,22 +48,65 @@ function Get-DotNetCommandPath {
     throw 'Unable to locate dotnet.exe. Set DOTNET_EXE, DOTNET_HOST_PATH, or DOTNET_ROOT, or ensure dotnet is available on PATH.'
 }
 
+function Resolve-AdminDllPath {
+    param(
+        [string]$RepoRoot,
+        [string]$Configuration = 'Release'
+    )
+
+    $candidateDlls = @()
+    foreach ($hostOs in @('windows', 'linux', 'macos')) {
+        $candidatePath = Join-Path $RepoRoot ("artifacts\build\{0}\bin\ResoniteAdmin\{1}\net10.0\ResoniteAdmin.dll" -f $hostOs, $Configuration)
+        if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+            $candidateDlls += (Get-Item -LiteralPath $candidatePath)
+        }
+    }
+
+    if ($candidateDlls.Count -eq 0) {
+        throw "ResoniteAdmin build output was not found under '$(Join-Path $RepoRoot 'artifacts\build')'."
+    }
+
+    return $candidateDlls[0].FullName
+}
+
+function Ensure-AdminBuildOutput {
+    param(
+        [string]$DotNetPath,
+        [string]$ProjectPath,
+        [string]$RepoRoot
+    )
+
+    $existingDllPath = $null
+    try {
+        $existingDllPath = Resolve-AdminDllPath -RepoRoot $RepoRoot
+    }
+    catch {
+        $existingDllPath = $null
+    }
+
+    $buildOutput = & "$DotNetPath" build $ProjectPath -c Release -p:RepositoryHostOs=windows 2>&1
+    $buildExitCode = $LASTEXITCODE
+    $buildOutput | Out-Host
+
+    if ($buildExitCode -eq 0) {
+        return Resolve-AdminDllPath -RepoRoot $RepoRoot
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($existingDllPath)) {
+        Write-Warning "ResoniteAdmin build failed; continuing with the existing build output at '$existingDllPath'."
+        return $existingDllPath
+    }
+
+    $outputText = ($buildOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    throw "ResoniteAdmin build failed and no existing build output is available. ExitCode=$buildExitCode`n$outputText"
+}
+
 $dotnet = Get-DotNetCommandPath
 $runtimeRoot = Join-Path $RepoPath 'runtime\windows\resonite\root-dumps'
 $adminRuntimeRoot = Join-Path $RepoPath 'runtime\windows\resonite'
 $adminProject = Join-Path $RepoPath 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
-$adminDll = Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll'
-$adminExe = Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.exe'
 
-if (Test-Path -LiteralPath $adminDll) {
-    Remove-Item -LiteralPath $adminDll -Force
-}
-
-$buildOutput = & "$dotnet" build $adminProject -c Release 2>&1
-$buildOutput | Out-Host
-if (-not (Test-Path $adminDll)) {
-    throw "ResoniteAdmin build output not found: $adminDll"
-}
+$adminDll = Ensure-AdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $RepoPath
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
@@ -96,12 +139,9 @@ foreach ($path in @($stdoutPath, $stderrPath)) {
     }
 }
 
-$launcherPath = if (Test-Path -LiteralPath $adminExe -PathType Leaf) { $adminExe } else { $dotnet }
-$launcherArguments = if ($launcherPath -eq $adminExe) { $arguments } else { @($adminDll) + $arguments }
-
 $process = Start-Process `
-    -FilePath $launcherPath `
-    -ArgumentList $launcherArguments `
+    -FilePath $dotnet `
+    -ArgumentList @($adminDll) + $arguments `
     -WorkingDirectory $RepoPath `
     -Wait `
     -PassThru `

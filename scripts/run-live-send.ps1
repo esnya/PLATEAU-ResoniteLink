@@ -83,7 +83,7 @@ $workRoot = $runtimeRoot
 $cliDllPath = Join-Path $repoRoot 'artifacts\build\windows\bin\Plateau.ResoniteLink.Cli\Release\net10.0\Plateau.ResoniteLink.Cli.dll'
 
 if (-not (Test-Path $cliDllPath)) {
-    & $dotNetExePath build (Join-Path $repoRoot 'src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj') -c Release | Out-Host
+    & $dotNetExePath build (Join-Path $repoRoot 'src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj') -c Release -p:RepositoryHostOs=windows | Out-Host
     if (-not (Test-Path $cliDllPath)) {
         throw "CLI build output not found: $cliDllPath"
     }

@@ -43,7 +43,8 @@ function Resolve-TrackedProcessId {
 }
 
 $resolvedStatePath = Resolve-StatePath -ConfiguredStatePath $StatePath -RuntimeRootPath $runtimeRoot
-$resolvedProcessId = if ($PSBoundParameters.ContainsKey('ProcessId')) {
+$usedTrackedState = -not $PSBoundParameters.ContainsKey('ProcessId')
+$resolvedProcessId = if (-not $usedTrackedState) {
     $ProcessId
 }
 else {
@@ -51,7 +52,7 @@ else {
 }
 
 $result = & $delegatePath -ProcessId $resolvedProcessId
-if (Test-Path -LiteralPath $resolvedStatePath -PathType Leaf) {
+if ($usedTrackedState -and (Test-Path -LiteralPath $resolvedStatePath -PathType Leaf)) {
     Remove-Item -LiteralPath $resolvedStatePath -Force
 }
 

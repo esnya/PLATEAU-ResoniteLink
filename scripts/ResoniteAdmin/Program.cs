@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using ResoniteLink;
 using ResoniteAdmin;
@@ -6,6 +7,7 @@ using ResoniteAdmin;
 JsonSerializerOptions dumpJsonOptions = new()
 {
     WriteIndented = true,
+    NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
 };
 
 if (!ResoniteAdminCommandLineParser.TryParse(args, out ResoniteAdminCommandLineOptions? options, out string? error))

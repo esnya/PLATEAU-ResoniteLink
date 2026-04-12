@@ -119,17 +119,6 @@ function Get-LogTail {
     return ((Get-Content -LiteralPath $Path -Tail $LineCount) -join [Environment]::NewLine)
 }
 
-function Get-FreeTcpPort {
-    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-    try {
-        $listener.Start()
-        return ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-    }
-    finally {
-        $listener.Stop()
-    }
-}
-
 $repoRoot = Resolve-RepositoryRoot -ConfiguredRepoPath $RepoPath
 $launcher = Resolve-HeadlessLauncher -ConfiguredHeadlessPath $HeadlessPath
 $dotNetExePath = Resolve-DotNetExePath
@@ -141,12 +130,9 @@ $configPath = Join-Path $sessionRoot 'Config.json'
 $headlessDataRoot = Join-Path $sessionRoot 'Data'
 $headlessCacheRoot = Join-Path $sessionRoot 'Cache'
 $headlessLogsRoot = Join-Path $sessionRoot 'Logs'
-$parsedResoniteLinkPort = 0
+$parsedResoniteLinkPort = $null
 
-if ([string]::IsNullOrWhiteSpace($ResoniteLinkPort)) {
-    $parsedResoniteLinkPort = Get-FreeTcpPort
-}
-elseif (-not [int]::TryParse($ResoniteLinkPort, [ref]$parsedResoniteLinkPort) -or $parsedResoniteLinkPort -lt 1 -or $parsedResoniteLinkPort -gt 65535) {
+if (-not [string]::IsNullOrWhiteSpace($ResoniteLinkPort) -and (-not [int]::TryParse($ResoniteLinkPort, [ref]$parsedResoniteLinkPort) -or $parsedResoniteLinkPort -lt 1 -or $parsedResoniteLinkPort -gt 65535)) {
     throw "The value '$ResoniteLinkPort' is not a valid TCP port."
 }
 
@@ -158,24 +144,27 @@ foreach ($path in @($stdoutLog, $stderrLog, $configPath)) {
     }
 }
 
+$startWorld = [ordered]@{
+    sessionName = $SessionName
+    description = $SessionDescription
+    accessLevel = $AccessLevel
+    hideFromPublicListing = $true
+    loadWorldPresetName = $WorldPresetName
+    enableResoniteLink = $true
+    saveOnExit = $false
+    autoSleep = $true
+}
+
+if ($null -ne $parsedResoniteLinkPort) {
+    $startWorld.forceResoniteLinkPort = $parsedResoniteLinkPort
+}
+
 $config = [ordered]@{
     comment = 'Disposable headless session for PLATEAU-ResoniteLink live tests.'
     dataFolder = $headlessDataRoot
     cacheFolder = $headlessCacheRoot
     logsFolder = $headlessLogsRoot
-    startWorlds = @(
-        [ordered]@{
-            sessionName = $SessionName
-            description = $SessionDescription
-            accessLevel = $AccessLevel
-            hideFromPublicListing = $true
-            loadWorldPresetName = $WorldPresetName
-            enableResoniteLink = $true
-            forceResoniteLinkPort = $parsedResoniteLinkPort
-            saveOnExit = $false
-            autoSleep = $true
-        }
-    )
+    startWorlds = @($startWorld)
 }
 
 $config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $configPath -Encoding utf8
@@ -228,9 +217,37 @@ if ($null -eq $worldReadyLine) {
     throw "Headless process $($process.Id) did not report 'World Running' within ${StartupTimeoutSeconds}s.`nSTDOUT:`n$stdoutTail`nSTDERR:`n$stderrTail"
 }
 
+$resolvedResoniteLinkPort = $parsedResoniteLinkPort
+if (Test-Path -LiteralPath $stdoutLog) {
+    $linkPortMatch = Select-String -LiteralPath $stdoutLog -Pattern 'ResoniteLink Started on port:\s*([0-9]+)' | Select-Object -Last 1
+    if ($null -ne $linkPortMatch) {
+        $resolvedResoniteLinkPort = [int]$linkPortMatch.Matches[0].Groups[1].Value
+    }
+}
+
+if ($null -eq $resolvedResoniteLinkPort) {
+    if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+
+    $stdoutTail = Get-LogTail -Path $stdoutLog
+    $stderrTail = Get-LogTail -Path $stderrLog
+    throw "Headless process $($process.Id) became ready but did not report a ResoniteLink port.`nSTDOUT:`n$stdoutTail`nSTDERR:`n$stderrTail"
+}
+
+if (($null -ne $parsedResoniteLinkPort) -and ($resolvedResoniteLinkPort -ne $parsedResoniteLinkPort)) {
+    if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    }
+
+    $stdoutTail = Get-LogTail -Path $stdoutLog
+    $stderrTail = Get-LogTail -Path $stderrLog
+    throw "Headless process $($process.Id) reported ResoniteLink port $resolvedResoniteLinkPort, which does not match requested port $parsedResoniteLinkPort.`nSTDOUT:`n$stdoutTail`nSTDERR:`n$stderrTail"
+}
+
 [pscustomobject]@{
     ProcessId        = $process.Id
-    ResoniteLinkPort = $parsedResoniteLinkPort
+    ResoniteLinkPort = $resolvedResoniteLinkPort
     SessionName      = $SessionName
     SessionRoot      = $sessionRoot
     ConfigPath       = $configPath

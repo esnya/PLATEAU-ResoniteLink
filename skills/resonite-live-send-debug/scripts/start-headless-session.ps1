@@ -52,10 +52,11 @@ try {
 catch {
     $announcements = @()
 }
+$expectedLinkPort = [int]$started.ResoniteLinkPort
 $matchingAnnouncements = @(
     $announcements |
         Where-Object {
-            $_.LinkPort -eq [int]$ResoniteLinkPort -and
+            $_.LinkPort -eq $expectedLinkPort -and
             $_.SessionName -eq $SessionName
         }
 )
@@ -74,7 +75,7 @@ else {
     $sessionIdLine = $stdoutLines | Where-Object { $_ -match 'Unique Session ID:\s*(.+)$' } | Select-Object -Last 1
     $linkPortLine = $stdoutLines | Where-Object { $_ -match 'ResoniteLink Started on port:\s*([0-9]+)' } | Select-Object -Last 1
     $resolvedSessionId = if ($sessionIdLine) { ([regex]::Match($sessionIdLine, 'Unique Session ID:\s*(.+)$')).Groups[1].Value.Trim() } else { '' }
-    $resolvedLinkPort = if ($linkPortLine) { [int]([regex]::Match($linkPortLine, 'ResoniteLink Started on port:\s*([0-9]+)')).Groups[1].Value } else { $started.ResoniteLinkPort }
+    $resolvedLinkPort = if ($linkPortLine) { [int]([regex]::Match($linkPortLine, 'ResoniteLink Started on port:\s*([0-9]+)')).Groups[1].Value } else { $expectedLinkPort }
 
     [pscustomobject]@{
         SessionName = $SessionName

@@ -48,12 +48,58 @@ function Get-DotNetCommandPath {
     throw 'Unable to locate dotnet.exe. Set DOTNET_EXE, DOTNET_HOST_PATH, or DOTNET_ROOT, or ensure dotnet is available on PATH.'
 }
 
+function Resolve-AdminDllPath {
+    param(
+        [string]$RepoRoot,
+        [string]$Configuration = 'Release'
+    )
+
+    foreach ($hostOs in @('windows', 'linux', 'macos')) {
+        $candidatePath = Join-Path $RepoRoot ("artifacts\build\{0}\bin\ResoniteAdmin\{1}\net10.0\ResoniteAdmin.dll" -f $hostOs, $Configuration)
+        if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+            return $candidatePath
+        }
+    }
+
+    throw "ResoniteAdmin build output was not found under '$(Join-Path $RepoRoot 'artifacts\build')'."
+}
+
+function Ensure-AdminBuildOutput {
+    param(
+        [string]$DotNetPath,
+        [string]$ProjectPath,
+        [string]$RepoRoot
+    )
+
+    $existingDllPath = $null
+    try {
+        $existingDllPath = Resolve-AdminDllPath -RepoRoot $RepoRoot
+    }
+    catch {
+        $existingDllPath = $null
+    }
+
+    $buildOutput = & "$DotNetPath" build $ProjectPath -c Release -p:RepositoryHostOs=windows 2>&1
+    $buildExitCode = $LASTEXITCODE
+    $buildOutput | Out-Host
+
+    if ($buildExitCode -eq 0) {
+        return Resolve-AdminDllPath -RepoRoot $RepoRoot
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($existingDllPath)) {
+        Write-Warning "ResoniteAdmin build failed; continuing with the existing build output at '$existingDllPath'."
+        return $existingDllPath
+    }
+
+    $outputText = ($buildOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    throw "ResoniteAdmin build failed and no existing build output is available. ExitCode=$buildExitCode`n$outputText"
+}
+
 $repoRoot = (Split-Path -Parent $PSScriptRoot)
 $projectPath = Join-Path $repoRoot 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
-$dllPath = Join-Path $repoRoot 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll'
 $dotnet = Get-DotNetCommandPath
-$buildOutput = & "$dotnet" build $projectPath -c Release 2>&1
-$buildOutput | Out-Host
+$dllPath = Ensure-AdminBuildOutput -DotNetPath $dotnet -ProjectPath $projectPath -RepoRoot $repoRoot
 $arguments = @($dllPath, $Endpoint, $Dataset)
 if ($ListOnly) {
     $arguments += '--list-only'
