@@ -17,6 +17,7 @@ Expect these files under the workspace root:
 - `scripts/ResoniteAdmin/ResoniteAdmin.csproj`
 
 Prefer the bundled skill scripts over any ad hoc repo scripts. Those wrappers build the admin utility or CLI binaries on demand, so a separate manual build command is not part of the canonical procedure.
+When you use the root dump or cleanup helpers, expect them to rebuild `ResoniteAdmin` on demand and to emit build output before the actual dump or cleanup step.
 
 ## Skill Guardrails
 

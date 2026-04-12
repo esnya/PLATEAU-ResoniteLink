@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Default to non-slow tests for quick iteration; callers can override the filter.
 TEST_FILTER="${PLATEAU_TEST_FILTER:-Category!=Slow}"
 TEST_VERBOSITY="${PLATEAU_TEST_VERBOSITY:-minimal}"
 

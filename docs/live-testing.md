@@ -66,6 +66,7 @@ cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\reso
 ```
 
 The wrapper resolves the endpoint from `runtime/windows/headless/active-session.json` by default. It writes a recursive Root snapshot to `runtime/windows/resonite/root-dumps/` unless you pass `-OutputPath`.
+It rebuilds `ResoniteAdmin` on demand, prefers `ResoniteAdmin.exe` when the binary is available, and falls back to `dotnet` plus the `.dll` otherwise.
 
 Record these values from the wrapper output:
 

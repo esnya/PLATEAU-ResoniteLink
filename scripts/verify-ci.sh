@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 
+# Repository-owned gate: restore, formatting check, build, then the full non-slow/slow-inclusive test pass.
 dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
 dotnet format whitespace . --folder --verify-no-changes
 dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
