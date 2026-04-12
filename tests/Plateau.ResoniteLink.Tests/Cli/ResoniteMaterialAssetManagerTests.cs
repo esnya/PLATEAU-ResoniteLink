@@ -295,6 +295,49 @@ public sealed class ResoniteMaterialAssetManagerTests
         Assert.Equal(["get-slot:common-slot"], calls);
     }
 
+    [Fact]
+    public async Task CreateMaterialComponentAsyncImportsBundledAlbedoWithoutPreparedTextureMap()
+    {
+        List<string> calls = [];
+        ResoniteMaterialAssetManager manager = new(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material")),
+            (_, _, componentType, _, _) =>
+            {
+                calls.Add($"create-component:{componentType}");
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+            },
+            static (_, _, _, _) => Task.FromResult<Slot?>(null),
+            (_, textureImport, _) =>
+            {
+                calls.Add(textureImport switch
+                {
+                    ResoniteFileTextureImport fileImport => $"import-file:{Path.GetFileName(fileImport.AbsolutePath)}",
+                    _ => $"import:{textureImport.GetType().Name}",
+                });
+
+                return Task.FromResult(new Uri("file:///tmp/bundled.png"));
+            });
+        using StubResoniteLinkClient client = new();
+
+        await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(
+                texturePath: "default-materials/roof/Concrete033_2K-JPG_Color.jpg",
+                textureSourceKind: ResoniteTextureSourceKind.Bundled),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        Assert.Contains(calls, static call => call.StartsWith("import-file:Concrete033_2K-JPG_Color", StringComparison.Ordinal));
+        Assert.Contains(calls, static call => call == "create-component:[FrooxEngine]FrooxEngine.PBS_Metallic");
+    }
+
     private static ResoniteMaterialBinding CreateMaterial(
         string? texturePath = null,
         ResoniteTextureSourceKind textureSourceKind = ResoniteTextureSourceKind.Bundled,

@@ -853,11 +853,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
         Stopwatch geometryStopwatch = Stopwatch.StartNew();
+        using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task<PreparedGeometryAssetBatch> preparedGeometryBatchTask = PrepareGeometryBatchAsync(
             importClient,
             cityObject,
             preparedCityObject,
-            cancellationToken);
+            buildStepCancellation.Token);
 
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
@@ -867,39 +868,50 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         List<MaterialReferenceTarget> materialTargets = [];
         List<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks = [];
-        for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
+        PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets;
+        PreparedGeometryAssetBatch preparedGeometryBatch;
+        try
         {
-            ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
-            ReportBuildStep(
-                cityObject,
-                $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
-            if (material.AssetScope == ResoniteMaterialAssetScope.Common)
+            for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
             {
-                CreatedMaterialAsset materialAsset = await CreateMaterialComponentAsync(
-                    importClient,
-                    material,
-                    preparedTextureDataByKey,
-                    objectSlots,
-                    cancellationToken);
-                materialTargets.Add(MaterialReferenceTarget.FromCanonical(materialAsset.MaterialComponentId));
-            }
-            else
-            {
-                materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
-                dedicatedMaterialPreparationTasks.Add(
-                    PrepareDedicatedMaterialAssetsAsync(
+                ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
+                ReportBuildStep(
+                    cityObject,
+                    $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
+                if (material.AssetScope == ResoniteMaterialAssetScope.Common)
+                {
+                    CreatedMaterialAsset materialAsset = await CreateMaterialComponentAsync(
                         importClient,
                         material,
                         preparedTextureDataByKey,
-                        cancellationToken));
+                        objectSlots,
+                        buildStepCancellation.Token);
+                    materialTargets.Add(MaterialReferenceTarget.FromCanonical(materialAsset.MaterialComponentId));
+                }
+                else
+                {
+                    materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
+                    dedicatedMaterialPreparationTasks.Add(
+                        PrepareDedicatedMaterialAssetsAsync(
+                            importClient,
+                            material,
+                            preparedTextureDataByKey,
+                            buildStepCancellation.Token));
+                }
             }
+            preparedDedicatedMaterialAssets = dedicatedMaterialPreparationTasks.Count == 0
+                ? []
+                : await Task.WhenAll(dedicatedMaterialPreparationTasks);
+            materialStopwatch.Stop();
+            preparedGeometryBatch = await preparedGeometryBatchTask;
+            geometryStopwatch.Stop();
         }
-        PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets = dedicatedMaterialPreparationTasks.Count == 0
-            ? []
-            : await Task.WhenAll(dedicatedMaterialPreparationTasks);
-        materialStopwatch.Stop();
-        PreparedGeometryAssetBatch preparedGeometryBatch = await preparedGeometryBatchTask;
-        geometryStopwatch.Stop();
+        catch
+        {
+            await buildStepCancellation.CancelAsync();
+            await ObserveTaskFailureAsync(preparedGeometryBatchTask);
+            throw;
+        }
 
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
@@ -932,6 +944,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ReportProgress(
                 $"[live] First city object built after {GetSceneElapsedSeconds():F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
+    private static async Task ObserveTaskFailureAsync(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch
+        {
         }
     }
 

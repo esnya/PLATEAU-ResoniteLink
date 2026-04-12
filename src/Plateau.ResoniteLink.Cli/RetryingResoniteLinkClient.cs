@@ -21,9 +21,14 @@ internal sealed class RetryingResoniteLinkClient(
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private readonly SemaphoreSlim importGate = new(MaxConcurrentImports, MaxConcurrentImports);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
+    private readonly object clientStateGate = new();
     private IResoniteLinkClient inner = clientFactory();
     private Uri? endpoint;
     private int generation;
+    private int activeImportCount;
+    private bool reconnectPending;
+    private TaskCompletionSource<bool>? reconnectCompletion;
+    private TaskCompletionSource<bool>? importDrainCompletion;
 
     public void Dispose()
     {
@@ -291,8 +296,40 @@ internal sealed class RetryingResoniteLinkClient(
         await importGate.WaitAsync(cancellationToken);
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            return await operation(inner, state, cancellationToken);
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Task reconnectTask;
+                IResoniteLinkClient? client = null;
+                lock (clientStateGate)
+                {
+                    if (!reconnectPending)
+                    {
+                        activeImportCount++;
+                        client = inner;
+                        reconnectTask = Task.CompletedTask;
+                    }
+                    else
+                    {
+                        reconnectTask = reconnectCompletion?.Task ?? Task.CompletedTask;
+                    }
+                }
+
+                if (client is null)
+                {
+                    await reconnectTask.WaitAsync(cancellationToken);
+                    continue;
+                }
+
+                try
+                {
+                    return await operation(client, state, cancellationToken);
+                }
+                finally
+                {
+                    ReleaseActiveImport();
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -310,6 +347,22 @@ internal sealed class RetryingResoniteLinkClient(
         {
             importGate.Release();
         }
+    }
+
+    private void ReleaseActiveImport()
+    {
+        TaskCompletionSource<bool>? importDrainSignal = null;
+        lock (clientStateGate)
+        {
+            activeImportCount--;
+            if (activeImportCount == 0 && reconnectPending)
+            {
+                importDrainSignal = importDrainCompletion;
+                importDrainCompletion = null;
+            }
+        }
+
+        importDrainSignal?.TrySetResult(true);
     }
 
     private static async Task<Uri> ExecuteImportMeshWithTimeoutAsync(
@@ -506,6 +559,18 @@ internal sealed class RetryingResoniteLinkClient(
                 throw new InvalidOperationException("Cannot reconnect before an endpoint has been established.");
             }
 
+            Task waitForImportsTask;
+            TaskCompletionSource<bool> reconnectCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (clientStateGate)
+            {
+                reconnectPending = true;
+                reconnectCompletion = reconnectCompletionSource;
+                waitForImportsTask = activeImportCount == 0
+                    ? Task.CompletedTask
+                    : (importDrainCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+            }
+
+            await waitForImportsTask.WaitAsync(cancellationToken);
             IResoniteLinkClient previous = inner;
             IResoniteLinkClient replacement = clientFactory();
 
@@ -516,11 +581,24 @@ internal sealed class RetryingResoniteLinkClient(
             catch
             {
                 replacement.Dispose();
+                lock (clientStateGate)
+                {
+                    reconnectPending = false;
+                    reconnectCompletion = null;
+                }
+                reconnectCompletionSource.TrySetResult(true);
                 throw;
             }
 
-            inner = replacement;
-            Interlocked.Increment(ref generation);
+            lock (clientStateGate)
+            {
+                inner = replacement;
+                reconnectPending = false;
+                reconnectCompletion = null;
+                importDrainCompletion = null;
+                Interlocked.Increment(ref generation);
+            }
+            reconnectCompletionSource.TrySetResult(true);
             previous.Dispose();
             reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
         }

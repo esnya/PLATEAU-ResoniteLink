@@ -146,8 +146,9 @@ internal sealed class ResoniteMaterialAssetManager(
 
         if (!suppressAlbedoTexture
             && material.TexturePath is not null
-            && preparedTexturePathsByKey.TryGetValue(
-                CreateTextureReferenceKey(material.TexturePath, material.TextureSourceKind),
+            && TryResolveAlbedoTextureImport(
+                material,
+                preparedTexturePathsByKey,
                 out ResoniteTextureImport? textureAsset))
         {
             ReportProgress($"[live] Material '{material.MaterialKey}' importing albedo texture.");
@@ -423,6 +424,35 @@ internal sealed class ResoniteMaterialAssetManager(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
         return new TextureReferenceKey(textureSourceKind, texturePath);
+    }
+
+    private static bool TryResolveAlbedoTextureImport(
+        ResoniteMaterialBinding material,
+        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTexturePathsByKey,
+        out ResoniteTextureImport textureImport)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(preparedTexturePathsByKey);
+
+        if (material.TexturePath is not null
+            && preparedTexturePathsByKey.TryGetValue(
+                CreateTextureReferenceKey(material.TexturePath, material.TextureSourceKind),
+                out ResoniteTextureImport? preparedTextureImport))
+        {
+            textureImport = preparedTextureImport;
+            return true;
+        }
+
+        if (material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && material.TexturePath is not null)
+        {
+            textureImport = ResoniteTextureImportFactory.CreateFromFile(
+                BundledDefaultMaterialAssetStore.GetAbsolutePath(material.TexturePath));
+            return true;
+        }
+
+        textureImport = null!;
+        return false;
     }
 
     private async Task<Component?> TryGetExistingMaterialComponentAsync(
