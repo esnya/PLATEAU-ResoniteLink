@@ -610,7 +610,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         try
         {
             PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-            await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
+            bool builtCityObject = await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
+            if (!builtCityObject)
+            {
+                ReportProgress(
+                    PlateauLog.Info(
+                        "live",
+                        $"Skipping duplicate city object: "
+                        + $"{preparedCityObject.CityObject.DisplayName} "
+                        + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})."));
+                return;
+            }
 
             int processedCount = Interlocked.Increment(ref processedCityObjectCount);
             ReportProgress(
@@ -830,7 +840,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return (meshCode, distanceSquared);
     }
 
-    private async Task BuildPreparedCityObjectAsync(
+    private async Task<bool> BuildPreparedCityObjectAsync(
         IResoniteLinkClient importClient,
         PreparedCityObject preparedCityObject,
         CancellationToken cancellationToken)
@@ -856,6 +866,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
+        if (await TryGetUniqueChildSlotByNameAsync(
+                mutationClient,
+                objectSlots.LodSlot.SlotId,
+                objectSlots.CityObjectSlotName,
+                cancellationToken) is not null)
+        {
+            sendScope.MarkSkippedDuplicate();
+            return false;
+        }
 
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
@@ -953,6 +972,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 $"[live] First city object built after {GetSceneElapsedSeconds():F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
         }
+
+        return true;
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
