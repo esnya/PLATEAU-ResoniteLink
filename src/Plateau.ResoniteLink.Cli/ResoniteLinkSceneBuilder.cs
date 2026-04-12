@@ -763,16 +763,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return meshCode;
         }
 
-        (string MeshCode, double DistanceSquared)? requestedMeshCode = metadata.SourceDataset.RequestedMeshCodes?
+        (string MeshCode, double DistanceSquared)[] concreteRequestedMeshCodes = metadata.SourceDataset.RequestedMeshCodes?
             .Select(candidate => TryResolveConcreteMeshCodeDistance(candidate, metadata.LocalOrigin))
             .Where(static candidate => candidate.HasValue)
             .Select(static candidate => candidate!.Value)
             .OrderBy(static candidate => candidate.DistanceSquared)
             .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (requestedMeshCode.HasValue)
+            .ToArray()
+            ?? [];
+        if (concreteRequestedMeshCodes.Length > 0)
         {
-            return requestedMeshCode.Value.MeshCode;
+            return concreteRequestedMeshCodes[0].MeshCode;
         }
 
         throw new InvalidOperationException(

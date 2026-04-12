@@ -1492,6 +1492,30 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncThrowsWhenRegexSelectorHasNoConcreteRequestedMeshCodes()
+    {
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await RunBuilderAsync(
+                builder,
+                CreateRegexRequestScene(
+                    "5339452[56]",
+                    new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+                    [])));
+
+        Assert.Contains(
+            "did not resolve to any concrete meshcode",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
