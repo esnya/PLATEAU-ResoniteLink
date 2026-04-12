@@ -83,7 +83,7 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task MutationOperationsDoNotWaitForImportMeshToComplete()
+    public async Task MutationOperationsWaitForImportMeshToComplete()
     {
         using BlockingReconnectableClient innerClient = new();
         using RetryingResoniteLinkClient client = new(() => innerClient);
@@ -119,7 +119,7 @@ public sealed class RetryingResoniteLinkClientTests
             CancellationToken.None);
 
         await Task.Delay(100);
-        Assert.True(addSlotTask.IsCompletedSuccessfully);
+        Assert.False(addSlotTask.IsCompleted);
 
         innerClient.AllowImportMeshCompletion.SetResult();
 
@@ -128,7 +128,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         Assert.Equal(1, innerClient.ImportMeshCallCount);
         Assert.Equal(1, innerClient.AddSlotCallCount);
-        Assert.False(innerClient.AddSlotStartedAfterImportCompleted);
+        Assert.True(innerClient.AddSlotStartedAfterImportCompleted);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task GetSlotAsyncReconnectWaitsForConcurrentImportBeforeDisposingClient()
+    public async Task GetSlotAsyncWaitsForImportMeshToCompleteBeforeRetryingReconnect()
     {
         int createdClientCount = 0;
         using CoordinatedReconnectableClient firstClient = new(failGetSlot: true);
@@ -248,45 +248,17 @@ public sealed class RetryingResoniteLinkClientTests
         await firstClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Task<Slot?> getSlotTask = client.GetSlotAsync("slot-id", 0, CancellationToken.None);
-        await firstClient.ImportMeshCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await Task.Delay(100);
+        Assert.False(getSlotTask.IsCompleted);
+        Assert.Equal(0, firstClient.DisposeCallCount);
+
+        firstClient.AllowImportMeshCompletion.SetResult();
+
+        Uri importedMesh = await importTask;
         Slot? slot = await getSlotTask;
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => importTask);
-        Assert.NotNull(slot);
-        Assert.Equal("slot-id", slot!.ID);
-        Assert.Equal(1, firstClient.DisposeCallCount);
-        Assert.Equal(1, secondClient.ConnectCallCount);
-    }
-
-    [Fact]
-    public async Task GetSlotAsyncReconnectCancelsConcurrentImportBeforeRetry()
-    {
-        int createdClientCount = 0;
-        using CoordinatedReconnectableClient firstClient = new(failGetSlot: true);
-        using CoordinatedReconnectableClient secondClient = new();
-
-        using RetryingResoniteLinkClient client = new(
-            () =>
-            {
-                createdClientCount++;
-                return createdClientCount == 1 ? firstClient : secondClient;
-            });
-
-        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-
-        Task<Uri> importTask = client.ImportMeshAsync(
-            new ImportMeshRawData
-            {
-                RawBinaryPayload = [1, 2, 3],
-                VertexCount = 3,
-            },
-            CancellationToken.None);
-        await firstClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Slot? slot = await client.GetSlotAsync("slot-id", 0, CancellationToken.None);
-        await firstClient.ImportMeshCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => importTask);
+        Assert.Equal(new Uri("resdb:///mesh/ok", UriKind.Absolute), importedMesh);
         Assert.NotNull(slot);
         Assert.Equal("slot-id", slot!.ID);
         Assert.Equal(1, firstClient.DisposeCallCount);

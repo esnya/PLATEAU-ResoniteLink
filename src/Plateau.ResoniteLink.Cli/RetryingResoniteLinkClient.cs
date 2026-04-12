@@ -14,13 +14,10 @@ internal sealed class RetryingResoniteLinkClient(
     int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
-    private const int MaxConcurrentMeshImports = 4;
     private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan SlowImportMeshThreshold = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan SlowImportTextureThreshold = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim operationGate = new(1, 1);
-    private readonly SemaphoreSlim meshImportGate = new(MaxConcurrentMeshImports, MaxConcurrentMeshImports);
-    private readonly SemaphoreSlim textureImportGate = new(1, 1);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private readonly object clientStateGate = new();
     private readonly HashSet<CancellationTokenSource> activeImportCancellations = [];
@@ -35,8 +32,6 @@ internal sealed class RetryingResoniteLinkClient(
     public void Dispose()
     {
         operationGate.Dispose();
-        meshImportGate.Dispose();
-        textureImportGate.Dispose();
         reconnectGate.Dispose();
         inner.Dispose();
     }
@@ -142,7 +137,6 @@ internal sealed class RetryingResoniteLinkClient(
             request,
             "ImportMesh",
             SlowImportMeshThreshold,
-            meshImportGate,
             cancellationToken);
     }
 
@@ -153,7 +147,6 @@ internal sealed class RetryingResoniteLinkClient(
             textureImport,
             "ImportTexture",
             SlowImportTextureThreshold,
-            textureImportGate,
             cancellationToken);
     }
 
@@ -266,7 +259,6 @@ internal sealed class RetryingResoniteLinkClient(
         TState state,
         string operationName,
         TimeSpan slowThreshold,
-        SemaphoreSlim importGate,
         CancellationToken cancellationToken)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
@@ -274,7 +266,6 @@ internal sealed class RetryingResoniteLinkClient(
             operation,
             state,
             operationName,
-            importGate,
             cancellationToken);
         stopwatch.Stop();
 
@@ -298,10 +289,9 @@ internal sealed class RetryingResoniteLinkClient(
         Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
         TState state,
         string operationName,
-        SemaphoreSlim importGate,
         CancellationToken cancellationToken)
     {
-        await importGate.WaitAsync(cancellationToken);
+        await operationGate.WaitAsync(cancellationToken);
         try
         {
             while (true)
@@ -356,7 +346,7 @@ internal sealed class RetryingResoniteLinkClient(
         }
         finally
         {
-            importGate.Release();
+            operationGate.Release();
         }
     }
 
