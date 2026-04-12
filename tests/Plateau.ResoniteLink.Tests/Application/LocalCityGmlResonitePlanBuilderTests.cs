@@ -7,11 +7,13 @@ namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class LocalCityGmlResonitePlanBuilderTests
 {
+    private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
+
     private static PlateauImportService CreateService(IResoniteSceneBuilder sceneBuilder)
     {
         return new PlateauImportService(
             sceneBuilder,
-            new CkanPlateauDatasetSourceResolver(),
+            new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(

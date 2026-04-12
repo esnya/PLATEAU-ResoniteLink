@@ -12,11 +12,13 @@ namespace Plateau.ResoniteLink.Tests.Cli;
     Justification = "The CLI test hands builder ownership to PlateauImportService.")]
 public sealed class CliApplicationTests
 {
+    private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
+
     private static PlateauImportService CreateImportService(IResoniteSceneBuilder sceneBuilder)
     {
         return new PlateauImportService(
             sceneBuilder,
-            new CkanPlateauDatasetSourceResolver(),
+            new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
             new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(

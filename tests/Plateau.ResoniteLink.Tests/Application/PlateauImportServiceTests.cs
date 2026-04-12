@@ -17,6 +17,8 @@ namespace Plateau.ResoniteLink.Tests.Application;
 [Trait("Category", "Slow")]
 public sealed class PlateauImportServiceTests
 {
+    private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
+
     private static PlateauImportService CreateService(
         IResoniteSceneBuilder sceneBuilder,
         IPlateauDatasetSourceResolver? datasetSourceResolver = null,
@@ -25,7 +27,7 @@ public sealed class PlateauImportServiceTests
     {
         return new PlateauImportService(
             sceneBuilder,
-            datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver(),
+            datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
             constructionSourceFactory ?? CreateConstructionSourceFactory(),
             progressReporter);
     }

@@ -11,11 +11,6 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
 
-    public CkanPlateauDatasetSourceResolver()
-        : this(new HttpClient())
-    {
-    }
-
     public CkanPlateauDatasetSourceResolver(HttpClient httpClient)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));

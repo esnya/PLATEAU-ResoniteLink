@@ -8,6 +8,8 @@ namespace Plateau.ResoniteLink.Cli;
 
 public static class CliCompositionRoot
 {
+    private static readonly HttpClient SharedDatasetResolverHttpClient = new();
+
     public static CliApplication CreateDefaultApplication()
     {
         return new CliApplication(
@@ -68,7 +70,7 @@ public static class CliCompositionRoot
 
     private static CkanPlateauDatasetSourceResolver CreateDatasetSourceResolver()
     {
-        return new CkanPlateauDatasetSourceResolver();
+        return new CkanPlateauDatasetSourceResolver(SharedDatasetResolverHttpClient);
     }
 
     private static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
