@@ -14,10 +14,12 @@ internal sealed class RetryingResoniteLinkClient(
     int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
+    private const int MaxConcurrentImports = 4;
     private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan SlowImportMeshThreshold = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan SlowImportTextureThreshold = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim operationGate = new(1, 1);
+    private readonly SemaphoreSlim importGate = new(MaxConcurrentImports, MaxConcurrentImports);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private IResoniteLinkClient inner = clientFactory();
     private Uri? endpoint;
@@ -26,6 +28,7 @@ internal sealed class RetryingResoniteLinkClient(
     public void Dispose()
     {
         operationGate.Dispose();
+        importGate.Dispose();
         reconnectGate.Dispose();
         inner.Dispose();
     }
@@ -121,7 +124,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        return ExecuteTimedWithoutReconnectAsync(
+        return ExecuteTimedImportAsync(
             (client, state, ct) => ExecuteImportMeshWithTimeoutAsync(
                 client,
                 state,
@@ -136,7 +139,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return ExecuteTimedWithoutReconnectAsync(
+        return ExecuteTimedImportAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
@@ -246,6 +249,67 @@ internal sealed class RetryingResoniteLinkClient(
         }
 
         return result;
+    }
+
+    private async Task<TResult> ExecuteTimedImportAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        TimeSpan slowThreshold,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TResult result = await ExecuteImportAsync(
+            operation,
+            state,
+            operationName,
+            cancellationToken);
+        stopwatch.Stop();
+
+        reporter?.Invoke(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
+        if (stopwatch.Elapsed >= slowThreshold)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
+                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+        }
+
+        return result;
+    }
+
+    private async Task<TResult> ExecuteImportAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        await importGate.WaitAsync(cancellationToken);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return await operation(inner, state, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
+            throw;
+        }
+        finally
+        {
+            importGate.Release();
+        }
     }
 
     private static async Task<Uri> ExecuteImportMeshWithTimeoutAsync(

@@ -83,7 +83,7 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task ConcurrentOperationsAreSerializedPerClient()
+    public async Task MutationOperationsDoNotWaitForImportMeshToComplete()
     {
         using BlockingReconnectableClient innerClient = new();
         using RetryingResoniteLinkClient client = new(() => innerClient);
@@ -119,7 +119,7 @@ public sealed class RetryingResoniteLinkClientTests
             CancellationToken.None);
 
         await Task.Delay(100);
-        Assert.False(addSlotTask.IsCompleted);
+        Assert.True(addSlotTask.IsCompletedSuccessfully);
 
         innerClient.AllowImportMeshCompletion.SetResult();
 
@@ -128,7 +128,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         Assert.Equal(1, innerClient.ImportMeshCallCount);
         Assert.Equal(1, innerClient.AddSlotCallCount);
-        Assert.True(innerClient.AddSlotStartedAfterImportCompleted);
+        Assert.False(innerClient.AddSlotStartedAfterImportCompleted);
     }
 
     [Fact]
