@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
+
 using Plateau.ResoniteLink.Application.Logging;
 
 using ResoniteLink;
