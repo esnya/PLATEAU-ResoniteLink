@@ -105,17 +105,22 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
-    public void FlushAllIgnoresBatchSizeLimitsForEightDigitMeshBake()
+    public void TryBufferFlushesWhenEightDigitMeshBakeHitsBatchLimits()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 1, maxVerticesPerBatch: 3);
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("first", x: 10.0, z: 10.0), out ResoniteConstructionCityObject? firstBaked));
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("second", x: 80.0, z: 10.0), out ResoniteConstructionCityObject? secondBaked));
 
-        Assert.Null(firstBaked);
-        Assert.Null(secondBaked);
+        Assert.NotNull(firstBaked);
+        Assert.NotNull(secondBaked);
+        Assert.Equal("53394525", firstBaked.ActualMeshCode);
+        Assert.Equal("53394525", secondBaked.ActualMeshCode);
+        Assert.Equal(new ResoniteFloat3(0.0, 0.0, 0.0), firstBaked.Transform.Position);
+        Assert.Equal(new ResoniteFloat3(0.0, 0.0, 0.0), secondBaked.Transform.Position);
+        Assert.Equal(3, firstBaked.Mesh.Vertices.Count);
+        Assert.Equal(3, secondBaked.Mesh.Vertices.Count);
 
-        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
-        Assert.Equal(6, baked.Mesh.Vertices.Count);
+        Assert.Empty(baker.FlushAll());
     }
 
     private static ResoniteConstructionCityObject CreateTriangleBuilding(string slotKey, double x, double z, string actualMeshCode = "53394525")
