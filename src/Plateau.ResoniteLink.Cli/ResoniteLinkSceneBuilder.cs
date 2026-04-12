@@ -857,21 +857,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         slotHierarchyStopwatch.Stop();
 
-        ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
-        Stopwatch geometryStopwatch = Stopwatch.StartNew();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Task<PreparedGeometryAssetBatch> preparedGeometryBatchTask = PrepareGeometryBatchAsync(
-            importClient,
-            cityObject,
-            preparedCityObject,
-            buildStepCancellation.Token);
-
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
                 texture.TexturePath,
                 texture.TextureSourceKind),
             static texture => texture.TextureImport);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
+        Stopwatch geometryStopwatch = new();
         List<MaterialReferenceTarget> materialTargets = [];
         List<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks = [];
         PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets;
@@ -907,15 +900,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
             preparedDedicatedMaterialAssets = dedicatedMaterialPreparationTasks.Count == 0
                 ? []
-                : await Task.WhenAll(dedicatedMaterialPreparationTasks);
+                : await AwaitDedicatedMaterialPreparationsAsync(
+                    dedicatedMaterialPreparationTasks,
+                    buildStepCancellation);
             materialStopwatch.Stop();
-            preparedGeometryBatch = await preparedGeometryBatchTask;
+
+            ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
+            geometryStopwatch.Start();
+            preparedGeometryBatch = await PrepareGeometryBatchAsync(
+                importClient,
+                cityObject,
+                preparedCityObject,
+                buildStepCancellation.Token);
             geometryStopwatch.Stop();
         }
         catch
         {
             await buildStepCancellation.CancelAsync();
-            await ObserveTaskFailureAsync(preparedGeometryBatchTask);
+            await ObserveTaskFailuresAsync(dedicatedMaterialPreparationTasks);
             throw;
         }
 
@@ -972,6 +974,40 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         catch
         {
         }
+    }
+
+    private static Task ObserveTaskFailuresAsync(IEnumerable<Task> tasks)
+    {
+        return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
+    }
+
+    private static async Task<PreparedDedicatedMaterialAssets[]> AwaitDedicatedMaterialPreparationsAsync(
+        IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> tasks,
+        CancellationTokenSource buildStepCancellation)
+    {
+        PreparedDedicatedMaterialAssets[] results = new PreparedDedicatedMaterialAssets[tasks.Count];
+        List<(Task<PreparedDedicatedMaterialAssets> Task, int Index)> remaining = tasks
+            .Select(static (task, index) => (Task: task, Index: index))
+            .ToList();
+
+        while (remaining.Count > 0)
+        {
+            Task<PreparedDedicatedMaterialAssets> completedTask = await Task.WhenAny(
+                remaining.Select(static entry => entry.Task));
+            int completedIndex = remaining.FindIndex(entry => ReferenceEquals(entry.Task, completedTask));
+            (Task<PreparedDedicatedMaterialAssets> Task, int Index) entry = remaining[completedIndex];
+            remaining.RemoveAt(completedIndex);
+
+            if (completedTask.IsFaulted || completedTask.IsCanceled)
+            {
+                await buildStepCancellation.CancelAsync();
+                await completedTask;
+            }
+
+            results[entry.Index] = await completedTask;
+        }
+
+        return results;
     }
 
     private async Task<ObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(
