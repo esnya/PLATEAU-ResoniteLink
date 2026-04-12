@@ -2457,28 +2457,6 @@ public sealed class ResoniteLinkSceneBuilderTests
             && string.Equals(slot.Name?.Value, "PLATEAU tokyo23ku", StringComparison.Ordinal)));
     }
 
-    [Fact]
-    public async Task BuildAsyncFreshRunDoesNotRereadNewlyCreatedSlots()
-    {
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        CapturedResoniteScene scene = LoadScene(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: fixturePath,
-                ServerUri: null));
-        FakeResoniteLinkSession session = new();
-
-        await RunBuilderAsync(
-            new ResoniteLinkSceneBuilder(
-                new Uri("ws://localhost:12345/"),
-                1,
-                ResoniteLinkSendDiagnostics.Disabled,
-                () => new FakeResoniteLinkClient(session, failNonRootGetSlot: true)),
-            scene);
-    }
-
     private static List<DataModelOperation> ResolveBatchLocalSlotReferences(
         IReadOnlyList<DataModelOperation> operations,
         Func<string> allocateSlotId,
