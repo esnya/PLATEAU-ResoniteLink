@@ -9,6 +9,7 @@ namespace Plateau.ResoniteLink.Cli;
 public static class CliCompositionRoot
 {
     private static readonly HttpClient SharedDatasetResolverHttpClient = new();
+    private static readonly HttpClient SharedTerrainTextureAssetHttpClient = new();
 
     public static CliApplication CreateDefaultApplication()
     {
@@ -82,7 +83,7 @@ public static class CliCompositionRoot
     {
         return new ResoniteLinkSceneBuilderDependencies(
             static () => new ResoniteLinkClient(),
-            new TerrainTextureAssetGenerator());
+            new TerrainTextureAssetGenerator(SharedTerrainTextureAssetHttpClient));
     }
 
     private static void WriteLogLine(
