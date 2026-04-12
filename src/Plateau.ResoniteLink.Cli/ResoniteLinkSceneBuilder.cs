@@ -763,17 +763,36 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return meshCode;
         }
 
-        string? requestedMeshCode = metadata.SourceDataset.RequestedMeshCodes?
-            .FirstOrDefault(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _));
-        if (!string.IsNullOrWhiteSpace(requestedMeshCode))
+        (string MeshCode, double DistanceSquared)? requestedMeshCode = metadata.SourceDataset.RequestedMeshCodes?
+            .Select(candidate => TryResolveConcreteMeshCodeDistance(candidate, metadata.LocalOrigin))
+            .Where(static candidate => candidate.HasValue)
+            .Select(static candidate => candidate!.Value)
+            .OrderBy(static candidate => candidate.DistanceSquared)
+            .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (requestedMeshCode.HasValue)
         {
-            return requestedMeshCode;
+            return requestedMeshCode.Value.MeshCode;
         }
 
         throw new InvalidOperationException(
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"Live Offset V2 requires a concrete meshcode anchor, but '{meshCode}' did not resolve to any concrete meshcode."));
+    }
+
+    private static (string MeshCode, double DistanceSquared)? TryResolveConcreteMeshCodeDistance(
+        string meshCode,
+        ResoniteLocalOrigin requestOrigin)
+    {
+        if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin concreteCenter))
+        {
+            return null;
+        }
+
+        ResoniteFloat3 offset = ComputeOriginOffset(requestOrigin, concreteCenter);
+        double distanceSquared = (offset.X * offset.X) + (offset.Z * offset.Z);
+        return (meshCode, distanceSquared);
     }
 
     private async Task BuildPreparedCityObjectAsync(
