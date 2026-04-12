@@ -193,6 +193,7 @@ internal sealed class RetryingResoniteLinkClient(
         string operationName,
         CancellationToken cancellationToken)
     {
+        await WaitForActiveImportsToDrainAsync(cancellationToken);
         await operationGate.WaitAsync(cancellationToken);
         try
         {
@@ -285,7 +286,6 @@ internal sealed class RetryingResoniteLinkClient(
         string operationName,
         CancellationToken cancellationToken)
     {
-        await operationGate.WaitAsync(cancellationToken);
         try
         {
             while (true)
@@ -294,20 +294,28 @@ internal sealed class RetryingResoniteLinkClient(
                 Task reconnectTask;
                 IResoniteLinkClient? client = null;
                 CancellationTokenSource? importCancellation = null;
-                lock (clientStateGate)
+                await operationGate.WaitAsync(cancellationToken);
+                try
                 {
-                    if (!reconnectPending)
+                    lock (clientStateGate)
                     {
-                        activeImportCount++;
-                        client = inner;
-                        importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        activeImportCancellations.Add(importCancellation);
-                        reconnectTask = Task.CompletedTask;
+                        if (!reconnectPending)
+                        {
+                            activeImportCount++;
+                            client = inner;
+                            importCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                            activeImportCancellations.Add(importCancellation);
+                            reconnectTask = Task.CompletedTask;
+                        }
+                        else
+                        {
+                            reconnectTask = reconnectCompletion?.Task ?? Task.CompletedTask;
+                        }
                     }
-                    else
-                    {
-                        reconnectTask = reconnectCompletion?.Task ?? Task.CompletedTask;
-                    }
+                }
+                finally
+                {
+                    operationGate.Release();
                 }
 
                 if (client is null)
@@ -338,10 +346,6 @@ internal sealed class RetryingResoniteLinkClient(
                     $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
             throw;
         }
-        finally
-        {
-            operationGate.Release();
-        }
     }
 
     private void ReleaseActiveImport(CancellationTokenSource importCancellation)
@@ -351,7 +355,7 @@ internal sealed class RetryingResoniteLinkClient(
         {
             activeImportCount--;
             activeImportCancellations.Remove(importCancellation);
-            if (activeImportCount == 0 && reconnectPending)
+            if (activeImportCount == 0)
             {
                 importDrainSignal = importDrainCompletion;
                 importDrainCompletion = null;
@@ -360,6 +364,28 @@ internal sealed class RetryingResoniteLinkClient(
 
         importCancellation.Dispose();
         importDrainSignal?.TrySetResult(true);
+    }
+
+    private async Task WaitForActiveImportsToDrainAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Task waitTask;
+            lock (clientStateGate)
+            {
+                if (activeImportCount == 0 && !reconnectPending)
+                {
+                    return;
+                }
+
+                waitTask = reconnectPending
+                    ? reconnectCompletion?.Task ?? Task.CompletedTask
+                    : (importDrainCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+            }
+
+            await waitTask.WaitAsync(cancellationToken);
+        }
     }
 
     [SuppressMessage(
