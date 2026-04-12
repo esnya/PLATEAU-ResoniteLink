@@ -18,12 +18,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
     private const int WorkerConnectTimeoutMilliseconds = 5000;
+    private const int DatasetRootLookupAttemptLimit = 5;
     private const string RootSlotId = "Root";
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
     private const string HeightMapAssetSlotSuffix = "_heightmap";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
+    private static readonly TimeSpan DatasetRootLookupRetryDelay = TimeSpan.FromMilliseconds(100);
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -240,10 +242,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string slotName,
         CancellationToken cancellationToken)
     {
-        CreatedSlot? existingDatasetRoot = await TryGetUniqueChildSlotByNameAsync(
+        CreatedSlot? existingDatasetRoot = await TryGetUniqueChildSlotByNameWithRetryAsync(
             client,
             RootSlotId,
             slotName,
+            DatasetRootLookupAttemptLimit,
+            DatasetRootLookupRetryDelay,
             cancellationToken);
         if (existingDatasetRoot is not null)
         {
@@ -1773,6 +1777,35 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         Slot? parentSlot = await client.GetSlotAsync(parentId, 1, cancellationToken);
         return TryFindUniqueChildSlotByName(parentSlot, slotName, parentId);
+    }
+
+    private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameWithRetryAsync(
+        IResoniteLinkClient client,
+        string parentId,
+        string slotName,
+        int attemptLimit,
+        TimeSpan retryDelay,
+        CancellationToken cancellationToken)
+    {
+        for (int attempt = 1; attempt <= attemptLimit; attempt++)
+        {
+            CreatedSlot? existingSlot = await TryGetUniqueChildSlotByNameAsync(
+                client,
+                parentId,
+                slotName,
+                cancellationToken);
+            if (existingSlot is not null)
+            {
+                return existingSlot;
+            }
+
+            if (attempt < attemptLimit && retryDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(retryDelay, cancellationToken);
+            }
+        }
+
+        return null;
     }
 
     private static CreatedSlot? TryFindUniqueChildSlotByName(

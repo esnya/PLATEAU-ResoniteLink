@@ -2206,6 +2206,52 @@ public sealed class ResoniteLinkSceneBuilderTests
                 && string.Equals(request.Data.Name?.Value, "Assets", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task BeginAsyncRetriesDatasetRootLookupBeforeCreatingDuplicateRoot()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+        string existingDatasetRootId = session.AllocateSlotId();
+        session.SlotsById[existingDatasetRootId] = new Slot
+        {
+            ID = existingDatasetRootId,
+            Parent = new Reference
+            {
+                TargetID = "Root",
+            },
+            Name = new Field_string
+            {
+                Value = "PLATEAU tokyo23ku",
+            },
+        };
+        session.SlotPaths[existingDatasetRootId] = "PLATEAU tokyo23ku";
+
+        using DelayedExistingDatasetRootClient fakeClient = new(session, "PLATEAU tokyo23ku", hiddenPollCount: 2);
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+
+        Assert.DoesNotContain(
+            fakeClient.AddedSlots,
+            static request => string.Equals(request.Data.Name?.Value, "PLATEAU tokyo23ku", StringComparison.Ordinal));
+        Assert.True(fakeClient.RootLookupCount >= 3);
+        Assert.Equal(1, session.SlotsById.Values.Count(slot =>
+            string.Equals(slot.Parent?.TargetID, "Root", StringComparison.Ordinal)
+            && string.Equals(slot.Name?.Value, "PLATEAU tokyo23ku", StringComparison.Ordinal)));
+    }
+
     private static List<DataModelOperation> ResolveBatchLocalSlotReferences(
         IReadOnlyList<DataModelOperation> operations,
         Func<string> allocateSlotId,
@@ -3817,6 +3863,113 @@ public sealed class ResoniteLinkSceneBuilderTests
                     .ToList();
             }
 
+            return clone;
+        }
+    }
+
+    private sealed class DelayedExistingDatasetRootClient(
+        FakeResoniteLinkSession session,
+        string hiddenSlotName,
+        int hiddenPollCount) : IResoniteLinkClient
+    {
+        private readonly FakeResoniteLinkClient inner = new(session);
+        private int remainingHiddenPolls = hiddenPollCount;
+
+        public int RootLookupCount { get; private set; }
+
+        public List<AddSlot> AddedSlots => inner.AddedSlots;
+
+        public void Dispose()
+        {
+            inner.Dispose();
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            return inner.ConnectAsync(endpoint, cancellationToken);
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            return inner.AddComponentAsync(request, cancellationToken);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            return inner.AddSlotAsync(request, cancellationToken);
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            return inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            return inner.GetComponentAsync(componentId, cancellationToken);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return inner.GetSlotAsync(slotId, depth, cancellationToken);
+            }
+
+            lock (session.Gate)
+            {
+                RootLookupCount++;
+                Slot root = CreateSyntheticRootSlot(session, depth, CloneSlot);
+                if (depth > 0 && remainingHiddenPolls > 0)
+                {
+                    root.Children = root.Children?
+                        .Where(child => !string.Equals(child.Name?.Value, hiddenSlotName, StringComparison.Ordinal))
+                        .ToList();
+                    remainingHiddenPolls--;
+                }
+
+                return Task.FromResult<Slot?>(root);
+            }
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            return inner.ImportMeshAsync(request, cancellationToken);
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            return inner.ImportTextureAsync(textureImport, cancellationToken);
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            return inner.UpdateComponentAsync(request, cancellationToken);
+        }
+
+        private static Slot CloneSlot(Slot source, int depth)
+        {
+            Slot clone = new()
+            {
+                ID = source.ID,
+                Parent = source.Parent,
+                Name = source.Name,
+                Position = source.Position,
+                Rotation = source.Rotation,
+                Components = source.Components,
+            };
+
+            if (depth <= 0)
+            {
+                return clone;
+            }
+
+            clone.Children = source.Children?
+                .Select(child => CloneSlot(child, depth - 1))
+                .ToList();
             return clone;
         }
     }
