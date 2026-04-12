@@ -210,7 +210,7 @@ internal sealed class RetryingResoniteLinkClient(
                 PlateauLog.Warning(
                     "live",
                     $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
-            throw;
+            throw ResoniteLinkOperationException.Wrap(operationName, exception);
         }
         finally
         {
@@ -344,7 +344,7 @@ internal sealed class RetryingResoniteLinkClient(
                 PlateauLog.Warning(
                     "live",
                     $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
-            throw;
+            throw ResoniteLinkOperationException.Wrap(operationName, exception);
         }
     }
 
@@ -433,7 +433,7 @@ internal sealed class RetryingResoniteLinkClient(
                 }
             }
 
-            throw lastException!;
+            throw ResoniteLinkOperationException.Wrap(operationName, lastException!);
         }
         finally
         {
@@ -536,5 +536,22 @@ internal sealed class RetryingResoniteLinkClient(
         inner = clientFactory();
         Interlocked.Increment(ref generation);
         previous.Dispose();
+    }
+}
+
+internal sealed class ResoniteLinkOperationException : InvalidOperationException
+{
+    public ResoniteLinkOperationException(string operationName, string message, Exception innerException)
+        : base(message, innerException)
+    {
+        OperationName = operationName;
+    }
+
+    public string OperationName { get; }
+
+    public static ResoniteLinkOperationException Wrap(string operationName, Exception exception)
+    {
+        return exception as ResoniteLinkOperationException
+            ?? new ResoniteLinkOperationException(operationName, exception.Message, exception);
     }
 }

@@ -1903,7 +1903,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncSurfacesLaneFailureWhenCityObjectSendFails()
+    public async Task BuildAsyncSkipsFailedCityObjectsAndContinues()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
         CapturedResoniteScene scene = LoadScene(
@@ -1926,16 +1926,26 @@ public sealed class ResoniteLinkSceneBuilderTests
                 () => Interlocked.Decrement(ref remainingMeshImportFailures) >= 0),
             progressReporter: progressMessages.Add);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await RunBuilderAsync(builder, scene));
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
-        Assert.Contains("Simulated mesh import failure.", exception.Message, StringComparison.Ordinal);
+        Assert.Single(destinations);
+        Assert.InRange(session.ImportedMeshes.Count, 1, scene.CityObjects.Count - 1);
         Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][warn] Skipping city object after send failure", StringComparison.Ordinal));
+        Assert.DoesNotContain(
             progressMessages,
             static message => message.Contains("[live][error] Send lane 1/1 failed:", StringComparison.Ordinal));
         Assert.Contains(
             progressMessages,
             static message => message.Contains("[live][debug] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][info] Sent city object ", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("Send summary: attempted=", StringComparison.Ordinal)
+                && message.Contains(" failed=", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1962,10 +1972,9 @@ public sealed class ResoniteLinkSceneBuilderTests
         await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
 
         Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
-        client.AllowImportMeshCompletion.TrySetResult();
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await completionTask.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Contains("Simulated texture import failure.", exception.Message, StringComparison.Ordinal);
+        await client.ImportMeshCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        IReadOnlyList<string> destinations = await completionTask.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Single(destinations);
     }
 
     [Fact]
@@ -1987,7 +1996,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             ResoniteLinkSendDiagnostics.Disabled,
             () => new FailingImportMeshSharedClient(session, static () => true));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await RunBuilderAsync(builder, scene));
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
+        Assert.Single(destinations);
         Assert.DoesNotContain(
             session.SlotPaths.Values,
             static path => string.Equals(path, "PLATEAU tokyo23ku/53394525/bldg/LOD2/Building One", StringComparison.Ordinal));

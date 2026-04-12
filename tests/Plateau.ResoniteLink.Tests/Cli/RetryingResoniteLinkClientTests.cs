@@ -23,7 +23,7 @@ public sealed class RetryingResoniteLinkClientTests
             progressMessages.Add);
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        ResoniteLinkOperationException exception = await Assert.ThrowsAsync<ResoniteLinkOperationException>(
             () => client.ImportMeshAsync(
                 new ImportMeshRawData
                 {
@@ -31,6 +31,7 @@ public sealed class RetryingResoniteLinkClientTests
                     VertexCount = 3,
                 },
                 CancellationToken.None));
+        Assert.Equal("ImportMesh", exception.OperationName);
 
         Assert.Equal(1, firstClient.ImportMeshCallCount);
         Assert.Equal(0, secondClient.ImportMeshCallCount);

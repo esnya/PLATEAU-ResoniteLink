@@ -58,7 +58,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private CancellationTokenSource? processingCancellationSource;
     private TaskCompletionSource<Exception>? firstProcessingFailureSource;
     private FixedCellCityObjectMeshBaker? meshBaker;
+    private int attemptedCityObjectCount;
     private int processedCityObjectCount;
+    private int failedCityObjectCount;
     private Stopwatch? sceneBuildStopwatch;
     private int firstQueuedCityObjectLogged;
     private int firstPreparedCityObjectLogged;
@@ -247,6 +249,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 }))
             .ToArray();
         processedCityObjectCount = 0;
+        attemptedCityObjectCount = 0;
+        failedCityObjectCount = 0;
         sceneBuildStopwatch = Stopwatch.StartNew();
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
@@ -492,9 +496,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportProgress("[live] All send lanes drained.");
         diagnostics.CompleteSendWindow();
         ReportProgress(
-            $"[live] Completed {processedCityObjectCount} city objects.");
+            $"[live] Completed {processedCityObjectCount} city objects "
+            + $"(failed={failedCityObjectCount}, attempted={attemptedCityObjectCount}).");
         ReportProgress(
-            $"[live] Send summary: attempted={processedCityObjectCount} sent={processedCityObjectCount}.");
+            $"[live] Send summary: attempted={attemptedCityObjectCount} sent={processedCityObjectCount} failed={failedCityObjectCount}.");
 
         return [$"{endpoint}#{sceneAnchor?.SlotId ?? datasetRootSlot?.SlotId ?? string.Empty}"];
     }
@@ -592,20 +597,66 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return Path.Combine(Path.GetFullPath(datasetRoot), "run", Guid.NewGuid().ToString("N"));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Live send should log and skip individual city object send failures while keeping the lane alive.")]
     private async Task ProcessQueuedCityObjectAsync(
         IResoniteLinkClient client,
         QueuedCityObject queuedCityObject,
         CancellationToken cancellationToken)
     {
-        PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-        await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
+        Interlocked.Increment(ref attemptedCityObjectCount);
+        try
+        {
+            PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
+            await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
 
-        int processedCount = Interlocked.Increment(ref processedCityObjectCount);
-        ReportProgress(
-            $"[live] Sent city object {processedCount}: "
-            + $"{preparedCityObject.CityObject.DisplayName} "
-            + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
-            PlateauLogLevel.Info);
+            int processedCount = Interlocked.Increment(ref processedCityObjectCount);
+            ReportProgress(
+                $"[live] Sent city object {processedCount}: "
+                + $"{preparedCityObject.CityObject.DisplayName} "
+                + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
+                PlateauLogLevel.Info);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (!IsRecoverableCityObjectSendFailure(exception))
+            {
+                throw;
+            }
+
+            int failedCount = Interlocked.Increment(ref failedCityObjectCount);
+            ReportProgress(
+                PlateauLog.Warning(
+                    "live",
+                    $"Skipping city object after send failure {failedCount}: "
+                    + $"{queuedCityObject.CityObject.DisplayName} "
+                    + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
+                    + $"Reason: {exception.Message}"));
+        }
+    }
+
+    private static bool IsRecoverableCityObjectSendFailure(Exception exception)
+    {
+        return FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
+    }
+
+    private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is ResoniteLinkOperationException operationException)
+            {
+                return operationException;
+            }
+        }
+
+        return null;
     }
 
     private async Task EnqueueCityObjectAsync(
