@@ -17,7 +17,7 @@ workspace root 配下には次の file がある前提です。
 - `scripts/ResoniteAdmin/ResoniteAdmin.csproj`
 
 ad hoc な repository script より bundled skill script を優先してください。これらの wrapper は admin utility や CLI binary を必要に応じて build するため、別の手動 build command は canonical procedure には含めません。
-root dump や cleanup の helper を使うときは、`ResoniteAdmin` が都度 rebuild され、実際の dump / cleanup の前に build output が出ることを想定してください。
+root dump や cleanup の helper を使うときは、`ResoniteAdmin` が都度 rebuild され、実際の dump / cleanup の前に build output が出ること、そして fresh な Windows build output が必須であることを想定してください。Windows の app host がある場合は `ResoniteAdmin.exe` を起動し、なければ freshly built な `.dll` を `dotnet` で起動します。
 
 ## Skill Guardrails
 
