@@ -2466,14 +2466,35 @@ public sealed class PlateauImportServiceTests
         public List<PlateauImportRequest> Requests { get; } = [];
         public List<string> WorkRoots { get; } = [];
 
-        public Task<PlateauImportRequest> ResolveAsync(
-            PlateauImportRequest request,
+        public Task<ValidatedPlateauImportRequest> ResolveAsync(
+            ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
-            Requests.Add(request);
+            Requests.Add(request.ToImportRequest());
             WorkRoots.Add(workRoot);
-            return Task.FromResult(resolvedRequest);
+
+            ValidatedPlateauImportSource resolvedSource = resolvedRequest.Source switch
+            {
+                PlateauLocalImportSource localSource => new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath!),
+                PlateauRemoteImportSource remoteSource => new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri!),
+                _ => throw new InvalidOperationException($"Unsupported source kind '{resolvedRequest.SourceKind}'."),
+            };
+
+            return Task.FromResult(
+                new ValidatedPlateauImportRequest(
+                    resolvedRequest.Dataset,
+                    resolvedRequest.MeshCode,
+                    request.MeshCodePattern,
+                    resolvedSource,
+                    resolvedRequest.PackageNames,
+                    resolvedRequest.GlobalExcludeLodLevels,
+                    resolvedRequest.ExcludeLodLevelsByPackage,
+                    resolvedRequest.PackagePatterns,
+                    resolvedRequest.IncludeMarkingAlways,
+                    resolvedRequest.DemTerrainMode,
+                    resolvedRequest.DemHeightmapMetersPerVertex,
+                    resolvedRequest.DemHeightmapMaxResolution));
         }
     }
 
