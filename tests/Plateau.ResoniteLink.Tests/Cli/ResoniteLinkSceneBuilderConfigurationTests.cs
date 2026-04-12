@@ -7,7 +7,7 @@ public sealed class ResoniteLinkSceneBuilderConfigurationTests
     [Fact]
     public async Task ConstructorEnablesMeshBakeByDefault()
     {
-        await using ResoniteLinkSceneBuilder builder = new(new Uri("ws://localhost:12345/"), progressReporter: null);
+        await using ResoniteLinkSceneBuilder builder = CreateBuilder();
 
         Assert.True(builder.MeshBakeEnabled);
     }
@@ -15,15 +15,20 @@ public sealed class ResoniteLinkSceneBuilderConfigurationTests
     [Fact]
     public async Task ConstructorCanDisableMeshBake()
     {
-        await using ResoniteLinkSceneBuilder builder = new(
+        await using ResoniteLinkSceneBuilder builder = CreateBuilder(enableMeshBake: false);
+
+        Assert.False(builder.MeshBakeEnabled);
+    }
+
+    private static ResoniteLinkSceneBuilder CreateBuilder(bool enableMeshBake = true)
+    {
+        return new ResoniteLinkSceneBuilder(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
             static () => throw new InvalidOperationException("unused"),
-            terrainTextureAssetGenerator: null,
-            enableMeshBake: false,
+            new TerrainTextureAssetGenerator(),
+            enableMeshBake,
             progressReporter: null);
-
-        Assert.False(builder.MeshBakeEnabled);
     }
 }

@@ -11,7 +11,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         StubConstructionSource expectedSource = new();
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer);
+        LocalCityGmlConstructionSourceFactory factory = CreateFactory(reader, composer);
 
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -26,6 +26,13 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Same(request, reader.LastRequest);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(reader.DocumentSet, composer.LastDocumentSet);
+    }
+
+    private static LocalCityGmlConstructionSourceFactory CreateFactory(
+        ICityGmlDocumentReader documentReader,
+        IResoniteConstructionComposer constructionComposer)
+    {
+        return new LocalCityGmlConstructionSourceFactory(documentReader, constructionComposer);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader

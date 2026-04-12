@@ -13,7 +13,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return new LocalCityGmlConstructionSourceFactory().CreateAsync(
+        return CreateConstructionSourceFactory().CreateAsync(
             request,
             progressReporter,
             cancellationToken);
@@ -24,6 +24,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null)
     {
         return CreateConstructionSourceAsync(request, progressReporter).GetAwaiter().GetResult();
+    }
+
+    private static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
+    {
+        return PlateauImportApplicationComposition.CreateConstructionSourceFactory();
     }
 
     private static async Task<IResoniteConstructionSource> CreateConstructionSourceCoreAsync(

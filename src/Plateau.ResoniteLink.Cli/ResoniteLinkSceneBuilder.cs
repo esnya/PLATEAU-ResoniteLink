@@ -59,12 +59,26 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private SceneAnchor? sceneAnchor;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
-        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds, progressReporter)
+        : this(
+            endpoint,
+            4,
+            ResoniteLinkSendDiagnostics.Disabled,
+            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
+            enableMeshBake: true,
+            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
+            progressReporter)
     {
     }
 
     public ResoniteLinkSceneBuilder(Uri endpoint, int connectionCount, Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds, progressReporter)
+        : this(
+            endpoint,
+            connectionCount,
+            ResoniteLinkSendDiagnostics.Disabled,
+            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
+            enableMeshBake: true,
+            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
+            progressReporter)
     {
     }
 
@@ -73,7 +87,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds, progressReporter)
+        : this(
+            endpoint,
+            connectionCount,
+            diagnostics,
+            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
+            enableMeshBake: true,
+            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
+            progressReporter)
     {
     }
 
@@ -84,7 +105,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         bool enableMeshBake,
         int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
         Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake, importMeshTimeoutMilliseconds, progressReporter)
+        : this(
+            endpoint,
+            connectionCount,
+            diagnostics,
+            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
+            enableMeshBake,
+            importMeshTimeoutMilliseconds,
+            progressReporter)
     {
     }
 
@@ -93,17 +121,54 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Func<IResoniteLinkClient> clientFactory,
-        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        Action<string>? progressReporter = null)
+        : this(
+            endpoint,
+            connectionCount,
+            diagnostics,
+            new ResoniteLinkSceneBuilderDependencies(clientFactory, new TerrainTextureAssetGenerator()),
+            enableMeshBake: true,
+            progressReporter)
+    {
+    }
+
+    internal ResoniteLinkSceneBuilder(
+        Uri endpoint,
+        int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
+        Func<IResoniteLinkClient> clientFactory,
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
+        bool enableMeshBake = true,
+        Action<string>? progressReporter = null)
+        : this(
+            endpoint,
+            connectionCount,
+            diagnostics,
+            new ResoniteLinkSceneBuilderDependencies(clientFactory, terrainTextureAssetGenerator),
+            enableMeshBake,
+            progressReporter)
+    {
+    }
+
+    internal ResoniteLinkSceneBuilder(
+        Uri endpoint,
+        int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
+        ResoniteLinkSceneBuilderDependencies dependencies,
         bool enableMeshBake = true,
         int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
         Action<string>? progressReporter = null)
     {
+        ArgumentNullException.ThrowIfNull(dependencies);
+        ArgumentNullException.ThrowIfNull(dependencies.ClientFactory);
+        ArgumentNullException.ThrowIfNull(dependencies.TerrainTextureAssetGenerator);
+
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
         this.importMeshTimeoutMilliseconds = importMeshTimeoutMilliseconds;
         this.diagnostics = diagnostics;
-        this.clientFactory = clientFactory;
-        this.terrainTextureAssetGenerator = terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator();
+        this.clientFactory = dependencies.ClientFactory;
+        this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
         MeshBakeEnabled = enableMeshBake;
         this.progressReporter = progressReporter;
         geometryAssetAssembler = new ResoniteGeometryAssetAssembler(ReportProgress);
