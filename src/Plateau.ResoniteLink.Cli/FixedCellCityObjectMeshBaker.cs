@@ -113,6 +113,16 @@ internal sealed class FixedCellCityObjectMeshBaker
 
     private CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
     {
+        if (ShouldBakeAsSingleEightDigitMesh(cityObject))
+        {
+            return new CellKey(
+                cityObject.ActualMeshCode,
+                cityObject.PackageName,
+                cityObject.LodLevel,
+                CellX: 0,
+                CellZ: 0);
+        }
+
         int cellX = (int)Math.Floor(cityObject.Transform.Position.X / cellSizeMeters);
         int cellZ = (int)Math.Floor(cityObject.Transform.Position.Z / cellSizeMeters);
         return new CellKey(
@@ -121,6 +131,12 @@ internal sealed class FixedCellCityObjectMeshBaker
             cityObject.LodLevel,
             cellX,
             cellZ);
+    }
+
+    private static bool ShouldBakeAsSingleEightDigitMesh(ResoniteConstructionCityObject cityObject)
+    {
+        return CanBake(cityObject)
+            && cityObject.ActualMeshCode.Length == 8;
     }
 
     private bool TryFlushOldestBufferExcept(
