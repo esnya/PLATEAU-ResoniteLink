@@ -10,7 +10,8 @@ public sealed record ResoniteConstructionCityObject(
     ResoniteConstructionGeometry Geometry,
     IReadOnlyList<ResoniteMaterialBinding> Materials,
     bool CollisionEnabled = true,
-    string? SourceObjectKey = null)
+    string? SourceObjectKey = null,
+    string? SourceUnitKey = null)
 {
     public ResoniteConstructionCityObject(
         string SlotKey,
@@ -22,7 +23,8 @@ public sealed record ResoniteConstructionCityObject(
         ResoniteImportedMesh Mesh,
         IReadOnlyList<ResoniteMaterialBinding> Materials,
         bool CollisionEnabled = true,
-        string? SourceObjectKey = null)
+        string? SourceObjectKey = null,
+        string? SourceUnitKey = null)
         : this(
             SlotKey,
             DisplayName,
@@ -33,7 +35,8 @@ public sealed record ResoniteConstructionCityObject(
             new ResoniteTriangleMeshGeometry(Mesh),
             Materials,
             CollisionEnabled,
-            SourceObjectKey)
+            SourceObjectKey,
+            SourceUnitKey)
     {
     }
 

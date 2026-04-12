@@ -122,6 +122,7 @@ public sealed class LocalCityGmlBootstrapModelTests
                     TexturePath: "textures/wall.png"),
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceUnitIdentity: "udx/bldg/53394525/sample.gml",
             SourceIdentity: "bldg:sample",
             SharedAcrossMeshCodes: false);
 

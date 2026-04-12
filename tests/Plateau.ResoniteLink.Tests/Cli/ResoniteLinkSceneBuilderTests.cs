@@ -1881,6 +1881,28 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncFreshRunDoesNotRereadNewlyCreatedSlots()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => new NonRootGetSlotFailingClient(session)),
+            scene);
+    }
+
+    [Fact]
     public async Task BuildAsyncSurfacesLaneFailureWhenCityObjectSendFails()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
@@ -2748,6 +2770,74 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
 
             return clone;
+        }
+    }
+
+    private sealed class NonRootGetSlotFailingClient : IResoniteLinkClient
+    {
+        private readonly FakeResoniteLinkClient inner;
+
+        public NonRootGetSlotFailingClient(FakeResoniteLinkSession session)
+        {
+            inner = new FakeResoniteLinkClient(session);
+        }
+
+        public void Dispose()
+        {
+            inner.Dispose();
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            return inner.ConnectAsync(endpoint, cancellationToken);
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            return inner.AddComponentAsync(request, cancellationToken);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            return inner.AddSlotAsync(request, cancellationToken);
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            return inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            return inner.GetComponentAsync(componentId, cancellationToken);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            if (!string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Fresh-run regression: unexpected non-root GetSlotAsync('{slotId}').");
+            }
+
+            return inner.GetSlotAsync(slotId, depth, cancellationToken);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            return inner.ImportMeshAsync(request, cancellationToken);
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            return inner.ImportTextureAsync(textureImport, cancellationToken);
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            return inner.UpdateComponentAsync(request, cancellationToken);
         }
     }
 

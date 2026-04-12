@@ -60,18 +60,42 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             "[FrooxEngine]FrooxEngine.License",
             CreateDatasetLicenseMembers(metadata.Attribution.DatasetLicense),
             cancellationToken);
-        SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
-            setupClient,
-            datasetRootSlot.SlotId,
-            completionMeshCode,
-            datasetRootExisted,
-            cancellationToken);
+        SceneAnchor sceneAnchor = datasetRootExisted
+            ? await sceneAnchorResolver.ResolveAsync(
+                setupClient,
+                datasetRootSlot.SlotId,
+                completionMeshCode,
+                datasetRootExisted,
+                cancellationToken)
+            : await CreateInitialSceneAnchorAsync(
+                setupClient,
+                datasetRootSlot,
+                completionMeshCode,
+                cancellationToken);
 
         return new ResoniteSceneBootstrapState(
             datasetRootSlot,
             datasetAssetsRootSlot,
             commonAssetsRootSlot,
+            datasetRootExisted,
             sceneAnchor);
+    }
+
+    private async Task<SceneAnchor> CreateInitialSceneAnchorAsync(
+        IResoniteLinkClient setupClient,
+        ResoniteLinkSceneBuilder.CreatedSlot datasetRootSlot,
+        string completionMeshCode,
+        CancellationToken cancellationToken)
+    {
+        ResoniteFloat3 anchorPosition = new(0.0, 0.0, 0.0);
+        ResoniteLinkSceneBuilder.CreatedSlot anchorSlot = await getOrCreateSharedChildSlotAsync(
+            setupClient,
+            datasetRootSlot,
+            completionMeshCode,
+            anchorPosition,
+            null,
+            cancellationToken);
+        return new SceneAnchor(anchorSlot.SlotId, completionMeshCode, anchorPosition);
     }
 
     private static string ResolveCompletionMeshCode(ResoniteConstructionMetadata metadata)

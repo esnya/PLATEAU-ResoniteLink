@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -113,12 +115,14 @@ internal sealed class FixedCellCityObjectMeshBaker
 
     private CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
     {
+        string sourceUnitKey = cityObject.SourceUnitKey ?? cityObject.SourceObjectKey ?? cityObject.SlotKey;
         if (ShouldBakeAsSingleEightDigitMesh(cityObject))
         {
             return new CellKey(
                 cityObject.ActualMeshCode,
                 cityObject.PackageName,
                 cityObject.LodLevel,
+                sourceUnitKey,
                 CellX: 0,
                 CellZ: 0);
         }
@@ -129,6 +133,7 @@ internal sealed class FixedCellCityObjectMeshBaker
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
+            sourceUnitKey,
             cellX,
             cellZ);
     }
@@ -181,10 +186,7 @@ internal sealed class FixedCellCityObjectMeshBaker
         int flushSequence = flushSequenceByCell.GetValueOrDefault(cellKey);
         flushSequenceByCell[cellKey] = flushSequence + 1;
 
-        ResoniteFloat3 bakeOrigin = new(
-            cellKey.CellX * cellSizeMeters,
-            0.0,
-            cellKey.CellZ * cellSizeMeters);
+        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(buffer);
         List<ResoniteMeshVertex> vertices = [];
         Dictionary<MaterialIdentity, List<int>> trianglesByMaterial = [];
         Dictionary<MaterialIdentity, ResoniteMaterialBinding> materialByIdentity = [];
@@ -255,15 +257,42 @@ internal sealed class FixedCellCityObjectMeshBaker
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
             CollisionEnabled: buffer.CityObjects.Any(static cityObject => cityObject.CollisionEnabled),
-            SourceObjectKey: CreateBatchSourceObjectKey(cellKey, flushSequence));
+            SourceObjectKey: CreateBatchSourceObjectKey(cellKey, flushSequence),
+            SourceUnitKey: cellKey.SourceUnitKey);
+    }
+
+    private static ResoniteFloat3 ComputeBakeOrigin(CellBuffer buffer)
+    {
+        double minX = double.PositiveInfinity;
+        double minY = double.PositiveInfinity;
+        double minZ = double.PositiveInfinity;
+
+        foreach (ResoniteConstructionCityObject cityObject in buffer.CityObjects)
+        {
+            foreach (ResoniteMeshVertex vertex in cityObject.Mesh.Vertices)
+            {
+                ResoniteFloat3 worldPosition = Add(vertex.Position, cityObject.Transform.Position);
+                minX = Math.Min(minX, worldPosition.X);
+                minY = Math.Min(minY, worldPosition.Y);
+                minZ = Math.Min(minZ, worldPosition.Z);
+            }
+        }
+
+        if (double.IsPositiveInfinity(minX) || double.IsPositiveInfinity(minY) || double.IsPositiveInfinity(minZ))
+        {
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        return new ResoniteFloat3(minX, minY, minZ);
     }
 
     private static string CreateBatchSlotKey(CellKey cellKey, int flushSequence)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        string sourceUnitToken = CreateSourceUnitToken(cellKey.SourceUnitKey);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"meshbake_{cellKey.PackageName}_{cellKey.ActualMeshCode}_{lodToken}_{cellKey.CellX}_{cellKey.CellZ}_{flushSequence:D4}");
+            $"meshbake_{cellKey.PackageName}_{cellKey.ActualMeshCode}_{sourceUnitToken}_{lodToken}_{cellKey.CellX}_{cellKey.CellZ}_{flushSequence:D4}");
     }
 
     private static string CreateBatchDisplayName(CellKey cellKey, int flushSequence)
@@ -277,9 +306,16 @@ internal sealed class FixedCellCityObjectMeshBaker
     private static string CreateBatchSourceObjectKey(CellKey cellKey, int flushSequence)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        string sourceUnitToken = CreateSourceUnitToken(cellKey.SourceUnitKey);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"meshbake:{cellKey.ActualMeshCode}:{cellKey.PackageName}:{lodToken}:{cellKey.CellX}:{cellKey.CellZ}:{flushSequence:D4}");
+            $"meshbake:{cellKey.ActualMeshCode}:{cellKey.PackageName}:{sourceUnitToken}:{lodToken}:{cellKey.CellX}:{cellKey.CellZ}:{flushSequence:D4}");
+    }
+
+    private static string CreateSourceUnitToken(string sourceUnitKey)
+    {
+        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sourceUnitKey));
+        return Convert.ToHexString(bytes.AsSpan(0, 6)).ToLowerInvariant();
     }
 
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
@@ -305,6 +341,7 @@ internal sealed class FixedCellCityObjectMeshBaker
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
+        string SourceUnitKey,
         int CellX,
         int CellZ);
 
@@ -372,6 +409,12 @@ internal sealed class FixedCellCityObjectMeshBaker
             }
 
             compare = Nullable.Compare(x.LodLevel, y.LodLevel);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = string.CompareOrdinal(x.SourceUnitKey, y.SourceUnitKey);
             if (compare != 0)
             {
                 return compare;

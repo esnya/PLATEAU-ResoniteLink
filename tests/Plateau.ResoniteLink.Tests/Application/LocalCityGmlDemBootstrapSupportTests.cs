@@ -93,6 +93,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
                     TexturePath: null),
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceUnitIdentity: "udx/dem/53394525/sample.gml",
             SourceIdentity: "source",
             SharedAcrossMeshCodes: false,
             TerrainAligned: false,

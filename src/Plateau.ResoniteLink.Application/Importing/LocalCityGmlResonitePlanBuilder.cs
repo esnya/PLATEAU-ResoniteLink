@@ -103,6 +103,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
+        string sourceUnitIdentity = SanitizeIdentifier(relativeSourceFile);
         string sourceIdentity = SanitizeIdentifier($"{relativeSourceFile}_{objectId}");
         return new ParsedCityObject(
             slotKey,
@@ -112,6 +113,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             lodLevel,
             surfaces,
             coordinateReferenceSystem,
+            sourceUnitIdentity,
             sourceIdentity,
             SharedAcrossMeshCodes: sharedAcrossMeshCodes);
     }
@@ -1184,7 +1186,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             Transform: new ResoniteTransform(slotPosition),
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity);
+            SourceObjectKey: cityObject.SourceIdentity,
+            SourceUnitKey: cityObject.SourceUnitIdentity);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
@@ -2947,7 +2950,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 MaxHeight: maxHeight,
                 HeightSamples: localHeights),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity);
+            SourceObjectKey: cityObject.SourceIdentity,
+            SourceUnitKey: cityObject.SourceUnitIdentity);
         return true;
     }
 
@@ -3703,6 +3707,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         int? LodLevel,
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
+        string SourceUnitIdentity,
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,

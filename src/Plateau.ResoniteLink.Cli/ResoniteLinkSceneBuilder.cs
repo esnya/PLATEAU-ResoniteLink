@@ -38,6 +38,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 #pragma warning restore CA1859
     private readonly Action<string>? progressReporter;
     private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache = new();
+    private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
 #pragma warning disable CA1859
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 #pragma warning restore CA1859
@@ -233,6 +234,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             + $"and scheduling {Math.Max(connectionCount - 1, 0)} worker session(s).");
         await clientSession.EnsureSetupClientConnectedAsync(metadata.Request, cancellationToken);
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
+        sharedSlotCache.Clear();
+        createdSlotIds.Clear();
         importedTextureUriCache = new();
         dispatchLaneAllocator = new DispatchLaneAllocator(connectionCount);
         materialAssetManager = new ResoniteMaterialAssetManager(
@@ -243,6 +246,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             CreateComponentAsync,
             static (client, slotId, depth, ct) => client.GetSlotAsync(slotId, depth, ct),
             ImportTextureAsync,
+            createdSlotIds.ContainsKey,
             ReportProgress);
         PlateauLocalImportSource localSource = metadata.Request.Source as PlateauLocalImportSource
             ?? throw new InvalidOperationException("Live scene building requires a resolved local dataset source.");
@@ -343,7 +347,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         return (datasetRoot, datasetAssetsRoot, commonAssetsRoot, datasetRootExisted);
     }
-    private static async Task<(CreatedSlot Slot, bool Existed)> GetOrCreateDatasetRootAsync(
+    private async Task<(CreatedSlot Slot, bool Existed)> GetOrCreateDatasetRootAsync(
         IResoniteLinkClient client,
         string slotName,
         CancellationToken cancellationToken)
@@ -583,6 +587,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             runRoot = null;
             TryDeleteDirectory(priorRunRoot);
             sharedSlotCache.Clear();
+            createdSlotIds.Clear();
             importedTextureUriCache = null;
             dispatchLaneAllocator = null;
             textureImportResolver = null;
@@ -1766,7 +1771,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
     }
 
-    private static Task<CreatedSlot> CreateSlotAsync(
+    private Task<CreatedSlot> CreateSlotAsync(
         IResoniteLinkClient client,
         string parentId,
         string slotName,
@@ -1809,7 +1814,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return createdSlot;
     }
 
-    private static async Task<CreatedSlot> GetOrCreateSharedChildSlotCoreAsync(
+    private async Task<CreatedSlot> GetOrCreateSharedChildSlotCoreAsync(
         IResoniteLinkClient client,
         string parentId,
         string slotName,
@@ -1817,14 +1822,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        CreatedSlot? existingSlot = await TryGetUniqueChildSlotByNameAsync(
-            client,
-            parentId,
-            slotName,
-            cancellationToken);
-        if (existingSlot is not null)
+        if (!createdSlotIds.ContainsKey(parentId))
         {
-            return existingSlot.Value;
+            CreatedSlot? existingSlot = await TryGetUniqueChildSlotByNameAsync(
+                client,
+                parentId,
+                slotName,
+                cancellationToken);
+            if (existingSlot is not null)
+            {
+                sharedSlotCache.Remember((parentId, slotName), existingSlot.Value);
+                return existingSlot.Value;
+            }
         }
 
         return await CreateSlotCoreAsync(client, parentId, slotName, position, rotation, cancellationToken);
@@ -1901,7 +1910,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private static async Task<CreatedSlot> CreateSlotCoreAsync(
+    private async Task<CreatedSlot> CreateSlotCoreAsync(
         IResoniteLinkClient client,
         string parentId,
         string slotName,
@@ -1912,7 +1921,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string responseSlotId = await client.AddSlotAsync(
             CreateAddSlotOperation(parentId, slotName, position, rotation),
             cancellationToken);
-        return new CreatedSlot(responseSlotId, slotName);
+        CreatedSlot createdSlot = new(responseSlotId, slotName);
+        createdSlotIds[responseSlotId] = 0;
+        return createdSlot;
     }
 
     private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameAsync(
