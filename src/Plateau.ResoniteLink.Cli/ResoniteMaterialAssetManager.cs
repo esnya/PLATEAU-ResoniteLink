@@ -243,21 +243,20 @@ internal sealed class ResoniteMaterialAssetManager(
             cancellationToken);
         materialContainerSlotId = createdMaterialSlot.SlotId;
 
-        if (!(wasCreatedInCurrentRun?.Invoke(materialContainerSlotId) ?? false))
-        {
-            Component? existingMaterialComponent = await TryGetExistingMaterialComponentAsync(
+        Component? existingMaterialComponent = (wasCreatedInCurrentRun?.Invoke(materialContainerSlotId) ?? false)
+            ? null
+            : await TryGetExistingMaterialComponentAsync(
                 client,
                 materialContainerSlotId,
                 materialComponentType,
                 cancellationToken);
-            if (existingMaterialComponent is not null)
-            {
-                ReportProgress(
-                    $"[live] Material '{material.MaterialKey}' reusing existing component '{materialComponentType}'.");
-                return new ResoniteLinkSceneBuilder.CreatedComponent(
-                    existingMaterialComponent.ID,
-                    materialComponentType);
-            }
+        if (existingMaterialComponent is not null)
+        {
+            ReportProgress(
+                $"[live] Material '{material.MaterialKey}' reusing existing component '{materialComponentType}'.");
+            return new ResoniteLinkSceneBuilder.CreatedComponent(
+                existingMaterialComponent.ID,
+                materialComponentType);
         }
 
         Stopwatch componentCreateStopwatch = Stopwatch.StartNew();

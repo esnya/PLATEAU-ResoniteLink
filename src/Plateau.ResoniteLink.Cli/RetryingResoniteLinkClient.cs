@@ -15,8 +15,7 @@ internal sealed class RetryingResoniteLinkClient(
 {
     private const int AttemptLimit = 2;
     private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan SlowImportMeshThreshold = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan SlowImportTextureThreshold = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan SlowImportThreshold = TimeSpan.FromSeconds(60);
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private readonly object clientStateGate = new();
@@ -136,7 +135,7 @@ internal sealed class RetryingResoniteLinkClient(
                 ct),
             request,
             "ImportMesh",
-            SlowImportMeshThreshold,
+            SlowImportThreshold,
             cancellationToken);
     }
 
@@ -146,7 +145,7 @@ internal sealed class RetryingResoniteLinkClient(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
-            SlowImportTextureThreshold,
+            SlowImportThreshold,
             cancellationToken);
     }
 

@@ -943,6 +943,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
     private static async Task ObserveTaskFailureAsync(Task task)
     {
+        Task completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(1)));
+        if (completedTask != task)
+        {
+            return;
+        }
+
         try
         {
             await task;
