@@ -3,14 +3,39 @@ param(
     [string]$Endpoint,
 
     [string]$Dataset = '14100-yokohama-shi',
-    [string]$RepoPath = 'C:\Users\esnya\Documents\PLATEAU-ResoniteLink',
+    [string]$RepoPath = (Split-Path -Parent $PSScriptRoot),
     [switch]$ListOnly,
+    [switch]$KeepLogs,
     [int]$VerificationTimeoutSeconds = 20,
     [int]$PollIntervalSeconds = 2
 )
 
 $ErrorActionPreference = 'Stop'
 
+function Get-DotNetCommandPath {
+    if ($env:DOTNET_EXE -and (Test-Path $env:DOTNET_EXE)) {
+        return (Get-Item $env:DOTNET_EXE).FullName
+    }
+
+    if ($env:DOTNET_HOST_PATH -and (Test-Path $env:DOTNET_HOST_PATH)) {
+        return (Get-Item $env:DOTNET_HOST_PATH).FullName
+    }
+
+    if ($env:DOTNET_ROOT) {
+        foreach ($candidate in @(
+            (Join-Path $env:DOTNET_ROOT 'dotnet.exe'),
+            (Join-Path $env:DOTNET_ROOT 'dotnet')
+        )) {
+            if (Test-Path $candidate) {
+                return (Get-Item $candidate).FullName
+            }
+        }
+    }
+
+    return (Get-Command dotnet -ErrorAction Stop).Source
+}
+
+$dotnet = Get-DotNetCommandPath
 $runtimeRoot = Join-Path $RepoPath 'runtime\windows\resonite'
 $adminProject = Join-Path $RepoPath 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
 $adminDll = Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll'
@@ -27,7 +52,7 @@ if (-not $ListOnly) {
 }
 
 if (-not (Test-Path $adminDll)) {
-    & 'C:\Program Files\dotnet\dotnet.exe' build $adminProject -c Release | Out-Host
+    & $dotnet build $adminProject -c Release | Out-Host
     if (-not (Test-Path $adminDll)) {
         throw "ResoniteAdmin build output not found: $adminDll"
     }
@@ -41,14 +66,14 @@ Write-Output ("AdminDllPath={0}" -f $adminDll)
 Write-Output ("AdminDllLastWriteTime={0:o}" -f (Get-Item $adminDll).LastWriteTime)
 
 if (-not $ListOnly) {
-    & 'C:\Program Files\dotnet\dotnet.exe' $adminDll $Endpoint $Dataset | Out-Host
+    & $dotnet $adminDll $Endpoint $Dataset | Out-Host
 }
 
 $verification = @()
 $deadline = (Get-Date).AddSeconds($VerificationTimeoutSeconds)
 
 do {
-    $verification = & 'C:\Program Files\dotnet\dotnet.exe' $adminDll $Endpoint $Dataset --list-only
+    $verification = & $dotnet $adminDll $Endpoint $Dataset --list-only
     $verification | Out-Host
 
     if ($verification -match "Found 0 dataset root slot\(s\)") {
@@ -78,8 +103,11 @@ if ($verification -match "Found 0 dataset root slot\(s\)") {
         }
     }
 
-    Get-ChildItem $runtimeRoot -Filter '*.stdout.log' -Force -ErrorAction SilentlyContinue | Remove-Item -Force
-    Get-ChildItem $runtimeRoot -Filter '*.stderr.log' -Force -ErrorAction SilentlyContinue | Remove-Item -Force
+    if (-not $KeepLogs) {
+        Get-ChildItem $runtimeRoot -Filter '*.stdout.log' -Force -ErrorAction SilentlyContinue | Remove-Item -Force
+        Get-ChildItem $runtimeRoot -Filter '*.stderr.log' -Force -ErrorAction SilentlyContinue | Remove-Item -Force
+    }
+
     return
 }
 

@@ -4,11 +4,11 @@
 
 この手順は、ローカルの PLATEAU dataset を ResoniteLink 経由で実際の Resonite session へ送れるかを、実機レベルで確認したいときの正本です。
 
-この文書を repository の canonical な live-send workflow かつ唯一の手順書とします。`skills/resonite-live-send-debug/` 配下の skill は、default、guardrail、報告要件だけを補足し、競合する手順を定義しません。
+この文書を repository の canonical な live-send workflow かつ唯一の手順書とします。`skills/resonite-live-send-debug/scripts/` 配下の bundled script を operator 向けの入口とし、root `scripts/` の PowerShell helper は同じ workflow を支える lower-level の repository utility として扱います。
 
 ## 事前条件
 
-- live testing は現在、Windows 上の Resonite session と PowerShell helper script を前提にした運用です。
+- live testing は現在、Windows 限定です。bundled helper script は Windows の Resonite session と PowerShell を前提にしています。
 - 破壊的な live run に入る前に、repository の verify flow を実行します。
 
 ```bash
