@@ -2011,8 +2011,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string slotName,
         CancellationToken cancellationToken)
     {
-        Slot? parentSlot = await client.GetSlotAsync(parentId, 1, cancellationToken);
-        return TryFindUniqueChildSlotByName(parentSlot, slotName, parentId);
+        ResoniteSceneSlotSnapshot snapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
+            client,
+            parentId,
+            1,
+            cancellationToken);
+        return TryFindUniqueChildSlotByName(snapshot.Root, slotName, parentId);
     }
 
     private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameWithRetryAsync(

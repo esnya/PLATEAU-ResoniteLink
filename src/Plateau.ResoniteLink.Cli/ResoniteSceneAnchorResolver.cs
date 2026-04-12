@@ -43,8 +43,13 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         int attemptLimit = datasetRootExisted ? VisibilityPollAttemptLimit : 1;
         for (int attempt = 1; attempt <= attemptLimit; attempt++)
         {
-            Slot? datasetRootSnapshot = await client.GetSlotAsync(datasetRootSlotId, 1, cancellationToken);
-            string? existingCompletionRootId = TryFindUniqueChildSlotIdByName(datasetRootSnapshot, completionMeshCode);
+            ResoniteSceneSlotSnapshot datasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
+                client,
+                datasetRootSlotId,
+                1,
+                cancellationToken);
+            Slot? existingCompletionRoot = datasetRootSnapshot.TryGetUniqueChildByName(completionMeshCode, datasetRootSlotId);
+            string? existingCompletionRootId = existingCompletionRoot?.ID;
             if (existingCompletionRootId is not null)
             {
                 await WaitForSlotAvailableAsync(client, existingCompletionRootId, cancellationToken);
@@ -55,7 +60,7 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                     completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
             }
 
-            Slot? referenceMeshRoot = datasetRootSnapshot?.Children?
+            Slot? referenceMeshRoot = datasetRootSnapshot.Root?.Children?
                 .FirstOrDefault(static child => TryGetMeshCodeName(child, out _));
             if (referenceMeshRoot is not null)
             {
@@ -79,9 +84,14 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 GetSlotPosition(lastVisibleReferenceMeshRoot),
                 ComputeMeshCodeOffset(lastVisibleReferenceMeshRoot.Name!.Value, completionMeshCode));
 
-        string? existingAnchorSlotId = TryFindUniqueChildSlotIdByName(
-            await client.GetSlotAsync(datasetRootSlotId, 1, cancellationToken),
-            completionMeshCode);
+        ResoniteSceneSlotSnapshot finalDatasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
+            client,
+            datasetRootSlotId,
+            1,
+            cancellationToken);
+        string? existingAnchorSlotId = finalDatasetRootSnapshot
+            .TryGetUniqueChildByName(completionMeshCode, datasetRootSlotId)?
+            .ID;
         if (existingAnchorSlotId is not null)
         {
             return new SceneAnchor(existingAnchorSlotId, completionMeshCode, anchorPosition);
