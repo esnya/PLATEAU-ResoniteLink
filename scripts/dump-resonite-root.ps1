@@ -50,15 +50,19 @@ function Get-DotNetCommandPath {
 
 $dotnet = Get-DotNetCommandPath
 $runtimeRoot = Join-Path $RepoPath 'runtime\windows\resonite\root-dumps'
+$adminRuntimeRoot = Join-Path $RepoPath 'runtime\windows\resonite'
 $adminProject = Join-Path $RepoPath 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
 $adminDll = Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll'
+$adminExe = Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.exe'
 
+if (Test-Path -LiteralPath $adminDll) {
+    Remove-Item -LiteralPath $adminDll -Force
+}
+
+$buildOutput = & "$dotnet" build $adminProject -c Release 2>&1
+$buildOutput | Out-Host
 if (-not (Test-Path $adminDll)) {
-    $buildOutput = & "$dotnet" build $adminProject -c Release 2>&1
-    $buildOutput | Out-Host
-    if (-not (Test-Path $adminDll)) {
-        throw "ResoniteAdmin build output not found: $adminDll"
-    }
+    throw "ResoniteAdmin build output not found: $adminDll"
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
@@ -68,7 +72,6 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
 }
 
 $arguments = @(
-    $adminDll,
     '--dump-root',
     $Endpoint,
     '--output',
@@ -84,16 +87,39 @@ else {
     $arguments += '--exclude-component-data'
 }
 
-$commandOutput = & "$dotnet" @arguments 2>&1
-$commandOutput | Out-Host
-if ($LASTEXITCODE -ne 0) {
-    $outputText = ($commandOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-    throw "ResoniteAdmin dump-root failed. ExitCode=$LASTEXITCODE`n$outputText"
+New-Item -ItemType Directory -Force -Path $adminRuntimeRoot | Out-Null
+$stdoutPath = Join-Path $adminRuntimeRoot 'resonite-admin-dump.stdout.log'
+$stderrPath = Join-Path $adminRuntimeRoot 'resonite-admin-dump.stderr.log'
+foreach ($path in @($stdoutPath, $stderrPath)) {
+    if (Test-Path -LiteralPath $path) {
+        Remove-Item -LiteralPath $path -Force
+    }
+}
+
+$launcherPath = if (Test-Path -LiteralPath $adminExe -PathType Leaf) { $adminExe } else { $dotnet }
+$launcherArguments = if ($launcherPath -eq $adminExe) { $arguments } else { @($adminDll) + $arguments }
+
+$process = Start-Process `
+    -FilePath $launcherPath `
+    -ArgumentList $launcherArguments `
+    -WorkingDirectory $RepoPath `
+    -Wait `
+    -PassThru `
+    -RedirectStandardOutput $stdoutPath `
+    -RedirectStandardError $stderrPath
+
+$stdoutText = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { '' }
+$stderrText = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { '' }
+if (-not [string]::IsNullOrWhiteSpace($stdoutText)) {
+    $stdoutText | Out-Host
+}
+
+if ($process.ExitCode -ne 0) {
+    throw "ResoniteAdmin dump-root failed. ExitCode=$($process.ExitCode)`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
 }
 
 if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
-    $outputText = ($commandOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-    throw "Root dump output was not created: $OutputPath`n$outputText"
+    throw "Root dump output was not created: $OutputPath`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
 }
 
 [pscustomobject]@{
