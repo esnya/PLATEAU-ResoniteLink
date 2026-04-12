@@ -137,12 +137,12 @@ internal sealed class ResoniteMaterialAssetManager(
             return reusedSharedMaterial.Value;
         }
 
-        Uri? albedoTextureUri = null;
-        Uri? normalTextureUri = null;
-        Uri? heightTextureUri = null;
-        Uri? metallicTextureUri = null;
-        Uri? emissionTextureUri = null;
         Stopwatch textureImportStopwatch = Stopwatch.StartNew();
+        Task<Uri?> albedoTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> heightTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> metallicTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> emissionTextureTask = Task.FromResult<Uri?>(null);
 
         if (!suppressAlbedoTexture
             && material.TexturePath is not null
@@ -151,7 +151,7 @@ internal sealed class ResoniteMaterialAssetManager(
                 out ResoniteTextureImport? textureAsset))
         {
             ReportProgress($"[live] Material '{material.MaterialKey}' importing albedo texture.");
-            albedoTextureUri = await importTextureAsync(client, textureAsset, cancellationToken);
+            albedoTextureTask = ImportOptionalTextureAsync(client, textureAsset, cancellationToken);
         }
 
         if (ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
@@ -161,7 +161,7 @@ internal sealed class ResoniteMaterialAssetManager(
             {
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled normal map from '{textureSet.NormalPath}'.");
-                normalTextureUri = await importTextureAsync(
+                normalTextureTask = ImportOptionalTextureAsync(
                     client,
                     ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath),
                     cancellationToken);
@@ -176,7 +176,7 @@ internal sealed class ResoniteMaterialAssetManager(
             {
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled height map from '{textureSet.HeightPath}'.");
-                heightTextureUri = await importTextureAsync(
+                heightTextureTask = ImportOptionalTextureAsync(
                     client,
                     ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath),
                     cancellationToken);
@@ -190,7 +190,7 @@ internal sealed class ResoniteMaterialAssetManager(
             {
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled metallic map from '{textureSet.MetallicPath}'.");
-                metallicTextureUri = await importTextureAsync(
+                metallicTextureTask = ImportOptionalTextureAsync(
                     client,
                     ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath),
                     cancellationToken);
@@ -200,7 +200,7 @@ internal sealed class ResoniteMaterialAssetManager(
             {
                 ReportProgress(
                     $"[live] Material '{material.MaterialKey}' importing bundled emission map from '{textureSet.EmissionPath}'.");
-                emissionTextureUri = await importTextureAsync(
+                emissionTextureTask = ImportOptionalTextureAsync(
                     client,
                     ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath),
                     cancellationToken);
@@ -208,6 +208,17 @@ internal sealed class ResoniteMaterialAssetManager(
                     new ResoniteColor(1.0, 1.0, 1.0, 1.0));
             }
         }
+        await Task.WhenAll(
+            albedoTextureTask,
+            normalTextureTask,
+            heightTextureTask,
+            metallicTextureTask,
+            emissionTextureTask);
+        Uri? albedoTextureUri = await albedoTextureTask;
+        Uri? normalTextureUri = await normalTextureTask;
+        Uri? heightTextureUri = await heightTextureTask;
+        Uri? metallicTextureUri = await metallicTextureTask;
+        Uri? emissionTextureUri = await emissionTextureTask;
         textureImportStopwatch.Stop();
 
         string materialContainerParentId = materialSlotParentId ?? materialSlotId;
@@ -390,6 +401,22 @@ internal sealed class ResoniteMaterialAssetManager(
                 },
             },
             cancellationToken);
+    }
+
+    private Task<Uri?> ImportOptionalTextureAsync(
+        IResoniteLinkClient client,
+        ResoniteTextureImport textureImport,
+        CancellationToken cancellationToken)
+    {
+        return ImportOptionalTextureCoreAsync(client, textureImport, cancellationToken);
+    }
+
+    private async Task<Uri?> ImportOptionalTextureCoreAsync(
+        IResoniteLinkClient client,
+        ResoniteTextureImport textureImport,
+        CancellationToken cancellationToken)
+    {
+        return await importTextureAsync(client, textureImport, cancellationToken);
     }
 
     internal static TextureReferenceKey CreateTextureReferenceKey(string texturePath, ResoniteTextureSourceKind textureSourceKind)
