@@ -11,6 +11,34 @@ namespace Plateau.ResoniteLink.Tests.Application;
 [Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverCacheTests
 {
+    private static ValidatedPlateauImportRequest CreateValidatedRemoteRequest(
+        string dataset,
+        string meshCode,
+        string serverUri)
+    {
+        return PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+            new PlateauImportRequest(
+                Dataset: dataset,
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri(serverUri, UriKind.Absolute)));
+    }
+
+    private static ValidatedPlateauImportRequest CreateValidatedRemoteRequest(
+        string dataset,
+        string meshCode,
+        Uri serverUri)
+    {
+        return PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
+            new PlateauImportRequest(
+                Dataset: dataset,
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: serverUri));
+    }
+
     [Theory]
     [InlineData("..", "533944")]
     [InlineData("tokyo23ku", "../533944")]
@@ -24,16 +52,14 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
         using TemporaryDirectory workRoot = new();
 
+        ValidatedPlateauImportRequest request = new(
+            dataset,
+            mesh,
+            new System.Text.RegularExpressions.Regex(".*"),
+            new ValidatedPlateauRemoteImportSource(new Uri("https://example.test/direct.zip", UriKind.Absolute)));
+
         await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => resolver.ResolveAsync(
-                PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-                    new PlateauImportRequest(
-                    Dataset: dataset,
-                    MeshCode: mesh,
-                    SourceKind: DatasetSourceKind.Remote,
-                    LocalSourcePath: null,
-                    ServerUri: new Uri("https://example.test/direct.zip", UriKind.Absolute))),
-                workRoot.Path));
+            () => resolver.ResolveAsync(request, workRoot.Path));
     }
 
     [Fact]
@@ -49,13 +75,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
         ValidatedPlateauImportRequest resolved = await resolver.ResolveAsync(
-            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-                new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: @"^533944\d$",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/direct.zip", UriKind.Absolute))),
+            CreateValidatedRemoteRequest("tokyo23ku", @"^533944\d$", "https://example.test/direct.zip"),
             workRoot.Path);
 
         Assert.NotNull(resolved.LocalSourcePath);
@@ -75,13 +95,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
         ValidatedPlateauImportRequest resolved = await resolver.ResolveAsync(
-            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-                new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944|533945/branch",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/direct.zip", UriKind.Absolute))),
+            CreateValidatedRemoteRequest("tokyo23ku", "533944|533945/branch", "https://example.test/direct.zip"),
             workRoot.Path);
 
         Assert.NotNull(resolved.LocalSourcePath);
@@ -120,23 +134,11 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
         ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
-            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-                new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example-a.test/533944.zip", UriKind.Absolute))),
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example-a.test/533944.zip"),
             workRoot.Path);
 
         ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
-            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-                new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example-b.test/533944.zip", UriKind.Absolute))),
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example-b.test/533944.zip"),
             workRoot.Path);
 
         Assert.NotNull(firstRequest.LocalSourcePath);
@@ -175,22 +177,12 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
         Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
 
-        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: archiveUri),
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
-        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "53394525",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: archiveUri),
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "53394525", archiveUri),
             workRoot.Path);
 
         Assert.NotNull(firstRequest.LocalSourcePath);
@@ -213,13 +205,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
         ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(
-                new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: archiveUri)),
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
         Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
@@ -265,24 +251,14 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => resolver.ResolveAsync(
-                new PlateauImportRequest(
-                    Dataset: "tokyo23ku",
-                    MeshCode: "533944",
-                    SourceKind: DatasetSourceKind.Remote,
-                    LocalSourcePath: null,
-                    ServerUri: archiveUri),
+                CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
                 workRoot.Path));
 
         Assert.Empty(Directory.EnumerateFiles(workRoot.Path, "533944.zip", SearchOption.AllDirectories));
         Assert.Empty(Directory.EnumerateFiles(workRoot.Path, "*.tmp", SearchOption.AllDirectories));
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: archiveUri),
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
         Assert.NotNull(resolvedRequest.LocalSourcePath);
@@ -346,13 +322,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
         using TemporaryDirectory workRoot = new();
 
-        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
         Assert.NotNull(firstRequest.LocalSourcePath);
@@ -360,13 +331,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             workRoot.Path,
             firstRequest.LocalSourcePath);
 
-        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
         Assert.NotNull(firstRequest.LocalSourcePath);
@@ -412,13 +378,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
         using TemporaryDirectory workRoot = new();
 
-        PlateauImportRequest firstRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+        ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
         Assert.NotNull(firstRequest.LocalSourcePath);
@@ -429,13 +390,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             workRoot.Path,
             firstArchivePath);
 
-        PlateauImportRequest secondRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: new Uri("https://example.test/533944.zip", UriKind.Absolute)),
+        ValidatedPlateauImportRequest secondRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example.test/533944.zip"),
             workRoot.Path);
 
         Assert.Equal(firstArchivePath, secondRequest.LocalSourcePath);
@@ -467,13 +423,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         using HttpClient httpClient = new(handler);
         CkanPlateauDatasetSourceResolver resolver = new(httpClient);
 
-        PlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
-            new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "533944",
-                SourceKind: DatasetSourceKind.Remote,
-                LocalSourcePath: null,
-                ServerUri: archiveUri),
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
             workRoot.Path);
 
         Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
