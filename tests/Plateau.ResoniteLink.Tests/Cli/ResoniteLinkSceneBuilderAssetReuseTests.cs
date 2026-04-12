@@ -365,6 +365,10 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             slot => string.Equals(slot.Parent?.TargetID, common.ID, StringComparison.Ordinal)
                 && slot.Name?.Value is not null
                 && slot.Name.Value.StartsWith("pbs-uv_", StringComparison.Ordinal));
+        Assert.Equal(
+            1,
+            client.AddedComponents.Count(static request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU reuse-test", StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common", StringComparison.Ordinal) && string.Equals(slot.Parent?.TargetID, assets.ID, StringComparison.Ordinal)));

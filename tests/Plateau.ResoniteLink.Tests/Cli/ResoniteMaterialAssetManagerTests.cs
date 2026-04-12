@@ -296,6 +296,89 @@ public sealed class ResoniteMaterialAssetManagerTests
     }
 
     [Fact]
+    public async Task CreateMaterialComponentAsyncDoesNotReuseCachedComponentAcrossDifferentMaterialTypes()
+    {
+        List<string> calls = [];
+        int createComponentCallCount = 0;
+        Slot parentSlot = new()
+        {
+            ID = "common-slot",
+            Children =
+            [
+                new Slot
+                {
+                    ID = "existing-material-slot",
+                    Name = new Field_string
+                    {
+                        Value = "Material",
+                    },
+                    Components =
+                    [
+                        new Component
+                        {
+                            ID = "existing-material-component",
+                            ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                        },
+                    ],
+                },
+            ],
+        };
+        ResoniteMaterialAssetManager manager = new(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material")),
+            (_, _, componentType, _, _) =>
+            {
+                int currentCall = Interlocked.Increment(ref createComponentCallCount);
+                calls.Add($"create-component:{currentCall}:{componentType}");
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent(
+                    $"srv_component_{currentCall}",
+                    componentType));
+            },
+            (_, slotId, _, _) =>
+            {
+                calls.Add($"get-slot:{slotId}");
+                return Task.FromResult<Slot?>(string.Equals(slotId, "common-slot", StringComparison.Ordinal) ? parentSlot : null);
+            },
+            static (_, _, _) => throw new NotSupportedException());
+        using StubResoniteLinkClient client = new();
+
+        CreatedMaterialAsset firstReuse = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        CreatedMaterialAsset secondReuse = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(materialType: ResoniteMaterialType.Wireframe),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        Assert.Equal("existing-material-component", firstReuse.MaterialComponentId);
+        Assert.Equal("srv_component_1", secondReuse.MaterialComponentId);
+        Assert.Equal(1, createComponentCallCount);
+        Assert.Equal(
+            [
+                "get-slot:common-slot",
+                "get-slot:common-slot",
+                "get-slot:shared-slot",
+                "create-component:1:[FrooxEngine]FrooxEngine.WireframeMaterial",
+            ],
+            calls);
+    }
+
+    [Fact]
     public async Task CreateMaterialComponentAsyncImportsBundledAlbedoWithoutPreparedTextureMap()
     {
         List<string> calls = [];
@@ -341,15 +424,17 @@ public sealed class ResoniteMaterialAssetManagerTests
     private static ResoniteMaterialBinding CreateMaterial(
         string? texturePath = null,
         ResoniteTextureSourceKind textureSourceKind = ResoniteTextureSourceKind.Bundled,
-        ResoniteColor? baseColor = null)
+        ResoniteColor? baseColor = null,
+        ResoniteMaterialType materialType = ResoniteMaterialType.Standard,
+        ResoniteMaterialProjection projection = ResoniteMaterialProjection.Uv)
     {
         return new ResoniteMaterialBinding(
             MaterialKey: "test-material",
             BaseColor: baseColor ?? new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
+            MaterialType: materialType,
             TexturePath: texturePath,
             TextureSourceKind: textureSourceKind,
-            Projection: ResoniteMaterialProjection.Uv,
+            Projection: projection,
             DepthOffset: null,
             SubmeshIndices: [0]);
     }
