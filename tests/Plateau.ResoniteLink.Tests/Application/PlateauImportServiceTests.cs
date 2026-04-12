@@ -1407,6 +1407,51 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public void AlignAdjacentDemHeightMapChunkBoundariesIgnoresSeaLevelFallbackWhenNeighborHasMeasuredBoundaryHeights()
+    {
+        ResoniteConstructionCityObject leftChunk = CreateHeightMapChunk(
+            "left",
+            positionX: 0.0,
+            positionY: 40.0,
+            positionZ: 0.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 20.0,
+            maxHeight: 40.0,
+            heightSamples: [30.0, 40.0, 20.0, 30.0]);
+        ResoniteConstructionCityObject rightChunk = CreateHeightMapChunk(
+            "right",
+            positionX: 10.0,
+            positionY: 20.0,
+            positionZ: 0.0,
+            width: 2,
+            height: 2,
+            sizeX: 10.0,
+            sizeY: 10.0,
+            minHeight: 0.0,
+            maxHeight: 20.0,
+            heightSamples: [0.0, 20.0, 0.0, 20.0]);
+
+        ResoniteConstructionCityObject[] alignedChunks = AlignAdjacentDemHeightMapChunkBoundaries(leftChunk, rightChunk);
+
+        ResoniteConstructionCityObject alignedLeftChunk = alignedChunks
+            .OrderBy(static chunk => chunk.Transform.Position.X)
+            .First();
+        ResoniteConstructionCityObject alignedRightChunk = alignedChunks
+            .OrderBy(static chunk => chunk.Transform.Position.X)
+            .Last();
+        ResoniteHeightMapGridGeometry alignedLeftGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(alignedLeftChunk.Geometry);
+        ResoniteHeightMapGridGeometry alignedRightGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(alignedRightChunk.Geometry);
+
+        Assert.Equal(40.0, GetHeightMapWorldHeight(alignedLeftChunk, alignedLeftGeometry, row: 0, column: 1), 6);
+        Assert.Equal(30.0, GetHeightMapWorldHeight(alignedLeftChunk, alignedLeftGeometry, row: 1, column: 1), 6);
+        Assert.Equal(40.0, GetHeightMapWorldHeight(alignedRightChunk, alignedRightGeometry, row: 0, column: 0), 6);
+        Assert.Equal(30.0, GetHeightMapWorldHeight(alignedRightChunk, alignedRightGeometry, row: 1, column: 0), 6);
+    }
+
+    [Fact]
     public void AlignAdjacentDemHeightMapChunkBoundariesReconcilesSharedCornerAcrossTwoByTwoChunks()
     {
         ResoniteConstructionCityObject northWestChunk = CreateHeightMapChunk(
