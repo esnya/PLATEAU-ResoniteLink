@@ -139,9 +139,10 @@ foreach ($path in @($stdoutPath, $stderrPath)) {
     }
 }
 
+$launcherArguments = @($adminDll) + $arguments
 $process = Start-Process `
     -FilePath $dotnet `
-    -ArgumentList @($adminDll) + $arguments `
+    -ArgumentList $launcherArguments `
     -WorkingDirectory $RepoPath `
     -Wait `
     -PassThru `
