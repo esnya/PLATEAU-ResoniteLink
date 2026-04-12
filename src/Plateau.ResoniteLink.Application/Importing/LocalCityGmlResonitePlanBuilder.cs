@@ -3526,149 +3526,122 @@ public static partial class LocalCityGmlResonitePlanBuilder
         int width,
         int height)
     {
-        bool changed;
-        do
+        bool[] boundaryConnectedMissing = FindBoundaryConnectedMissingSamples(sampledInsideTriangles, width, height);
+        if (!boundaryConnectedMissing.Any(static missing => missing))
         {
-            changed = false;
-            changed |= FillBoundaryConnectedMissingRunsByRow(localHeights, sampledInsideTriangles, width, height);
-            changed |= FillBoundaryConnectedMissingRunsByColumn(localHeights, sampledInsideTriangles, width, height);
+            return;
         }
-        while (changed);
-    }
 
-    private static bool FillBoundaryConnectedMissingRunsByRow(
-        double[] localHeights,
-        bool[] sampledInsideTriangles,
-        int width,
-        int height)
-    {
-        bool changed = false;
+        Queue<(int Row, int Column, double Height)> frontier = new();
+        bool[] visited = new bool[width * height];
         for (int row = 0; row < height; row++)
         {
-            int rowStart = row * width;
-            int firstValidColumn = -1;
             for (int column = 0; column < width; column++)
             {
-                if (sampledInsideTriangles[rowStart + column])
+                int index = (row * width) + column;
+                if (!sampledInsideTriangles[index])
                 {
-                    firstValidColumn = column;
-                    break;
+                    continue;
                 }
-            }
 
-            if (firstValidColumn >= 0)
-            {
-                double fillHeight = localHeights[rowStart + firstValidColumn];
-                for (int column = 0; column < firstValidColumn; column++)
-                {
-                    int sampleIndex = rowStart + column;
-                    if (sampledInsideTriangles[sampleIndex])
-                    {
-                        continue;
-                    }
-
-                    localHeights[sampleIndex] = fillHeight;
-                    sampledInsideTriangles[sampleIndex] = true;
-                    changed = true;
-                }
-            }
-
-            int lastValidColumn = -1;
-            for (int column = width - 1; column >= 0; column--)
-            {
-                if (sampledInsideTriangles[rowStart + column])
-                {
-                    lastValidColumn = column;
-                    break;
-                }
-            }
-
-            if (lastValidColumn >= 0)
-            {
-                double fillHeight = localHeights[rowStart + lastValidColumn];
-                for (int column = width - 1; column > lastValidColumn; column--)
-                {
-                    int sampleIndex = rowStart + column;
-                    if (sampledInsideTriangles[sampleIndex])
-                    {
-                        continue;
-                    }
-
-                    localHeights[sampleIndex] = fillHeight;
-                    sampledInsideTriangles[sampleIndex] = true;
-                    changed = true;
-                }
+                frontier.Enqueue((row, column, localHeights[index]));
+                visited[index] = true;
             }
         }
 
-        return changed;
+        while (frontier.Count > 0)
+        {
+            (int row, int column, double fillHeight) = frontier.Dequeue();
+            TryPropagateBoundaryConnectedHeight(row - 1, column, fillHeight);
+            TryPropagateBoundaryConnectedHeight(row + 1, column, fillHeight);
+            TryPropagateBoundaryConnectedHeight(row, column - 1, fillHeight);
+            TryPropagateBoundaryConnectedHeight(row, column + 1, fillHeight);
+        }
+
+        void TryPropagateBoundaryConnectedHeight(int row, int column, double fillHeight)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int sampleIndex = (row * width) + column;
+            if (visited[sampleIndex] || !boundaryConnectedMissing[sampleIndex])
+            {
+                return;
+            }
+
+            localHeights[sampleIndex] = fillHeight;
+            sampledInsideTriangles[sampleIndex] = true;
+            visited[sampleIndex] = true;
+            frontier.Enqueue((row, column, fillHeight));
+        }
     }
 
-    private static bool FillBoundaryConnectedMissingRunsByColumn(
-        double[] localHeights,
+    private static bool[] FindBoundaryConnectedMissingSamples(
         bool[] sampledInsideTriangles,
         int width,
         int height)
     {
-        bool changed = false;
+        bool[] boundaryConnectedMissing = new bool[width * height];
+        Queue<(int Row, int Column)> frontier = new();
+
         for (int column = 0; column < width; column++)
         {
-            int firstValidRow = -1;
-            for (int row = 0; row < height; row++)
-            {
-                if (sampledInsideTriangles[(row * width) + column])
-                {
-                    firstValidRow = row;
-                    break;
-                }
-            }
-
-            if (firstValidRow >= 0)
-            {
-                double fillHeight = localHeights[(firstValidRow * width) + column];
-                for (int row = 0; row < firstValidRow; row++)
-                {
-                    int sampleIndex = (row * width) + column;
-                    if (sampledInsideTriangles[sampleIndex])
-                    {
-                        continue;
-                    }
-
-                    localHeights[sampleIndex] = fillHeight;
-                    sampledInsideTriangles[sampleIndex] = true;
-                    changed = true;
-                }
-            }
-
-            int lastValidRow = -1;
-            for (int row = height - 1; row >= 0; row--)
-            {
-                if (sampledInsideTriangles[(row * width) + column])
-                {
-                    lastValidRow = row;
-                    break;
-                }
-            }
-
-            if (lastValidRow >= 0)
-            {
-                double fillHeight = localHeights[(lastValidRow * width) + column];
-                for (int row = height - 1; row > lastValidRow; row--)
-                {
-                    int sampleIndex = (row * width) + column;
-                    if (sampledInsideTriangles[sampleIndex])
-                    {
-                        continue;
-                    }
-
-                    localHeights[sampleIndex] = fillHeight;
-                    sampledInsideTriangles[sampleIndex] = true;
-                    changed = true;
-                }
-            }
+            EnqueueIfBoundaryMissing(0, column);
+            EnqueueIfBoundaryMissing(height - 1, column);
         }
 
-        return changed;
+        for (int row = 1; row < height - 1; row++)
+        {
+            EnqueueIfBoundaryMissing(row, 0);
+            EnqueueIfBoundaryMissing(row, width - 1);
+        }
+
+        while (frontier.Count > 0)
+        {
+            (int row, int column) = frontier.Dequeue();
+            TryVisit(row - 1, column);
+            TryVisit(row + 1, column);
+            TryVisit(row, column - 1);
+            TryVisit(row, column + 1);
+        }
+
+        return boundaryConnectedMissing;
+
+        void EnqueueIfBoundaryMissing(int row, int column)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int sampleIndex = (row * width) + column;
+            if (sampledInsideTriangles[sampleIndex] || boundaryConnectedMissing[sampleIndex])
+            {
+                return;
+            }
+
+            boundaryConnectedMissing[sampleIndex] = true;
+            frontier.Enqueue((row, column));
+        }
+
+        void TryVisit(int row, int column)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int sampleIndex = (row * width) + column;
+            if (sampledInsideTriangles[sampleIndex] || boundaryConnectedMissing[sampleIndex])
+            {
+                return;
+            }
+
+            boundaryConnectedMissing[sampleIndex] = true;
+            frontier.Enqueue((row, column));
+        }
     }
 
     private static void ValidateCompatibleReferenceSystem(
