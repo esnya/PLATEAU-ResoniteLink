@@ -1558,7 +1558,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
         Assert.True(clients.All(client => client.ImportedMeshCount > 0));
-        Assert.True(clients.All(client => client.BatchMutationCount > 0));
+        Assert.True(clients.Skip(1).All(client => client.BatchMutationCount == 0));
+        Assert.True(clients[0].BatchMutationCount > 0);
         Assert.Equal(scene.CityObjects.Count, clients.Sum(client => client.ImportedMeshCount));
     }
 
