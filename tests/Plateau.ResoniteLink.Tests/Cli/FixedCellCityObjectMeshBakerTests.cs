@@ -9,8 +9,8 @@ public sealed class FixedCellCityObjectMeshBakerTests
     public void TryBufferBakesLod1BuildingsInSameCellIntoSingleMesh()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 2, maxVerticesPerBatch: 1000);
-        ResoniteConstructionCityObject first = CreateTriangleBuilding("first", x: 10.0, z: 12.0);
-        ResoniteConstructionCityObject second = CreateTriangleBuilding("second", x: 18.0, z: 20.0);
+        ResoniteConstructionCityObject first = CreateTriangleBuilding("first", x: 10.0, z: 12.0, actualMeshCode: "533945");
+        ResoniteConstructionCityObject second = CreateTriangleBuilding("second", x: 18.0, z: 20.0, actualMeshCode: "533945");
 
         bool firstBuffered = baker.TryBuffer(first, out ResoniteConstructionCityObject? firstBaked);
         bool secondBuffered = baker.TryBuffer(second, out ResoniteConstructionCityObject? baked);
@@ -40,8 +40,8 @@ public sealed class FixedCellCityObjectMeshBakerTests
     public void FlushAllReturnsSeparateBatchesPerCell()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
-        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0), out _));
-        Assert.True(baker.TryBuffer(CreateTriangleBuilding("right", x: 80.0, z: 10.0), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0, actualMeshCode: "533945"), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("right", x: 80.0, z: 10.0, actualMeshCode: "533945"), out _));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = baker.FlushAll();
 
@@ -58,21 +58,22 @@ public sealed class FixedCellCityObjectMeshBakerTests
             maxCityObjectsPerBatch: 10,
             maxVerticesPerBatch: 1000,
             maxBufferedCells: 2);
-        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0), out ResoniteConstructionCityObject? firstBaked));
-        Assert.True(baker.TryBuffer(CreateTriangleBuilding("center", x: 80.0, z: 10.0), out ResoniteConstructionCityObject? secondBaked));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0, actualMeshCode: "53394525"), out ResoniteConstructionCityObject? firstBaked));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("center", x: 80.0, z: 10.0, actualMeshCode: "53394526"), out ResoniteConstructionCityObject? secondBaked));
 
-        bool thirdBuffered = baker.TryBuffer(CreateTriangleBuilding("right", x: 138.0, z: 10.0), out ResoniteConstructionCityObject? flushed);
+        bool thirdBuffered = baker.TryBuffer(CreateTriangleBuilding("right", x: 138.0, z: 10.0, actualMeshCode: "53394527"), out ResoniteConstructionCityObject? flushed);
 
         Assert.True(thirdBuffered);
         Assert.Null(firstBaked);
         Assert.Null(secondBaked);
         Assert.NotNull(flushed);
         Assert.Equal(new ResoniteFloat3(0.0, 0.0, 0.0), flushed.Transform.Position);
+        Assert.Equal("53394525", flushed.ActualMeshCode);
 
         IReadOnlyList<ResoniteConstructionCityObject> remainingBatches = baker.FlushAll();
         Assert.Equal(2, remainingBatches.Count);
-        Assert.Contains(remainingBatches, static cityObject => cityObject.Transform.Position == new ResoniteFloat3(64.0, 0.0, 0.0));
-        Assert.Contains(remainingBatches, static cityObject => cityObject.Transform.Position == new ResoniteFloat3(128.0, 0.0, 0.0));
+        Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394526");
+        Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394527");
     }
 
     [Fact]
@@ -88,13 +89,42 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Empty(baker.FlushAll());
     }
 
-    private static ResoniteConstructionCityObject CreateTriangleBuilding(string slotKey, double x, double z)
+    [Fact]
+    public void FlushAllReturnsSingleBatchPerEightDigitMeshCodeAcrossCells()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("right", x: 80.0, z: 10.0), out _));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = baker.FlushAll();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("53394525", cityObject.ActualMeshCode);
+        Assert.Equal(new ResoniteFloat3(0.0, 0.0, 0.0), cityObject.Transform.Position);
+        Assert.Equal(6, cityObject.Mesh.Vertices.Count);
+    }
+
+    [Fact]
+    public void FlushAllIgnoresBatchSizeLimitsForEightDigitMeshBake()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 1, maxVerticesPerBatch: 3);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("first", x: 10.0, z: 10.0), out ResoniteConstructionCityObject? firstBaked));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("second", x: 80.0, z: 10.0), out ResoniteConstructionCityObject? secondBaked));
+
+        Assert.Null(firstBaked);
+        Assert.Null(secondBaked);
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+        Assert.Equal(6, baked.Mesh.Vertices.Count);
+    }
+
+    private static ResoniteConstructionCityObject CreateTriangleBuilding(string slotKey, double x, double z, string actualMeshCode = "53394525")
     {
         return new ResoniteConstructionCityObject(
             SlotKey: slotKey,
             DisplayName: slotKey,
             PackageName: "bldg",
-            ActualMeshCode: "53394525",
+            ActualMeshCode: actualMeshCode,
             LodLevel: 1,
             Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
             Mesh: new ResoniteImportedMesh(
