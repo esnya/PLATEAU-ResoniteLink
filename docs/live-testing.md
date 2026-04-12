@@ -15,10 +15,75 @@ This document is the canonical live-send workflow for the repository and the onl
 bash scripts/verify-ci.sh
 ```
 
+- During beta iteration, use `bash scripts/test-fast.sh` for quick non-slow checks between low-conflict changes, but keep `bash scripts/verify-ci.sh` as the only repository-owned gate before trusting live results, pushing, or updating a pull request.
+
 - Confirm the target dataset root exists on disk before cleanup or send steps.
 - Build outputs do not need to exist ahead of time; the helper scripts build the CLI or admin utility on demand.
 - The cleanup steps below are destructive. They remove matching dataset roots from the current Resonite session and stop matching live-send CLI processes launched from the same repository.
 - For this workflow, use the bundled scripts under `skills/resonite-live-send-debug/scripts/` as the operator-facing command surface. The root `scripts/` PowerShell helpers remain lower-level repository utilities and are not the procedural source for live runs.
+- If you need a disposable listener and have a local Resonite headless installation, prefer the bundled headless wrapper instead of manually preparing a session in the UI.
+
+## Direct Headless Launch
+
+When you want the repository to bring up its own disposable listener, start a headless session directly from Windows:
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
+```
+
+The wrapper generates a temporary headless `Config.json`, launches `Resonite.exe` or `Resonite.dll` with `-HeadlessConfig`, waits for a `World Running` log line, and then verifies that UDP discovery sees the requested `linkPort`.
+
+By default, the wrapper also records the launched disposable session to `runtime/windows/headless/active-session.json` so a later stop command can target the same process without retyping its PID.
+
+Record these values from the wrapper output:
+
+- `ProcessId`
+- `SessionName`
+- `SessionId`
+- `LinkPort`
+- `Endpoint`
+- `ConfigPath`
+- `StdoutLog`
+- `StderrLog`
+- `StatePath`
+
+When the experiment is over, stop the tracked disposable headless process:
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\stop-headless-session.ps1 -RepoPath C:\path\to\repo"
+```
+
+If you need to stop a different tracked state file or an explicit PID, pass `-StatePath` or `-ProcessId`.
+
+## Root Dump Capture
+
+For disposable headless sessions, a full Root dump is usually low-noise enough to keep as both the baseline and the post-send world-state artifact. Prefer taking both snapshots against the same tracked session.
+
+Capture a full Root dump from the tracked disposable session:
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\dump-root-session.ps1 -RepoPath C:\path\to\repo -Label baseline"
+```
+
+The wrapper resolves the endpoint from `runtime/windows/headless/active-session.json` by default. It writes a recursive Root snapshot to `runtime/windows/resonite/root-dumps/` unless you pass `-OutputPath`.
+
+Record these values from the wrapper output:
+
+- `Endpoint`
+- `OutputPath`
+- `Depth`
+- `IncludeComponentData`
+- `AdminDllPath`
+- `AdminDllLastWriteTime`
+
+Recommended disposable-headless validation sequence:
+
+1. `start-headless-session.ps1`
+2. `dump-root-session.ps1 -Label baseline`
+3. `cleanup-session.ps1`
+4. `run-live-send.ps1`
+5. `dump-root-session.ps1 -Label after-send`
+6. `stop-headless-session.ps1`
 
 ## Listener Discovery
 
@@ -87,10 +152,18 @@ Preferred sequence:
 4. cleanup
 5. `heightmap`
 
+When you need world-state evidence in addition to log comparison, capture a Root dump before the first run and after each observation point.
+
 If you need the bundled comparison driver, use:
 
 ```bash
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -ExpectedSessionId <session-id>"
+```
+
+To let the comparison driver bring up and tear down its own disposable headless listener, add `-HeadlessPath`:
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
 ```
 
 Inspect `stderr` first. If it is non-empty, treat that as the primary failure signal. When `stderr` is empty, take at least two timestamped log samples before concluding that a run stalled.
@@ -112,6 +185,6 @@ Map live validation back to `docs/requirements.md` with these checks:
 - Visible imported content:
   Confirm the expected dataset root appears in the live world and that the target subtree contains the expected mesh, material, renderer, and collider data.
 - CI-equivalent validation:
-  Keep `bash scripts/verify-ci.sh` green before treating any live result as trustworthy.
+  Keep `bash scripts/test-fast.sh` green during local iteration and `bash scripts/verify-ci.sh` green before treating any live result as trustworthy.
 
 When you stop a run early, stop only the specific launched PID, verify that it exited, then run cleanup again and keep the logs. When a run exits on its own, record the exit code before cleanup.

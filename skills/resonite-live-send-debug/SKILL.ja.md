@@ -25,6 +25,15 @@ repository の live-send 手順は [docs/live-testing.ja.md](../../../docs/live-
 
 [references/workflow.ja.md](./references/workflow.ja.md) は、skill 固有の default、guardrail、script inventory だけに使ってください。
 
+disposable な headless 検証では、次の operator sequence を優先してください。
+
+1. `start-headless-session.ps1`
+2. `dump-root-session.ps1 -Label baseline`
+3. `cleanup-session.ps1`
+4. `run-live-send.ps1`
+5. `dump-root-session.ps1 -Label after-send`
+6. `stop-headless-session.ps1`
+
 ## Run Worksheet
 
 比較 run の間では、次の事実を固定するか、変更したら明示的に更新してください。
@@ -56,6 +65,12 @@ repository の live-send 手順は [docs/live-testing.ja.md](../../../docs/live-
 
 - `scripts/discover-session.ps1`
 UDP `12512` の live ResoniteLink announcement を取得する。
+- `scripts/start-headless-session.ps1`
+破棄可能な Windows headless session を直接起動し、announcement された ResoniteLink port まで確認する。
+- `scripts/stop-headless-session.ps1`
+experiment 用に起動した tracked headless PID、または明示指定した PID を停止する。
+- `scripts/dump-root-session.ps1`
+tracked 済み、または明示指定した session から再帰的な Root snapshot を採取する。
 - `scripts/cleanup-session.ps1`
 live world から dataset root を消し、残存 CLI process を止め、local runtime artifact を消す。
 - `scripts/run-live-send.ps1`
@@ -63,7 +78,7 @@ Windows 側で 1 回の live send を explicit log 付きで起動する。
 - `scripts/compare-modes.ps1`
 cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行する。
 
-上記 4 path はすべて `skills/resonite-live-send-debug/` からの相対 path です。
+上記 7 path はすべて `skills/resonite-live-send-debug/` からの相対 path です。
 
 ## Outputs
 
@@ -77,5 +92,6 @@ cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行す�
   - 最後の timestamped `live` line
   - `stderr` が空だったか
   - world snapshot: dataset root count、top-level child slot 名、疑わしい slot component count
+  - baseline / post-send で採取した root dump path
   - log と world-state 観測時刻
   - 結論が valid か contaminated か

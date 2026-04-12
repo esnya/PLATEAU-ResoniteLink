@@ -25,7 +25,8 @@ ad hoc な repository script より bundled skill script を優先してくだ�
 - UDP `12512` announcement を受けるのに十分待つ。
 - `sessionName`、`sessionID`、`linkPort` を取得する。
 - 解決した `linkPort` は run note と一緒に保持する。
-- listener が不在なら停止し、user に Resonite を再起動してもらう。
+- listener が不在で disposable な headless install が使えるなら、bundled headless wrapper で直接起動する。そうでなければ停止し、user に Resonite を再起動してもらう。
+- disposable な headless session では、send 前の baseline Root dump と send 後の post-send Root dump を優先する。
 - UDP discovery が `sessionID` を返すならそれを優先し、返さなければ UI による明示確認を必須にする。
 - UDP と UI が異なる session を指すなら、その run は invalid とする。
 - 比較 rerun の前に listener を再発見し、同じ session identity を再確認する。
@@ -61,6 +62,12 @@ tail -n 40 /mnt/c/path/to/stderr.log
 
 - `scripts/discover-session.ps1`
   UDP `12512` の live ResoniteLink announcement を取得する。
+- `scripts/start-headless-session.ps1`
+  disposable な Windows headless session を直接起動し、announcement された ResoniteLink port を検証する。
+- `scripts/stop-headless-session.ps1`
+  experiment 用に起動した tracked headless PID、または明示指定した PID を停止する。
+- `scripts/dump-root-session.ps1`
+  tracked 済み、または明示指定した session から再帰的な Root snapshot を採取する。
 - `scripts/cleanup-session.ps1`
   live world から dataset root を削除し、残存 CLI process を停止し、local runtime artifact を消す。
 - `scripts/run-live-send.ps1`

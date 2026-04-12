@@ -25,7 +25,8 @@ Practical rules that stay local to this skill:
 - Wait long enough for UDP `12512` announcements.
 - Capture `sessionName`, `sessionID`, and `linkPort`.
 - Keep the resolved `linkPort` with the run notes.
-- If the listener is absent, stop and ask the user to bring Resonite back up.
+- If the listener is absent and a disposable headless install is available, start it with the bundled headless wrapper. Otherwise stop and ask the user to bring Resonite back up.
+- For disposable headless sessions, prefer a baseline Root dump before the send and a post-send Root dump after the send.
 - Prefer UDP discovery when it yields `sessionID`; otherwise require explicit UI confirmation.
 - If UDP and UI identify different sessions, mark the run invalid.
 - Before each comparison rerun, rediscover the listener and confirm the same session identity again.
@@ -61,6 +62,12 @@ tail -n 40 /mnt/c/path/to/stderr.log
 
 - `scripts/discover-session.ps1`
   Capture live ResoniteLink announcements from UDP `12512`.
+- `scripts/start-headless-session.ps1`
+  Launch a disposable Windows headless session directly and verify its announced ResoniteLink port.
+- `scripts/stop-headless-session.ps1`
+  Stop the tracked headless PID launched for the experiment, or an explicit PID.
+- `scripts/dump-root-session.ps1`
+  Capture a recursive Root snapshot from the tracked or explicitly addressed session.
 - `scripts/cleanup-session.ps1`
   Remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`

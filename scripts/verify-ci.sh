@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 
-dotnet restore Plateau.ResoniteLink.sln --locked-mode
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
 dotnet format whitespace . --folder --verify-no-changes
-dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore -m:1 -p:UseSharedCompilation=false
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 -p:UseSharedCompilation=false
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+PLATEAU_TEST_FILTER="" PLATEAU_TEST_VERBOSITY=normal bash "$SCRIPT_DIR/test-fast.sh"

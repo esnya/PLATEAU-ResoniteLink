@@ -25,6 +25,15 @@ Follow [docs/live-testing.md](../../../docs/live-testing.md) for the repository'
 
 Use [references/workflow.md](./references/workflow.md) only for skill-specific defaults, guardrails, and script inventory.
 
+For disposable headless validation, prefer this operator sequence:
+
+1. `start-headless-session.ps1`
+2. `dump-root-session.ps1 -Label baseline`
+3. `cleanup-session.ps1`
+4. `run-live-send.ps1`
+5. `dump-root-session.ps1 -Label after-send`
+6. `stop-headless-session.ps1`
+
 ## Run Worksheet
 
 Keep these facts fixed or explicitly updated between comparison runs:
@@ -56,6 +65,12 @@ Keep these facts fixed or explicitly updated between comparison runs:
 
 - `scripts/discover-session.ps1`
 Use to capture live ResoniteLink announcements from UDP `12512`.
+- `scripts/start-headless-session.ps1`
+Use to launch a disposable Windows headless session directly and verify the announced ResoniteLink port.
+- `scripts/stop-headless-session.ps1`
+Use to stop the tracked headless PID launched for the experiment, or an explicit PID.
+- `scripts/dump-root-session.ps1`
+Use to capture a recursive Root snapshot from the tracked or explicitly addressed session.
 - `scripts/cleanup-session.ps1`
 Use to remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`
@@ -63,7 +78,7 @@ Use to launch one Windows-side live send with explicit logs.
 - `scripts/compare-modes.ps1`
 Use to run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
 
-All four paths above are relative to `skills/resonite-live-send-debug/`.
+All seven paths above are relative to `skills/resonite-live-send-debug/`.
 
 ## Outputs
 
@@ -77,5 +92,6 @@ All four paths above are relative to `skills/resonite-live-send-debug/`.
   - last timestamped `live` line
   - whether `stderr` was empty
   - world snapshot: dataset root count, top-level child slot names, suspicious slot component counts
+  - root dump paths for any baseline or post-send snapshots
   - sampling times for log and world-state observations
   - whether the conclusion is valid or contaminated
