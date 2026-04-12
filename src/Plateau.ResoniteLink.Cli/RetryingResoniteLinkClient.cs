@@ -1,7 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
-using System.Reflection;
-
 using Plateau.ResoniteLink.Application.Logging;
 
 using ResoniteLink;
@@ -126,13 +124,9 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
+        _ = importMeshTimeoutMilliseconds;
         return ExecuteTimedImportAsync(
-            (client, state, ct) => ExecuteImportMeshWithTimeoutAsync(
-                client,
-                state,
-                importMeshTimeoutMilliseconds,
-                reporter,
-                ct),
+            static (client, state, ct) => client.ImportMeshAsync(state, ct),
             request,
             "ImportMesh",
             SlowImportThreshold,
@@ -365,132 +359,6 @@ internal sealed class RetryingResoniteLinkClient(
 
         importCancellation.Dispose();
         importDrainSignal?.TrySetResult(true);
-    }
-
-    private static async Task<Uri> ExecuteImportMeshWithTimeoutAsync(
-        IResoniteLinkClient client,
-        ImportMeshRawData request,
-        int timeoutMilliseconds,
-        Action<string>? reporter,
-        CancellationToken cancellationToken)
-    {
-        if (timeoutMilliseconds <= 0)
-        {
-            return await client.ImportMeshAsync(request, cancellationToken);
-        }
-
-        using CancellationTokenSource timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Task<Uri> importTask = client.ImportMeshAsync(request, timeoutCancellation.Token);
-        if (importTask.IsCompleted)
-        {
-            return await importTask;
-        }
-
-        Task completedTask = await Task.WhenAny(
-            importTask,
-            Task.Delay(timeoutMilliseconds, cancellationToken));
-        if (completedTask == importTask)
-        {
-            return await importTask;
-        }
-
-        await timeoutCancellation.CancelAsync();
-        _ = importTask.ContinueWith(
-            static completedImportTask => _ = completedImportTask.Exception,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        cancellationToken.ThrowIfCancellationRequested();
-        string diagnostic = DescribeClientStateForDiagnostics(client);
-        reporter?.Invoke(PlateauLog.Warning("live", diagnostic));
-        throw new TimeoutException(
-            string.IsNullOrWhiteSpace(diagnostic)
-                ? $"ResoniteLink ImportMesh did not complete within {timeoutMilliseconds}ms."
-                : $"ResoniteLink ImportMesh did not complete within {timeoutMilliseconds}ms. {diagnostic}");
-    }
-
-    [SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Diagnostic reflection should never mask the original timeout path.")]
-    private static string DescribeClientStateForDiagnostics(IResoniteLinkClient client)
-    {
-        try
-        {
-            List<string> clientChain = [];
-            object current = client;
-            object? link = null;
-
-            for (int depth = 0; depth < 8 && current is not null; depth++)
-            {
-                clientChain.Add(current.GetType().FullName ?? current.GetType().Name);
-                object? nestedLink = GetMemberValue(current, "link");
-                if (nestedLink is not null)
-                {
-                    link = nestedLink;
-                    break;
-                }
-
-                object? nestedInner = GetMemberValue(current, "inner");
-                if (nestedInner is null || ReferenceEquals(nestedInner, current))
-                {
-                    break;
-                }
-
-                current = nestedInner;
-            }
-
-            if (link is null)
-            {
-                return $"[live][diagnostic] ImportMesh timeout client_chain={string.Join(" -> ", clientChain)} link=unavailable.";
-            }
-
-            object? websocket = GetMemberValue(link, "_client");
-            object? pendingResponses = GetMemberValue(link, "_pendingResponses");
-            object? failureException = GetMemberValue(link, "FailureException");
-            object? isConnected = GetMemberValue(link, "IsConnected");
-            object? websocketState = websocket is null ? null : GetMemberValue(websocket, "State");
-
-            return $"[live][diagnostic] ImportMesh timeout client_chain={string.Join(" -> ", clientChain)} "
-                + $"link_type={link.GetType().FullName ?? link.GetType().Name} "
-                + $"is_connected={isConnected ?? "unknown"} websocket_state={websocketState ?? "unknown"} "
-                + $"pending_responses={TryGetCount(pendingResponses)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"} "
-                + $"failure_exception={(failureException as Exception)?.GetType().Name ?? failureException?.ToString() ?? "null"}.";
-        }
-        catch (Exception exception)
-        {
-            return $"[live][diagnostic] ImportMesh timeout diagnostics failed: {exception.GetType().Name}: {exception.Message}";
-        }
-    }
-
-    private static object? GetMemberValue(object instance, string memberName)
-    {
-        const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-        Type type = instance.GetType();
-        FieldInfo? field = type.GetField(memberName, Flags);
-        if (field is not null)
-        {
-            return field.GetValue(instance);
-        }
-
-        PropertyInfo? property = type.GetProperty(memberName, Flags);
-        return property?.GetValue(instance);
-    }
-
-    private static int? TryGetCount(object? instance)
-    {
-        if (instance is null)
-        {
-            return null;
-        }
-
-        object? count = GetMemberValue(instance, "Count");
-        return count switch
-        {
-            int intCount => intCount,
-            long longCount when longCount is <= int.MaxValue and >= int.MinValue => (int)longCount,
-            _ => null,
-        };
     }
 
     [SuppressMessage(

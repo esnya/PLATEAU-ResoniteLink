@@ -46,7 +46,8 @@ public static class CliCompositionRoot
             reporter(
                 PlateauLog.Warning(
                     "live",
-                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is diagnostic-only and experimental."));
+                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is ignored. "
+                    + "Live imports no longer use a forced timeout."));
         }
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
@@ -59,7 +60,6 @@ public static class CliCompositionRoot
                 diagnostics,
                 CreateSceneBuilderDependencies(),
                 options.EnableMeshBake,
-                options.ResoniteLinkImportMeshTimeoutMilliseconds,
                 progressReporter: reporter),
             CreateDatasetSourceResolver(),
             CreateConstructionSourceFactory(),

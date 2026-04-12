@@ -132,16 +132,16 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task ImportMeshAsyncTimesOutWhenInnerClientStopsResponding()
+    public async Task ImportMeshAsyncIgnoresConfiguredDiagnosticTimeout()
     {
-        List<string> progressMessages = [];
         using BlockingReconnectableClient innerClient = new();
         using RetryingResoniteLinkClient client = new(
             () => innerClient,
-            progressMessages.Add,
+            reporter: null,
             importMeshTimeoutMilliseconds: 100);
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        using CancellationTokenSource cancellation = new();
 
         Task<Uri> importTask = client.ImportMeshAsync(
             new ImportMeshRawData
@@ -149,21 +149,15 @@ public sealed class RetryingResoniteLinkClientTests
                 RawBinaryPayload = [1, 2, 3],
                 VertexCount = 3,
             },
-            CancellationToken.None);
+            cancellation.Token);
 
         await innerClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(150);
 
-        TimeoutException exception = await Assert.ThrowsAsync<TimeoutException>(() => importTask);
+        Assert.False(importTask.IsCompleted);
 
-        Assert.Contains("did not complete within 100ms", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("pending_responses=2", exception.Message, StringComparison.Ordinal);
-        Assert.Contains("failure_exception=InvalidOperationException", exception.Message, StringComparison.Ordinal);
-        Assert.Contains(
-            progressMessages,
-            static message => message.Contains("ImportMesh failed without retry", StringComparison.Ordinal));
-        Assert.Contains(
-            progressMessages,
-            static message => message.Contains("[live][diagnostic] ImportMesh timeout", StringComparison.Ordinal));
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => importTask);
         Assert.Equal(1, innerClient.ImportMeshCallCount);
     }
 

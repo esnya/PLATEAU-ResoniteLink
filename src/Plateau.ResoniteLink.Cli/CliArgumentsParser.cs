@@ -42,7 +42,7 @@ public static class CliArgumentsParser
           --resonitelink-connections <count>
                                                              Optional. Experimental parallel ResoniteLink connection count for live sends. Default: 1.
           --resonitelink-import-mesh-timeout-ms <milliseconds>
-                                                            Optional. Experimental diagnostic timeout for ImportMesh. Default: 0 (disabled).
+                                                            Optional. Accepted for backward compatibility but ignored. Default: 0.
           --no-mesh-bake       Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.

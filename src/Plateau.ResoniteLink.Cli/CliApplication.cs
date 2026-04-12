@@ -97,5 +97,4 @@ public sealed class CliApplication
             return 1;
         }
     }
-
 }

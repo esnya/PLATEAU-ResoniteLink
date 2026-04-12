@@ -415,7 +415,7 @@ public sealed class CliArgumentsParserTests
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Optional. Experimental diagnostic timeout for ImportMesh. Default: 0 (disabled).",
+            "Optional. Accepted for backward compatibility but ignored. Default: 0.",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
     }
