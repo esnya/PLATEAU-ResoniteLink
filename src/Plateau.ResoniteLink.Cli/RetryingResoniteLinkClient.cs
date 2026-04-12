@@ -358,11 +358,11 @@ internal sealed class RetryingResoniteLinkClient(
             IResoniteLinkClient? previous = null;
             try
             {
-                previous = inner;
                 replacement = clientFactory();
 
                 await replacement.ConnectAsync(endpoint, cancellationToken);
 
+                previous = inner;
                 inner = replacement;
                 replacement = null;
                 Interlocked.Increment(ref generation);

@@ -306,7 +306,53 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal("srv_slot_1", slotId);
     }
 
-    private sealed class StubReconnectableClient(bool failImportMesh = false, bool failGetSlot = false) : IResoniteLinkClient
+    [Fact]
+    public async Task FailedReconnectConnectLeavesExistingClientUsable()
+    {
+        int createdClientCount = 0;
+        using StubReconnectableClient firstClient = new(failGetSlot: true);
+        using StubReconnectableClient secondClient = new(failConnect: true);
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            });
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => client.GetSlotAsync("slot-id", 0, CancellationToken.None));
+
+        string createdSlotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    ID = null!,
+                    Parent = new Reference
+                    {
+                        TargetID = "parent-id",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "Slot",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.False(firstClient.IsDisposed);
+        Assert.Equal(1, firstClient.ConnectCallCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+    }
+
+    private sealed class StubReconnectableClient(
+        bool failImportMesh = false,
+        bool failGetSlot = false,
+        bool failConnect = false) : IResoniteLinkClient
     {
         private int nextComponentId;
         private int nextSlotId;
@@ -317,14 +363,22 @@ public sealed class RetryingResoniteLinkClientTests
 
         public int GetSlotCallCount { get; private set; }
 
+        public bool IsDisposed { get; private set; }
+
         public void Dispose()
         {
+            IsDisposed = true;
         }
 
         public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ConnectCallCount++;
+            if (failConnect)
+            {
+                throw new InvalidOperationException("Simulated connect failure.");
+            }
+
             return Task.CompletedTask;
         }
 
