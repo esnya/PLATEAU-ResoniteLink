@@ -212,6 +212,7 @@ internal static class ResoniteLinkSceneBuilderGuardrailTestSupport
                 ID = source.ID,
                 Parent = source.Parent,
                 Name = source.Name,
+                Tag = source.Tag,
                 Position = source.Position,
                 Components = omitComponentDataFromGetSlot ? null : source.Components,
             };
@@ -331,6 +332,59 @@ internal static class ResoniteLinkSceneBuilderGuardrailTestSupport
                     lodLevel: null,
                     materialKey: "dem-child",
                     sourceObjectKey: "shared-terrain"),
+            ]);
+    }
+
+    internal static CapturedScene CreateSameDisplayNameDifferentIdentityScene()
+    {
+        return CreateScene(
+            requestMeshCode: "53394525",
+            requestedMeshCodes: ["53394525"],
+            localOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+            packageNames: ["bldg"],
+            sourceFiles: ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+            cityObjects:
+            [
+                CreateCityObject(
+                    slotKey: "bldg_same_name_a",
+                    displayName: "Repeated Building",
+                    packageName: "bldg",
+                    actualMeshCode: "53394525",
+                    lodLevel: 2,
+                    materialKey: "bldg-same-name-a",
+                    sourceObjectKey: "building-a"),
+                CreateCityObject(
+                    slotKey: "bldg_same_name_b",
+                    displayName: "Repeated Building",
+                    packageName: "bldg",
+                    actualMeshCode: "53394525",
+                    lodLevel: 2,
+                    materialKey: "bldg-same-name-b",
+                    sourceObjectKey: "building-b"),
+            ]);
+    }
+
+    internal static CapturedScene CreateIdentityReplayScene(
+        string displayName,
+        string slotKey,
+        string sourceObjectKey)
+    {
+        return CreateScene(
+            requestMeshCode: "53394525",
+            requestedMeshCodes: ["53394525"],
+            localOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+            packageNames: ["bldg"],
+            sourceFiles: ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+            cityObjects:
+            [
+                CreateCityObject(
+                    slotKey: slotKey,
+                    displayName: displayName,
+                    packageName: "bldg",
+                    actualMeshCode: "53394525",
+                    lodLevel: 2,
+                    materialKey: string.Concat("bldg-", slotKey),
+                    sourceObjectKey: sourceObjectKey),
             ]);
     }
 
@@ -557,6 +611,7 @@ internal static class ResoniteLinkSceneBuilderGuardrailTestSupport
                                     TargetID = ResolveCanonicalId(addSlot.Data.Parent.TargetID, canonicalIdsByLocalId),
                                 },
                                 Name = addSlot.Data.Name,
+                                Tag = addSlot.Data.Tag,
                                 Position = addSlot.Data.Position,
                                 Rotation = addSlot.Data.Rotation,
                             },

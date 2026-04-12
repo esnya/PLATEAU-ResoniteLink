@@ -866,10 +866,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
-        if (await TryGetUniqueChildSlotByNameAsync(
+        if (await TryGetUniqueChildSlotByTagAsync(
                 mutationClient,
                 objectSlots.LodSlot.SlotId,
-                objectSlots.CityObjectSlotName,
+                objectSlots.CityObjectIdentityTag,
                 cancellationToken) is not null)
         {
             sendScope.MarkSkippedDuplicate();
@@ -1097,6 +1097,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             MeshAssetSlot: null,
             HeightMapAssetSlot: null,
             CityObjectSlotName: cityObject.DisplayName,
+            CityObjectIdentityTag: CreateCityObjectIdentityTag(cityObject),
             CityObjectLocalPosition: cityObjectLocalPosition,
             CityObjectRotation: cityObject.Transform.Rotation);
     }
@@ -1115,6 +1116,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{lodKey}|{objectIdentity}");
+    }
+
+    private static string CreateCityObjectIdentityTag(ResoniteConstructionCityObject cityObject)
+    {
+        return CreateDispatchDependencyKey(cityObject);
     }
 
     private async Task<CreatedMaterialAsset> CreateMaterialComponentAsync(
@@ -1452,7 +1458,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             objectSlots.LodSlot.SlotId,
             objectSlots.CityObjectSlotName,
             objectSlots.CityObjectLocalPosition,
-            objectSlots.CityObjectRotation);
+            objectSlots.CityObjectRotation,
+            objectSlots.CityObjectIdentityTag);
         batchBuilder.AddComponent(
             presentationSlot.LocalId,
             "[FrooxEngine]FrooxEngine.MeshRenderer",
@@ -2019,6 +2026,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return TryFindUniqueChildSlotByName(snapshot.Root, slotName, parentId);
     }
 
+    private static async Task<CreatedSlot?> TryGetUniqueChildSlotByTagAsync(
+        IResoniteLinkClient client,
+        string parentId,
+        string slotTag,
+        CancellationToken cancellationToken)
+    {
+        ResoniteSceneSlotSnapshot snapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
+            client,
+            parentId,
+            1,
+            cancellationToken);
+        return TryFindUniqueChildSlotByTag(snapshot.Root, slotTag, parentId);
+    }
+
     private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameWithRetryAsync(
         IResoniteLinkClient client,
         string parentId,
@@ -2058,6 +2079,38 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             slotName,
             static _ => true,
             parentId);
+    }
+
+    private static CreatedSlot? TryFindUniqueChildSlotByTag(
+        Slot? parentSlot,
+        string slotTag,
+        string? parentId = null)
+    {
+        if (parentSlot?.Children is null)
+        {
+            return null;
+        }
+
+        Slot[] matches = parentSlot.Children
+            .Where(child => string.Equals(child.Tag?.Value, slotTag, StringComparison.Ordinal))
+            .ToArray();
+        if (matches.Length == 0)
+        {
+            return null;
+        }
+
+        if (matches.Length > 1)
+        {
+            string parentIdentifier = parentId ?? parentSlot.ID ?? "<unknown>";
+            throw new InvalidOperationException(
+                $"Parent slot '{parentIdentifier}' contains multiple child slots tagged '{slotTag}'.");
+        }
+
+        Slot match = matches[0];
+        string existingSlotId = match.ID
+            ?? throw new InvalidOperationException(
+                $"Child slot tagged '{slotTag}' under parent '{parentId ?? parentSlot.ID ?? "<unknown>"}' did not surface an ID.");
+        return new CreatedSlot(existingSlotId, match.Name?.Value ?? string.Empty);
     }
 
     private static CreatedSlot? TryFindUniqueMatchingChildSlot(
@@ -2129,6 +2182,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
+        string? slotTag = null,
         string? requestedSlotId = null,
         string? messageId = null)
     {
@@ -2146,6 +2200,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 {
                     Value = slotName,
                 },
+                Tag = string.IsNullOrWhiteSpace(slotTag)
+                    ? null
+                    : new Field_string
+                    {
+                        Value = slotTag,
+                    },
                 Position = position is null ? null : CreateFloat3(position),
                 Rotation = rotation is null ? null : CreateFloatQ(rotation),
             },
@@ -2239,11 +2299,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             string parentId,
             string slotName,
             ResoniteFloat3? position,
-            ResoniteFloatQ? rotation)
+            ResoniteFloatQ? rotation,
+            string? slotTag = null)
         {
             string localId = AllocateEntityId("local_slot");
             string messageId = AllocateMessageId();
-            Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
+            Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, slotTag, localId, messageId));
             PendingOperations.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
             return new PendingBatchSlot(localId, messageId, slotName);
         }
@@ -2352,6 +2413,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CreatedSlot? MeshAssetSlot,
         CreatedSlot? HeightMapAssetSlot,
         string CityObjectSlotName,
+        string CityObjectIdentityTag,
         ResoniteFloat3 CityObjectLocalPosition,
         ResoniteFloatQ? CityObjectRotation);
 

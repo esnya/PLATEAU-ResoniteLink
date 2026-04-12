@@ -2,6 +2,20 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Cli;
 
+internal enum ResoniteSceneChildLookupState
+{
+    NotFound,
+    FoundWithoutId,
+    FoundWithId,
+}
+
+internal readonly record struct ResoniteSceneChildLookupResult(
+    ResoniteSceneChildLookupState State,
+    Slot? Slot)
+{
+    public string? SlotId => Slot?.ID;
+}
+
 internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
 {
     public static async Task<ResoniteSceneSlotSnapshot> CreateAsync(
@@ -18,9 +32,14 @@ internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
 
     public Slot? TryGetUniqueChildByName(string slotName, string parentId)
     {
+        return GetUniqueChildLookupResult(slotName, parentId).Slot;
+    }
+
+    public ResoniteSceneChildLookupResult GetUniqueChildLookupResult(string slotName, string parentId)
+    {
         if (Root?.Children is null)
         {
-            return null;
+            return new ResoniteSceneChildLookupResult(ResoniteSceneChildLookupState.NotFound, null);
         }
 
         Slot[] matches = Root.Children
@@ -28,7 +47,7 @@ internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
             .ToArray();
         if (matches.Length == 0)
         {
-            return null;
+            return new ResoniteSceneChildLookupResult(ResoniteSceneChildLookupState.NotFound, null);
         }
 
         if (matches.Length > 1)
@@ -37,6 +56,11 @@ internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
                 $"Parent slot '{parentId}' contains multiple child slots named '{slotName}'.");
         }
 
-        return matches[0];
+        Slot match = matches[0];
+        return new ResoniteSceneChildLookupResult(
+            string.IsNullOrWhiteSpace(match.ID)
+                ? ResoniteSceneChildLookupState.FoundWithoutId
+                : ResoniteSceneChildLookupState.FoundWithId,
+            match);
     }
 }

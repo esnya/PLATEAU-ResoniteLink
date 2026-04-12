@@ -48,10 +48,12 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 datasetRootSlotId,
                 1,
                 cancellationToken);
-            Slot? existingCompletionRoot = datasetRootSnapshot.TryGetUniqueChildByName(completionMeshCode, datasetRootSlotId);
-            string? existingCompletionRootId = existingCompletionRoot?.ID;
-            if (existingCompletionRootId is not null)
+            ResoniteSceneChildLookupResult completionRootLookup = datasetRootSnapshot.GetUniqueChildLookupResult(
+                completionMeshCode,
+                datasetRootSlotId);
+            if (completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
             {
+                string existingCompletionRootId = completionRootLookup.SlotId!;
                 await WaitForSlotAvailableAsync(client, existingCompletionRootId, cancellationToken);
                 Slot? completionSlot = await client.GetSlotAsync(existingCompletionRootId, 0, cancellationToken);
                 return new SceneAnchor(
@@ -60,8 +62,9 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                     completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
             }
 
-            Slot? referenceMeshRoot = datasetRootSnapshot.Root?.Children?
-                .FirstOrDefault(static child => TryGetMeshCodeName(child, out _));
+            Slot? referenceMeshRoot = completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithoutId
+                ? completionRootLookup.Slot
+                : FindDeterministicReferenceMeshRoot(datasetRootSnapshot);
             if (referenceMeshRoot is not null)
             {
                 lastVisibleReferenceMeshRoot = referenceMeshRoot;
@@ -89,12 +92,19 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
             datasetRootSlotId,
             1,
             cancellationToken);
-        string? existingAnchorSlotId = finalDatasetRootSnapshot
-            .TryGetUniqueChildByName(completionMeshCode, datasetRootSlotId)?
-            .ID;
-        if (existingAnchorSlotId is not null)
+        ResoniteSceneChildLookupResult finalCompletionRootLookup = finalDatasetRootSnapshot.GetUniqueChildLookupResult(
+            completionMeshCode,
+            datasetRootSlotId);
+        if (finalCompletionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
         {
+            string existingAnchorSlotId = finalCompletionRootLookup.SlotId!;
             return new SceneAnchor(existingAnchorSlotId, completionMeshCode, anchorPosition);
+        }
+
+        if (finalCompletionRootLookup.State == ResoniteSceneChildLookupState.FoundWithoutId)
+        {
+            throw new InvalidOperationException(
+                $"Anchor slot '{completionMeshCode}' under dataset root '{datasetRootSlotId}' matched by name but did not surface an ID.");
         }
 
         string createdAnchorId = await client.AddSlotAsync(
@@ -134,33 +144,19 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         throw new InvalidOperationException($"ResoniteLink did not surface slot '{slotId}'.");
     }
 
-    private static string? TryFindUniqueChildSlotIdByName(
-        Slot? parentSlot,
-        string slotName)
+    private static Slot? FindDeterministicReferenceMeshRoot(ResoniteSceneSlotSnapshot datasetRootSnapshot)
     {
-        if (parentSlot?.Children is null)
-        {
-            return null;
-        }
-
-        Slot[] matches = parentSlot.Children
-            .Where(child => string.Equals(child.Name?.Value, slotName, StringComparison.Ordinal))
-            .ToArray();
-        if (matches.Length == 0)
-        {
-            return null;
-        }
-
-        if (matches.Length > 1)
-        {
-            string parentIdentifier = parentSlot.ID ?? "<unknown>";
-            throw new InvalidOperationException(
-                $"Parent slot '{parentIdentifier}' contains multiple child slots named '{slotName}'.");
-        }
-
-        return matches[0].ID
-            ?? throw new InvalidOperationException(
-                $"Child slot '{slotName}' under parent '{parentSlot.ID ?? "<unknown>"}' did not surface an ID.");
+        return datasetRootSnapshot.Root?.Children?
+            .Select(static child => TryGetMeshCodeName(child, out string meshCode)
+                ? (Slot: child, MeshCode: meshCode)
+                : ((Slot Slot, string MeshCode)?)null)
+            .Where(static candidate => candidate.HasValue)
+            .Select(static candidate => candidate!.Value)
+            .OrderByDescending(static candidate => candidate.MeshCode.Length)
+            .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
+            .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
+            .Select(static candidate => candidate.Slot)
+            .FirstOrDefault();
     }
 
     private static bool TryGetMeshCodeName(Slot slot, out string meshCode)
