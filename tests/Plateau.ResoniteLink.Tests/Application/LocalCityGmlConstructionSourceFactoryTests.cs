@@ -13,12 +13,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         RecordingComposer composer = new(expectedSource);
         LocalCityGmlConstructionSourceFactory factory = CreateFactory(reader, composer);
 
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/plateau",
-            ServerUri: null);
+        PlateauImportRequest request = CreateRequest();
 
         IResoniteConstructionSource result = await factory.CreateAsync(request);
 
@@ -35,21 +30,20 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         return new LocalCityGmlConstructionSourceFactory(documentReader, constructionComposer);
     }
 
+    private static PlateauImportRequest CreateRequest()
+    {
+        return new PlateauImportRequest(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/plateau",
+            ServerUri: null);
+    }
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentSet DocumentSet { get; } = new(
-            new EmptyDatasetContentSource(),
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
+        public LocalCityGmlDocumentSet DocumentSet { get; } = CreateDocumentSet();
 
         public Task<LocalCityGmlDocumentSet> ReadAsync(
             PlateauImportRequest request,
@@ -59,6 +53,21 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LastRequest = request;
             return Task.FromResult(DocumentSet);
         }
+    }
+
+    private static LocalCityGmlDocumentSet CreateDocumentSet()
+    {
+        return new LocalCityGmlDocumentSet(
+            new EmptyDatasetContentSource(),
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+            ["bldg"],
+            [],
+            ["53394525"],
+            [],
+            [],
+            LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+            new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0, 139.0, 0.0),
+            terrainHeightSampler: null);
     }
 
     private sealed class RecordingComposer(IResoniteConstructionSource source) : IResoniteConstructionComposer
