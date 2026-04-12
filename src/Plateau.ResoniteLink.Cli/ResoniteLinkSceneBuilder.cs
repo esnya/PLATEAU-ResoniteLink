@@ -289,6 +289,60 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportProgress($"[live] Send lanes ready (setup=1, workers={Math.Max(connectionCount - 1, 0)}).");
     }
 
+    public async Task PrepareCommonMaterialAsync(
+        ResoniteMaterialBinding material,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        if (material.AssetScope != ResoniteMaterialAssetScope.Common)
+        {
+            return;
+        }
+
+        ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
+        ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
+        ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
+        string commonAssetsSlotId = commonAssetsRootSlot.Value.SlotId;
+        string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        await materialAssetManager.CreateMaterialComponentAsync(
+            clientSession.SetupClient,
+            material,
+            preparedTexturePathsByKey: new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            materialSlotId: commonAssetsSlotId,
+            materialSlotParentId: commonAssetsSlotId,
+            materialSlotName: materialSlotName,
+            rendererSlotId: commonAssetsSlotId,
+            textureOverrideAssetSlotId: commonAssetsSlotId,
+            cancellationToken);
+    }
+
+    private async Task<(CreatedSlot DatasetRoot, CreatedSlot DatasetAssetsRoot, CreatedSlot CommonAssetsRoot, bool DatasetRootExisted)> CreateSetupSlotHierarchyAsync(
+        IResoniteLinkClient client,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+
+        (CreatedSlot datasetRoot, bool datasetRootExisted) = await GetOrCreateDatasetRootAsync(
+            client,
+            $"PLATEAU {metadata.Request.Dataset}",
+            cancellationToken);
+        CreatedSlot datasetAssetsRoot = await GetOrCreateSharedChildSlotAsync(
+            client,
+            datasetRoot,
+            "Assets",
+            null,
+            null,
+            cancellationToken);
+        CreatedSlot commonAssetsRoot = await GetOrCreateSharedChildSlotAsync(
+            client,
+            datasetAssetsRoot,
+            CommonAssetsSlotName,
+            null,
+            null,
+            cancellationToken);
+        return (datasetRoot, datasetAssetsRoot, commonAssetsRoot, datasetRootExisted);
+    }
     private static async Task<(CreatedSlot Slot, bool Existed)> GetOrCreateDatasetRootAsync(
         IResoniteLinkClient client,
         string slotName,
@@ -722,17 +776,37 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return meshCode;
         }
 
-        string? requestedMeshCode = metadata.SourceDataset.RequestedMeshCodes?
-            .FirstOrDefault(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _));
-        if (!string.IsNullOrWhiteSpace(requestedMeshCode))
+        (string MeshCode, double DistanceSquared)[] concreteRequestedMeshCodes = metadata.SourceDataset.RequestedMeshCodes?
+            .Select(candidate => TryResolveConcreteMeshCodeDistance(candidate, metadata.LocalOrigin))
+            .Where(static candidate => candidate.HasValue)
+            .Select(static candidate => candidate!.Value)
+            .OrderBy(static candidate => candidate.DistanceSquared)
+            .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
+            .ToArray()
+            ?? [];
+        if (concreteRequestedMeshCodes.Length > 0)
         {
-            return requestedMeshCode;
+            return concreteRequestedMeshCodes[0].MeshCode;
         }
 
         throw new InvalidOperationException(
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"Live Offset V2 requires a concrete meshcode anchor, but '{meshCode}' did not resolve to any concrete meshcode."));
+    }
+
+    private static (string MeshCode, double DistanceSquared)? TryResolveConcreteMeshCodeDistance(
+        string meshCode,
+        ResoniteLocalOrigin requestOrigin)
+    {
+        if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin concreteCenter))
+        {
+            return null;
+        }
+
+        ResoniteFloat3 offset = ComputeOriginOffset(requestOrigin, concreteCenter);
+        double distanceSquared = (offset.X * offset.X) + (offset.Z * offset.Z);
+        return (meshCode, distanceSquared);
     }
 
     private async Task BuildPreparedCityObjectAsync(
@@ -751,34 +825,81 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         IResoniteLinkClient mutationClient = clientSession.SetupClient;
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
+        Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportBuildStep(cityObject, "Creating object slot hierarchy.");
+        Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
         ObjectSlotHierarchy objectSlots = await CreateObjectSlotHierarchyAsync(
             mutationClient,
             datasetRootSlot.Value,
             datasetAssetsRootSlot.Value,
             cityObject,
             cancellationToken);
+        slotHierarchyStopwatch.Stop();
 
         ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
-        PreparedGeometryAssetBatch preparedGeometryBatch = await PrepareGeometryBatchAsync(
+        Stopwatch geometryStopwatch = Stopwatch.StartNew();
+        using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task<PreparedGeometryAssetBatch> preparedGeometryBatchTask = PrepareGeometryBatchAsync(
             importClient,
             cityObject,
             preparedCityObject,
-            cancellationToken);
+            buildStepCancellation.Token);
 
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
                 texture.TexturePath,
                 texture.TextureSourceKind),
             static texture => texture.TextureImport);
-        IReadOnlyList<MaterialReferenceTarget> materialTargets = await ResolveMaterialTargetsAsync(
-            importClient,
-            cityObject,
-            preparedTextureDataByKey,
-            objectSlots,
-            cancellationToken);
+        Stopwatch materialStopwatch = Stopwatch.StartNew();
+        List<MaterialReferenceTarget> materialTargets = [];
+        List<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks = [];
+        PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets;
+        PreparedGeometryAssetBatch preparedGeometryBatch;
+        try
+        {
+            for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
+            {
+                ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
+                ReportBuildStep(
+                    cityObject,
+                    $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
+                if (material.AssetScope == ResoniteMaterialAssetScope.Common)
+                {
+                    CreatedMaterialAsset materialAsset = await CreateMaterialComponentAsync(
+                        importClient,
+                        material,
+                        preparedTextureDataByKey,
+                        objectSlots,
+                        buildStepCancellation.Token);
+                    materialTargets.Add(MaterialReferenceTarget.FromCanonical(materialAsset.MaterialComponentId));
+                }
+                else
+                {
+                    materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
+                    dedicatedMaterialPreparationTasks.Add(
+                        PrepareDedicatedMaterialAssetsAsync(
+                            importClient,
+                            material,
+                            preparedTextureDataByKey,
+                            buildStepCancellation.Token));
+                }
+            }
+            preparedDedicatedMaterialAssets = dedicatedMaterialPreparationTasks.Count == 0
+                ? []
+                : await Task.WhenAll(dedicatedMaterialPreparationTasks);
+            materialStopwatch.Stop();
+            preparedGeometryBatch = await preparedGeometryBatchTask;
+            geometryStopwatch.Stop();
+        }
+        catch
+        {
+            await buildStepCancellation.CancelAsync();
+            await ObserveTaskFailureAsync(preparedGeometryBatchTask);
+            throw;
+        }
 
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
+        Stopwatch batchStopwatch = Stopwatch.StartNew();
         await CreateCityObjectBatchAsync(
             mutationClient,
             importClient,
@@ -787,15 +908,42 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             preparedTextureDataByKey,
             preparedGeometryBatch,
             materialTargets,
+            preparedDedicatedMaterialAssets,
             cancellationToken);
+        batchStopwatch.Stop();
 
         ReportBuildStep(cityObject, "Live build completed.");
+        cityObjectStopwatch.Stop();
+        ReportProgress(
+            PlateauLog.Debug(
+                "live",
+                $"City object '{cityObject.DisplayName}' phase timings: "
+                + $"slot_hierarchy_s={slotHierarchyStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"geometry_assets_s={geometryStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"materials_s={materialStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"batch_s={batchStopwatch.Elapsed.TotalSeconds:F3} "
+                + $"total_send_s={cityObjectStopwatch.Elapsed.TotalSeconds:F3}."));
         sendScope.MarkSent();
         if (Interlocked.CompareExchange(ref firstBuiltCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
                 $"[live] First city object built after {GetSceneElapsedSeconds():F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+        }
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
+    private static async Task ObserveTaskFailureAsync(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch
+        {
         }
     }
 
@@ -1098,9 +1246,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         IResoniteLinkClient importClient,
         ObjectSlotHierarchy objectSlots,
         ResoniteConstructionCityObject cityObject,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
         PreparedGeometryAssetBatch preparedGeometryBatch,
         IReadOnlyList<MaterialReferenceTarget> materialTargets,
+        IReadOnlyList<PreparedDedicatedMaterialAssets> preparedDedicatedMaterialAssets,
         CancellationToken cancellationToken)
     {
         CityObjectBatchBuilder batchBuilder = new();
@@ -1177,6 +1326,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         List<MaterialReferenceTarget> resolvedMaterialTargets = [];
+        int preparedDedicatedMaterialAssetIndex = 0;
         foreach (MaterialReferenceTarget materialTarget in materialTargets)
         {
             if (materialTarget.DedicatedMaterial is null)
@@ -1187,10 +1337,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
             PendingBatchComponent dedicatedMaterial = await AddDedicatedMaterialOperationsAsync(
                 batchBuilder,
-                importClient,
                 meshAssetSlot.LocalId,
                 materialTarget.DedicatedMaterial,
-                preparedTextureDataByKey,
+                preparedDedicatedMaterialAssets[preparedDedicatedMaterialAssetIndex++],
                 cancellationToken);
             resolvedMaterialTargets.Add(materialTarget with
             {
@@ -1255,12 +1404,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
     }
 
-    private async Task<PendingBatchComponent> AddDedicatedMaterialOperationsAsync(
+    private static Task<PendingBatchComponent> AddDedicatedMaterialOperationsAsync(
         CityObjectBatchBuilder batchBuilder,
-        IResoniteLinkClient importClient,
         string meshAssetSlotLocalId,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        PreparedDedicatedMaterialAssets preparedAssets,
         CancellationToken cancellationToken)
     {
         string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: false);
@@ -1271,121 +1419,182 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             null);
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
 
-        if (material.TexturePath is not null
-            && preparedTextureDataByKey.TryGetValue(
-                ResoniteMaterialAssetManager.CreateTextureReferenceKey(material.TexturePath, material.TextureSourceKind),
-                out ResoniteTextureImport? albedoTextureImport))
+        if (preparedAssets.AlbedoTextureUri is not null)
         {
-            Uri albedoTextureUri = await ImportTextureAsync(importClient, albedoTextureImport, cancellationToken);
             PendingBatchComponent albedoTexture = batchBuilder.AddComponent(
                 materialSlot.LocalId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                CreateTextureMembers(albedoTextureUri));
+                CreateTextureMembers(preparedAssets.AlbedoTextureUri));
             materialMembers["AlbedoTexture"] = new Reference
             {
                 TargetID = albedoTexture.LocalId,
             };
         }
 
+        if (preparedAssets.NormalTextureUri is not null)
+        {
+            PendingBatchComponent normalTexture = batchBuilder.AddComponent(
+                materialSlot.LocalId,
+                "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                CreateTextureMembers(preparedAssets.NormalTextureUri));
+            materialMembers["NormalMap"] = new Reference
+            {
+                TargetID = normalTexture.LocalId,
+            };
+            materialMembers["NormalScale"] = new Field_float
+            {
+                Value = DefaultNormalScale,
+            };
+        }
+
+        if (preparedAssets.HeightTextureUri is not null)
+        {
+            PendingBatchComponent heightTexture = batchBuilder.AddComponent(
+                materialSlot.LocalId,
+                "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                CreateTextureMembers(preparedAssets.HeightTextureUri));
+            materialMembers["HeightMap"] = new Reference
+            {
+                TargetID = heightTexture.LocalId,
+            };
+            materialMembers["HeightScale"] = new Field_float
+            {
+                Value = DefaultBundledHeightScale,
+            };
+        }
+
+        if (preparedAssets.MetallicTextureUri is not null)
+        {
+            PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
+                materialSlot.LocalId,
+                "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                CreateTextureMembers(preparedAssets.MetallicTextureUri));
+            materialMembers["MetallicMap"] = new Reference
+            {
+                TargetID = metallicTexture.LocalId,
+            };
+            materialMembers["OcclusionMap"] = new Reference
+            {
+                TargetID = metallicTexture.LocalId,
+            };
+        }
+
+        if (preparedAssets.EmissionTextureUri is not null)
+        {
+            PendingBatchComponent emissionTexture = batchBuilder.AddComponent(
+                materialSlot.LocalId,
+                "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                CreateTextureMembers(preparedAssets.EmissionTextureUri));
+            materialMembers["EmissiveMap"] = new Reference
+            {
+                TargetID = emissionTexture.LocalId,
+            };
+            materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
+                new ResoniteColor(1.0, 1.0, 1.0, 1.0));
+        }
+
+        return Task.FromResult(batchBuilder.AddComponent(
+            materialSlot.LocalId,
+            ResoniteMaterialComponentBuilder.GetComponentType(material),
+            materialMembers));
+    }
+
+    private async Task<PreparedDedicatedMaterialAssets> PrepareDedicatedMaterialAssetsAsync(
+        IResoniteLinkClient importClient,
+        ResoniteMaterialBinding material,
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        CancellationToken cancellationToken)
+    {
+        Task<Uri?> albedoTextureTask = material.TexturePath is not null
+            && preparedTextureDataByKey.TryGetValue(
+                ResoniteMaterialAssetManager.CreateTextureReferenceKey(material.TexturePath, material.TextureSourceKind),
+                out ResoniteTextureImport? albedoTextureImport)
+            ? ImportOptionalTextureAsync(importClient, albedoTextureImport, cancellationToken)
+            : Task.FromResult<Uri?>(null);
+
+        Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> heightTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> metallicTextureTask = Task.FromResult<Uri?>(null);
+        Task<Uri?> emissionTextureTask = Task.FromResult<Uri?>(null);
+
         if (ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
             && textureSet is not null)
         {
             if (textureSet.NormalPath is not null)
             {
-                Uri normalTextureUri = await ImportTextureAsync(
+                normalTextureTask = ImportOptionalTextureAsync(
                     importClient,
                     await ResoniteTextureImportFactory.CreateRawFromFileAsync(
                         textureSet.NormalPath,
                         ResoniteTextureColorProfiles.Linear,
                         cancellationToken),
                     cancellationToken);
-                PendingBatchComponent normalTexture = batchBuilder.AddComponent(
-                    materialSlot.LocalId,
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    CreateTextureMembers(normalTextureUri));
-                materialMembers["NormalMap"] = new Reference
-                {
-                    TargetID = normalTexture.LocalId,
-                };
-                materialMembers["NormalScale"] = new Field_float
-                {
-                    Value = DefaultNormalScale,
-                };
             }
 
             if (textureSet.HeightPath is not null
                 && material.Projection == ResoniteMaterialProjection.Uv)
             {
-                Uri heightTextureUri = await ImportTextureAsync(
+                heightTextureTask = ImportOptionalTextureAsync(
                     importClient,
                     await ResoniteTextureImportFactory.CreateRawFromFileAsync(
                         textureSet.HeightPath,
                         ResoniteTextureColorProfiles.Linear,
                         cancellationToken),
                     cancellationToken);
-                PendingBatchComponent heightTexture = batchBuilder.AddComponent(
-                    materialSlot.LocalId,
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    CreateTextureMembers(heightTextureUri));
-                materialMembers["HeightMap"] = new Reference
-                {
-                    TargetID = heightTexture.LocalId,
-                };
-                materialMembers["HeightScale"] = new Field_float
-                {
-                    Value = DefaultBundledHeightScale,
-                };
             }
 
             if (textureSet.MetallicPath is not null)
             {
-                Uri metallicTextureUri = await ImportTextureAsync(
+                metallicTextureTask = ImportOptionalTextureAsync(
                     importClient,
                     await ResoniteTextureImportFactory.CreateRawFromFileAsync(
                         textureSet.MetallicPath,
                         ResoniteTextureColorProfiles.Linear,
                         cancellationToken),
                     cancellationToken);
-                PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
-                    materialSlot.LocalId,
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    CreateTextureMembers(metallicTextureUri));
-                materialMembers["MetallicMap"] = new Reference
-                {
-                    TargetID = metallicTexture.LocalId,
-                };
-                materialMembers["OcclusionMap"] = new Reference
-                {
-                    TargetID = metallicTexture.LocalId,
-                };
             }
 
             if (textureSet.EmissionPath is not null)
             {
-                Uri emissionTextureUri = await ImportTextureAsync(
+                emissionTextureTask = ImportOptionalTextureAsync(
                     importClient,
                     await ResoniteTextureImportFactory.CreateRawFromFileAsync(
                         textureSet.EmissionPath,
                         ResoniteTextureColorProfiles.Srgb,
                         cancellationToken),
                     cancellationToken);
-                PendingBatchComponent emissionTexture = batchBuilder.AddComponent(
-                    materialSlot.LocalId,
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    CreateTextureMembers(emissionTextureUri));
-                materialMembers["EmissiveMap"] = new Reference
-                {
-                    TargetID = emissionTexture.LocalId,
-                };
-                materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
-                    new ResoniteColor(1.0, 1.0, 1.0, 1.0));
             }
         }
 
-        return batchBuilder.AddComponent(
-            materialSlot.LocalId,
-            ResoniteMaterialComponentBuilder.GetComponentType(material),
-            materialMembers);
+        await Task.WhenAll(
+            albedoTextureTask,
+            normalTextureTask,
+            heightTextureTask,
+            metallicTextureTask,
+            emissionTextureTask);
+
+        return new PreparedDedicatedMaterialAssets(
+            await albedoTextureTask,
+            await normalTextureTask,
+            await heightTextureTask,
+            await metallicTextureTask,
+            await emissionTextureTask);
+    }
+
+    private Task<Uri?> ImportOptionalTextureAsync(
+        IResoniteLinkClient importClient,
+        ResoniteTextureImport textureImport,
+        CancellationToken cancellationToken)
+    {
+        return ImportOptionalTextureCoreAsync(importClient, textureImport, cancellationToken);
+    }
+
+    private async Task<Uri?> ImportOptionalTextureCoreAsync(
+        IResoniteLinkClient importClient,
+        ResoniteTextureImport textureImport,
+        CancellationToken cancellationToken)
+    {
+        return await ImportTextureAsync(importClient, textureImport, cancellationToken);
     }
 
     private static Dictionary<string, Member> CreateTextureMembers(Uri assetUri)
@@ -2117,4 +2326,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string TexturePath,
         ResoniteTextureSourceKind TextureSourceKind,
         ResoniteTextureImport TextureImport);
+
+    private sealed record PreparedDedicatedMaterialAssets(
+        Uri? AlbedoTextureUri,
+        Uri? NormalTextureUri,
+        Uri? HeightTextureUri,
+        Uri? MetallicTextureUri,
+        Uri? EmissionTextureUri);
 }

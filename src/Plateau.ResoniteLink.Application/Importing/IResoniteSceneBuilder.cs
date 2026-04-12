@@ -18,6 +18,10 @@ public interface IResoniteSceneBuilder : IAsyncDisposable
         string workRoot,
         CancellationToken cancellationToken = default);
 
+    Task PrepareCommonMaterialAsync(
+        ResoniteMaterialBinding material,
+        CancellationToken cancellationToken = default);
+
     Task ProcessCityObjectAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default);

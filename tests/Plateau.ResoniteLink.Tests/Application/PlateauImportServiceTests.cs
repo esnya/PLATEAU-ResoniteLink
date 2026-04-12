@@ -116,6 +116,36 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncPrewarmsCommonMaterialsDuringStreaming()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite");
+
+        ResoniteMaterialBinding commonMaterial = Assert.Single(sceneBuilder.CommonMaterials);
+        Assert.Equal("stub-material", commonMaterial.MaterialKey);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, commonMaterial.AssetScope);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncBuildsNormalizedSceneFromZipArchive()
     {
         using TemporaryDirectory archiveRoot = new();
@@ -1174,29 +1204,35 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public void ExtendBoundaryConnectedMissingHeightMapBandsFillsMultiColumnEdgeRuns()
+    public void ExtendBoundaryConnectedMissingHeightMapBandsPreservesSeaLevelForBoundaryConnectedRuns()
     {
         double[] localHeights =
         [
-            0.0, 0.0, 10.0, 20.0,
-            0.0, 11.0, 12.0, 13.0,
-            0.0, 21.0, 22.0, 23.0,
-            30.0, 31.0, 32.0, 33.0,
+            0.0, 0.0, 10.0, 20.0, 30.0,
+            0.0, 0.0, 12.0, 22.0, 32.0,
+            0.0, 0.0, 14.0, 24.0, 34.0,
+            0.0, 0.0, 16.0, 26.0, 36.0,
+            0.0, 0.0, 18.0, 28.0, 38.0,
         ];
         bool[] sampledInsideTriangles =
         [
-            false, false, true, true,
-            false, true, true, true,
-            false, true, true, true,
-            true, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
         ];
 
-        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 5, height: 5);
 
-        Assert.Equal(10.0, localHeights[0]);
-        Assert.Equal(10.0, localHeights[1]);
-        Assert.Equal(11.0, localHeights[4]);
-        Assert.Equal(21.0, localHeights[8]);
+        Assert.Equal(0.0, localHeights[0]);
+        Assert.Equal(0.0, localHeights[5]);
+        Assert.Equal(0.0, localHeights[10]);
+        Assert.Equal(0.0, localHeights[15]);
+        Assert.Equal(0.0, localHeights[20]);
+        Assert.Equal(0.0, localHeights[6]);
+        Assert.Equal(0.0, localHeights[11]);
+        Assert.Equal(0.0, localHeights[16]);
     }
 
     [Fact]
@@ -1249,6 +1285,38 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(10.0, localHeights[4]);
         Assert.Equal(10.0, localHeights[8]);
         Assert.Equal(10.0, localHeights[12]);
+    }
+
+    [Fact]
+    public void ExtendBoundaryConnectedMissingHeightMapBandsDoesNotLiftSeaLevelBoundaryTowardHighInteriorSamples()
+    {
+        double[] localHeights =
+        [
+            0.0, 0.0, 100.0, 100.0, 100.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+            0.0, 0.0, 10.0, 10.0, 10.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+            false, false, true, true, true,
+        ];
+
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 5, height: 5);
+
+        Assert.Equal(0.0, localHeights[0]);
+        Assert.Equal(0.0, localHeights[5]);
+        Assert.Equal(0.0, localHeights[10]);
+        Assert.Equal(0.0, localHeights[15]);
+        Assert.Equal(0.0, localHeights[20]);
+        Assert.Equal(0.0, localHeights[6]);
+        Assert.Equal(0.0, localHeights[11]);
+        Assert.Equal(0.0, localHeights[16]);
     }
 
     [Fact]
@@ -2449,6 +2517,7 @@ public sealed class PlateauImportServiceTests
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<ResoniteMaterialBinding> CommonMaterials { get; } = [];
         public List<string> BeginWorkRoots { get; } = [];
         public int EnsureConnectedCallCount { get; private set; }
         public int DisposeCallCount { get; private set; }
@@ -2482,6 +2551,15 @@ public sealed class PlateauImportServiceTests
             ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
             BeginWorkRoots.Add(workRoot);
             OnBegin?.Invoke();
+            return Task.CompletedTask;
+        }
+
+        public Task PrepareCommonMaterialAsync(
+            ResoniteMaterialBinding material,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(material);
+            CommonMaterials.Add(material);
             return Task.CompletedTask;
         }
 
@@ -2579,6 +2657,21 @@ public sealed class PlateauImportServiceTests
     {
         public ResoniteConstructionMetadata Metadata { get; } = metadata;
 
+        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (ResoniteMaterialBinding material in cityObjects
+                         .SelectMany(static cityObject => cityObject.Materials)
+                         .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)
+                         .GroupBy(static material => material.MaterialKey, StringComparer.Ordinal)
+                         .Select(static group => group.First()))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return material;
+                await Task.Yield();
+            }
+        }
+
         public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
         {
             return cityObjects;
@@ -2638,7 +2731,8 @@ public sealed class PlateauImportServiceTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     TextureScale: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.Common),
             ]);
 
         return new StubConstructionSource(

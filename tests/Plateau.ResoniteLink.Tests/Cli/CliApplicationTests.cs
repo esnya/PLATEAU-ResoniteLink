@@ -207,6 +207,13 @@ public sealed class CliApplicationTests
             return Task.CompletedTask;
         }
 
+        public Task PrepareCommonMaterialAsync(
+            ResoniteMaterialBinding material,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task ProcessCityObjectAsync(
             ResoniteConstructionCityObject cityObject,
             CancellationToken cancellationToken = default)

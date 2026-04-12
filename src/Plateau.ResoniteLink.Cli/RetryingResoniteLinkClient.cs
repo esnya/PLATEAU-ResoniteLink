@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
 using System.Reflection;
 
 using Plateau.ResoniteLink.Application.Logging;
@@ -13,15 +14,26 @@ internal sealed class RetryingResoniteLinkClient(
     int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
+    private const int MaxConcurrentImports = 4;
+    private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan SlowImportMeshThreshold = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan SlowImportTextureThreshold = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim operationGate = new(1, 1);
+    private readonly SemaphoreSlim importGate = new(MaxConcurrentImports, MaxConcurrentImports);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
+    private readonly object clientStateGate = new();
     private IResoniteLinkClient inner = clientFactory();
     private Uri? endpoint;
     private int generation;
+    private int activeImportCount;
+    private bool reconnectPending;
+    private TaskCompletionSource<bool>? reconnectCompletion;
+    private TaskCompletionSource<bool>? importDrainCompletion;
 
     public void Dispose()
     {
         operationGate.Dispose();
+        importGate.Dispose();
         reconnectGate.Dispose();
         inner.Dispose();
     }
@@ -89,10 +101,11 @@ internal sealed class RetryingResoniteLinkClient(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
-        return ExecuteWithoutReconnectAsync(
+        return ExecuteTimedWithoutReconnectAsync(
             static (client, state, ct) => client.RunDataModelOperationBatchAsync(state, ct),
             operations,
             "RunDataModelOperationBatch",
+            SlowBatchThreshold,
             cancellationToken);
     }
 
@@ -116,7 +129,7 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        return ExecuteWithoutReconnectAsync(
+        return ExecuteTimedImportAsync(
             (client, state, ct) => ExecuteImportMeshWithTimeoutAsync(
                 client,
                 state,
@@ -125,15 +138,17 @@ internal sealed class RetryingResoniteLinkClient(
                 ct),
             request,
             "ImportMesh",
+            SlowImportMeshThreshold,
             cancellationToken);
     }
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return ExecuteWithoutReconnectAsync(
+        return ExecuteTimedImportAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
+            SlowImportTextureThreshold,
             cancellationToken);
     }
 
@@ -208,6 +223,146 @@ internal sealed class RetryingResoniteLinkClient(
         {
             operationGate.Release();
         }
+    }
+
+    private async Task<TResult> ExecuteTimedWithoutReconnectAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        TimeSpan slowThreshold,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TResult result = await ExecuteWithoutReconnectAsync(
+            operation,
+            state,
+            operationName,
+            cancellationToken);
+        stopwatch.Stop();
+
+        reporter?.Invoke(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
+        if (stopwatch.Elapsed >= slowThreshold)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
+                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+        }
+
+        return result;
+    }
+
+    private async Task<TResult> ExecuteTimedImportAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        TimeSpan slowThreshold,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TResult result = await ExecuteImportAsync(
+            operation,
+            state,
+            operationName,
+            cancellationToken);
+        stopwatch.Stop();
+
+        reporter?.Invoke(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
+        if (stopwatch.Elapsed >= slowThreshold)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
+                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+        }
+
+        return result;
+    }
+
+    private async Task<TResult> ExecuteImportAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        await importGate.WaitAsync(cancellationToken);
+        try
+        {
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Task reconnectTask;
+                IResoniteLinkClient? client = null;
+                lock (clientStateGate)
+                {
+                    if (!reconnectPending)
+                    {
+                        activeImportCount++;
+                        client = inner;
+                        reconnectTask = Task.CompletedTask;
+                    }
+                    else
+                    {
+                        reconnectTask = reconnectCompletion?.Task ?? Task.CompletedTask;
+                    }
+                }
+
+                if (client is null)
+                {
+                    await reconnectTask.WaitAsync(cancellationToken);
+                    continue;
+                }
+
+                try
+                {
+                    return await operation(client, state, cancellationToken);
+                }
+                finally
+                {
+                    ReleaseActiveImport();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
+            throw;
+        }
+        finally
+        {
+            importGate.Release();
+        }
+    }
+
+    private void ReleaseActiveImport()
+    {
+        TaskCompletionSource<bool>? importDrainSignal = null;
+        lock (clientStateGate)
+        {
+            activeImportCount--;
+            if (activeImportCount == 0 && reconnectPending)
+            {
+                importDrainSignal = importDrainCompletion;
+                importDrainCompletion = null;
+            }
+        }
+
+        importDrainSignal?.TrySetResult(true);
     }
 
     private static async Task<Uri> ExecuteImportMeshWithTimeoutAsync(
@@ -404,6 +559,18 @@ internal sealed class RetryingResoniteLinkClient(
                 throw new InvalidOperationException("Cannot reconnect before an endpoint has been established.");
             }
 
+            Task waitForImportsTask;
+            TaskCompletionSource<bool> reconnectCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (clientStateGate)
+            {
+                reconnectPending = true;
+                reconnectCompletion = reconnectCompletionSource;
+                waitForImportsTask = activeImportCount == 0
+                    ? Task.CompletedTask
+                    : (importDrainCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
+            }
+
+            await waitForImportsTask.WaitAsync(cancellationToken);
             IResoniteLinkClient previous = inner;
             IResoniteLinkClient replacement = clientFactory();
 
@@ -414,11 +581,24 @@ internal sealed class RetryingResoniteLinkClient(
             catch
             {
                 replacement.Dispose();
+                lock (clientStateGate)
+                {
+                    reconnectPending = false;
+                    reconnectCompletion = null;
+                }
+                reconnectCompletionSource.TrySetResult(true);
                 throw;
             }
 
-            inner = replacement;
-            Interlocked.Increment(ref generation);
+            lock (clientStateGate)
+            {
+                inner = replacement;
+                reconnectPending = false;
+                reconnectCompletion = null;
+                importDrainCompletion = null;
+                Interlocked.Increment(ref generation);
+            }
+            reconnectCompletionSource.TrySetResult(true);
             previous.Dispose();
             reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
         }

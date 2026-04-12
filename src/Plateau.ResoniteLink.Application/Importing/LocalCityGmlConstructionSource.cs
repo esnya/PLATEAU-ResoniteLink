@@ -41,6 +41,60 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
     public ResoniteConstructionMetadata Metadata { get; }
 
+    public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        LocalCartesian? globalCartesian = referenceSystem.IsGeographic
+            ? new LocalCartesian(
+                globalOriginPoint.Latitude,
+                globalOriginPoint.Longitude,
+                globalOriginPoint.Altitude,
+                referenceSystem.Geocentric)
+            : null;
+        HashSet<string> emittedMaterialKeys = new(StringComparer.Ordinal);
+
+        foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _ = sourceFile.GetParseTask();
+        }
+
+        foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
+        {
+            await foreach (ResoniteMaterialBinding material in StreamCommonMaterialsAsync(
+                               sourceFile,
+                               referenceSystem,
+                               globalOriginPoint,
+                               globalCartesian,
+                               demTerrainTextureOverlays,
+                               terrainHeightSampler,
+                               request,
+                               sourceFile.GetParseTask(),
+                               emittedMaterialKeys,
+                               cancellationToken))
+            {
+                yield return material;
+            }
+        }
+
+        foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
+        {
+            foreach (ResoniteMaterialBinding material in LocalCityGmlResonitePlanBuilder.EnumerateCommonMaterials(
+                         sourceFile.ToLegacy(),
+                         referenceSystem.ToLegacy(),
+                         globalOriginPoint.ToLegacy(),
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         terrainHeightSampler?.ToLegacy(),
+                         request,
+                         emittedMaterialKeys))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return material;
+            }
+        }
+    }
+
     public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
     {
         LocalCartesian? globalCartesian = referenceSystem.IsGeographic
@@ -316,6 +370,39 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return cityObject;
             }
+        }
+    }
+
+    private static async IAsyncEnumerable<ResoniteMaterialBinding> StreamCommonMaterialsAsync(
+        SourceFilePipeline sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
+        Task<ParsedSourceFileResult>? parseTask,
+        HashSet<string> emittedMaterialKeys,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ParsedSourceFileResult parsedSourceFile = parseTask is null
+            ? await sourceFile.GetParseTask()
+            : await parseTask;
+
+        ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
+
+        foreach (ResoniteMaterialBinding material in LocalCityGmlResonitePlanBuilder.EnumerateCommonMaterials(
+                     new CachedSourceFileDescriptor(sourceFile.SourceFile, parsedSourceFile.CityObjects).ToLegacy(),
+                     referenceSystem.ToLegacy(),
+                     globalOriginPoint.ToLegacy(),
+                     globalCartesian,
+                     demTerrainTextureOverlays,
+                     terrainHeightSampler?.ToLegacy(),
+                     request,
+                     emittedMaterialKeys))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return material;
         }
     }
 

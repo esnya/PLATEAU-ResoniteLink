@@ -35,6 +35,8 @@ public sealed class PlateauImportService(
         ReportProgress(
             PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
+        Task commonMaterialPrewarmTask = Task.CompletedTask;
+        CancellationTokenSource? commonMaterialPrewarmCancellation = null;
         try
         {
             Stopwatch connectStopwatch = Stopwatch.StartNew();
@@ -57,6 +59,8 @@ public sealed class PlateauImportService(
             await sceneBuilder.BeginAsync(source.Metadata, datasetWorkRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
+            commonMaterialPrewarmCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            commonMaterialPrewarmTask = PrewarmCommonMaterialsAsync(source, commonMaterialPrewarmCancellation.Token);
 
             bool processedAnyCityObject = false;
             int processedCityObjectCount = 0;
@@ -68,6 +72,8 @@ public sealed class PlateauImportService(
                 await sceneBuilder.ProcessCityObjectAsync(cityObject, cancellationToken);
                 processedCityObjectCount++;
             }
+
+            await commonMaterialPrewarmTask;
 
             cityObjectStopwatch.Stop();
             ReportProgress(
@@ -88,6 +94,25 @@ public sealed class PlateauImportService(
         }
         finally
         {
+            if (commonMaterialPrewarmCancellation is not null)
+            {
+                await commonMaterialPrewarmCancellation.CancelAsync();
+                if (!commonMaterialPrewarmTask.IsCompleted)
+                {
+                    _ = commonMaterialPrewarmTask.ContinueWith(
+                        static completedTask => _ = completedTask.Exception,
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+                }
+                else if (commonMaterialPrewarmTask.IsFaulted)
+                {
+                    _ = commonMaterialPrewarmTask.Exception;
+                }
+
+                commonMaterialPrewarmCancellation.Dispose();
+            }
+
             await sceneBuilder.DisposeAsync();
         }
     }
@@ -95,5 +120,116 @@ public sealed class PlateauImportService(
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
+    }
+
+    private async Task PrewarmCommonMaterialsAsync(
+        IResoniteConstructionSource source,
+        CancellationToken cancellationToken)
+    {
+        int preparedCommonMaterialCount = 0;
+        await foreach (ResoniteMaterialBinding material in source.ReadCommonMaterialsAsync(cancellationToken))
+        {
+            await sceneBuilder.PrepareCommonMaterialAsync(material, cancellationToken);
+            preparedCommonMaterialCount++;
+        }
+
+        if (preparedCommonMaterialCount > 0)
+        {
+            ReportProgress(
+                PlateauLog.Debug("import", $"Prepared {preparedCommonMaterialCount} Common materials during source parsing."));
+        }
+    }
+
+    private static PlateauImportRequest NormalizeRequestForValidation(PlateauImportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request with
+        {
+            Dataset = TrimToEmpty(request.Dataset),
+            MeshCode = TrimToEmpty(request.MeshCode),
+            Source = NormalizeSourceForValidation(request.Source),
+            PackageNames = request.PackageNames is null
+                ? null
+                : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
+        };
+    }
+
+    private static string TrimToEmpty(string? value)
+    {
+        return value?.Trim() ?? string.Empty;
+    }
+
+    private static PlateauImportSource NormalizeSourceForValidation(PlateauImportSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        return source switch
+        {
+            PlateauLocalImportSource localSource => new PlateauLocalImportSource(
+                string.IsNullOrWhiteSpace(localSource.LocalSourcePath)
+                    ? null
+                    : localSource.LocalSourcePath.Trim()),
+            PlateauRemoteImportSource remoteSource => remoteSource.ServerUri is null
+                ? new PlateauRemoteImportSource(null)
+                : remoteSource,
+            _ => source,
+        };
+    }
+
+    private static PlateauImportRequest NormalizeRequest(PlateauImportRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return request with
+        {
+            PackageNames = request.PackageNames is null
+                ? null
+                : PlateauPackageCatalog.NormalizeRequestedPackageNames(request.PackageNames),
+            ExcludeLodLevelsByPackage = request.ExcludeLodLevelsByPackage is null
+                ? null
+                : NormalizePackageExclusionMap(request.ExcludeLodLevelsByPackage),
+            PackagePatterns = request.PackagePatterns is null
+                ? null
+                : NormalizePackagePatternMap(request.PackagePatterns),
+        };
+    }
+
+    private static Dictionary<string, IReadOnlySet<int>> NormalizePackageExclusionMap(
+        IReadOnlyDictionary<string, IReadOnlySet<int>> exclusionsByPackage)
+    {
+        Dictionary<string, IReadOnlySet<int>> normalized = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string packageName, IReadOnlySet<int> excludedLods) in exclusionsByPackage)
+        {
+            if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName))
+            {
+                throw new ArgumentException(
+                    $"Unsupported package '{packageName}'. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+
+            normalized[normalizedPackageName] = excludedLods;
+        }
+
+        return normalized;
+    }
+
+    private static Dictionary<string, string> NormalizePackagePatternMap(
+        IReadOnlyDictionary<string, string> patternsByPackage)
+    {
+        Dictionary<string, string> normalized = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach ((string packageName, string pattern) in patternsByPackage)
+        {
+            if (!PlateauPackageCatalog.TryNormalizePackageName(packageName, out string normalizedPackageName))
+            {
+                throw new ArgumentException(
+                    $"Unsupported package '{packageName}'. Supported packages: {string.Join(", ", PlateauPackageCatalog.SupportedPackageNames)}.");
+            }
+
+            normalized[normalizedPackageName] = pattern;
+        }
+
+        return normalized;
     }
 }

@@ -2326,7 +2326,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return string.Concat(
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
-
     internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
@@ -2359,6 +2358,40 @@ public static partial class LocalCityGmlResonitePlanBuilder
                          materialResolver))
             {
                 yield return cityObject;
+            }
+        }
+    }
+
+    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterials(
+        CachedSourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
+        ISet<string>? emittedMaterialKeys = null)
+    {
+        ValidateCompatibleReferenceSystem(
+            referenceSystem,
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem ?? referenceSystem);
+
+        foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
+        {
+            foreach (ResoniteMaterialBinding material in EnumerateCommonMaterialsForParsedCityObject(
+                         parsedCityObject,
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         terrainHeightSampler,
+                         request))
+            {
+                if (emittedMaterialKeys is not null && !emittedMaterialKeys.Add(material.MaterialKey))
+                {
+                    continue;
+                }
+
+                yield return material;
             }
         }
     }
@@ -2450,6 +2483,93 @@ public static partial class LocalCityGmlResonitePlanBuilder
         {
             yield return markingObject;
         }
+    }
+
+    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
+        ParsedCityObject parsedCityObject,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request)
+    {
+        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        IDefaultMaterialResolver materialResolver = new DefaultMaterialResolver();
+
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
+                     terrainAlignedCityObject,
+                     demTerrainTextureOverlays))
+        {
+            GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
+            LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+                ? new LocalCartesian(
+                    cityObjectOrigin.Latitude,
+                    cityObjectOrigin.Longitude,
+                    cityObjectOrigin.Altitude,
+                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                : null;
+
+            foreach (ResoniteMaterialBinding material in request.DemTerrainMode == DemTerrainMode.HeightMap
+                         && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                            ? CreateDemHeightMapMaterials(
+                                splitCityObject.CityObject,
+                                cityObjectOrigin,
+                                cityObjectCartesian,
+                                splitCityObject.Overlay,
+                                materialResolver)
+                            : CreateCommonMaterialBindings(
+                                splitCityObject.CityObject,
+                                cityObjectOrigin,
+                                cityObjectCartesian,
+                                materialResolver))
+            {
+                yield return material;
+            }
+        }
+    }
+
+    private static ResoniteMaterialBinding[] CreateCommonMaterialBindings(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        IDefaultMaterialResolver materialResolver)
+    {
+        List<MaterializedSurface> materializedSurfaces =
+        [
+            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, materialResolver)),
+        ];
+
+        return materializedSurfaces
+            .GroupBy(
+                static materializedSurface => CreateMaterialKey(
+                    materializedSurface.Material.MaterialType,
+                    materializedSurface.Material.TexturePath,
+                    materializedSurface.Material.TextureSourceKind,
+                    materializedSurface.Material.Projection,
+                    materializedSurface.DepthOffset,
+                    materializedSurface.Material.TextureScale,
+                    materializedSurface.Material.Family,
+                    materializedSurface.Surface.BaseColor),
+                StringComparer.Ordinal)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .Select((group, materialIndex) =>
+            {
+                MaterializedSurface representativeSurface = group.First();
+                return new ResoniteMaterialBinding(
+                    MaterialKey: group.Key,
+                    BaseColor: representativeSurface.Surface.BaseColor,
+                    MaterialType: representativeSurface.Material.MaterialType,
+                    TexturePath: representativeSurface.Material.TexturePath,
+                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
+                    Projection: representativeSurface.Material.Projection,
+                    DepthOffset: representativeSurface.DepthOffset,
+                    SubmeshIndices: [materialIndex],
+                    TextureScale: representativeSurface.Material.TextureScale,
+                    Family: representativeSurface.Material.Family,
+                    AssetScope: representativeSurface.Material.AssetScope);
+            })
+            .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)
+            .ToArray();
     }
 
     private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
@@ -3125,49 +3245,254 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return;
         }
 
-        Queue<(int Row, int Column, double Height)> frontier = new();
-        bool[] visited = new bool[width * height];
+        bool[] rowHasSampled = new bool[height];
+        bool[] columnHasSampled = new bool[width];
+        bool hasEntirelyMissingRow = false;
+        bool hasEntirelyMissingColumn = false;
+
         for (int row = 0; row < height; row++)
         {
             for (int column = 0; column < width; column++)
             {
-                int index = (row * width) + column;
-                if (!sampledInsideTriangles[index])
+                if (!sampledInsideTriangles[(row * width) + column])
                 {
                     continue;
                 }
 
-                frontier.Enqueue((row, column, localHeights[index]));
-                visited[index] = true;
+                rowHasSampled[row] = true;
+                columnHasSampled[column] = true;
+            }
+
+            hasEntirelyMissingRow |= !rowHasSampled[row];
+        }
+
+        for (int column = 0; column < width; column++)
+        {
+            hasEntirelyMissingColumn |= !columnHasSampled[column];
+        }
+
+        if (hasEntirelyMissingRow)
+        {
+            SeedBoundaryColumn(0, searchStep: 1);
+            SeedBoundaryColumn(width - 1, searchStep: -1);
+            PropagateBoundaryColumn(0, searchStep: 1);
+            PropagateBoundaryColumn(width - 1, searchStep: -1);
+        }
+
+        if (hasEntirelyMissingColumn)
+        {
+            SeedBoundaryRow(0, searchStep: 1);
+            SeedBoundaryRow(height - 1, searchStep: -1);
+            PropagateBoundaryRow(0, searchStep: 1);
+            PropagateBoundaryRow(height - 1, searchStep: -1);
+        }
+
+        void SeedBoundaryColumn(int boundaryColumn, int searchStep)
+        {
+            for (int row = 0; row < height; row++)
+            {
+                int boundaryIndex = (row * width) + boundaryColumn;
+                if (!boundaryConnectedMissing[boundaryIndex] || !rowHasSampled[row])
+                {
+                    continue;
+                }
+
+                int adjacentSampleColumn = FindAdjacentSampleColumn(row, boundaryColumn, searchStep);
+                if (adjacentSampleColumn < 0)
+                {
+                    continue;
+                }
+
+                CopySampleIntoBoundary(row, boundaryColumn, row, adjacentSampleColumn);
             }
         }
 
-        while (frontier.Count > 0)
+        void SeedBoundaryRow(int boundaryRow, int searchStep)
         {
-            (int row, int column, double fillHeight) = frontier.Dequeue();
-            TryPropagateBoundaryConnectedHeight(row - 1, column, fillHeight);
-            TryPropagateBoundaryConnectedHeight(row + 1, column, fillHeight);
-            TryPropagateBoundaryConnectedHeight(row, column - 1, fillHeight);
-            TryPropagateBoundaryConnectedHeight(row, column + 1, fillHeight);
+            for (int column = 0; column < width; column++)
+            {
+                int boundaryIndex = (boundaryRow * width) + column;
+                if (!boundaryConnectedMissing[boundaryIndex] || !columnHasSampled[column])
+                {
+                    continue;
+                }
+
+                int adjacentSampleRow = FindAdjacentSampleRow(column, boundaryRow, searchStep);
+                if (adjacentSampleRow < 0)
+                {
+                    continue;
+                }
+
+                CopySampleIntoBoundary(boundaryRow, column, adjacentSampleRow, column);
+            }
         }
 
-        void TryPropagateBoundaryConnectedHeight(int row, int column, double fillHeight)
+        void PropagateBoundaryColumn(int boundaryColumn, int searchStep)
         {
-            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            double? carryHeight = null;
+            for (int row = 0; row < height; row++)
             {
-                return;
+                int boundaryIndex = (row * width) + boundaryColumn;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                int adjacentSampleColumn = FindAdjacentSampleColumn(row, boundaryColumn, searchStep);
+                if (adjacentSampleColumn >= 0)
+                {
+                    CopySampleIntoBoundary(row, boundaryColumn, row, adjacentSampleColumn);
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
             }
 
-            int sampleIndex = (row * width) + column;
-            if (visited[sampleIndex] || !boundaryConnectedMissing[sampleIndex])
+            carryHeight = null;
+            for (int row = height - 1; row >= 0; row--)
             {
-                return;
+                int boundaryIndex = (row * width) + boundaryColumn;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
+            }
+        }
+
+        void PropagateBoundaryRow(int boundaryRow, int searchStep)
+        {
+            double? carryHeight = null;
+            for (int column = 0; column < width; column++)
+            {
+                int boundaryIndex = (boundaryRow * width) + column;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                int adjacentSampleRow = FindAdjacentSampleRow(column, boundaryRow, searchStep);
+                if (adjacentSampleRow >= 0)
+                {
+                    CopySampleIntoBoundary(boundaryRow, column, adjacentSampleRow, column);
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
             }
 
-            localHeights[sampleIndex] = fillHeight;
-            sampledInsideTriangles[sampleIndex] = true;
-            visited[sampleIndex] = true;
-            frontier.Enqueue((row, column, fillHeight));
+            carryHeight = null;
+            for (int column = width - 1; column >= 0; column--)
+            {
+                int boundaryIndex = (boundaryRow * width) + column;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
+            }
+        }
+
+        int FindAdjacentSampleColumn(int row, int boundaryColumn, int searchStep)
+        {
+            for (int column = boundaryColumn; (uint)column < (uint)width; column += searchStep)
+            {
+                int sampleIndex = (row * width) + column;
+                if (sampledInsideTriangles[sampleIndex])
+                {
+                    return column;
+                }
+
+                if (!boundaryConnectedMissing[sampleIndex])
+                {
+                    break;
+                }
+            }
+
+            return -1;
+        }
+
+        int FindAdjacentSampleRow(int column, int boundaryRow, int searchStep)
+        {
+            for (int row = boundaryRow; (uint)row < (uint)height; row += searchStep)
+            {
+                int sampleIndex = (row * width) + column;
+                if (sampledInsideTriangles[sampleIndex])
+                {
+                    return row;
+                }
+
+                if (!boundaryConnectedMissing[sampleIndex])
+                {
+                    break;
+                }
+            }
+
+            return -1;
+        }
+
+        void CopySampleIntoBoundary(int targetRow, int targetColumn, int sourceRow, int sourceColumn)
+        {
+            int targetIndex = (targetRow * width) + targetColumn;
+            int sourceIndex = (sourceRow * width) + sourceColumn;
+            localHeights[targetIndex] = localHeights[sourceIndex];
+            sampledInsideTriangles[targetIndex] = true;
         }
     }
 
