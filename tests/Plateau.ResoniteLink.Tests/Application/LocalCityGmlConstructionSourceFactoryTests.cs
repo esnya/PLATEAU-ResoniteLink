@@ -93,6 +93,13 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 []),
             LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
 
+        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
         public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
         {
             return [];

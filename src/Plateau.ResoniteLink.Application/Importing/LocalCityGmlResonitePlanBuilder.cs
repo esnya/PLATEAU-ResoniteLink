@@ -2455,6 +2455,60 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         public ResoniteConstructionMetadata Metadata { get; }
 
+        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LocalCartesian? globalCartesian = referenceSystem.IsGeographic
+                ? new LocalCartesian(
+                    globalOriginPoint.Latitude,
+                    globalOriginPoint.Longitude,
+                    globalOriginPoint.Altitude,
+                    referenceSystem.Geocentric)
+                : null;
+            HashSet<string> emittedMaterialKeys = new(StringComparer.Ordinal);
+
+            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _ = sourceFile.GetParseTask();
+            }
+
+            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
+            {
+                await foreach (ResoniteMaterialBinding material in StreamCommonMaterialsAsync(
+                                   sourceFile,
+                                   referenceSystem,
+                                   globalOriginPoint,
+                                   globalCartesian,
+                                   demTerrainTextureOverlays,
+                                   terrainHeightSampler,
+                                   request,
+                                   sourceFile.GetParseTask(),
+                                   emittedMaterialKeys,
+                                   cancellationToken))
+                {
+                    yield return material;
+                }
+            }
+
+            foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
+            {
+                foreach (ResoniteMaterialBinding material in EnumerateCommonMaterials(
+                             sourceFile,
+                             referenceSystem,
+                             globalOriginPoint,
+                             globalCartesian,
+                             demTerrainTextureOverlays,
+                             terrainHeightSampler,
+                             request,
+                             emittedMaterialKeys))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return material;
+                }
+            }
+        }
+
         public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
         {
             LocalCartesian? globalCartesian = referenceSystem.IsGeographic
@@ -2734,6 +2788,39 @@ public static partial class LocalCityGmlResonitePlanBuilder
         }
     }
 
+    private static async IAsyncEnumerable<ResoniteMaterialBinding> StreamCommonMaterialsAsync(
+        SourceFilePipeline sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
+        Task<ParsedSourceFileResult>? parseTask,
+        HashSet<string> emittedMaterialKeys,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ParsedSourceFileResult parsedSourceFile = parseTask is null
+            ? await sourceFile.GetParseTask()
+            : await parseTask;
+
+        ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
+
+        foreach (ResoniteMaterialBinding material in EnumerateCommonMaterials(
+                     new CachedSourceFileDescriptor(sourceFile.SourceFile, parsedSourceFile.CityObjects),
+                     referenceSystem,
+                     globalOriginPoint,
+                     globalCartesian,
+                     demTerrainTextureOverlays,
+                     terrainHeightSampler,
+                     request,
+                     emittedMaterialKeys))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return material;
+        }
+    }
+
     internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
@@ -2766,6 +2853,40 @@ public static partial class LocalCityGmlResonitePlanBuilder
                          materialResolver))
             {
                 yield return cityObject;
+            }
+        }
+    }
+
+    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterials(
+        CachedSourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
+        ISet<string>? emittedMaterialKeys = null)
+    {
+        ValidateCompatibleReferenceSystem(
+            referenceSystem,
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem ?? referenceSystem);
+
+        foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
+        {
+            foreach (ResoniteMaterialBinding material in EnumerateCommonMaterialsForParsedCityObject(
+                         parsedCityObject,
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         terrainHeightSampler,
+                         request))
+            {
+                if (emittedMaterialKeys is not null && !emittedMaterialKeys.Add(material.MaterialKey))
+                {
+                    continue;
+                }
+
+                yield return material;
             }
         }
     }
@@ -2857,6 +2978,93 @@ public static partial class LocalCityGmlResonitePlanBuilder
         {
             yield return markingObject;
         }
+    }
+
+    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
+        ParsedCityObject parsedCityObject,
+        GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request)
+    {
+        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        IDefaultMaterialResolver materialResolver = new DefaultMaterialResolver();
+
+        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
+                     terrainAlignedCityObject,
+                     demTerrainTextureOverlays))
+        {
+            GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
+            LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+                ? new LocalCartesian(
+                    cityObjectOrigin.Latitude,
+                    cityObjectOrigin.Longitude,
+                    cityObjectOrigin.Altitude,
+                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                : null;
+
+            foreach (ResoniteMaterialBinding material in request.DemTerrainMode == DemTerrainMode.HeightMap
+                         && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                            ? CreateDemHeightMapMaterials(
+                                splitCityObject.CityObject,
+                                cityObjectOrigin,
+                                cityObjectCartesian,
+                                splitCityObject.Overlay,
+                                materialResolver)
+                            : CreateCommonMaterialBindings(
+                                splitCityObject.CityObject,
+                                cityObjectOrigin,
+                                cityObjectCartesian,
+                                materialResolver))
+            {
+                yield return material;
+            }
+        }
+    }
+
+    private static ResoniteMaterialBinding[] CreateCommonMaterialBindings(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        IDefaultMaterialResolver materialResolver)
+    {
+        List<MaterializedSurface> materializedSurfaces =
+        [
+            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, materialResolver)),
+        ];
+
+        return materializedSurfaces
+            .GroupBy(
+                static materializedSurface => CreateMaterialKey(
+                    materializedSurface.Material.MaterialType,
+                    materializedSurface.Material.TexturePath,
+                    materializedSurface.Material.TextureSourceKind,
+                    materializedSurface.Material.Projection,
+                    materializedSurface.DepthOffset,
+                    materializedSurface.Material.TextureScale,
+                    materializedSurface.Material.Family,
+                    materializedSurface.Surface.BaseColor),
+                StringComparer.Ordinal)
+            .OrderBy(static group => group.Key, StringComparer.Ordinal)
+            .Select((group, materialIndex) =>
+            {
+                MaterializedSurface representativeSurface = group.First();
+                return new ResoniteMaterialBinding(
+                    MaterialKey: group.Key,
+                    BaseColor: representativeSurface.Surface.BaseColor,
+                    MaterialType: representativeSurface.Material.MaterialType,
+                    TexturePath: representativeSurface.Material.TexturePath,
+                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
+                    Projection: representativeSurface.Material.Projection,
+                    DepthOffset: representativeSurface.DepthOffset,
+                    SubmeshIndices: [materialIndex],
+                    TextureScale: representativeSurface.Material.TextureScale,
+                    Family: representativeSurface.Material.Family,
+                    AssetScope: representativeSurface.Material.AssetScope);
+            })
+            .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)
+            .ToArray();
     }
 
     private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(

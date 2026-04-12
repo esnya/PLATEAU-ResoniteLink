@@ -224,6 +224,120 @@ public sealed class ResoniteMaterialAssetManagerTests
         Assert.Equal([], calls);
     }
 
+    [Fact]
+    public async Task CreateMaterialComponentAsyncReusesExistingSharedMaterialBeforeTextureImport()
+    {
+        List<string> calls = [];
+        Slot parentSlot = new()
+        {
+            ID = "common-slot",
+            Children =
+            [
+                new Slot
+                {
+                    ID = "existing-material-slot",
+                    Name = new Field_string
+                    {
+                        Value = "Material",
+                    },
+                    Components =
+                    [
+                        new Component
+                        {
+                            ID = "existing-material-component",
+                            ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                        },
+                    ],
+                },
+            ],
+        };
+        ResoniteMaterialAssetManager manager = new(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            (_, _, _, _) =>
+            {
+                calls.Add("create-shared-slot");
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material"));
+            },
+            (_, _, componentType, _, _) =>
+            {
+                calls.Add($"create-component:{componentType}");
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+            },
+            (_, slotId, _, _) =>
+            {
+                calls.Add($"get-slot:{slotId}");
+                return Task.FromResult<Slot?>(parentSlot);
+            },
+            static (_, _, _) => throw new InvalidOperationException("texture import should not run"));
+        using StubResoniteLinkClient client = new();
+        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
+        {
+            [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
+                ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
+        };
+
+        CreatedMaterialAsset created = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(
+                texturePath: "textures/albedo.png",
+                textureSourceKind: ResoniteTextureSourceKind.Dataset,
+                baseColor: new ResoniteColor(0.8, 0.8, 0.8, 1.0)),
+            preparedTextures,
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        Assert.Equal("existing-material-component", created.MaterialComponentId);
+        Assert.Equal(["get-slot:common-slot"], calls);
+    }
+
+    [Fact]
+    public async Task CreateMaterialComponentAsyncImportsBundledAlbedoWithoutPreparedTextureMap()
+    {
+        List<string> calls = [];
+        ResoniteMaterialAssetManager manager = new(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material")),
+            (_, _, componentType, _, _) =>
+            {
+                calls.Add($"create-component:{componentType}");
+                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+            },
+            static (_, _, _, _) => Task.FromResult<Slot?>(null),
+            (_, textureImport, _) =>
+            {
+                calls.Add(textureImport switch
+                {
+                    ResoniteFileTextureImport fileImport => $"import-file:{Path.GetFileName(fileImport.AbsolutePath)}",
+                    _ => $"import:{textureImport.GetType().Name}",
+                });
+
+                return Task.FromResult(new Uri("file:///tmp/bundled.png"));
+            });
+        using StubResoniteLinkClient client = new();
+
+        await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(
+                texturePath: "default-materials/roof/Concrete033_2K-JPG_Color.jpg",
+                textureSourceKind: ResoniteTextureSourceKind.Bundled),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        Assert.Contains(calls, static call => call.StartsWith("import-file:Concrete033_2K-JPG_Color", StringComparison.Ordinal));
+        Assert.Contains(calls, static call => call == "create-component:[FrooxEngine]FrooxEngine.PBS_Metallic");
+    }
+
     private static ResoniteMaterialBinding CreateMaterial(
         string? texturePath = null,
         ResoniteTextureSourceKind textureSourceKind = ResoniteTextureSourceKind.Bundled,
