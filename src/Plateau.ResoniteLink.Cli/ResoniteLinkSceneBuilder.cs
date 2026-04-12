@@ -29,7 +29,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly int importMeshTimeoutMilliseconds;
     private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly ResoniteGeometryAssetAssembler geometryAssetAssembler;
@@ -59,7 +58,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private CancellationTokenSource? processingCancellationSource;
     private TaskCompletionSource<Exception>? firstProcessingFailureSource;
     private FixedCellCityObjectMeshBaker? meshBaker;
+    private int attemptedCityObjectCount;
     private int processedCityObjectCount;
+    private int failedCityObjectCount;
     private Stopwatch? sceneBuildStopwatch;
     private int firstQueuedCityObjectLogged;
     private int firstPreparedCityObjectLogged;
@@ -68,26 +69,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private SceneAnchor? sceneAnchor;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
-        : this(
-            endpoint,
-            4,
-            ResoniteLinkSendDiagnostics.Disabled,
-            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
-            enableMeshBake: true,
-            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
-            progressReporter)
+        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
     {
     }
 
     public ResoniteLinkSceneBuilder(Uri endpoint, int connectionCount, Action<string>? progressReporter = null)
-        : this(
-            endpoint,
-            connectionCount,
-            ResoniteLinkSendDiagnostics.Disabled,
-            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
-            enableMeshBake: true,
-            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
-            progressReporter)
+        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
     {
     }
 
@@ -96,14 +83,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter = null)
-        : this(
-            endpoint,
-            connectionCount,
-            diagnostics,
-            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
-            enableMeshBake: true,
-            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
-            progressReporter)
+        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
     {
     }
 
@@ -112,16 +92,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         bool enableMeshBake,
-        int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
         Action<string>? progressReporter = null)
-        : this(
-            endpoint,
-            connectionCount,
-            diagnostics,
-            ResoniteLinkSceneBuilderDependencies.CreateDefault(),
-            enableMeshBake,
-            importMeshTimeoutMilliseconds,
-            progressReporter)
+        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake, progressReporter: progressReporter)
     {
     }
 
@@ -137,7 +109,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             diagnostics,
             new ResoniteLinkSceneBuilderDependencies(clientFactory, new TerrainTextureAssetGenerator()),
             enableMeshBake: true,
-            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
             progressReporter)
     {
     }
@@ -156,7 +127,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             diagnostics,
             new ResoniteLinkSceneBuilderDependencies(clientFactory, terrainTextureAssetGenerator),
             enableMeshBake,
-            CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
             progressReporter)
     {
     }
@@ -167,7 +137,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteLinkSendDiagnostics diagnostics,
         ResoniteLinkSceneBuilderDependencies dependencies,
         bool enableMeshBake = true,
-        int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
@@ -176,7 +145,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
-        this.importMeshTimeoutMilliseconds = importMeshTimeoutMilliseconds;
         this.diagnostics = diagnostics;
         this.clientFactory = dependencies.ClientFactory;
         this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
@@ -281,6 +249,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 }))
             .ToArray();
         processedCityObjectCount = 0;
+        attemptedCityObjectCount = 0;
+        failedCityObjectCount = 0;
         sceneBuildStopwatch = Stopwatch.StartNew();
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
@@ -378,8 +348,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         IResoniteLinkClient client = new RetryingResoniteLinkClient(
             clientFactory,
-            ReportProgress,
-            importMeshTimeoutMilliseconds);
+            ReportProgress);
         return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
     }
 
@@ -527,9 +496,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportProgress("[live] All send lanes drained.");
         diagnostics.CompleteSendWindow();
         ReportProgress(
-            $"[live] Completed {processedCityObjectCount} city objects.");
+            $"[live] Completed {processedCityObjectCount} city objects "
+            + $"(failed={failedCityObjectCount}, attempted={attemptedCityObjectCount}).");
         ReportProgress(
-            $"[live] Send summary: attempted={processedCityObjectCount} sent={processedCityObjectCount}.");
+            $"[live] Send summary: attempted={attemptedCityObjectCount} sent={processedCityObjectCount} failed={failedCityObjectCount}.");
 
         return [$"{endpoint}#{sceneAnchor?.SlotId ?? datasetRootSlot?.SlotId ?? string.Empty}"];
     }
@@ -627,20 +597,66 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return Path.Combine(Path.GetFullPath(datasetRoot), "run", Guid.NewGuid().ToString("N"));
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Live send should log and skip individual city object send failures while keeping the lane alive.")]
     private async Task ProcessQueuedCityObjectAsync(
         IResoniteLinkClient client,
         QueuedCityObject queuedCityObject,
         CancellationToken cancellationToken)
     {
-        PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-        await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
+        Interlocked.Increment(ref attemptedCityObjectCount);
+        try
+        {
+            PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
+            await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
 
-        int processedCount = Interlocked.Increment(ref processedCityObjectCount);
-        ReportProgress(
-            $"[live] Sent city object {processedCount}: "
-            + $"{preparedCityObject.CityObject.DisplayName} "
-            + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
-            PlateauLogLevel.Info);
+            int processedCount = Interlocked.Increment(ref processedCityObjectCount);
+            ReportProgress(
+                $"[live] Sent city object {processedCount}: "
+                + $"{preparedCityObject.CityObject.DisplayName} "
+                + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})",
+                PlateauLogLevel.Info);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            if (!IsRecoverableCityObjectSendFailure(exception))
+            {
+                throw;
+            }
+
+            int failedCount = Interlocked.Increment(ref failedCityObjectCount);
+            ReportProgress(
+                PlateauLog.Warning(
+                    "live",
+                    $"Skipping city object after send failure {failedCount}: "
+                    + $"{queuedCityObject.CityObject.DisplayName} "
+                    + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
+                    + $"Reason: {exception.Message}"));
+        }
+    }
+
+    private static bool IsRecoverableCityObjectSendFailure(Exception exception)
+    {
+        return FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
+    }
+
+    private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is ResoniteLinkOperationException operationException)
+            {
+                return operationException;
+            }
+        }
+
+        return null;
     }
 
     private async Task EnqueueCityObjectAsync(
@@ -841,21 +857,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         slotHierarchyStopwatch.Stop();
 
-        ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
-        Stopwatch geometryStopwatch = Stopwatch.StartNew();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Task<PreparedGeometryAssetBatch> preparedGeometryBatchTask = PrepareGeometryBatchAsync(
-            importClient,
-            cityObject,
-            preparedCityObject,
-            buildStepCancellation.Token);
-
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = preparedCityObject.Textures.ToDictionary(
             static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
                 texture.TexturePath,
                 texture.TextureSourceKind),
             static texture => texture.TextureImport);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
+        Stopwatch geometryStopwatch = new();
         List<MaterialReferenceTarget> materialTargets = [];
         List<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks = [];
         PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets;
@@ -891,15 +900,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
             preparedDedicatedMaterialAssets = dedicatedMaterialPreparationTasks.Count == 0
                 ? []
-                : await Task.WhenAll(dedicatedMaterialPreparationTasks);
+                : await AwaitDedicatedMaterialPreparationsAsync(
+                    dedicatedMaterialPreparationTasks,
+                    buildStepCancellation);
             materialStopwatch.Stop();
-            preparedGeometryBatch = await preparedGeometryBatchTask;
+
+            ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
+            geometryStopwatch.Start();
+            preparedGeometryBatch = await PrepareGeometryBatchAsync(
+                importClient,
+                cityObject,
+                preparedCityObject,
+                buildStepCancellation.Token);
             geometryStopwatch.Stop();
         }
         catch
         {
             await buildStepCancellation.CancelAsync();
-            await ObserveTaskFailureAsync(preparedGeometryBatchTask);
+            await ObserveTaskFailuresAsync(dedicatedMaterialPreparationTasks);
             throw;
         }
 
@@ -943,6 +961,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Justification = "Best-effort cleanup should observe and suppress orphaned import task failures after the primary send failure.")]
     private static async Task ObserveTaskFailureAsync(Task task)
     {
+        Task completedTask = await Task.WhenAny(task, Task.Delay(TimeSpan.FromSeconds(1)));
+        if (completedTask != task)
+        {
+            return;
+        }
+
         try
         {
             await task;
@@ -950,6 +974,40 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         catch
         {
         }
+    }
+
+    private static Task ObserveTaskFailuresAsync(IEnumerable<Task> tasks)
+    {
+        return Task.WhenAll(tasks.Select(ObserveTaskFailureAsync));
+    }
+
+    private static async Task<PreparedDedicatedMaterialAssets[]> AwaitDedicatedMaterialPreparationsAsync(
+        IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> tasks,
+        CancellationTokenSource buildStepCancellation)
+    {
+        PreparedDedicatedMaterialAssets[] results = new PreparedDedicatedMaterialAssets[tasks.Count];
+        List<(Task<PreparedDedicatedMaterialAssets> Task, int Index)> remaining = tasks
+            .Select(static (task, index) => (Task: task, Index: index))
+            .ToList();
+
+        while (remaining.Count > 0)
+        {
+            Task<PreparedDedicatedMaterialAssets> completedTask = await Task.WhenAny(
+                remaining.Select(static entry => entry.Task));
+            int completedIndex = remaining.FindIndex(entry => ReferenceEquals(entry.Task, completedTask));
+            (Task<PreparedDedicatedMaterialAssets> Task, int Index) entry = remaining[completedIndex];
+            remaining.RemoveAt(completedIndex);
+
+            if (completedTask.IsFaulted || completedTask.IsCanceled)
+            {
+                await buildStepCancellation.CancelAsync();
+                await completedTask;
+            }
+
+            results[entry.Index] = await completedTask;
+        }
+
+        return results;
     }
 
     private async Task<ObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(

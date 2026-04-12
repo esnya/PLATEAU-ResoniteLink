@@ -161,7 +161,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(textureImport);
         AssetData result = textureImport switch
         {
-            ResoniteFileTextureImport fileImport => await ImportFileTextureAsync(fileImport, cancellationToken),
+            ResoniteFileTextureImport fileImport => await ImportRawTextureFromFileAsync(fileImport, cancellationToken),
             ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport),
             ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport),
             _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
@@ -178,29 +178,10 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         EnsureSuccess(response, "update component");
     }
 
-    private async Task<AssetData> ImportFileTextureAsync(
+    private async Task<AssetData> ImportRawTextureFromFileAsync(
         ResoniteFileTextureImport fileImport,
         CancellationToken cancellationToken)
     {
-        if (ShouldUseRawTextureImportForFile(fileImport.AbsolutePath))
-        {
-            ResoniteRawTextureImport eagerRawImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                fileImport.AbsolutePath,
-                cancellationToken: cancellationToken);
-            return await ImportRawTextureAsync(eagerRawImport);
-        }
-
-        string importPath = TranslateFilePathForHost(fileImport.AbsolutePath);
-        AssetData result = await link.ImportTextureFileAsync(
-            new ImportTexture2DFile
-            {
-                FilePath = importPath,
-            });
-        if (result.Success || !ShouldFallbackToRawTextureImport(result.ErrorInfo, importPath, fileImport.AbsolutePath))
-        {
-            return result;
-        }
-
         ResoniteRawTextureImport rawImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
             fileImport.AbsolutePath,
             cancellationToken: cancellationToken);
@@ -246,96 +227,6 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             string.IsNullOrWhiteSpace(response.ErrorInfo)
                 ? $"ResoniteLink {operationName} failed."
                 : $"ResoniteLink {operationName} failed: {response.ErrorInfo}");
-    }
-
-    internal static bool ShouldFallbackToRawTextureImport(string? errorInfo, string absolutePath)
-    {
-        if (string.IsNullOrWhiteSpace(errorInfo) || string.IsNullOrWhiteSpace(absolutePath))
-        {
-            return false;
-        }
-
-        if (!File.Exists(absolutePath))
-        {
-            return false;
-        }
-
-        return errorInfo.Contains("Exception when generating file signature", StringComparison.Ordinal)
-            || errorInfo.Contains("Could not find file", StringComparison.Ordinal)
-            || errorInfo.Contains(absolutePath, StringComparison.Ordinal);
-    }
-
-    internal static bool ShouldFallbackToRawTextureImport(
-        string? errorInfo,
-        params string[] candidatePaths)
-    {
-        if (string.IsNullOrWhiteSpace(errorInfo) || candidatePaths.Length == 0)
-        {
-            return false;
-        }
-
-        return candidatePaths.Any(candidatePath => ShouldFallbackToRawTextureImport(errorInfo, candidatePath));
-    }
-
-    internal static string TranslateFilePathForHost(string absolutePath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
-
-        if (!IsRunningUnderWsl() || !Path.IsPathRooted(absolutePath))
-        {
-            return absolutePath;
-        }
-
-        if (TryTranslateMountedWindowsPath(absolutePath, out string? mountedWindowsPath))
-        {
-            return mountedWindowsPath;
-        }
-
-        string? distroName = Environment.GetEnvironmentVariable("WSL_DISTRO_NAME");
-        if (string.IsNullOrWhiteSpace(distroName))
-        {
-            return absolutePath;
-        }
-
-        string normalizedPath = absolutePath.Replace('\\', '/').TrimStart('/');
-        return $@"\\wsl.localhost\{distroName}\{normalizedPath.Replace('/', '\\')}";
-    }
-
-    internal static bool ShouldUseRawTextureImportForFile(string absolutePath)
-    {
-        return IsRunningUnderWsl()
-            && Path.IsPathRooted(absolutePath)
-            && File.Exists(absolutePath);
-    }
-
-    private static bool IsRunningUnderWsl()
-    {
-        return OperatingSystem.IsLinux()
-            && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WSL_DISTRO_NAME"));
-    }
-
-    private static bool TryTranslateMountedWindowsPath(string absolutePath, out string translatedPath)
-    {
-        translatedPath = string.Empty;
-        string normalizedPath = absolutePath.Replace('\\', '/');
-        if (!normalizedPath.StartsWith("/mnt/", StringComparison.Ordinal)
-            || normalizedPath.Length < "/mnt/c".Length
-            || normalizedPath[6] != '/')
-        {
-            return false;
-        }
-
-        char driveLetter = normalizedPath[5];
-        if (!char.IsAsciiLetter(driveLetter))
-        {
-            return false;
-        }
-
-        string windowsRelativePath = normalizedPath[7..].Replace('/', '\\');
-        translatedPath = string.IsNullOrEmpty(windowsRelativePath)
-            ? $@"{char.ToUpperInvariant(driveLetter)}:\"
-            : $@"{char.ToUpperInvariant(driveLetter)}:\{windowsRelativePath}";
-        return true;
     }
 
     private static string CreateMutationOperationName(string operationName, string? subject, string? containerId)

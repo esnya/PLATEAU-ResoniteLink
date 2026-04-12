@@ -2616,20 +2616,30 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return cityObjects.ToArray();
         }
 
-        Dictionary<int, (double WorldHeightSum, int Count)> groupedWorldHeights = [];
+        const double seaLevelWorldHeightTolerance = 1e-6;
+        Dictionary<int, (double WorldHeightSum, int Count, double NonSeaLevelWorldHeightSum, int NonSeaLevelCount)> groupedWorldHeights = [];
         foreach (HeightMapChunkAlignmentState state in chunkStates)
         {
             for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
             {
                 int root = unionFind.Find(state.SampleOffset + localSampleIndex);
                 double worldHeight = state.BaseHeight + state.HeightSamples[localSampleIndex];
-                if (groupedWorldHeights.TryGetValue(root, out (double WorldHeightSum, int Count) current))
+                bool isSeaLevelFallbackCandidate = Math.Abs(worldHeight) <= seaLevelWorldHeightTolerance;
+                if (groupedWorldHeights.TryGetValue(root, out (double WorldHeightSum, int Count, double NonSeaLevelWorldHeightSum, int NonSeaLevelCount) current))
                 {
-                    groupedWorldHeights[root] = (current.WorldHeightSum + worldHeight, current.Count + 1);
+                    groupedWorldHeights[root] = (
+                        current.WorldHeightSum + worldHeight,
+                        current.Count + 1,
+                        current.NonSeaLevelWorldHeightSum + (isSeaLevelFallbackCandidate ? 0.0 : worldHeight),
+                        current.NonSeaLevelCount + (isSeaLevelFallbackCandidate ? 0 : 1));
                 }
                 else
                 {
-                    groupedWorldHeights[root] = (worldHeight, 1);
+                    groupedWorldHeights[root] = (
+                        worldHeight,
+                        1,
+                        isSeaLevelFallbackCandidate ? 0.0 : worldHeight,
+                        isSeaLevelFallbackCandidate ? 0 : 1);
                 }
             }
         }
@@ -2639,8 +2649,11 @@ public static partial class LocalCityGmlResonitePlanBuilder
             for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
             {
                 int root = unionFind.Find(state.SampleOffset + localSampleIndex);
-                (double worldHeightSum, int count) = groupedWorldHeights[root];
-                state.HeightSamples[localSampleIndex] = (worldHeightSum / count) - state.BaseHeight;
+                (double worldHeightSum, int count, double nonSeaLevelWorldHeightSum, int nonSeaLevelCount) = groupedWorldHeights[root];
+                double alignedWorldHeight = nonSeaLevelCount > 0
+                    ? nonSeaLevelWorldHeightSum / nonSeaLevelCount
+                    : worldHeightSum / count;
+                state.HeightSamples[localSampleIndex] = alignedWorldHeight - state.BaseHeight;
             }
         }
 

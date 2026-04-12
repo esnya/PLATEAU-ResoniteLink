@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics;
-using System.Reflection;
 
 using Plateau.ResoniteLink.Application.Logging;
 
@@ -14,26 +13,17 @@ internal sealed class RetryingResoniteLinkClient(
     int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
-    private const int MaxConcurrentImports = 4;
     private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan SlowImportMeshThreshold = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan SlowImportTextureThreshold = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan SlowImportThreshold = TimeSpan.FromSeconds(60);
     private readonly SemaphoreSlim operationGate = new(1, 1);
-    private readonly SemaphoreSlim importGate = new(MaxConcurrentImports, MaxConcurrentImports);
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
-    private readonly object clientStateGate = new();
     private IResoniteLinkClient inner = clientFactory();
     private Uri? endpoint;
     private int generation;
-    private int activeImportCount;
-    private bool reconnectPending;
-    private TaskCompletionSource<bool>? reconnectCompletion;
-    private TaskCompletionSource<bool>? importDrainCompletion;
 
     public void Dispose()
     {
         operationGate.Dispose();
-        importGate.Dispose();
         reconnectGate.Dispose();
         inner.Dispose();
     }
@@ -129,16 +119,12 @@ internal sealed class RetryingResoniteLinkClient(
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
+        _ = importMeshTimeoutMilliseconds;
         return ExecuteTimedImportAsync(
-            (client, state, ct) => ExecuteImportMeshWithTimeoutAsync(
-                client,
-                state,
-                importMeshTimeoutMilliseconds,
-                reporter,
-                ct),
+            static (client, state, ct) => client.ImportMeshAsync(state, ct),
             request,
             "ImportMesh",
-            SlowImportMeshThreshold,
+            SlowImportThreshold,
             cancellationToken);
     }
 
@@ -148,7 +134,7 @@ internal sealed class RetryingResoniteLinkClient(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
-            SlowImportTextureThreshold,
+            SlowImportThreshold,
             cancellationToken);
     }
 
@@ -217,7 +203,7 @@ internal sealed class RetryingResoniteLinkClient(
                 PlateauLog.Warning(
                     "live",
                     $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
-            throw;
+            throw ResoniteLinkOperationException.Wrap(operationName, exception);
         }
         finally
         {
@@ -293,202 +279,11 @@ internal sealed class RetryingResoniteLinkClient(
         string operationName,
         CancellationToken cancellationToken)
     {
-        await importGate.WaitAsync(cancellationToken);
-        try
-        {
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                Task reconnectTask;
-                IResoniteLinkClient? client = null;
-                lock (clientStateGate)
-                {
-                    if (!reconnectPending)
-                    {
-                        activeImportCount++;
-                        client = inner;
-                        reconnectTask = Task.CompletedTask;
-                    }
-                    else
-                    {
-                        reconnectTask = reconnectCompletion?.Task ?? Task.CompletedTask;
-                    }
-                }
-
-                if (client is null)
-                {
-                    await reconnectTask.WaitAsync(cancellationToken);
-                    continue;
-                }
-
-                try
-                {
-                    return await operation(client, state, cancellationToken);
-                }
-                finally
-                {
-                    ReleaseActiveImport();
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            reporter?.Invoke(
-                PlateauLog.Warning(
-                    "live",
-                    $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
-            throw;
-        }
-        finally
-        {
-            importGate.Release();
-        }
-    }
-
-    private void ReleaseActiveImport()
-    {
-        TaskCompletionSource<bool>? importDrainSignal = null;
-        lock (clientStateGate)
-        {
-            activeImportCount--;
-            if (activeImportCount == 0 && reconnectPending)
-            {
-                importDrainSignal = importDrainCompletion;
-                importDrainCompletion = null;
-            }
-        }
-
-        importDrainSignal?.TrySetResult(true);
-    }
-
-    private static async Task<Uri> ExecuteImportMeshWithTimeoutAsync(
-        IResoniteLinkClient client,
-        ImportMeshRawData request,
-        int timeoutMilliseconds,
-        Action<string>? reporter,
-        CancellationToken cancellationToken)
-    {
-        if (timeoutMilliseconds <= 0)
-        {
-            return await client.ImportMeshAsync(request, cancellationToken);
-        }
-
-        using CancellationTokenSource timeoutCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Task<Uri> importTask = client.ImportMeshAsync(request, timeoutCancellation.Token);
-        if (importTask.IsCompleted)
-        {
-            return await importTask;
-        }
-
-        Task completedTask = await Task.WhenAny(
-            importTask,
-            Task.Delay(timeoutMilliseconds, cancellationToken));
-        if (completedTask == importTask)
-        {
-            return await importTask;
-        }
-
-        await timeoutCancellation.CancelAsync();
-        _ = importTask.ContinueWith(
-            static completedImportTask => _ = completedImportTask.Exception,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-        cancellationToken.ThrowIfCancellationRequested();
-        string diagnostic = DescribeClientStateForDiagnostics(client);
-        reporter?.Invoke(PlateauLog.Warning("live", diagnostic));
-        throw new TimeoutException(
-            string.IsNullOrWhiteSpace(diagnostic)
-                ? $"ResoniteLink ImportMesh did not complete within {timeoutMilliseconds}ms."
-                : $"ResoniteLink ImportMesh did not complete within {timeoutMilliseconds}ms. {diagnostic}");
-    }
-
-    [SuppressMessage(
-        "Design",
-        "CA1031:Do not catch general exception types",
-        Justification = "Diagnostic reflection should never mask the original timeout path.")]
-    private static string DescribeClientStateForDiagnostics(IResoniteLinkClient client)
-    {
-        try
-        {
-            List<string> clientChain = [];
-            object current = client;
-            object? link = null;
-
-            for (int depth = 0; depth < 8 && current is not null; depth++)
-            {
-                clientChain.Add(current.GetType().FullName ?? current.GetType().Name);
-                object? nestedLink = GetMemberValue(current, "link");
-                if (nestedLink is not null)
-                {
-                    link = nestedLink;
-                    break;
-                }
-
-                object? nestedInner = GetMemberValue(current, "inner");
-                if (nestedInner is null || ReferenceEquals(nestedInner, current))
-                {
-                    break;
-                }
-
-                current = nestedInner;
-            }
-
-            if (link is null)
-            {
-                return $"[live][diagnostic] ImportMesh timeout client_chain={string.Join(" -> ", clientChain)} link=unavailable.";
-            }
-
-            object? websocket = GetMemberValue(link, "_client");
-            object? pendingResponses = GetMemberValue(link, "_pendingResponses");
-            object? failureException = GetMemberValue(link, "FailureException");
-            object? isConnected = GetMemberValue(link, "IsConnected");
-            object? websocketState = websocket is null ? null : GetMemberValue(websocket, "State");
-
-            return $"[live][diagnostic] ImportMesh timeout client_chain={string.Join(" -> ", clientChain)} "
-                + $"link_type={link.GetType().FullName ?? link.GetType().Name} "
-                + $"is_connected={isConnected ?? "unknown"} websocket_state={websocketState ?? "unknown"} "
-                + $"pending_responses={TryGetCount(pendingResponses)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown"} "
-                + $"failure_exception={(failureException as Exception)?.GetType().Name ?? failureException?.ToString() ?? "null"}.";
-        }
-        catch (Exception exception)
-        {
-            return $"[live][diagnostic] ImportMesh timeout diagnostics failed: {exception.GetType().Name}: {exception.Message}";
-        }
-    }
-
-    private static object? GetMemberValue(object instance, string memberName)
-    {
-        const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-        Type type = instance.GetType();
-        FieldInfo? field = type.GetField(memberName, Flags);
-        if (field is not null)
-        {
-            return field.GetValue(instance);
-        }
-
-        PropertyInfo? property = type.GetProperty(memberName, Flags);
-        return property?.GetValue(instance);
-    }
-
-    private static int? TryGetCount(object? instance)
-    {
-        if (instance is null)
-        {
-            return null;
-        }
-
-        object? count = GetMemberValue(instance, "Count");
-        return count switch
-        {
-            int intCount => intCount,
-            long longCount when longCount is <= int.MaxValue and >= int.MinValue => (int)longCount,
-            _ => null,
-        };
+        return await ExecuteWithoutReconnectAsync(
+            operation,
+            state,
+            operationName,
+            cancellationToken);
     }
 
     [SuppressMessage(
@@ -536,7 +331,7 @@ internal sealed class RetryingResoniteLinkClient(
                 }
             }
 
-            throw lastException!;
+            throw ResoniteLinkOperationException.Wrap(operationName, lastException!);
         }
         finally
         {
@@ -559,48 +354,28 @@ internal sealed class RetryingResoniteLinkClient(
                 throw new InvalidOperationException("Cannot reconnect before an endpoint has been established.");
             }
 
-            Task waitForImportsTask;
-            TaskCompletionSource<bool> reconnectCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            lock (clientStateGate)
-            {
-                reconnectPending = true;
-                reconnectCompletion = reconnectCompletionSource;
-                waitForImportsTask = activeImportCount == 0
-                    ? Task.CompletedTask
-                    : (importDrainCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
-            }
-
-            await waitForImportsTask.WaitAsync(cancellationToken);
-            IResoniteLinkClient previous = inner;
-            IResoniteLinkClient replacement = clientFactory();
-
+            IResoniteLinkClient? replacement = null;
+            IResoniteLinkClient? previous = null;
             try
             {
-                await replacement.ConnectAsync(endpoint, cancellationToken);
-            }
-            catch
-            {
-                replacement.Dispose();
-                lock (clientStateGate)
-                {
-                    reconnectPending = false;
-                    reconnectCompletion = null;
-                }
-                reconnectCompletionSource.TrySetResult(true);
-                throw;
-            }
+                replacement = clientFactory();
 
-            lock (clientStateGate)
-            {
+                await replacement.ConnectAsync(endpoint, cancellationToken);
+
+                previous = inner;
                 inner = replacement;
-                reconnectPending = false;
-                reconnectCompletion = null;
-                importDrainCompletion = null;
+                replacement = null;
                 Interlocked.Increment(ref generation);
+
+                previous.Dispose();
+                previous = null;
+                reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
             }
-            reconnectCompletionSource.TrySetResult(true);
-            previous.Dispose();
-            reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
+            finally
+            {
+                replacement?.Dispose();
+                previous?.Dispose();
+            }
         }
         finally
         {
@@ -614,5 +389,22 @@ internal sealed class RetryingResoniteLinkClient(
         inner = clientFactory();
         Interlocked.Increment(ref generation);
         previous.Dispose();
+    }
+}
+
+internal sealed class ResoniteLinkOperationException : InvalidOperationException
+{
+    public ResoniteLinkOperationException(string operationName, string message, Exception innerException)
+        : base(message, innerException)
+    {
+        OperationName = operationName;
+    }
+
+    public string OperationName { get; }
+
+    public static ResoniteLinkOperationException Wrap(string operationName, Exception exception)
+    {
+        return exception as ResoniteLinkOperationException
+            ?? new ResoniteLinkOperationException(operationName, exception.Message, exception);
     }
 }

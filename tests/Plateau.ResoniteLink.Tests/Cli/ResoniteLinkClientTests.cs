@@ -38,72 +38,8 @@ public sealed class ResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task ImportTextureAsyncFallsBackToRawPayloadWhenFileImportPathIsNotResolvableByListener()
+    public async Task ImportTextureAsyncUsesRawPayloadForFileImports()
     {
-        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", null);
-        using TemporaryDirectory temporaryDirectory = new();
-        string texturePath = Path.Combine(temporaryDirectory.Path, "albedo.png");
-        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
-        {
-            await image.SaveAsPngAsync(texturePath);
-        }
-
-        using FakeResoniteLinkTransport transport = new()
-        {
-            ImportTextureFileResult = new AssetData
-            {
-                Success = false,
-                ErrorInfo = $"Exception when generating file signature {texturePath}{Environment.NewLine}System.IO.FileNotFoundException: Could not find file '/home/resonite/{texturePath}'.",
-            },
-            ImportTextureRawResult = new AssetData
-            {
-                Success = true,
-                AssetURL = new Uri("file:///tmp/albedo.png"),
-            },
-        };
-
-        using ResoniteLinkClient client = new(transport);
-        Uri importedTexture = await client.ImportTextureAsync(
-            ResoniteTextureImportFactory.CreateFromFile(texturePath),
-            CancellationToken.None);
-
-        Assert.Equal(new Uri("file:///tmp/albedo.png"), importedTexture);
-        Assert.Equal(1, transport.ImportTextureFileCallCount);
-        Assert.Equal(1, transport.ImportTextureRawCallCount);
-        Assert.NotNull(transport.LastRawTextureRequest);
-        Assert.Equal(1, transport.LastRawTextureRequest!.Width);
-        Assert.Equal(1, transport.LastRawTextureRequest.Height);
-    }
-
-    [Fact]
-    public async Task ImportTextureAsyncDoesNotFallbackWhenLocalFileIsMissing()
-    {
-        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", null);
-        string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
-        using FakeResoniteLinkTransport transport = new()
-        {
-            ImportTextureFileResult = new AssetData
-            {
-                Success = false,
-                ErrorInfo = "Exception when generating file signature missing texture",
-            },
-        };
-
-        using ResoniteLinkClient client = new(transport);
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await client.ImportTextureAsync(
-                ResoniteTextureImportFactory.CreateFromFile(texturePath),
-                CancellationToken.None));
-
-        Assert.Contains("ResoniteLink import texture failed", exception.Message, StringComparison.Ordinal);
-        Assert.Equal(1, transport.ImportTextureFileCallCount);
-        Assert.Equal(0, transport.ImportTextureRawCallCount);
-    }
-
-    [Fact]
-    public async Task ImportTextureAsyncUsesRawPayloadImmediatelyWhenRunningUnderWsl()
-    {
-        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
         using TemporaryDirectory temporaryDirectory = new();
         string texturePath = Path.Combine(temporaryDirectory.Path, "albedo.png");
         using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
@@ -134,27 +70,53 @@ public sealed class ResoniteLinkClientTests
     }
 
     [Fact]
-    public void TranslateFilePathForHostConvertsMountedWindowsPathsUnderWsl()
+    public async Task ImportTextureAsyncThrowsWhenLocalFileIsMissing()
     {
-        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
+        string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
+        using FakeResoniteLinkTransport transport = new();
 
-        string translatedPath = ResoniteLinkClient.TranslateFilePathForHost(
-            "/mnt/c/Users/esnya/Documents/texture.png");
+        using ResoniteLinkClient client = new(transport);
+        FileNotFoundException exception = await Assert.ThrowsAsync<FileNotFoundException>(
+            async () => await client.ImportTextureAsync(
+                ResoniteTextureImportFactory.CreateFromFile(texturePath),
+                CancellationToken.None));
 
-        Assert.Equal(@"C:\Users\esnya\Documents\texture.png", translatedPath);
+        Assert.Contains(Path.GetFileName(texturePath), exception.Message, StringComparison.Ordinal);
+        Assert.Equal(0, transport.ImportTextureFileCallCount);
+        Assert.Equal(0, transport.ImportTextureRawCallCount);
     }
 
     [Fact]
-    public void TranslateFilePathForHostConvertsNonMountedPathsToWslUncPath()
+    public async Task ImportTextureAsyncUsesRawPayloadForFileImportsWhenRunningUnderWsl()
     {
         using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
+        using TemporaryDirectory temporaryDirectory = new();
+        string texturePath = Path.Combine(temporaryDirectory.Path, "albedo.png");
+        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
+        {
+            await image.SaveAsPngAsync(texturePath);
+        }
 
-        string translatedPath = ResoniteLinkClient.TranslateFilePathForHost(
-            "/tmp/Plateau.ResoniteLink/default-materials/default-materials/roof/Concrete033_2K-JPG_Color.jpg");
+        using FakeResoniteLinkTransport transport = new()
+        {
+            ImportTextureRawResult = new AssetData
+            {
+                Success = true,
+                AssetURL = new Uri("file:///tmp/albedo.png"),
+            },
+        };
 
-        Assert.Equal(
-            @"\\wsl.localhost\Ubuntu-24.04\tmp\Plateau.ResoniteLink\default-materials\default-materials\roof\Concrete033_2K-JPG_Color.jpg",
-            translatedPath);
+        using ResoniteLinkClient client = new(transport);
+        Uri importedTexture = await client.ImportTextureAsync(
+            ResoniteTextureImportFactory.CreateFromFile(texturePath),
+            CancellationToken.None);
+
+        Assert.Equal(new Uri("file:///tmp/albedo.png"), importedTexture);
+        Assert.Equal(0, transport.ImportTextureFileCallCount);
+        Assert.Equal(1, transport.ImportTextureRawCallCount);
+        Assert.NotNull(transport.LastRawTextureRequest);
+        Assert.Equal(1, transport.LastRawTextureRequest!.Width);
+        Assert.Equal(1, transport.LastRawTextureRequest.Height);
     }
 
     private sealed class FakeResoniteLinkTransport : IResoniteLinkTransport

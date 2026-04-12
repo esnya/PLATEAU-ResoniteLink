@@ -430,6 +430,100 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task CompleteAsyncCancelsBlockedDedicatedMaterialImportAfterPeerTextureFailure()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        string textureOne = "textures/albedo-one.png";
+        string textureTwo = "textures/albedo-two.png";
+        Directory.CreateDirectory(Path.Combine(datasetDirectory.Path, "textures"));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureOne),
+            new Rgba32(255, 0, 0, 255));
+        await WriteSolidColorTextureAsync(
+            Path.Combine(datasetDirectory.Path, textureTwo),
+            new Rgba32(0, 255, 0, 255));
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU blocked-dedicated-material-test",
+            Request: new PlateauImportRequest(
+                Dataset: "blocked-dedicated-material-test",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetDirectory.Path,
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: [textureOne, textureTwo],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "credit",
+                    LicenseName: "license",
+                    LicenseUrl: "https://example.invalid/license"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "blocked-dedicated-material-building",
+            DisplayName: "Blocked Dedicated Material Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "mat-one", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "mat-two", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-one",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureOne,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mat-two",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: textureTwo,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "blocked-dedicated-material-building");
+        CapturedResoniteScene scene = new(metadata, [cityObject]);
+
+        using BlockingPeerTextureFailureClient client = new(textureOne, textureTwo);
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => client);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+        await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
+
+        IReadOnlyList<string> destinations = await builder.CompleteAsync().WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Single(destinations);
+        await client.BlockedTextureCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task BuildAsyncOmitsMaterialPropertyBlocksForMixedRenderers()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -1903,7 +1997,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncSurfacesLaneFailureWhenCityObjectSendFails()
+    public async Task BuildAsyncSkipsFailedCityObjectsAndContinues()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
         CapturedResoniteScene scene = LoadScene(
@@ -1926,16 +2020,26 @@ public sealed class ResoniteLinkSceneBuilderTests
                 () => Interlocked.Decrement(ref remainingMeshImportFailures) >= 0),
             progressReporter: progressMessages.Add);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            async () => await RunBuilderAsync(builder, scene));
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
 
-        Assert.Contains("Simulated mesh import failure.", exception.Message, StringComparison.Ordinal);
+        Assert.Single(destinations);
+        Assert.InRange(session.ImportedMeshes.Count, 1, scene.CityObjects.Count - 1);
         Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][warn] Skipping city object after send failure", StringComparison.Ordinal));
+        Assert.DoesNotContain(
             progressMessages,
             static message => message.Contains("[live][error] Send lane 1/1 failed:", StringComparison.Ordinal));
         Assert.Contains(
             progressMessages,
             static message => message.Contains("[live][debug] Creating dataset root, asset groups, and anchor slots.", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("[live][info] Sent city object ", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("Send summary: attempted=", StringComparison.Ordinal)
+                && message.Contains(" failed=", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1962,11 +2066,13 @@ public sealed class ResoniteLinkSceneBuilderTests
         await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
 
         Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
-        await client.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await client.ImportMeshCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        IReadOnlyList<string> destinations = await completionTask.WaitAsync(TimeSpan.FromSeconds(5));
+        if (client.ImportMeshStarted.Task.IsCompleted)
+        {
+            Assert.True(client.ImportMeshCanceled.Task.IsCompleted);
+        }
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => completionTask);
-        Assert.Contains("Simulated texture import failure.", exception.Message, StringComparison.Ordinal);
+        Assert.Single(destinations);
     }
 
     [Fact]
@@ -1988,7 +2094,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             ResoniteLinkSendDiagnostics.Disabled,
             () => new FailingImportMeshSharedClient(session, static () => true));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await RunBuilderAsync(builder, scene));
+        IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
+        Assert.Single(destinations);
         Assert.DoesNotContain(
             session.SlotPaths.Values,
             static path => string.Equals(path, "PLATEAU tokyo23ku/53394525/bldg/LOD2/Building One", StringComparison.Ordinal));
@@ -2546,10 +2653,13 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
         }
 
-        public FakeResoniteLinkClient(FakeResoniteLinkSession session)
+        public FakeResoniteLinkClient(FakeResoniteLinkSession session, bool failNonRootGetSlot = false)
         {
             this.session = session;
+            this.failNonRootGetSlot = failNonRootGetSlot;
         }
+
+        private readonly bool failNonRootGetSlot;
 
         public int ConnectCallCount { get; private set; }
 
@@ -2683,6 +2793,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                 if (string.Equals(slotId, "Root", StringComparison.Ordinal))
                 {
                     return Task.FromResult<Slot?>(CreateSyntheticRootSlot(session, depth, CloneSlot));
+                }
+
+                if (failNonRootGetSlot)
+                {
+                    throw new InvalidOperationException($"unexpected GetSlotAsync({slotId}, {depth})");
                 }
 
                 session.SlotsById.TryGetValue(slotId, out Slot? slot);
@@ -4380,6 +4495,105 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             throw new InvalidOperationException("Simulated texture import failure.");
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class BlockingPeerTextureFailureClient(string failingTextureIdentitySuffix, string blockingTextureIdentitySuffix) : IResoniteLinkClient
+    {
+        private int nextComponentId;
+        private int nextSlotId;
+
+        public TaskCompletionSource BlockedTextureCanceled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult($"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Component?>(null);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(null);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///mesh/ok", UriKind.Absolute));
+        }
+
+        public async Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string? identity = textureImport switch
+            {
+                ResoniteFileTextureImport fileImport => fileImport.AbsolutePath,
+                ResoniteRawTextureImport rawImport => rawImport.Identity,
+                _ => null,
+            };
+
+            if (identity is not null
+                && identity.EndsWith(failingTextureIdentitySuffix, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Simulated texture import failure.");
+            }
+
+            if (identity is not null
+                && identity.EndsWith(blockingTextureIdentitySuffix, StringComparison.Ordinal))
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    BlockedTextureCanceled.TrySetResult();
+                    throw;
+                }
+            }
+
+            return new Uri("resdb:///texture/ok", UriKind.Absolute);
         }
 
         public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
