@@ -95,6 +95,36 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncPrewarmsCommonMaterialsDuringStreaming()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite");
+
+        ResoniteMaterialBinding commonMaterial = Assert.Single(sceneBuilder.CommonMaterials);
+        Assert.Equal("stub-material", commonMaterial.MaterialKey);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, commonMaterial.AssetScope);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncBuildsNormalizedSceneFromZipArchive()
     {
         using TemporaryDirectory archiveRoot = new();
@@ -2430,6 +2460,7 @@ public sealed class PlateauImportServiceTests
     private sealed class StubResoniteSceneBuilder : IResoniteSceneBuilder
     {
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<ResoniteMaterialBinding> CommonMaterials { get; } = [];
         public List<string> BeginWorkRoots { get; } = [];
         public int EnsureConnectedCallCount { get; private set; }
         public int DisposeCallCount { get; private set; }
@@ -2463,6 +2494,15 @@ public sealed class PlateauImportServiceTests
             ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
             BeginWorkRoots.Add(workRoot);
             OnBegin?.Invoke();
+            return Task.CompletedTask;
+        }
+
+        public Task PrepareCommonMaterialAsync(
+            ResoniteMaterialBinding material,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(material);
+            CommonMaterials.Add(material);
             return Task.CompletedTask;
         }
 
@@ -2539,6 +2579,21 @@ public sealed class PlateauImportServiceTests
     {
         public ResoniteConstructionMetadata Metadata { get; } = metadata;
 
+        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            foreach (ResoniteMaterialBinding material in cityObjects
+                         .SelectMany(static cityObject => cityObject.Materials)
+                         .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)
+                         .GroupBy(static material => material.MaterialKey, StringComparer.Ordinal)
+                         .Select(static group => group.First()))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return material;
+                await Task.Yield();
+            }
+        }
+
         public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
         {
             return cityObjects;
@@ -2598,7 +2653,8 @@ public sealed class PlateauImportServiceTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     TextureScale: null,
-                    SubmeshIndices: [0]),
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.Common),
             ]);
 
         return new StubConstructionSource(

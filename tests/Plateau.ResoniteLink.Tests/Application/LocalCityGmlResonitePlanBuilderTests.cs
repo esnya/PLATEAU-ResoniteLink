@@ -146,6 +146,14 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
             return Task.CompletedTask;
         }
 
+        public Task PrepareCommonMaterialAsync(
+            ResoniteMaterialBinding material,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
         public Task ProcessCityObjectAsync(
             ResoniteConstructionCityObject cityObject,
             CancellationToken cancellationToken = default)

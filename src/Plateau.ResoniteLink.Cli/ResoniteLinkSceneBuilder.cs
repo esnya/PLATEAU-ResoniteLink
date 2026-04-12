@@ -210,6 +210,34 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportProgress($"[live] Send lanes ready (setup=1, workers={Math.Max(connectionCount - 1, 0)}).");
     }
 
+    public async Task PrepareCommonMaterialAsync(
+        ResoniteMaterialBinding material,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        if (material.AssetScope != ResoniteMaterialAssetScope.Common)
+        {
+            return;
+        }
+
+        ObjectDisposedException.ThrowIf(setupClient is null, this);
+        ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
+        ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
+        string commonAssetsSlotId = commonAssetsRootSlot.Value.SlotId;
+        string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        await materialAssetManager.CreateMaterialComponentAsync(
+            setupClient,
+            material,
+            preparedTexturePathsByKey: new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            materialSlotId: commonAssetsSlotId,
+            materialSlotParentId: commonAssetsSlotId,
+            materialSlotName: materialSlotName,
+            rendererSlotId: commonAssetsSlotId,
+            textureOverrideAssetSlotId: commonAssetsSlotId,
+            cancellationToken);
+    }
+
     private async Task<(CreatedSlot DatasetRoot, CreatedSlot DatasetAssetsRoot, CreatedSlot CommonAssetsRoot, bool DatasetRootExisted)> CreateSetupSlotHierarchyAsync(
         IResoniteLinkClient client,
         CancellationToken cancellationToken)

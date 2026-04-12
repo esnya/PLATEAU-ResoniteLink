@@ -40,6 +40,8 @@ public sealed class PlateauImportService(
         ReportProgress(
             PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
+        Task commonMaterialPrewarmTask = Task.CompletedTask;
+        CancellationTokenSource? commonMaterialPrewarmCancellation = null;
         try
         {
             Stopwatch connectStopwatch = Stopwatch.StartNew();
@@ -62,6 +64,8 @@ public sealed class PlateauImportService(
             await sceneBuilder.BeginAsync(source.Metadata, datasetWorkRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
+            commonMaterialPrewarmCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            commonMaterialPrewarmTask = PrewarmCommonMaterialsAsync(source, commonMaterialPrewarmCancellation.Token);
 
             bool processedAnyCityObject = false;
             int processedCityObjectCount = 0;
@@ -73,6 +77,8 @@ public sealed class PlateauImportService(
                 await sceneBuilder.ProcessCityObjectAsync(cityObject, cancellationToken);
                 processedCityObjectCount++;
             }
+
+            await commonMaterialPrewarmTask;
 
             cityObjectStopwatch.Stop();
             ReportProgress(
@@ -93,6 +99,25 @@ public sealed class PlateauImportService(
         }
         finally
         {
+            if (commonMaterialPrewarmCancellation is not null)
+            {
+                await commonMaterialPrewarmCancellation.CancelAsync();
+                if (!commonMaterialPrewarmTask.IsCompleted)
+                {
+                    _ = commonMaterialPrewarmTask.ContinueWith(
+                        static completedTask => _ = completedTask.Exception,
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default);
+                }
+                else if (commonMaterialPrewarmTask.IsFaulted)
+                {
+                    _ = commonMaterialPrewarmTask.Exception;
+                }
+
+                commonMaterialPrewarmCancellation.Dispose();
+            }
+
             await sceneBuilder.DisposeAsync();
         }
     }
@@ -100,6 +125,24 @@ public sealed class PlateauImportService(
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
+    }
+
+    private async Task PrewarmCommonMaterialsAsync(
+        IResoniteConstructionSource source,
+        CancellationToken cancellationToken)
+    {
+        int preparedCommonMaterialCount = 0;
+        await foreach (ResoniteMaterialBinding material in source.ReadCommonMaterialsAsync(cancellationToken))
+        {
+            await sceneBuilder.PrepareCommonMaterialAsync(material, cancellationToken);
+            preparedCommonMaterialCount++;
+        }
+
+        if (preparedCommonMaterialCount > 0)
+        {
+            ReportProgress(
+                PlateauLog.Debug("import", $"Prepared {preparedCommonMaterialCount} Common materials during source parsing."));
+        }
     }
 
     private static PlateauImportRequest NormalizeRequestForValidation(PlateauImportRequest request)

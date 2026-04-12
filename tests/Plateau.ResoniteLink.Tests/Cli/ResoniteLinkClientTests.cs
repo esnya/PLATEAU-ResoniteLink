@@ -40,6 +40,7 @@ public sealed class ResoniteLinkClientTests
     [Fact]
     public async Task ImportTextureAsyncFallsBackToRawPayloadWhenFileImportPathIsNotResolvableByListener()
     {
+        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", null);
         using TemporaryDirectory temporaryDirectory = new();
         string texturePath = Path.Combine(temporaryDirectory.Path, "albedo.png");
         using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
@@ -77,6 +78,7 @@ public sealed class ResoniteLinkClientTests
     [Fact]
     public async Task ImportTextureAsyncDoesNotFallbackWhenLocalFileIsMissing()
     {
+        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", null);
         string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
         using FakeResoniteLinkTransport transport = new()
         {
@@ -98,6 +100,63 @@ public sealed class ResoniteLinkClientTests
         Assert.Equal(0, transport.ImportTextureRawCallCount);
     }
 
+    [Fact]
+    public async Task ImportTextureAsyncUsesRawPayloadImmediatelyWhenRunningUnderWsl()
+    {
+        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
+        using TemporaryDirectory temporaryDirectory = new();
+        string texturePath = Path.Combine(temporaryDirectory.Path, "albedo.png");
+        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
+        {
+            await image.SaveAsPngAsync(texturePath);
+        }
+
+        using FakeResoniteLinkTransport transport = new()
+        {
+            ImportTextureRawResult = new AssetData
+            {
+                Success = true,
+                AssetURL = new Uri("file:///tmp/albedo.png"),
+            },
+        };
+
+        using ResoniteLinkClient client = new(transport);
+        Uri importedTexture = await client.ImportTextureAsync(
+            ResoniteTextureImportFactory.CreateFromFile(texturePath),
+            CancellationToken.None);
+
+        Assert.Equal(new Uri("file:///tmp/albedo.png"), importedTexture);
+        Assert.Equal(0, transport.ImportTextureFileCallCount);
+        Assert.Equal(1, transport.ImportTextureRawCallCount);
+        Assert.NotNull(transport.LastRawTextureRequest);
+        Assert.Equal(1, transport.LastRawTextureRequest!.Width);
+        Assert.Equal(1, transport.LastRawTextureRequest.Height);
+    }
+
+    [Fact]
+    public void TranslateFilePathForHostConvertsMountedWindowsPathsUnderWsl()
+    {
+        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
+
+        string translatedPath = ResoniteLinkClient.TranslateFilePathForHost(
+            "/mnt/c/Users/esnya/Documents/texture.png");
+
+        Assert.Equal(@"C:\Users\esnya\Documents\texture.png", translatedPath);
+    }
+
+    [Fact]
+    public void TranslateFilePathForHostConvertsNonMountedPathsToWslUncPath()
+    {
+        using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
+
+        string translatedPath = ResoniteLinkClient.TranslateFilePathForHost(
+            "/tmp/Plateau.ResoniteLink/default-materials/default-materials/roof/Concrete033_2K-JPG_Color.jpg");
+
+        Assert.Equal(
+            @"\\wsl.localhost\Ubuntu-24.04\tmp\Plateau.ResoniteLink\default-materials\default-materials\roof\Concrete033_2K-JPG_Color.jpg",
+            translatedPath);
+    }
+
     private sealed class FakeResoniteLinkTransport : IResoniteLinkTransport
     {
         public AssetData ImportTextureFileResult { get; set; } = new() { Success = true };
@@ -109,6 +168,8 @@ public sealed class ResoniteLinkClientTests
         public int ImportTextureRawCallCount { get; private set; }
 
         public ImportTexture2DRawData? LastRawTextureRequest { get; private set; }
+
+        public ImportTexture2DFile? LastFileTextureRequest { get; private set; }
 
         public void Dispose()
         {
@@ -129,6 +190,7 @@ public sealed class ResoniteLinkClientTests
         public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request)
         {
             ImportTextureFileCallCount++;
+            LastFileTextureRequest = request;
             return Task.FromResult(ImportTextureFileResult);
         }
 
@@ -144,5 +206,23 @@ public sealed class ResoniteLinkClientTests
         public Task<BatchResponse> RunDataModelOperationBatchAsync(List<DataModelOperation> operations) => throw new NotSupportedException();
 
         public Task<Response> UpdateComponentAsync(UpdateComponent request) => throw new NotSupportedException();
+    }
+
+    private sealed class EnvironmentVariableScope : IDisposable
+    {
+        private readonly string variableName;
+        private readonly string? previousValue;
+
+        public EnvironmentVariableScope(string variableName, string? value)
+        {
+            this.variableName = variableName;
+            previousValue = Environment.GetEnvironmentVariable(variableName);
+            Environment.SetEnvironmentVariable(variableName, value);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable(variableName, previousValue);
+        }
     }
 }
