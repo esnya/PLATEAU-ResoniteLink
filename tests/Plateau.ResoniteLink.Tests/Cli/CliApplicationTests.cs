@@ -12,6 +12,17 @@ namespace Plateau.ResoniteLink.Tests.Cli;
     Justification = "The CLI test hands builder ownership to PlateauImportService.")]
 public sealed class CliApplicationTests
 {
+    private static PlateauImportService CreateImportService(IResoniteSceneBuilder sceneBuilder)
+    {
+        return new PlateauImportService(
+            sceneBuilder,
+            new CkanPlateauDatasetSourceResolver(),
+            new LocalCityGmlConstructionSourceFactory(
+                new LocalCityGmlDocumentReader(),
+                new LocalCityGmlConstructionComposer(
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+    }
+
     [Fact]
     public async Task RunAsyncWritesLiveCompletionForValidBuildCommand()
     {
@@ -23,7 +34,7 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            new PlateauImportService(sceneBuilder));
+            CreateImportService(sceneBuilder));
 
         int exitCode = await application.RunAsync(
             [
@@ -81,7 +92,7 @@ public sealed class CliApplicationTests
             options =>
             {
                 capturedOptions = options;
-                return new PlateauImportService(new StubSceneBuilder());
+                return CreateImportService(new StubSceneBuilder());
             });
 
         int exitCode = await application.RunAsync(
@@ -108,7 +119,7 @@ public sealed class CliApplicationTests
             options =>
             {
                 capturedOptions = options;
-                return new PlateauImportService(new StubSceneBuilder());
+                return CreateImportService(new StubSceneBuilder());
             });
 
         int exitCode = await application.RunAsync(
@@ -136,7 +147,7 @@ public sealed class CliApplicationTests
             options =>
             {
                 capturedOptions = options;
-                return new PlateauImportService(new StubSceneBuilder());
+                return CreateImportService(new StubSceneBuilder());
             });
 
         int exitCode = await application.RunAsync(

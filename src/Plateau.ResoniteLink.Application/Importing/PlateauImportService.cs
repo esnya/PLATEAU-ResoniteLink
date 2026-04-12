@@ -7,16 +7,17 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed class PlateauImportService(
     IResoniteSceneBuilder sceneBuilder,
-    IPlateauDatasetSourceResolver? datasetSourceResolver = null,
-    Action<string>? progressReporter = null,
-    IResoniteConstructionSourceFactory? constructionSourceFactory = null)
+    IPlateauDatasetSourceResolver datasetSourceResolver,
+    IResoniteConstructionSourceFactory constructionSourceFactory,
+    Action<string>? progressReporter = null)
 {
-    private readonly IResoniteSceneBuilder sceneBuilder = sceneBuilder;
+    private readonly IResoniteSceneBuilder sceneBuilder =
+        sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
-        datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver();
+        datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
-        constructionSourceFactory ?? new LocalCityGmlConstructionSourceFactory();
+        constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
 
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
@@ -25,18 +26,12 @@ public sealed class PlateauImportService(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        PlateauImportRequest validationRequest = NormalizeRequestForValidation(request);
-        IReadOnlyList<string> validationErrors = PlateauImportRequestValidator.Validate(validationRequest);
-        if (validationErrors.Count > 0)
-        {
-            throw new PlateauImportValidationException(validationErrors);
-        }
-
-        PlateauImportRequest normalizedRequest = NormalizeRequest(validationRequest);
-        string datasetWorkRoot = WorkRootLayout.ResolveDatasetRoot(workRoot, normalizedRequest.Dataset);
+        ValidatedPlateauImportRequest validatedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
+        PlateauImportRequest normalizedRequest = validatedRequest.ToImportRequest();
+        string datasetWorkRoot = WorkRootLayout.ResolveDatasetRoot(workRoot, validatedRequest.Dataset);
 
         PlateauImportRequest resolvedRequest =
-            await datasetSourceResolver.ResolveAsync(normalizedRequest, datasetWorkRoot, cancellationToken);
+            (await datasetSourceResolver.ResolveAsync(validatedRequest, datasetWorkRoot, cancellationToken)).ToImportRequest();
         ReportProgress(
             PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 

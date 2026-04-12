@@ -14,6 +14,7 @@ internal sealed class ResoniteMaterialAssetManager(
     Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<ResoniteLinkSceneBuilder.CreatedComponent>> createComponentAsync,
     Func<IResoniteLinkClient, string, int, CancellationToken, Task<Slot?>> getSlotAsync,
     Func<IResoniteLinkClient, ResoniteTextureImport, CancellationToken, Task<Uri>> importTextureAsync,
+    Func<string, bool>? wasCreatedInCurrentRun = null,
     Action<string>? progressReporter = null)
 {
     private const float DefaultNormalScale = 1.0f;
@@ -164,7 +165,10 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled normal map from '{textureSet.NormalPath}'.");
                 normalTextureTask = ImportOptionalTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.NormalPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.NormalPath,
+                        ResoniteTextureColorProfiles.Linear,
+                        cancellationToken),
                     cancellationToken);
                 materialMembers["NormalScale"] = new Field_float
                 {
@@ -179,7 +183,10 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled height map from '{textureSet.HeightPath}'.");
                 heightTextureTask = ImportOptionalTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.HeightPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.HeightPath,
+                        ResoniteTextureColorProfiles.Linear,
+                        cancellationToken),
                     cancellationToken);
                 materialMembers["HeightScale"] = new Field_float
                 {
@@ -193,7 +200,10 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled metallic map from '{textureSet.MetallicPath}'.");
                 metallicTextureTask = ImportOptionalTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.MetallicPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.MetallicPath,
+                        ResoniteTextureColorProfiles.Linear,
+                        cancellationToken),
                     cancellationToken);
             }
 
@@ -203,7 +213,10 @@ internal sealed class ResoniteMaterialAssetManager(
                     $"[live] Material '{material.MaterialKey}' importing bundled emission map from '{textureSet.EmissionPath}'.");
                 emissionTextureTask = ImportOptionalTextureAsync(
                     client,
-                    ResoniteTextureImportFactory.CreateFromFile(textureSet.EmissionPath),
+                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                        textureSet.EmissionPath,
+                        ResoniteTextureColorProfiles.Srgb,
+                        cancellationToken),
                     cancellationToken);
                 materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
                     new ResoniteColor(1.0, 1.0, 1.0, 1.0));
@@ -230,18 +243,21 @@ internal sealed class ResoniteMaterialAssetManager(
             cancellationToken);
         materialContainerSlotId = createdMaterialSlot.SlotId;
 
-        Component? existingMaterialComponent = await TryGetExistingMaterialComponentAsync(
-            client,
-            materialContainerSlotId,
-            materialComponentType,
-            cancellationToken);
-        if (existingMaterialComponent is not null)
+        if (!(wasCreatedInCurrentRun?.Invoke(materialContainerSlotId) ?? false))
         {
-            ReportProgress(
-                $"[live] Material '{material.MaterialKey}' reusing existing component '{materialComponentType}'.");
-            return new ResoniteLinkSceneBuilder.CreatedComponent(
-                existingMaterialComponent.ID,
-                materialComponentType);
+            Component? existingMaterialComponent = await TryGetExistingMaterialComponentAsync(
+                client,
+                materialContainerSlotId,
+                materialComponentType,
+                cancellationToken);
+            if (existingMaterialComponent is not null)
+            {
+                ReportProgress(
+                    $"[live] Material '{material.MaterialKey}' reusing existing component '{materialComponentType}'.");
+                return new ResoniteLinkSceneBuilder.CreatedComponent(
+                    existingMaterialComponent.ID,
+                    materialComponentType);
+            }
         }
 
         Stopwatch componentCreateStopwatch = Stopwatch.StartNew();
@@ -345,7 +361,8 @@ internal sealed class ResoniteMaterialAssetManager(
         string materialComponentType,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(materialSlotParentId))
+        if (string.IsNullOrWhiteSpace(materialSlotParentId)
+            || (wasCreatedInCurrentRun?.Invoke(materialSlotParentId) ?? false))
         {
             return null;
         }

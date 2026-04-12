@@ -1602,7 +1602,8 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.True(clients.All(client => client.ConnectCallCount == 1));
         Assert.True(clients.All(client => client.ImportedMeshCount > 0));
-        Assert.True(clients.All(client => client.BatchMutationCount > 0));
+        Assert.True(clients.Skip(1).All(client => client.BatchMutationCount == 0));
+        Assert.True(clients[0].BatchMutationCount > 0);
         Assert.Equal(scene.CityObjects.Count, clients.Sum(client => client.ImportedMeshCount));
     }
 
@@ -1877,6 +1878,28 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku/Assets", StringComparison.Ordinal)));
         Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku/Assets/Common", StringComparison.Ordinal)));
         Assert.Equal(1, session.SlotPaths.Values.Count(path => string.Equals(path, "PLATEAU tokyo23ku/53394525", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task BuildAsyncFreshRunDoesNotRereadNewlyCreatedSlots()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+        FakeResoniteLinkSession session = new();
+
+        await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => new NonRootGetSlotFailingClient(session)),
+            scene);
     }
 
     [Fact]
@@ -2747,6 +2770,74 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
 
             return clone;
+        }
+    }
+
+    private sealed class NonRootGetSlotFailingClient : IResoniteLinkClient
+    {
+        private readonly FakeResoniteLinkClient inner;
+
+        public NonRootGetSlotFailingClient(FakeResoniteLinkSession session)
+        {
+            inner = new FakeResoniteLinkClient(session);
+        }
+
+        public void Dispose()
+        {
+            inner.Dispose();
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            return inner.ConnectAsync(endpoint, cancellationToken);
+        }
+
+        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            return inner.AddComponentAsync(request, cancellationToken);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            return inner.AddSlotAsync(request, cancellationToken);
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            return inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            return inner.GetComponentAsync(componentId, cancellationToken);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            if (!string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Fresh-run regression: unexpected non-root GetSlotAsync('{slotId}').");
+            }
+
+            return inner.GetSlotAsync(slotId, depth, cancellationToken);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            return inner.ImportMeshAsync(request, cancellationToken);
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            return inner.ImportTextureAsync(textureImport, cancellationToken);
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            return inner.UpdateComponentAsync(request, cancellationToken);
         }
     }
 
@@ -4192,6 +4283,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         private int nextComponentId;
         private int nextSlotId;
+        private readonly Dictionary<string, Slot> slotsById = [];
 
         public TaskCompletionSource ImportMeshStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -4218,7 +4310,16 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            string slotId = $"srv_slot_{Interlocked.Increment(ref nextSlotId)}";
+            slotsById[slotId] = new Slot
+            {
+                ID = slotId,
+                Name = new Field_string
+                {
+                    Value = request.Data?.Name?.Value ?? slotId,
+                },
+            };
+            return Task.FromResult(slotId);
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -4242,7 +4343,20 @@ public sealed class ResoniteLinkSceneBuilderTests
         public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<Slot?>(null);
+            if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+            {
+                return Task.FromResult<Slot?>(new Slot
+                {
+                    ID = "Root",
+                    Name = new Field_string
+                    {
+                        Value = "Root",
+                    },
+                });
+            }
+
+            slotsById.TryGetValue(slotId, out Slot? slot);
+            return Task.FromResult<Slot?>(slot);
         }
 
         public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)

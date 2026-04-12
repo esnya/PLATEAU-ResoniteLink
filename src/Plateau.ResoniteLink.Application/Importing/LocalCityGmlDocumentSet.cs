@@ -10,22 +10,22 @@ public sealed class LocalCityGmlDocumentSet
         IReadOnlyList<string> packageNames,
         IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays,
         IReadOnlyList<string> requestedMeshCodes,
-        LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] sourceFilePipelines,
-        IReadOnlyList<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> cachedDemSourceFiles,
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint,
-        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler)
+        IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
+        IReadOnlyList<CachedSourceFileDescriptor> cachedDemSourceFiles,
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        TerrainHeightSampler? terrainHeightSampler)
     {
         DatasetSource = datasetSource;
         RelativeSourceFiles = relativeSourceFiles;
         PackageNames = packageNames;
         TerrainTextureOverlays = terrainTextureOverlays;
         RequestedMeshCodes = requestedMeshCodes;
-        SourceFilePipelines = sourceFilePipelines;
-        CachedDemSourceFiles = cachedDemSourceFiles;
-        ReferenceSystem = referenceSystem;
-        GlobalOriginPoint = globalOriginPoint;
-        TerrainHeightSampler = terrainHeightSampler;
+        BootstrapSourceFilePipelines = sourceFilePipelines;
+        BootstrapCachedDemSourceFiles = cachedDemSourceFiles;
+        BootstrapReferenceSystem = referenceSystem;
+        BootstrapGlobalOriginPoint = globalOriginPoint;
+        BootstrapTerrainHeightSampler = terrainHeightSampler;
     }
 
     public IPlateauDatasetContentSource DatasetSource { get; }
@@ -38,13 +38,13 @@ public sealed class LocalCityGmlDocumentSet
 
     public IReadOnlyList<string> RequestedMeshCodes { get; }
 
-    internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] SourceFilePipelines { get; }
+    internal IReadOnlyList<SourceFilePipeline> BootstrapSourceFilePipelines { get; }
 
-    internal IReadOnlyList<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> CachedDemSourceFiles { get; }
+    internal IReadOnlyList<CachedSourceFileDescriptor> BootstrapCachedDemSourceFiles { get; }
 
-    internal LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem ReferenceSystem { get; }
+    internal CoordinateReferenceSystem BootstrapReferenceSystem { get; }
 
-    internal LocalCityGmlResonitePlanBuilder.GeodeticPoint GlobalOriginPoint { get; }
+    internal GeodeticPoint BootstrapGlobalOriginPoint { get; }
 
-    internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? TerrainHeightSampler { get; }
+    internal TerrainHeightSampler? BootstrapTerrainHeightSampler { get; }
 }

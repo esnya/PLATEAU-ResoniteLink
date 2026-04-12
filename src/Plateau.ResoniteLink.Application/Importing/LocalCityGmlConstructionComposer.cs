@@ -25,20 +25,14 @@ internal sealed class LocalCityGmlConstructionComposer(ICityGmlGeometryProjector
                 RequestedMeshCodes: documentSet.RequestedMeshCodes),
             Attribution: attribution,
             LocalOrigin: new ResoniteLocalOrigin(
-                Latitude: documentSet.GlobalOriginPoint.Latitude,
-                Longitude: documentSet.GlobalOriginPoint.Longitude,
-                Altitude: documentSet.GlobalOriginPoint.Altitude));
+                Latitude: documentSet.BootstrapGlobalOriginPoint.Latitude,
+                Longitude: documentSet.BootstrapGlobalOriginPoint.Longitude,
+                Altitude: documentSet.BootstrapGlobalOriginPoint.Altitude));
 
-        return new LocalCityGmlResonitePlanBuilder.ConstructionSource(
+        return new LocalCityGmlConstructionSource(
             metadata,
             request,
-            documentSet.CachedDemSourceFiles,
-            documentSet.SourceFilePipelines
-                .Where(static pipeline => !string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                .ToArray(),
-            documentSet.ReferenceSystem,
-            documentSet.GlobalOriginPoint,
-            documentSet.TerrainHeightSampler,
+            documentSet,
             geometryProjector);
     }
 }

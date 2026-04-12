@@ -17,11 +17,32 @@ namespace Plateau.ResoniteLink.Tests.Application;
 [Trait("Category", "Slow")]
 public sealed class PlateauImportServiceTests
 {
+    private static PlateauImportService CreateService(
+        IResoniteSceneBuilder sceneBuilder,
+        IPlateauDatasetSourceResolver? datasetSourceResolver = null,
+        IResoniteConstructionSourceFactory? constructionSourceFactory = null,
+        Action<string>? progressReporter = null)
+    {
+        return new PlateauImportService(
+            sceneBuilder,
+            datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver(),
+            constructionSourceFactory ?? CreateConstructionSourceFactory(),
+            progressReporter);
+    }
+
+    private static LocalCityGmlConstructionSourceFactory CreateConstructionSourceFactory()
+    {
+        return new LocalCityGmlConstructionSourceFactory(
+            new LocalCityGmlDocumentReader(),
+            new LocalCityGmlConstructionComposer(
+                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver())));
+    }
+
     [Fact]
     public async Task ExecuteAsyncBuildsNormalizedScene()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -132,7 +153,7 @@ public sealed class PlateauImportServiceTests
         CreateZipArchiveFromDirectory(TestData.GetFixturePath("LocalPlateauDataset"), archivePath);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -162,7 +183,7 @@ public sealed class PlateauImportServiceTests
         CreateSevenZipArchiveFromDirectory(TestData.GetFixturePath("LocalPlateauDataset"), archivePath);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -188,7 +209,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncBuildsCityObjectsAcrossPackagesAndKeepsDetailedModelTextures()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -273,7 +294,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncSupportsRegexMeshCodeSelection()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -302,7 +323,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncNormalizesWhitespacePaddedLocalPathAndPackageMaps()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -334,7 +355,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncFiltersRequestedPackages()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -365,7 +386,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncBuildsSceneFromFlatUdxPackageLayout()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetFlatUdx");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -409,7 +430,7 @@ public sealed class PlateauImportServiceTests
             "Nested Source Building");
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -435,7 +456,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeTerrainAlignmentFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -471,7 +492,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeTerrainAlignmentFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -500,7 +521,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeHighLodTransportationFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -529,7 +550,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSegmentedTerrainAlignmentFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -562,7 +583,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSegmentedSquareTerrainAlignmentFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -595,7 +616,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -626,7 +647,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSkewedTransportationFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -658,7 +679,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -696,7 +717,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -730,7 +751,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimePartialDemCoverageRoadFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -758,7 +779,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeTexturelessTransportationFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -818,7 +839,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeTexturelessWaterwayFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -849,7 +870,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeSlopedTransportationFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -875,7 +896,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncIncludesParentMeshPackageFilesForEightDigitMeshCodes()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -924,7 +945,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeDirectoryScopedDemFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -954,7 +975,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeWideDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -994,7 +1015,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSplitBoundaryDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult heightMapResult = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1032,7 +1053,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeStraddledSplitBoundaryDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult heightMapResult = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1080,7 +1101,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeStraddledSplitBoundaryDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult heightMapResult = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1137,7 +1158,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSingleTriangleDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult heightMapResult = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1241,6 +1262,32 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public void ExtendBoundaryConnectedMissingHeightMapBandsDoesNotPropagateSingleHighEdgeSampleAcrossEmptyRows()
+    {
+        double[] localHeights =
+        [
+            0.0, 0.0, 100.0, 100.0,
+            0.0, 0.0, 10.0, 10.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            false, false, true, true,
+            false, false, true, true,
+            false, false, false, false,
+            false, false, false, false,
+        ];
+
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+
+        Assert.Equal(100.0, localHeights[0]);
+        Assert.Equal(10.0, localHeights[4]);
+        Assert.Equal(10.0, localHeights[8]);
+        Assert.Equal(10.0, localHeights[12]);
+    }
+
+    [Fact]
     public void ExtendBoundaryConnectedMissingHeightMapBandsDoesNotLiftSeaLevelBoundaryTowardHighInteriorSamples()
     {
         double[] localHeights =
@@ -1278,7 +1325,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSplitBoundaryDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult heightMapResult = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1436,7 +1483,7 @@ public sealed class PlateauImportServiceTests
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSplitBoundaryDemFixture(datasetRoot.Path);
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1504,7 +1551,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimePackageFixture(datasetRoot.Path, "wwy", "urn:plateau:test:wwy", "Waterway", "Waterway One");
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1565,7 +1612,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeVegetationFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1607,7 +1654,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeComplexLandUseFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1633,7 +1680,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeComplexLandUseFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1659,7 +1706,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeMultiLodFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1683,7 +1730,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncUsesMeshCodeCenterForGeographicLocalOrigin()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -1704,7 +1751,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncUsesMatchedMeshCodesForRegexLocalOrigin()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -1725,7 +1772,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncUsesSourceMatchedMeshCodeForParentMeshPackageCityObjects()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -1764,7 +1811,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeTriangleFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -1795,7 +1842,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncRejectsLocalSourceWithoutInput()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
             service.ExecuteAsync(
@@ -1820,7 +1867,7 @@ public sealed class PlateauImportServiceTests
         await File.WriteAllTextAsync(archivePath, string.Empty);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
             service.ExecuteAsync(
@@ -1842,7 +1889,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncRejectsUnsupportedPackagePatternWithValidationException()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
@@ -1868,7 +1915,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncRejectsNullStringFieldsWithValidationException()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
@@ -1889,7 +1936,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncRejectsDuplicateNormalizedPackageMapKeysWithValidationException()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(() =>
@@ -1928,7 +1975,7 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsyncFallsBackToBundledDefaultTextureWhenTextureFileIsMissing()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMissingTexture");
 
         ImportExecutionResult result = await service.ExecuteAsync(
@@ -1969,7 +2016,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimePackageFixture(datasetRoot.Path, "area", "urn:plateau:test:area", "Area", "Area One");
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2044,7 +2091,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimePackageFixture(datasetRoot.Path, "cons", "urn:plateau:test:cons", "OtherConstruction", "Construction One");
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2077,7 +2124,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeUntexturedBuildingFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2145,7 +2192,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeThematicSurfaceBuildingFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2177,7 +2224,7 @@ public sealed class PlateauImportServiceTests
         CreateRuntimeMultiWallBuildingFixture(datasetRoot.Path);
 
         StubResoniteSceneBuilder sceneBuilder = new();
-        PlateauImportService service = new(sceneBuilder);
+        PlateauImportService service = CreateService(sceneBuilder);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2235,8 +2282,8 @@ public sealed class PlateauImportServiceTests
 
         StubResoniteSceneBuilder firstSceneBuilder = new();
         StubResoniteSceneBuilder secondSceneBuilder = new();
-        PlateauImportService firstService = new(firstSceneBuilder);
-        PlateauImportService secondService = new(secondSceneBuilder);
+        PlateauImportService firstService = CreateService(firstSceneBuilder);
+        PlateauImportService secondService = CreateService(secondSceneBuilder);
 
         ImportExecutionResult first = await firstService.ExecuteAsync(
             new PlateauImportRequest(
@@ -2275,7 +2322,7 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: fixturePath,
                 ServerUri: null));
-        PlateauImportService service = new(sceneBuilder, resolver);
+        PlateauImportService service = CreateService(sceneBuilder, datasetSourceResolver: resolver);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2300,9 +2347,7 @@ public sealed class PlateauImportServiceTests
         StubResoniteSceneBuilder sceneBuilder = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         List<string> progressMessages = [];
-        PlateauImportService service = new(
-            sceneBuilder,
-            progressReporter: progressMessages.Add);
+        PlateauImportService service = CreateService(sceneBuilder, progressReporter: progressMessages.Add);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2544,14 +2589,35 @@ public sealed class PlateauImportServiceTests
         public List<PlateauImportRequest> Requests { get; } = [];
         public List<string> WorkRoots { get; } = [];
 
-        public Task<PlateauImportRequest> ResolveAsync(
-            PlateauImportRequest request,
+        public Task<ValidatedPlateauImportRequest> ResolveAsync(
+            ValidatedPlateauImportRequest request,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
-            Requests.Add(request);
+            Requests.Add(request.ToImportRequest());
             WorkRoots.Add(workRoot);
-            return Task.FromResult(resolvedRequest);
+
+            ValidatedPlateauImportSource resolvedSource = resolvedRequest.Source switch
+            {
+                PlateauLocalImportSource localSource => new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath!),
+                PlateauRemoteImportSource remoteSource => new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri!),
+                _ => throw new InvalidOperationException($"Unsupported source kind '{resolvedRequest.SourceKind}'."),
+            };
+
+            return Task.FromResult(
+                new ValidatedPlateauImportRequest(
+                    resolvedRequest.Dataset,
+                    resolvedRequest.MeshCode,
+                    request.MeshCodePattern,
+                    resolvedSource,
+                    resolvedRequest.PackageNames,
+                    resolvedRequest.GlobalExcludeLodLevels,
+                    resolvedRequest.ExcludeLodLevelsByPackage,
+                    resolvedRequest.PackagePatterns,
+                    resolvedRequest.IncludeMarkingAlways,
+                    resolvedRequest.DemTerrainMode,
+                    resolvedRequest.DemHeightmapMetersPerVertex,
+                    resolvedRequest.DemHeightmapMaxResolution));
         }
     }
 

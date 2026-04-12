@@ -5,6 +5,21 @@ namespace Plateau.ResoniteLink.Tests.Domain;
 public sealed class PlateauImportRequestSourceTests
 {
     [Fact]
+    public void SourceFactoriesCreateTypedSources()
+    {
+        PlateauImportSource localSource = PlateauImportSource.Local("/data/plateau");
+        PlateauImportSource remoteSource = PlateauImportSource.Remote(new Uri("https://example.invalid/plateau.zip"));
+
+        PlateauLocalImportSource typedLocalSource = Assert.IsType<PlateauLocalImportSource>(localSource);
+        PlateauRemoteImportSource typedRemoteSource = Assert.IsType<PlateauRemoteImportSource>(remoteSource);
+
+        Assert.Equal("/data/plateau", typedLocalSource.LocalSourcePath);
+        Assert.Equal(DatasetSourceKind.Local, typedLocalSource.SourceKind);
+        Assert.Equal(new Uri("https://example.invalid/plateau.zip"), typedRemoteSource.ServerUri);
+        Assert.Equal(DatasetSourceKind.Remote, typedRemoteSource.SourceKind);
+    }
+
+    [Fact]
     public void LegacyConstructorMapsLocalSourceIntoTypedSource()
     {
         PlateauImportRequest request = new(

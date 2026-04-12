@@ -49,4 +49,9 @@ internal sealed class AsyncCompletedResultCache<TKey, TValue>
 
         gates.Clear();
     }
+
+    public void Remember(TKey key, TValue value)
+    {
+        completedValues[key] = value;
+    }
 }

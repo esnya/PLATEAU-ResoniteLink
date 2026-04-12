@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Threading.Channels;
 using System.Xml.Linq;
 
 using GeographicLib;
@@ -104,6 +103,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
+        string sourceUnitIdentity = SanitizeIdentifier(relativeSourceFile);
         string sourceIdentity = SanitizeIdentifier($"{relativeSourceFile}_{objectId}");
         return new ParsedCityObject(
             slotKey,
@@ -113,57 +113,15 @@ public static partial class LocalCityGmlResonitePlanBuilder
             lodLevel,
             surfaces,
             coordinateReferenceSystem,
+            sourceUnitIdentity,
             sourceIdentity,
             SharedAcrossMeshCodes: sharedAcrossMeshCodes);
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
     {
-        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.WestLongitude, DefaultDemTerrainTextureZoomLevel);
-        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(demBounds.EastLongitude, DefaultDemTerrainTextureZoomLevel);
-        double topPixel = WebMercatorTileMath.LatitudeToPixelY(demBounds.NorthLatitude, DefaultDemTerrainTextureZoomLevel);
-        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(demBounds.SouthLatitude, DefaultDemTerrainTextureZoomLevel);
-
-        List<TerrainTextureOverlay> overlays = [];
-        int row = 0;
-        for (double currentTop = topPixel; currentTop < bottomPixel - 1e-6; currentTop += DefaultDemTerrainTextureMaxSize, row++)
-        {
-            double currentBottom = Math.Min(currentTop + DefaultDemTerrainTextureMaxSize, bottomPixel);
-            int column = 0;
-            for (double currentLeft = leftPixel; currentLeft < rightPixel - 1e-6; currentLeft += DefaultDemTerrainTextureMaxSize, column++)
-            {
-                double currentRight = Math.Min(currentLeft + DefaultDemTerrainTextureMaxSize, rightPixel);
-                overlays.Add(CreateDemTerrainTextureOverlay(row, column, currentLeft, currentRight, currentTop, currentBottom));
-            }
-        }
-
-        if (overlays.Count == 0)
-        {
-            overlays.Add(CreateDemTerrainTextureOverlay(row: 0, column: 0, leftPixel, rightPixel, topPixel, bottomPixel));
-        }
-
-        return overlays.ToArray();
-    }
-
-    private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
-        int row,
-        int column,
-        double leftPixel,
-        double rightPixel,
-        double topPixel,
-        double bottomPixel)
-    {
-        return new TerrainTextureOverlay(
-            TexturePath: CreateDemTerrainTexturePath(leftPixel, rightPixel, topPixel, bottomPixel),
-            PackageName: "dem",
-            UrlTemplate: DefaultDemTerrainTextureUrlTemplate,
-            ZoomLevel: DefaultDemTerrainTextureZoomLevel,
-            GeographicBounds: new GeographicRectangle(
-                MinLatitude: WebMercatorTileMath.PixelYToLatitude(bottomPixel, DefaultDemTerrainTextureZoomLevel),
-                MaxLatitude: WebMercatorTileMath.PixelYToLatitude(topPixel, DefaultDemTerrainTextureZoomLevel),
-                MinLongitude: WebMercatorTileMath.PixelXToLongitude(leftPixel, DefaultDemTerrainTextureZoomLevel),
-                MaxLongitude: WebMercatorTileMath.PixelXToLongitude(rightPixel, DefaultDemTerrainTextureZoomLevel)),
-            MaxTextureSize: DefaultDemTerrainTextureMaxSize);
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(demBounds));
     }
 
     private static string CreateDemTerrainTexturePath(
@@ -336,70 +294,23 @@ public static partial class LocalCityGmlResonitePlanBuilder
             allPoints.Min(static point => point.Altitude));
     }
 
-    private static (
-        double minLatitude,
-        double maxLatitude,
-        double minLongitude,
-        double maxLongitude,
-        double minAltitude) MergeBounds(
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? current,
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) next)
-    {
-        if (current is null)
-        {
-            return next;
-        }
-
-        return (
-            Math.Min(current.Value.minLatitude, next.minLatitude),
-            Math.Max(current.Value.maxLatitude, next.maxLatitude),
-            Math.Min(current.Value.minLongitude, next.minLongitude),
-            Math.Max(current.Value.maxLongitude, next.maxLongitude),
-            Math.Min(current.Value.minAltitude, next.minAltitude));
-    }
-
     internal static MeshCodeArea? ResolveDemTerrainBounds(
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeArea? fallbackBounds)
     {
-        (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude)? bounds = null;
-
-        foreach (ParsedSourceFileResult parsedSourceFile in demParsedSourceFiles)
-        {
-            if (parsedSourceFile.CityObjects.Length == 0)
-            {
-                continue;
-            }
-
-            bounds = MergeBounds(bounds, GetBounds(parsedSourceFile.CityObjects));
-        }
-
-        return bounds is null
-            ? fallbackBounds
-            : new MeshCodeArea(
-                bounds.Value.minLatitude,
-                bounds.Value.maxLatitude,
-                bounds.Value.minLongitude,
-                bounds.Value.maxLongitude);
+        global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+            demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
+            fallbackBounds is null ? null : global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(fallbackBounds));
+        return bounds?.ToLegacy();
     }
 
-    private static IEnumerable<TerrainHeightTriangle> ExtractTerrainHeightTriangles(
+    private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        foreach (ParsedSurface surface in cityObjects.SelectMany(static cityObject => cityObject.Surfaces))
-        {
-            GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
-            if (vertices.Length < 3)
-            {
-                continue;
-            }
-
-            GeodeticPoint origin = vertices[0];
-            for (int index = 1; index + 1 < vertices.Length; index++)
-            {
-                yield return new TerrainHeightTriangle(origin, vertices[index], vertices[index + 1]);
-            }
-        }
+        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
+                cityObjects.Select(global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy))
+            .Select(static triangle => triangle.ToLegacy())
+            .ToArray();
     }
 
     private static ParsedCityObject ConformCityObjectToTerrain(
@@ -1275,7 +1186,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             Transform: new ResoniteTransform(slotPosition),
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity);
+            SourceObjectKey: cityObject.SourceIdentity,
+            SourceUnitKey: cityObject.SourceUnitIdentity);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
@@ -2417,410 +2329,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return string.Concat(
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
-
-    internal sealed class ConstructionSource : IResoniteConstructionSource
-    {
-        private readonly PlateauImportRequest request;
-        private readonly IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles;
-        private readonly IReadOnlyList<SourceFilePipeline> deferredSourceFiles;
-        private readonly CoordinateReferenceSystem referenceSystem;
-        private readonly GeodeticPoint globalOriginPoint;
-        private readonly TerrainHeightSampler? terrainHeightSampler;
-        private readonly TerrainTextureOverlay[] demTerrainTextureOverlays;
-        private readonly ICityGmlGeometryProjector geometryProjector;
-
-        public ConstructionSource(
-            ResoniteConstructionMetadata metadata,
-            PlateauImportRequest request,
-            IReadOnlyList<CachedSourceFileDescriptor> demSourceFiles,
-            IReadOnlyList<SourceFilePipeline> deferredSourceFiles,
-            CoordinateReferenceSystem referenceSystem,
-            GeodeticPoint globalOriginPoint,
-            TerrainHeightSampler? terrainHeightSampler,
-            ICityGmlGeometryProjector geometryProjector)
-        {
-            Metadata = metadata;
-            this.request = request;
-            this.demSourceFiles = demSourceFiles;
-            this.deferredSourceFiles = deferredSourceFiles;
-            this.referenceSystem = referenceSystem;
-            this.globalOriginPoint = globalOriginPoint;
-            this.terrainHeightSampler = terrainHeightSampler;
-            this.geometryProjector = geometryProjector;
-            demTerrainTextureOverlays = metadata.SourceDataset.TerrainTextureOverlays
-                .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
-                .ToArray();
-        }
-
-        public ResoniteConstructionMetadata Metadata { get; }
-
-        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-                ? new LocalCartesian(
-                    globalOriginPoint.Latitude,
-                    globalOriginPoint.Longitude,
-                    globalOriginPoint.Altitude,
-                    referenceSystem.Geocentric)
-                : null;
-            HashSet<string> emittedMaterialKeys = new(StringComparer.Ordinal);
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                _ = sourceFile.GetParseTask();
-            }
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                await foreach (ResoniteMaterialBinding material in StreamCommonMaterialsAsync(
-                                   sourceFile,
-                                   referenceSystem,
-                                   globalOriginPoint,
-                                   globalCartesian,
-                                   demTerrainTextureOverlays,
-                                   terrainHeightSampler,
-                                   request,
-                                   sourceFile.GetParseTask(),
-                                   emittedMaterialKeys,
-                                   cancellationToken))
-                {
-                    yield return material;
-                }
-            }
-
-            foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
-            {
-                foreach (ResoniteMaterialBinding material in EnumerateCommonMaterials(
-                             sourceFile,
-                             referenceSystem,
-                             globalOriginPoint,
-                             globalCartesian,
-                             demTerrainTextureOverlays,
-                             terrainHeightSampler,
-                             request,
-                             emittedMaterialKeys))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    yield return material;
-                }
-            }
-        }
-
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
-        {
-            LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-                ? new LocalCartesian(
-                    globalOriginPoint.Latitude,
-                    globalOriginPoint.Longitude,
-                    globalOriginPoint.Altitude,
-                    referenceSystem.Geocentric)
-                : null;
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(
-                        sourceFile.SourceFile,
-                        parsedSourceFile.CityObjects),
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject)))
-                {
-                    yield return cityObject;
-                }
-            }
-
-            foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
-            {
-                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                    sourceFile,
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request))
-                {
-                    yield return cityObject;
-                }
-            }
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                    new CachedSourceFileDescriptor(
-                        sourceFile.SourceFile,
-                        parsedSourceFile.CityObjects),
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    IsTerrainDependentCityObject))
-                {
-                    yield return cityObject;
-                }
-            }
-        }
-
-        public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-                ? new LocalCartesian(
-                    globalOriginPoint.Latitude,
-                    globalOriginPoint.Longitude,
-                    globalOriginPoint.Altitude,
-                    referenceSystem.Geocentric)
-                : null;
-
-            foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                _ = sourceFile.GetParseTask();
-            }
-
-            Channel<ResoniteConstructionCityObject> channel = Channel.CreateBounded<ResoniteConstructionCityObject>(
-                new BoundedChannelOptions(32)
-                {
-                    SingleReader = true,
-                    SingleWriter = false,
-                    FullMode = BoundedChannelFullMode.Wait,
-                });
-
-            Task[] producers =
-            [
-                Task.Run(
-                    () => ProduceDeferredCityObjectsAsync(
-                        channel.Writer,
-                        geometryProjector,
-                        deferredSourceFiles,
-                        referenceSystem,
-                        globalOriginPoint,
-                        globalCartesian,
-                        demTerrainTextureOverlays,
-                        terrainHeightSampler,
-                        request,
-                        static parsedCityObject => !IsTerrainDependentCityObject(parsedCityObject),
-                        cancellationToken),
-                    cancellationToken),
-                Task.Run(
-                    () => ProduceCachedCityObjectsAsync(
-                        channel.Writer,
-                        geometryProjector,
-                        demSourceFiles,
-                        referenceSystem,
-                        globalOriginPoint,
-                        globalCartesian,
-                        demTerrainTextureOverlays,
-                        terrainHeightSampler,
-                        request,
-                        predicate: null,
-                        cancellationToken),
-                    cancellationToken),
-                Task.Run(
-                    () => ProduceDeferredCityObjectsAsync(
-                        channel.Writer,
-                        geometryProjector,
-                        deferredSourceFiles,
-                        referenceSystem,
-                        globalOriginPoint,
-                        globalCartesian,
-                        demTerrainTextureOverlays,
-                        terrainHeightSampler,
-                        request,
-                        IsTerrainDependentCityObject,
-                        cancellationToken),
-                    cancellationToken),
-            ];
-            Task completionTask = CompleteWriterWhenFinishedAsync(channel.Writer, producers);
-
-            await foreach (ResoniteConstructionCityObject cityObject in channel.Reader.ReadAllAsync(cancellationToken))
-            {
-                yield return cityObject;
-            }
-
-            await completionTask;
-        }
-    }
-
-    private static async Task ProduceDeferredCityObjectsAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
-        ICityGmlGeometryProjector geometryProjector,
-        IReadOnlyList<SourceFilePipeline> sourceFiles,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Func<ParsedCityObject, bool>? predicate,
-        CancellationToken cancellationToken)
-    {
-        foreach (SourceFilePipeline sourceFile in sourceFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            await foreach (ResoniteConstructionCityObject cityObject in StreamMaterializedCityObjectsAsync(
-                               sourceFile,
-                               geometryProjector,
-                               referenceSystem,
-                               globalOriginPoint,
-                               globalCartesian,
-                               demTerrainTextureOverlays,
-                               terrainHeightSampler,
-                               request,
-                               sourceFile.GetParseTask(),
-                               predicate,
-                               cancellationToken))
-            {
-                await writer.WriteAsync(cityObject, cancellationToken);
-            }
-        }
-    }
-
-    private static async Task ProduceCachedCityObjectsAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
-        ICityGmlGeometryProjector geometryProjector,
-        IReadOnlyList<CachedSourceFileDescriptor> sourceFiles,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Func<ParsedCityObject, bool>? predicate,
-        CancellationToken cancellationToken)
-    {
-        foreach (CachedSourceFileDescriptor sourceFile in sourceFiles)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                         sourceFile,
-                         referenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         terrainHeightSampler,
-                         request,
-                         predicate))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await writer.WriteAsync(cityObject, cancellationToken);
-            }
-        }
-    }
-
-    private static async Task CompleteWriterWhenFinishedAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
-        IReadOnlyList<Task> producers)
-    {
-        Task allProducers = Task.WhenAll(producers);
-        await allProducers.ContinueWith(
-            static _ => { },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-
-        Exception? completionException = allProducers.Exception;
-        if (completionException is AggregateException { InnerExceptions.Count: 1 } aggregateException)
-        {
-            completionException = aggregateException.InnerExceptions[0];
-        }
-        else if (allProducers.IsCanceled)
-        {
-            completionException = new OperationCanceledException();
-        }
-
-        writer.TryComplete(completionException);
-    }
-
-    private static async IAsyncEnumerable<ResoniteConstructionCityObject> StreamMaterializedCityObjectsAsync(
-        SourceFilePipeline sourceFile,
-        ICityGmlGeometryProjector geometryProjector,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Task<ParsedSourceFileResult>? parseTask,
-        Func<ParsedCityObject, bool>? predicate,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        ParsedSourceFileResult parsedSourceFile = parseTask is null
-            ? await sourceFile.GetParseTask()
-            : await parseTask;
-
-        ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
-
-        foreach (ParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
-        {
-            if (predicate is not null && !predicate(parsedCityObject))
-            {
-                continue;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                         new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
-                         referenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         terrainHeightSampler,
-                         request))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return cityObject;
-            }
-        }
-    }
-
-    private static async IAsyncEnumerable<ResoniteMaterialBinding> StreamCommonMaterialsAsync(
-        SourceFilePipeline sourceFile,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Task<ParsedSourceFileResult>? parseTask,
-        HashSet<string> emittedMaterialKeys,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        ParsedSourceFileResult parsedSourceFile = parseTask is null
-            ? await sourceFile.GetParseTask()
-            : await parseTask;
-
-        ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
-
-        foreach (ResoniteMaterialBinding material in EnumerateCommonMaterials(
-                     new CachedSourceFileDescriptor(sourceFile.SourceFile, parsedSourceFile.CityObjects),
-                     referenceSystem,
-                     globalOriginPoint,
-                     globalCartesian,
-                     demTerrainTextureOverlays,
-                     terrainHeightSampler,
-                     request,
-                     emittedMaterialKeys))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return material;
-        }
-    }
-
     internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
@@ -3442,7 +2950,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 MaxHeight: maxHeight,
                 HeightSamples: localHeights),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity);
+            SourceObjectKey: cityObject.SourceIdentity,
+            SourceUnitKey: cityObject.SourceUnitIdentity);
         return true;
     }
 
@@ -3734,7 +3243,327 @@ public static partial class LocalCityGmlResonitePlanBuilder
         int width,
         int height)
     {
-        return;
+        bool[] boundaryConnectedMissing = FindBoundaryConnectedMissingSamples(sampledInsideTriangles, width, height);
+        if (!boundaryConnectedMissing.Any(static missing => missing))
+        {
+            return;
+        }
+
+        bool[] rowHasSampled = new bool[height];
+        bool[] columnHasSampled = new bool[width];
+        bool hasEntirelyMissingRow = false;
+        bool hasEntirelyMissingColumn = false;
+
+        for (int row = 0; row < height; row++)
+        {
+            for (int column = 0; column < width; column++)
+            {
+                if (!sampledInsideTriangles[(row * width) + column])
+                {
+                    continue;
+                }
+
+                rowHasSampled[row] = true;
+                columnHasSampled[column] = true;
+            }
+
+            hasEntirelyMissingRow |= !rowHasSampled[row];
+        }
+
+        for (int column = 0; column < width; column++)
+        {
+            hasEntirelyMissingColumn |= !columnHasSampled[column];
+        }
+
+        if (hasEntirelyMissingRow)
+        {
+            SeedBoundaryColumn(0, searchStep: 1);
+            SeedBoundaryColumn(width - 1, searchStep: -1);
+            PropagateBoundaryColumn(0, searchStep: 1);
+            PropagateBoundaryColumn(width - 1, searchStep: -1);
+        }
+
+        if (hasEntirelyMissingColumn)
+        {
+            SeedBoundaryRow(0, searchStep: 1);
+            SeedBoundaryRow(height - 1, searchStep: -1);
+            PropagateBoundaryRow(0, searchStep: 1);
+            PropagateBoundaryRow(height - 1, searchStep: -1);
+        }
+
+        void SeedBoundaryColumn(int boundaryColumn, int searchStep)
+        {
+            for (int row = 0; row < height; row++)
+            {
+                int boundaryIndex = (row * width) + boundaryColumn;
+                if (!boundaryConnectedMissing[boundaryIndex] || !rowHasSampled[row])
+                {
+                    continue;
+                }
+
+                int adjacentSampleColumn = FindAdjacentSampleColumn(row, boundaryColumn, searchStep);
+                if (adjacentSampleColumn < 0)
+                {
+                    continue;
+                }
+
+                CopySampleIntoBoundary(row, boundaryColumn, row, adjacentSampleColumn);
+            }
+        }
+
+        void SeedBoundaryRow(int boundaryRow, int searchStep)
+        {
+            for (int column = 0; column < width; column++)
+            {
+                int boundaryIndex = (boundaryRow * width) + column;
+                if (!boundaryConnectedMissing[boundaryIndex] || !columnHasSampled[column])
+                {
+                    continue;
+                }
+
+                int adjacentSampleRow = FindAdjacentSampleRow(column, boundaryRow, searchStep);
+                if (adjacentSampleRow < 0)
+                {
+                    continue;
+                }
+
+                CopySampleIntoBoundary(boundaryRow, column, adjacentSampleRow, column);
+            }
+        }
+
+        void PropagateBoundaryColumn(int boundaryColumn, int searchStep)
+        {
+            double? carryHeight = null;
+            for (int row = 0; row < height; row++)
+            {
+                int boundaryIndex = (row * width) + boundaryColumn;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                int adjacentSampleColumn = FindAdjacentSampleColumn(row, boundaryColumn, searchStep);
+                if (adjacentSampleColumn >= 0)
+                {
+                    CopySampleIntoBoundary(row, boundaryColumn, row, adjacentSampleColumn);
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
+            }
+
+            carryHeight = null;
+            for (int row = height - 1; row >= 0; row--)
+            {
+                int boundaryIndex = (row * width) + boundaryColumn;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
+            }
+        }
+
+        void PropagateBoundaryRow(int boundaryRow, int searchStep)
+        {
+            double? carryHeight = null;
+            for (int column = 0; column < width; column++)
+            {
+                int boundaryIndex = (boundaryRow * width) + column;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                int adjacentSampleRow = FindAdjacentSampleRow(column, boundaryRow, searchStep);
+                if (adjacentSampleRow >= 0)
+                {
+                    CopySampleIntoBoundary(boundaryRow, column, adjacentSampleRow, column);
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
+            }
+
+            carryHeight = null;
+            for (int column = width - 1; column >= 0; column--)
+            {
+                int boundaryIndex = (boundaryRow * width) + column;
+                if (!boundaryConnectedMissing[boundaryIndex])
+                {
+                    carryHeight = null;
+                    continue;
+                }
+
+                if (sampledInsideTriangles[boundaryIndex])
+                {
+                    carryHeight = localHeights[boundaryIndex];
+                    continue;
+                }
+
+                if (carryHeight is null)
+                {
+                    continue;
+                }
+
+                localHeights[boundaryIndex] = carryHeight.Value;
+                sampledInsideTriangles[boundaryIndex] = true;
+            }
+        }
+
+        int FindAdjacentSampleColumn(int row, int boundaryColumn, int searchStep)
+        {
+            for (int column = boundaryColumn; (uint)column < (uint)width; column += searchStep)
+            {
+                int sampleIndex = (row * width) + column;
+                if (sampledInsideTriangles[sampleIndex])
+                {
+                    return column;
+                }
+
+                if (!boundaryConnectedMissing[sampleIndex])
+                {
+                    break;
+                }
+            }
+
+            return -1;
+        }
+
+        int FindAdjacentSampleRow(int column, int boundaryRow, int searchStep)
+        {
+            for (int row = boundaryRow; (uint)row < (uint)height; row += searchStep)
+            {
+                int sampleIndex = (row * width) + column;
+                if (sampledInsideTriangles[sampleIndex])
+                {
+                    return row;
+                }
+
+                if (!boundaryConnectedMissing[sampleIndex])
+                {
+                    break;
+                }
+            }
+
+            return -1;
+        }
+
+        void CopySampleIntoBoundary(int targetRow, int targetColumn, int sourceRow, int sourceColumn)
+        {
+            int targetIndex = (targetRow * width) + targetColumn;
+            int sourceIndex = (sourceRow * width) + sourceColumn;
+            localHeights[targetIndex] = localHeights[sourceIndex];
+            sampledInsideTriangles[targetIndex] = true;
+        }
+    }
+
+    private static bool[] FindBoundaryConnectedMissingSamples(
+        bool[] sampledInsideTriangles,
+        int width,
+        int height)
+    {
+        bool[] boundaryConnectedMissing = new bool[width * height];
+        Queue<(int Row, int Column)> frontier = new();
+
+        for (int column = 0; column < width; column++)
+        {
+            EnqueueIfBoundaryMissing(0, column);
+            EnqueueIfBoundaryMissing(height - 1, column);
+        }
+
+        for (int row = 1; row < height - 1; row++)
+        {
+            EnqueueIfBoundaryMissing(row, 0);
+            EnqueueIfBoundaryMissing(row, width - 1);
+        }
+
+        while (frontier.Count > 0)
+        {
+            (int row, int column) = frontier.Dequeue();
+            TryVisit(row - 1, column);
+            TryVisit(row + 1, column);
+            TryVisit(row, column - 1);
+            TryVisit(row, column + 1);
+        }
+
+        return boundaryConnectedMissing;
+
+        void EnqueueIfBoundaryMissing(int row, int column)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int sampleIndex = (row * width) + column;
+            if (sampledInsideTriangles[sampleIndex] || boundaryConnectedMissing[sampleIndex])
+            {
+                return;
+            }
+
+            boundaryConnectedMissing[sampleIndex] = true;
+            frontier.Enqueue((row, column));
+        }
+
+        void TryVisit(int row, int column)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int sampleIndex = (row * width) + column;
+            if (sampledInsideTriangles[sampleIndex] || boundaryConnectedMissing[sampleIndex])
+            {
+                return;
+            }
+
+            boundaryConnectedMissing[sampleIndex] = true;
+            frontier.Enqueue((row, column));
+        }
     }
 
     private static void ValidateCompatibleReferenceSystem(
@@ -3878,6 +3707,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         int? LodLevel,
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
+        string SourceUnitIdentity,
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,

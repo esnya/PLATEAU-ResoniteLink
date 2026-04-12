@@ -46,6 +46,62 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
+    public void TryNormalizeAndValidateTrimsAndNormalizesRequestData()
+    {
+        using TemporaryDirectory sourceRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: " tokyo23ku ",
+            MeshCode: " 53394525 ",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: $"  {sourceRoot.Path}  ",
+            ServerUri: null,
+            PackageNames: [" waterbody ", " tran "]);
+
+        bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
+            request,
+            out ValidatedPlateauImportRequest? validatedRequest,
+            out IReadOnlyList<string> errors);
+
+        Assert.True(success);
+        Assert.Empty(errors);
+        Assert.NotNull(validatedRequest);
+        Assert.Equal("tokyo23ku", validatedRequest!.Dataset);
+        Assert.Equal("53394525", validatedRequest.MeshCode);
+        Assert.Matches(validatedRequest.MeshCodePattern, "53394525");
+        Assert.DoesNotMatch(validatedRequest.MeshCodePattern, "53394526");
+        Assert.IsType<ValidatedPlateauLocalImportSource>(validatedRequest.Source);
+        Assert.Equal(sourceRoot.Path, validatedRequest.LocalSourcePath);
+        Assert.Equal(["wtr", "tran"], validatedRequest.PackageNames);
+
+        PlateauImportRequest roundTrippedRequest = validatedRequest.ToImportRequest();
+        Assert.Equal("tokyo23ku", roundTrippedRequest.Dataset);
+        Assert.Equal("53394525", roundTrippedRequest.MeshCode);
+        Assert.Equal(sourceRoot.Path, roundTrippedRequest.LocalSourcePath);
+        Assert.Equal(["wtr", "tran"], roundTrippedRequest.PackageNames);
+    }
+
+    [Fact]
+    public void ValidateRejectsUnsupportedPackageNamesInPackageList()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "C:/dataset",
+            ServerUri: null,
+            PackageNames: ["bldg", "unknown", "waterbody"]);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => error.Contains(
+                "Unsupported package name(s): unknown.",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ValidateRejectsUnsupportedPackageKeysInPackageMaps()
     {
         PlateauImportRequest request = new(
@@ -104,6 +160,73 @@ public sealed class PlateauImportRequestValidatorTests
             errors,
             error => error.Contains(
                 "The PackagePatterns value contains duplicate package keys after normalization: wtr.",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidateRequiresLocalSourcePathForLocalSource()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: null,
+            ServerUri: null);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => string.Equals(
+                error,
+                "The --local-source-path value is required when --source local is used.",
+                StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ValidateAcceptsExistingLocalSourcePath(bool createFile)
+    {
+        using TemporaryDirectory sourceRoot = new();
+        string localSourcePath = createFile
+            ? Path.Combine(sourceRoot.Path, "source.gml")
+            : sourceRoot.Path;
+
+        if (createFile)
+        {
+            File.WriteAllText(localSourcePath, "<CityModel />");
+        }
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: localSourcePath,
+            ServerUri: null);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateRejectsMissingLocalSourcePath()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/path/that/does/not/exist",
+            ServerUri: null);
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            errors,
+            error => string.Equals(
+                error,
+                "The local source path '/path/that/does/not/exist' does not exist.",
                 StringComparison.Ordinal));
     }
 
