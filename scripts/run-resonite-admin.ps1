@@ -15,11 +15,17 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Split-Path -Parent $PSScriptRoot)
 $projectPath = Join-Path $repoRoot 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
 $dotnet = Resolve-DotNetCommandPath
-$dllPath = Ensure-WindowsBuildOutput -DotNetPath $dotnet -ProjectPath $projectPath -ExpectedDllPath (Join-Path $repoRoot 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll')
-$arguments = @($dllPath, $Endpoint, $Dataset)
+$adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $projectPath -RepoRoot $repoRoot
+$launcherPath = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $adminBuild.ExePath } else { $dotnet }
+$arguments = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) {
+    @($Endpoint, $Dataset)
+}
+else {
+    @($adminBuild.DllPath, $Endpoint, $Dataset)
+}
 if ($ListOnly) {
     $arguments += '--list-only'
 }
 
-& "$dotnet" @arguments
+& "$launcherPath" @arguments
 exit $LASTEXITCODE

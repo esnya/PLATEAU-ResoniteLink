@@ -29,17 +29,22 @@ if (-not $ListOnly) {
         }
 }
 
-$adminDll = Ensure-WindowsBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -ExpectedDllPath (Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll')
+$adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $RepoPath
 
 if ($stoppedProcessIds.Count -gt 0) {
     Write-Output ("Stopped stale sender PID(s): {0}" -f ($stoppedProcessIds -join ', '))
 }
 
-Write-Output ("AdminDllPath={0}" -f $adminDll)
-Write-Output ("AdminDllLastWriteTime={0:o}" -f (Get-Item $adminDll).LastWriteTime)
+Write-Output ("AdminDllPath={0}" -f $adminBuild.DllPath)
+Write-Output ("AdminDllLastWriteTime={0:o}" -f $adminBuild.DllLastWriteTime)
 
 if (-not $ListOnly) {
-    $cleanupOutput = & "$dotnet" $adminDll $Endpoint $Dataset 2>&1
+    $cleanupOutput = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) {
+        & $adminBuild.ExePath $Endpoint $Dataset 2>&1
+    }
+    else {
+        & "$dotnet" $adminBuild.DllPath $Endpoint $Dataset 2>&1
+    }
     $cleanupOutput | Out-Host
 }
 
@@ -47,7 +52,12 @@ $verification = @()
 $deadline = (Get-Date).AddSeconds($VerificationTimeoutSeconds)
 
 do {
-    $verification = & "$dotnet" $adminDll $Endpoint $Dataset --list-only
+    $verification = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) {
+        & $adminBuild.ExePath $Endpoint $Dataset --list-only
+    }
+    else {
+        & "$dotnet" $adminBuild.DllPath $Endpoint $Dataset --list-only
+    }
     $verification | Out-Host
 
     if ($verification -match "Found 0 dataset root slot\(s\)") {

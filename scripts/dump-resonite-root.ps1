@@ -17,7 +17,7 @@ $runtimeRoot = Join-Path $RepoPath 'runtime\windows\resonite\root-dumps'
 $adminRuntimeRoot = Join-Path $RepoPath 'runtime\windows\resonite'
 $adminProject = Join-Path $RepoPath 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
 
-$adminDll = Ensure-WindowsBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -ExpectedDllPath (Join-Path $RepoPath 'artifacts\build\windows\bin\ResoniteAdmin\Release\net10.0\ResoniteAdmin.dll')
+$adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $RepoPath
 
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
@@ -50,9 +50,10 @@ foreach ($path in @($stdoutPath, $stderrPath)) {
     }
 }
 
-$launcherArguments = @($adminDll) + $arguments
+$launcherPath = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $adminBuild.ExePath } else { $dotnet }
+$launcherArguments = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $arguments } else { @($adminBuild.DllPath) + $arguments }
 $process = Start-Process `
-    -FilePath $dotnet `
+    -FilePath $launcherPath `
     -ArgumentList $launcherArguments `
     -WorkingDirectory $RepoPath `
     -Wait `
@@ -79,6 +80,6 @@ if (-not (Test-Path -LiteralPath $OutputPath -PathType Leaf)) {
     OutputPath           = (Resolve-Path -LiteralPath $OutputPath).Path
     Depth                = $Depth
     IncludeComponentData = $IncludeComponentData
-    AdminDllPath         = $adminDll
-    AdminDllLastWriteTime = (Get-Item -LiteralPath $adminDll).LastWriteTime
+    AdminDllPath         = $adminBuild.DllPath
+    AdminDllLastWriteTime = $adminBuild.DllLastWriteTime
 }

@@ -40,21 +40,97 @@ function Ensure-WindowsBuildOutput {
     param(
         [string]$DotNetPath,
         [string]$ProjectPath,
-        [string]$ExpectedDllPath
+        [string]$ExpectedDllPath,
+        [string]$ToolName = 'Windows build'
     )
 
-    $buildOutput = & "$DotNetPath" build $ProjectPath -c Release -p:RepositoryHostOs=windows 2>&1
-    $buildExitCode = $LASTEXITCODE
-    $buildOutput | Out-Host
+    foreach ($commandSpec in @(
+        @{
+            Kind      = 'restore'
+            Arguments = @('restore', $ProjectPath, '-p:RepositoryHostOs=windows', '--force-evaluate', '-v', 'minimal')
+        },
+        @{
+            Kind      = 'build'
+            Arguments = @('build', $ProjectPath, '-c', 'Release', '-p:RepositoryHostOs=windows', '--no-restore')
+        }
+    )) {
+        $stdoutPath = [System.IO.Path]::GetTempFileName()
+        $stderrPath = [System.IO.Path]::GetTempFileName()
 
-    if ($buildExitCode -ne 0) {
-        $outputText = ($buildOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-        throw "Windows build failed before using ResoniteAdmin tooling. ExitCode=$buildExitCode`n$outputText"
+        try {
+            $process = Start-Process `
+                -FilePath $DotNetPath `
+                -ArgumentList $commandSpec.Arguments `
+                -Wait `
+                -PassThru `
+                -RedirectStandardOutput $stdoutPath `
+                -RedirectStandardError $stderrPath
+
+            if (Test-Path -LiteralPath $stdoutPath) {
+                Get-Content -LiteralPath $stdoutPath | Out-Host
+            }
+
+            if (Test-Path -LiteralPath $stderrPath) {
+                Get-Content -LiteralPath $stderrPath | Out-Host
+            }
+
+            $exitCode = $process.ExitCode
+        }
+        finally {
+            foreach ($tempPath in @($stdoutPath, $stderrPath)) {
+                if (Test-Path -LiteralPath $tempPath) {
+                    Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
+        if ($exitCode -ne 0) {
+            throw "$ToolName $($commandSpec.Kind) failed before launch. ExitCode=$exitCode"
+        }
     }
 
     if (-not (Test-Path -LiteralPath $ExpectedDllPath -PathType Leaf)) {
-        throw "Expected fresh Windows build output not found: $ExpectedDllPath"
+        throw "$ToolName build output not found: $ExpectedDllPath"
     }
 
-    return (Get-Item -LiteralPath $ExpectedDllPath).FullName
+    return (Get-Item -LiteralPath $ExpectedDllPath)
+}
+
+function Resolve-ResoniteAdminOutputPaths {
+    param(
+        [string]$RepoRoot,
+        [string]$Configuration = 'Release'
+    )
+
+    $outputRoot = Join-Path $RepoRoot ("artifacts\build\windows\bin\ResoniteAdmin\{0}\net10.0" -f $Configuration)
+    [pscustomobject]@{
+        DllPath = (Join-Path $outputRoot 'ResoniteAdmin.dll')
+        ExePath = (Join-Path $outputRoot 'ResoniteAdmin.exe')
+    }
+}
+
+function Ensure-ResoniteAdminBuildOutput {
+    param(
+        [string]$DotNetPath,
+        [string]$ProjectPath,
+        [string]$RepoRoot
+    )
+
+    $paths = Resolve-ResoniteAdminOutputPaths -RepoRoot $RepoRoot
+    $dll = Ensure-WindowsBuildOutput `
+        -DotNetPath $DotNetPath `
+        -ProjectPath $ProjectPath `
+        -ExpectedDllPath $paths.DllPath `
+        -ToolName 'ResoniteAdmin'
+
+    [pscustomobject]@{
+        DllPath          = $dll.FullName
+        DllLastWriteTime = $dll.LastWriteTime
+        ExePath          = if (Test-Path -LiteralPath $paths.ExePath -PathType Leaf) {
+            (Get-Item -LiteralPath $paths.ExePath).FullName
+        }
+        else {
+            $null
+        }
+    }
 }
