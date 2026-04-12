@@ -168,6 +168,33 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
+    public async Task ImportMeshAsyncDoesNotApplyTimeoutWhenDisabledByDefault()
+    {
+        using BlockingReconnectableClient innerClient = new();
+        using RetryingResoniteLinkClient client = new(() => innerClient);
+        using CancellationTokenSource cancellation = new();
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+
+        Task<Uri> importTask = client.ImportMeshAsync(
+            new ImportMeshRawData
+            {
+                RawBinaryPayload = [1, 2, 3],
+                VertexCount = 3,
+            },
+            cancellation.Token);
+
+        await innerClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await Task.Delay(150);
+
+        Assert.False(importTask.IsCompleted);
+
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => importTask);
+        Assert.Equal(1, innerClient.ImportMeshCallCount);
+    }
+
+    [Fact]
     public async Task AddSlotAsyncReturnsCreatedIdFromInnerClient()
     {
         using StubReconnectableClient innerClient = new();
