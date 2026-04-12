@@ -1226,6 +1226,32 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public void ExtendBoundaryConnectedMissingHeightMapBandsDoesNotPropagateSingleHighEdgeSampleAcrossEmptyRows()
+    {
+        double[] localHeights =
+        [
+            0.0, 0.0, 100.0, 100.0,
+            0.0, 0.0, 10.0, 10.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+        ];
+        bool[] sampledInsideTriangles =
+        [
+            false, false, true, true,
+            false, false, true, true,
+            false, false, false, false,
+            false, false, false, false,
+        ];
+
+        ExtendBoundaryConnectedMissingHeightMapBands(localHeights, sampledInsideTriangles, width: 4, height: 4);
+
+        Assert.Equal(100.0, localHeights[0]);
+        Assert.Equal(10.0, localHeights[4]);
+        Assert.Equal(10.0, localHeights[8]);
+        Assert.Equal(10.0, localHeights[12]);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncKeepsSplitDemHeightMapBoundaryHeightsAlignedAcrossChunks()
     {
         using TemporaryDirectory datasetRoot = new();

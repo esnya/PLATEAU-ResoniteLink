@@ -1472,6 +1472,50 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncChoosesConcreteCompletionMeshCodeClosestToRegexOrigin()
+    {
+        using FakeResoniteLinkClient fakeClient = new();
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
+            CreateRegexRequestScene(
+                "5339452[56]",
+                new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+                ["53394526", "53394525"]));
+
+        Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
+        Slot completionAnchorSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "53394525");
+        Assert.Contains("PLATEAU tokyo23ku/53394525", fakeClient.SlotPaths.Values);
+        Assert.DoesNotContain("PLATEAU tokyo23ku/53394526", fakeClient.SlotPaths.Values);
+        Assert.Equal(
+            [$"ws://localhost:12345/#{completionAnchorSlot.ID}"],
+            destinations);
+    }
+
+    [Fact]
+    public async Task BuildAsyncThrowsWhenRegexSelectorHasNoConcreteRequestedMeshCodes()
+    {
+        using FakeResoniteLinkClient fakeClient = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await RunBuilderAsync(
+                builder,
+                CreateRegexRequestScene(
+                    "5339452[56]",
+                    new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
+                    [])));
+
+        Assert.Contains(
+            "did not resolve to any concrete meshcode",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
@@ -5053,6 +5097,14 @@ public sealed class ResoniteLinkSceneBuilderTests
 
     private static CapturedResoniteScene CreateRegexRequestScene(string meshCode, ResoniteLocalOrigin localOrigin)
     {
+        return CreateRegexRequestScene(meshCode, localOrigin, ["53394525"]);
+    }
+
+    private static CapturedResoniteScene CreateRegexRequestScene(
+        string meshCode,
+        ResoniteLocalOrigin localOrigin,
+        IReadOnlyList<string> requestedMeshCodes)
+    {
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
             WorldName: $"PLATEAU tokyo23ku {meshCode}",
@@ -5066,7 +5118,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 PackageNames: ["bldg", "dem"],
                 SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
                 TerrainTextureOverlays: [],
-                RequestedMeshCodes: ["53394525"]),
+                RequestedMeshCodes: requestedMeshCodes),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new ResoniteLicenseComponentMetadata(
                     RequireCredit: true,

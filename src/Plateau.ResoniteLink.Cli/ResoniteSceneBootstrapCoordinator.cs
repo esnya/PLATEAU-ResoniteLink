@@ -1,3 +1,5 @@
+using GeographicLib;
+
 using System.Globalization;
 
 using Plateau.ResoniteLink.Domain.Importing;
@@ -82,17 +84,56 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             return meshCode;
         }
 
-        string? requestedMeshCode = metadata.SourceDataset.RequestedMeshCodes?
-            .FirstOrDefault(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _));
-        if (!string.IsNullOrWhiteSpace(requestedMeshCode))
+        (string MeshCode, double DistanceSquared)[] concreteRequestedMeshCodes = metadata.SourceDataset.RequestedMeshCodes?
+            .Select(candidate => TryResolveConcreteMeshCodeDistance(candidate, metadata.LocalOrigin))
+            .Where(static candidate => candidate.HasValue)
+            .Select(static candidate => candidate!.Value)
+            .OrderBy(static candidate => candidate.DistanceSquared)
+            .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
+            .ToArray()
+            ?? [];
+        if (concreteRequestedMeshCodes.Length > 0)
         {
-            return requestedMeshCode;
+            return concreteRequestedMeshCodes[0].MeshCode;
         }
 
         throw new InvalidOperationException(
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"Live Offset V2 requires a concrete meshcode anchor, but '{meshCode}' did not resolve to any concrete meshcode."));
+    }
+
+    private static (string MeshCode, double DistanceSquared)? TryResolveConcreteMeshCodeDistance(
+        string meshCode,
+        ResoniteLocalOrigin requestOrigin)
+    {
+        if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin concreteCenter))
+        {
+            return null;
+        }
+
+        ResoniteFloat3 offset = ComputeOriginOffset(requestOrigin, concreteCenter);
+        double distanceSquared = (offset.X * offset.X) + (offset.Z * offset.Z);
+        return (meshCode, distanceSquared);
+    }
+
+    private static ResoniteFloat3 ComputeOriginOffset(
+        ResoniteLocalOrigin referenceCenter,
+        ResoniteLocalOrigin currentCenter)
+    {
+        LocalCartesian cartesian = new(
+            referenceCenter.Latitude,
+            referenceCenter.Longitude,
+            referenceCenter.Altitude,
+            Geocentric.WGS84);
+        (double x, double y, double z) eun = cartesian.Forward(
+            currentCenter.Latitude,
+            currentCenter.Longitude,
+            currentCenter.Altitude);
+        return new ResoniteFloat3(
+            X: eun.x,
+            Y: 0.0,
+            Z: eun.y);
     }
 
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(
