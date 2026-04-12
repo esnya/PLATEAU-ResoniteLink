@@ -469,50 +469,64 @@ internal sealed class RetryingResoniteLinkClient(
                     : (importDrainCompletion ??= new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)).Task;
             }
 
-            if (activeImportCancellationsSnapshot.Length > 0)
-            {
-                reporter?.Invoke(
-                    PlateauLog.Warning(
-                        "live",
-                        $"Reconnect canceling {activeImportCancellationsSnapshot.Length} active import(s) before retry."));
-                await Task.WhenAll(activeImportCancellationsSnapshot.Select(static cancellation => cancellation.CancelAsync()));
-            }
-
-            await waitForImportsTask.WaitAsync(cancellationToken);
-            IResoniteLinkClient previous = inner;
-            IResoniteLinkClient replacement = clientFactory();
-
+            IResoniteLinkClient? replacement = null;
+            IResoniteLinkClient? previous = null;
             try
             {
+                if (activeImportCancellationsSnapshot.Length > 0)
+                {
+                    reporter?.Invoke(
+                        PlateauLog.Warning(
+                            "live",
+                            $"Reconnect canceling {activeImportCancellationsSnapshot.Length} active import(s) before retry."));
+                    await Task.WhenAll(
+                        activeImportCancellationsSnapshot.Select(CancelImportCancellationAsync));
+                }
+
+                await waitForImportsTask.WaitAsync(cancellationToken);
+                previous = inner;
+                replacement = clientFactory();
+
                 await replacement.ConnectAsync(endpoint, cancellationToken);
+
+                lock (clientStateGate)
+                {
+                    inner = replacement;
+                    replacement = null;
+                    Interlocked.Increment(ref generation);
+                }
+
+                previous.Dispose();
+                previous = null;
+                reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
             }
-            catch
+            finally
             {
-                replacement.Dispose();
+                replacement?.Dispose();
+                previous?.Dispose();
                 lock (clientStateGate)
                 {
                     reconnectPending = false;
                     reconnectCompletion = null;
+                    importDrainCompletion = null;
                 }
                 reconnectCompletionSource.TrySetResult(true);
-                throw;
             }
-
-            lock (clientStateGate)
-            {
-                inner = replacement;
-                reconnectPending = false;
-                reconnectCompletion = null;
-                importDrainCompletion = null;
-                Interlocked.Increment(ref generation);
-            }
-            reconnectCompletionSource.TrySetResult(true);
-            previous.Dispose();
-            reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
         }
         finally
         {
             reconnectGate.Release();
+        }
+    }
+
+    private static async Task CancelImportCancellationAsync(CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await cancellation.CancelAsync();
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 

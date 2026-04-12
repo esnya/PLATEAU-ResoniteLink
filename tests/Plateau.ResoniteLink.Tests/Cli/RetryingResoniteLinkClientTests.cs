@@ -254,6 +254,63 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Equal(1, secondClient.ConnectCallCount);
     }
 
+    [Fact]
+    public async Task ReconnectCancellationClearsPendingStateForLaterOperations()
+    {
+        int createdClientCount = 0;
+        using CoordinatedReconnectableClient firstClient = new(failGetSlot: true, blockImportCancellationCompletion: true);
+        using CoordinatedReconnectableClient secondClient = new();
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            });
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+
+        Task<Uri> importTask = client.ImportMeshAsync(
+            new ImportMeshRawData
+            {
+                RawBinaryPayload = [1, 2, 3],
+                VertexCount = 3,
+            },
+            CancellationToken.None);
+        await firstClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        using CancellationTokenSource getSlotCancellation = new();
+        Task<Slot?> getSlotTask = client.GetSlotAsync("slot-id", 0, getSlotCancellation.Token);
+
+        await firstClient.ImportMeshCanceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await getSlotCancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => getSlotTask);
+
+        firstClient.AllowImportMeshCancellationCompletion.TrySetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => importTask);
+
+        string slotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    ID = null!,
+                    Parent = new Reference
+                    {
+                        TargetID = "parent-id",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "Slot",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal("srv_slot_1", slotId);
+        Assert.Equal(0, secondClient.ConnectCallCount);
+    }
+
     private sealed class StubReconnectableClient(bool failImportMesh = false, bool failGetSlot = false) : IResoniteLinkClient
     {
         private int nextComponentId;
@@ -454,8 +511,9 @@ public sealed class RetryingResoniteLinkClientTests
         }
     }
 
-    private sealed class CoordinatedReconnectableClient(bool failGetSlot = false) : IResoniteLinkClient
+    private sealed class CoordinatedReconnectableClient : IResoniteLinkClient
     {
+        private readonly bool failGetSlot;
         private bool disposed;
         private int nextSlotId;
 
@@ -465,9 +523,21 @@ public sealed class RetryingResoniteLinkClientTests
 
         public TaskCompletionSource ImportMeshCanceled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public TaskCompletionSource AllowImportMeshCancellationCompletion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public int ConnectCallCount { get; private set; }
 
         public int DisposeCallCount { get; private set; }
+
+        public CoordinatedReconnectableClient(bool failGetSlot = false, bool blockImportCancellationCompletion = false)
+        {
+            this.failGetSlot = failGetSlot;
+            if (!blockImportCancellationCompletion)
+            {
+                AllowImportMeshCancellationCompletion.TrySetResult();
+            }
+        }
 
         public void Dispose()
         {
@@ -537,6 +607,7 @@ public sealed class RetryingResoniteLinkClientTests
             catch (OperationCanceledException)
             {
                 ImportMeshCanceled.TrySetResult();
+                await AllowImportMeshCancellationCompletion.Task;
                 throw;
             }
             ObjectDisposedException.ThrowIf(disposed, this);
