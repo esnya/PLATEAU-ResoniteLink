@@ -48,9 +48,9 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 datasetRootSlotId,
                 1,
                 cancellationToken);
-            ResoniteSceneChildLookupResult completionRootLookup = datasetRootSnapshot.GetUniqueChildLookupResult(
-                completionMeshCode,
-                datasetRootSlotId);
+            ResoniteSceneChildLookupResult completionRootLookup = datasetRootSnapshot.GetUniqueDescendantLookupResult(
+                datasetRootSlotId,
+                completionMeshCode);
             if (completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
             {
                 string existingCompletionRootId = completionRootLookup.SlotId!;

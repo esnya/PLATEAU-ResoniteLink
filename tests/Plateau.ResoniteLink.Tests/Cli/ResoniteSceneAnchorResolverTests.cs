@@ -10,6 +10,39 @@ namespace Plateau.ResoniteLink.Tests.Cli;
 public sealed class ResoniteSceneAnchorResolverTests
 {
     [Fact]
+    public void SnapshotCanResolveNestedAssetsCommonReuseWithoutAnId()
+    {
+        Slot datasetRoot = CreateSlot(
+            "dataset-root",
+            "PLATEAU tokyo23ku",
+            children:
+            [
+                CreateSlot(
+                    "assets-root",
+                    "Assets",
+                    "dataset-root",
+                    children:
+                    [
+                        CreateSlot(
+                            id: null,
+                            "Common",
+                            "assets-root"),
+                    ]),
+            ]);
+
+        ResoniteSceneSlotSnapshot snapshot = new(datasetRoot);
+        ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueDescendantLookupResult(
+            "dataset-root",
+            "Assets",
+            "Common");
+
+        Assert.Equal(ResoniteSceneChildLookupState.FoundWithoutId, lookup.State);
+        Assert.NotNull(lookup.Slot);
+        Assert.Null(lookup.SlotId);
+        Assert.Equal("Common", lookup.Slot!.Name!.Value);
+    }
+
+    [Fact]
     public async Task ResolveAsyncContinuesPollingWhenMatchingChildExistsWithoutIdUntilIdSurfaces()
     {
         const string datasetRootSlotId = "dataset-root";

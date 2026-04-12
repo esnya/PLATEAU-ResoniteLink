@@ -16,8 +16,18 @@ internal readonly record struct ResoniteSceneChildLookupResult(
     public string? SlotId => Slot?.ID;
 }
 
-internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
+internal sealed class ResoniteSceneSlotSnapshot
 {
+    private readonly Dictionary<string, Slot[]> uniqueChildrenByName;
+
+    public ResoniteSceneSlotSnapshot(Slot? root)
+    {
+        Root = root;
+        uniqueChildrenByName = BuildUniqueChildrenIndex(root);
+    }
+
+    public Slot? Root { get; }
+
     public static async Task<ResoniteSceneSlotSnapshot> CreateAsync(
         IResoniteLinkClient client,
         string slotId,
@@ -37,14 +47,13 @@ internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
 
     public ResoniteSceneChildLookupResult GetUniqueChildLookupResult(string slotName, string parentId)
     {
-        if (Root?.Children is null)
+        ArgumentException.ThrowIfNullOrWhiteSpace(slotName);
+
+        if (!uniqueChildrenByName.TryGetValue(slotName, out Slot[]? matches))
         {
             return new ResoniteSceneChildLookupResult(ResoniteSceneChildLookupState.NotFound, null);
         }
 
-        Slot[] matches = Root.Children
-            .Where(child => string.Equals(child.Name?.Value, slotName, StringComparison.Ordinal))
-            .ToArray();
         if (matches.Length == 0)
         {
             return new ResoniteSceneChildLookupResult(ResoniteSceneChildLookupState.NotFound, null);
@@ -62,5 +71,53 @@ internal readonly record struct ResoniteSceneSlotSnapshot(Slot? Root)
                 ? ResoniteSceneChildLookupState.FoundWithoutId
                 : ResoniteSceneChildLookupState.FoundWithId,
             match);
+    }
+
+    public ResoniteSceneChildLookupResult GetUniqueDescendantLookupResult(
+        string parentId,
+        params string[] pathSegments)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentId);
+        ArgumentNullException.ThrowIfNull(pathSegments);
+        if (pathSegments.Length == 0)
+        {
+            throw new ArgumentException("At least one path segment is required.", nameof(pathSegments));
+        }
+
+        ResoniteSceneSlotSnapshot currentSnapshot = this;
+        ResoniteSceneChildLookupResult currentLookup = default;
+        for (int index = 0; index < pathSegments.Length; index++)
+        {
+            string segment = pathSegments[index];
+            currentLookup = currentSnapshot.GetUniqueChildLookupResult(segment, parentId);
+            if (currentLookup.State == ResoniteSceneChildLookupState.NotFound)
+            {
+                return currentLookup;
+            }
+
+            if (index < pathSegments.Length - 1)
+            {
+                currentSnapshot = new ResoniteSceneSlotSnapshot(currentLookup.Slot);
+            }
+        }
+
+        return currentLookup;
+    }
+
+    private static Dictionary<string, Slot[]> BuildUniqueChildrenIndex(Slot? root)
+    {
+        if (root?.Children is null || root.Children.Count == 0)
+        {
+            return new Dictionary<string, Slot[]>(StringComparer.Ordinal);
+        }
+
+        Dictionary<string, Slot[]> childrenByName = new(StringComparer.Ordinal);
+        foreach (IGrouping<string, Slot> childGroup in root.Children
+                     .GroupBy(static child => child.Name?.Value ?? string.Empty, StringComparer.Ordinal))
+        {
+            childrenByName[childGroup.Key] = childGroup.ToArray();
+        }
+
+        return childrenByName;
     }
 }
