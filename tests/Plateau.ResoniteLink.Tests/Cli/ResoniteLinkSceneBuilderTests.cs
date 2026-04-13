@@ -1789,7 +1789,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new Uri("ws://localhost:12345/"),
                 2,
                 ResoniteLinkSendDiagnostics.Disabled,
-                () => clients[Interlocked.Increment(ref factoryIndex) - 1]);
+                () => clients[Interlocked.Increment(ref factoryIndex) - 1],
+                new TerrainTextureAssetGenerator(),
+                enableMeshBake: false);
 
             await RunBuilderAsync(builder, scene);
         }
@@ -1826,6 +1828,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             1,
             ResoniteLinkSendDiagnostics.Disabled,
             () => fakeClient,
+            new TerrainTextureAssetGenerator(),
+            enableMeshBake: false,
             progressReporter: progressMessages.Add);
 
         await RunBuilderAsync(builder, scene);
@@ -2163,6 +2167,8 @@ public sealed class ResoniteLinkSceneBuilderTests
             () => new FailingImportMeshSharedClient(
                 session,
                 () => Interlocked.Decrement(ref remainingMeshImportFailures) >= 0),
+            new TerrainTextureAssetGenerator(),
+            enableMeshBake: false,
             progressReporter: progressMessages.Add);
 
         IReadOnlyList<string> destinations = await RunBuilderAsync(builder, scene);
@@ -2382,7 +2388,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 ResoniteLinkSendDiagnostics.Disabled,
-                () => client),
+                () => client,
+                new TerrainTextureAssetGenerator(),
+                enableMeshBake: false),
             scene);
 
         Assert.Single(destinations);
@@ -2423,7 +2431,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new Uri("ws://localhost:12345/"),
                 2,
                 ResoniteLinkSendDiagnostics.Disabled,
-                () => new GlobalLocalIdRejectingBatchClient(session, claimedLocalIds)),
+                () => new GlobalLocalIdRejectingBatchClient(session, claimedLocalIds),
+                new TerrainTextureAssetGenerator(),
+                enableMeshBake: false),
             scene);
 
         Assert.Single(destinations);

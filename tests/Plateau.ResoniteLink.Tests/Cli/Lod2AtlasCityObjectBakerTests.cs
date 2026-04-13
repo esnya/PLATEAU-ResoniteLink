@@ -389,6 +389,29 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncMergesTexturelessNonBuildingMaterialsWithinSameGridCell()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", null, 10.0, "unit-a")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", null, 90.0, "unit-b")));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("veg", cityObject.PackageName);
+        Assert.Single(cityObject.Materials);
+        Assert.Single(cityObject.Mesh.Submeshes);
+        Assert.Equal(6, cityObject.Mesh.Vertices.Count);
+        Assert.NotEqual("veg-one", cityObject.SlotKey);
+        Assert.NotEqual("veg-two", cityObject.SlotKey);
+    }
+
+    [Fact]
     public async Task TryBufferAsyncBuffersNonBuildingLod2OrLaterWithVertexColorMaterial()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -402,6 +425,28 @@ public sealed class Lod2AtlasCityObjectBakerTests
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
         ResoniteConstructionCityObject cityObject = Assert.Single(baked);
         Assert.Equal(ResoniteMaterialType.VertexColor, cityObject.Materials[0].MaterialType);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncMergesVertexColorNonBuildingMaterialsWithinSameGridCell()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2VegetationVertexColor("frn-one", 10.0, "unit-a")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2VegetationVertexColor("frn-two", 90.0, "unit-b")));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("frn", cityObject.PackageName);
+        Assert.Single(cityObject.Materials);
+        Assert.Single(cityObject.Mesh.Submeshes);
+        Assert.Equal(ResoniteMaterialType.VertexColor, cityObject.Materials[0].MaterialType);
+        Assert.Equal(6, cityObject.Mesh.Vertices.Count);
     }
 
     [Fact]
@@ -428,6 +473,61 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Single(cityObject.Materials);
         Assert.StartsWith("generated/lod2-atlas/", cityObject.Materials[0].TexturePath!, StringComparison.Ordinal);
         Assert.True(textureImportRegistry.TryGet(cityObject.Materials[0].TexturePath!, cityObject.Materials[0].TextureSourceKind, out ResoniteTextureImport? _));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncMergesNonBuildingAtlasCandidatesWithinSameGridCell()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        WriteDatasetImage(datasetRoot.Path, "textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            textureImportRegistry,
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1);
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", "textures/one.png", 10.0, "unit-a")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", "textures/two.png", 90.0, "unit-b")));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("veg", cityObject.PackageName);
+        Assert.Single(cityObject.Materials);
+        Assert.Single(cityObject.Mesh.Submeshes);
+        Assert.StartsWith("generated/lod2-atlas/", cityObject.Materials[0].TexturePath!, StringComparison.Ordinal);
+        Assert.NotEqual("veg-one", cityObject.SlotKey);
+        Assert.NotEqual("veg-two", cityObject.SlotKey);
+        Assert.Contains("_0000", cityObject.SlotKey, StringComparison.Ordinal);
+        Assert.True(textureImportRegistry.TryGet(cityObject.Materials[0].TexturePath!, cityObject.Materials[0].TextureSourceKind, out ResoniteTextureImport? _));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncSeparatesNonBuildingAtlasCandidatesAcrossGridCells()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        WriteDatasetImage(datasetRoot.Path, "textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            textureImportRegistry,
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1);
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", "textures/one.png", 10.0, "unit-a")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", "textures/two.png", 200.0, "unit-b")));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        Assert.All(
+            baked,
+            cityObject => Assert.StartsWith("generated/lod2-atlas/", cityObject.Materials[0].TexturePath!, StringComparison.Ordinal));
     }
 
     [Fact]
