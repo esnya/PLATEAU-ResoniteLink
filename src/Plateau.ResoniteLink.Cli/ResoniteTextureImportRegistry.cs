@@ -4,7 +4,7 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteTextureImportRegistry
 {
-    private readonly Dictionary<TextureReferenceKey, ResoniteTextureImport> importsByKey = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<TextureReferenceKey, ResoniteTextureImport> importsByKey = new();
 
     public void Register(
         string texturePath,

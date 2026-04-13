@@ -300,6 +300,35 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncFallsBackToOriginalCityObjectWhenSingleCandidateCannotFitAtlasBudget()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 12, 12);
+        WriteDatasetImage(datasetRoot.Path, "textures/two.png", new Rgba32(0, 255, 0, 255), 12, 12);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            textureImportRegistry,
+            maxAtlasSize: 12,
+            tilePaddingPixels: 1);
+
+        ResoniteConstructionCityObject oversizedCandidate = CreateMultiTextureLod2Building("building-one", "textures/one.png", "textures/two.png", "unit-a");
+        Assert.True(await baker.TryBufferAsync(oversizedCandidate));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal(oversizedCandidate.SlotKey, cityObject.SlotKey);
+        Assert.Equal(oversizedCandidate.DisplayName, cityObject.DisplayName);
+        Assert.Equal(oversizedCandidate.Materials.Count, cityObject.Materials.Count);
+        Assert.Equal(oversizedCandidate.Mesh.Submeshes.Count, cityObject.Mesh.Submeshes.Count);
+        Assert.DoesNotContain(
+            cityObject.Materials,
+            static material => material.TexturePath?.StartsWith("generated/lod2-atlas/", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
     public async Task TryBufferAsyncSkipsNonLod2Objects()
     {
         using TemporaryDirectory datasetRoot = new();

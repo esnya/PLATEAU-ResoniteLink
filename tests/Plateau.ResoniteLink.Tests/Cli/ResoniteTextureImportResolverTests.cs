@@ -10,6 +10,26 @@ namespace Plateau.ResoniteLink.Tests.Cli;
 public sealed class ResoniteTextureImportResolverTests
 {
     [Fact]
+    public void TextureImportRegistrySupportsConcurrentRegisterAndLookup()
+    {
+        ResoniteTextureImportRegistry registry = new();
+
+        Parallel.For(0, 256, index =>
+        {
+            string texturePath = $"generated/lod2-atlas/53394525/{index:D4}.png";
+            ResoniteRawTextureImport import = new(
+                Width: 1,
+                Height: 1,
+                ColorProfile: ResoniteTextureColorProfiles.Srgb,
+                RawRgba32Bytes: [255, 255, 255, 255],
+                Identity: texturePath);
+            registry.Register(texturePath, ResoniteTextureSourceKind.Dataset, import);
+            Assert.True(registry.TryGet(texturePath, ResoniteTextureSourceKind.Dataset, out ResoniteTextureImport? resolved));
+            Assert.Same(import, resolved);
+        });
+    }
+
+    [Fact]
     public async Task ResolveAsyncReadsDatasetTextureAsRawAndCachesResult()
     {
         using TemporaryDirectory datasetRoot = new();

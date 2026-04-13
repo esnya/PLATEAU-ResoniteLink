@@ -94,20 +94,21 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         try
         {
-            List<IReadOnlyList<CityObjectBakeCandidate>> candidateBatches = BuildAtlasCandidateBatches(candidates);
-            List<ResoniteConstructionCityObject> bakedCityObjects = new(candidateBatches.Count);
-            for (int batchIndex = 0; batchIndex < candidateBatches.Count; batchIndex++)
+            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(candidates);
+            List<ResoniteConstructionCityObject> bakedCityObjects = new(batchPlan.Batches.Count + batchPlan.FallbackCandidates.Count);
+            for (int batchIndex = 0; batchIndex < batchPlan.Batches.Count; batchIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
                     sourceUnitKey,
-                    candidateBatches[batchIndex],
+                    batchPlan.Batches[batchIndex],
                     batchIndex,
-                    candidateBatches.Count,
+                    batchPlan.Batches.Count,
                     cancellationToken);
                 bakedCityObjects.Add(bakedCityObject);
             }
 
+            bakedCityObjects.AddRange(batchPlan.FallbackCandidates.Select(static candidate => candidate.CityObject));
             BakedOutputCityObjectCount += bakedCityObjects.Count;
             return bakedCityObjects;
         }
@@ -245,10 +246,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 || material.TextureSourceKind == ResoniteTextureSourceKind.Dataset);
     }
 
-    private List<IReadOnlyList<CityObjectBakeCandidate>> BuildAtlasCandidateBatches(
+    private AtlasBatchPlan BuildAtlasCandidateBatches(
         IReadOnlyList<CityObjectBakeCandidate> candidates)
     {
         List<IReadOnlyList<CityObjectBakeCandidate>> batches = [];
+        List<CityObjectBakeCandidate> fallbackCandidates = [];
         List<CityObjectBakeCandidate> pending = candidates
             .OrderByDescending(static candidate => candidate.AtlasEntries.Sum(entry => entry.Tile.Image.Width * entry.Tile.Image.Height))
             .ThenBy(static candidate => candidate.CityObject.SlotKey, StringComparer.Ordinal)
@@ -269,13 +271,16 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
             if (currentBatch.Count == 0)
             {
-                throw new InvalidOperationException("Failed to fit a LOD2 city object atlas set within the configured atlas size.");
+                CityObjectBakeCandidate oversizedCandidate = pending[0];
+                pending.RemoveAt(0);
+                fallbackCandidates.Add(oversizedCandidate);
+                continue;
             }
 
             batches.Add(currentBatch);
         }
 
-        return batches;
+        return new AtlasBatchPlan(batches, fallbackCandidates);
     }
 
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
@@ -829,6 +834,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
         ResoniteConstructionCityObject CityObject,
         IReadOnlyList<AtlasBatchEntry> AtlasEntries,
         IReadOnlyList<PreservedSubmeshEntry> PreservedEntries);
+
+    private sealed record AtlasBatchPlan(
+        IReadOnlyList<IReadOnlyList<CityObjectBakeCandidate>> Batches,
+        IReadOnlyList<CityObjectBakeCandidate> FallbackCandidates);
 
     private sealed record AtlasLayout(
         int Width,
