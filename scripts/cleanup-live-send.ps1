@@ -21,8 +21,15 @@ $adminProject = Join-Path $RepoPath 'scripts\ResoniteAdmin\ResoniteAdmin.csproj'
 $stoppedProcessIds = @()
 if (-not $ListOnly) {
     Write-Warning "This cleanup removes live dataset roots from the current Resonite session and can destroy experiment results."
-    Get-CimInstance Win32_Process -Filter "Name = 'dotnet.exe'" |
-        Where-Object { $_.CommandLine -like '*Plateau.ResoniteLink.Cli*' -and $_.CommandLine -like "*$RepoPath*" } |
+    Get-CimInstance Win32_Process |
+        Where-Object {
+            (
+                $_.Name -eq 'dotnet.exe'
+                -or $_.Name -eq 'Plateau.ResoniteLink.Cli.exe'
+            )
+            -and $_.CommandLine -like '*Plateau.ResoniteLink.Cli*'
+            -and $_.CommandLine -like "*$RepoPath*"
+        } |
         ForEach-Object {
             $stoppedProcessIds += $_.ProcessId
             Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue

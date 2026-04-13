@@ -104,7 +104,22 @@ internal static class DemTerrainOverlayAssignment
         string texturePath,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
     {
-        return demTerrainTextureOverlays.First(overlay => string.Equals(overlay.TexturePath, texturePath, StringComparison.Ordinal));
+        ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
+        ArgumentNullException.ThrowIfNull(demTerrainTextureOverlays);
+
+        TerrainTextureOverlay? matchingOverlay = demTerrainTextureOverlays.FirstOrDefault(
+            overlay => string.Equals(overlay.TexturePath, texturePath, StringComparison.Ordinal));
+        if (matchingOverlay is not null)
+        {
+            return matchingOverlay;
+        }
+
+        throw new InvalidOperationException(
+            string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"Failed to resolve DEM terrain overlay for texture path '{texturePath}'. "
+                + $"OverlayCount={demTerrainTextureOverlays.Count}. "
+                + $"KnownOverlays=[{DescribeOverlaySet(demTerrainTextureOverlays)}]"));
     }
 
     public static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateHeightMapTextureTransform(
@@ -183,11 +198,17 @@ internal static class DemTerrainOverlayAssignment
             return centerOverlay;
         }
 
-        return demTerrainTextureOverlays.First(overlay =>
+        TerrainTextureOverlay? intersectingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
             surfaceBounds.MaxLatitude >= overlay.GeographicBounds.MinLatitude
             && surfaceBounds.MinLatitude <= overlay.GeographicBounds.MaxLatitude
             && surfaceBounds.MaxLongitude >= overlay.GeographicBounds.MinLongitude
             && surfaceBounds.MinLongitude <= overlay.GeographicBounds.MaxLongitude);
+        if (intersectingOverlay is not null)
+        {
+            return intersectingOverlay;
+        }
+
+        return FindNearestOverlay(surfaceBounds, demTerrainTextureOverlays);
     }
 
     private static LocalCityGmlResonitePlanBuilder.GeodeticPoint GetCityObjectOrigin(
@@ -239,6 +260,51 @@ internal static class DemTerrainOverlayAssignment
     {
         return !string.IsNullOrWhiteSpace(texturePath)
             && texturePath.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, StringComparison.Ordinal);
+    }
+
+    private static TerrainTextureOverlay FindNearestOverlay(
+        GeographicRectangle surfaceBounds,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+    {
+        if (demTerrainTextureOverlays.Count == 0)
+        {
+            throw new InvalidOperationException(
+                string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"Failed to resolve any DEM terrain overlay for surface bounds "
+                    + $"lat[{surfaceBounds.MinLatitude:F9}, {surfaceBounds.MaxLatitude:F9}] "
+                    + $"lon[{surfaceBounds.MinLongitude:F9}, {surfaceBounds.MaxLongitude:F9}] because no overlays were available."));
+        }
+
+        double surfaceCenterLatitude = (surfaceBounds.MinLatitude + surfaceBounds.MaxLatitude) * 0.5;
+        double surfaceCenterLongitude = (surfaceBounds.MinLongitude + surfaceBounds.MaxLongitude) * 0.5;
+        return demTerrainTextureOverlays
+            .OrderBy(overlay => GetOverlayDistanceSquared(surfaceCenterLatitude, surfaceCenterLongitude, overlay.GeographicBounds))
+            .ThenBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
+            .First();
+    }
+
+    private static double GetOverlayDistanceSquared(
+        double latitude,
+        double longitude,
+        GeographicRectangle overlayBounds)
+    {
+        double clampedLatitude = Math.Clamp(latitude, overlayBounds.MinLatitude, overlayBounds.MaxLatitude);
+        double clampedLongitude = Math.Clamp(longitude, overlayBounds.MinLongitude, overlayBounds.MaxLongitude);
+        double deltaLatitude = latitude - clampedLatitude;
+        double deltaLongitude = longitude - clampedLongitude;
+        return (deltaLatitude * deltaLatitude) + (deltaLongitude * deltaLongitude);
+    }
+
+    private static string DescribeOverlaySet(IReadOnlyList<TerrainTextureOverlay> overlays)
+    {
+        return string.Join(
+            ", ",
+            overlays.Select(static overlay =>
+                string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{overlay.TexturePath}:lat[{overlay.GeographicBounds.MinLatitude:F8},{overlay.GeographicBounds.MaxLatitude:F8}]"
+                    + $" lon[{overlay.GeographicBounds.MinLongitude:F8},{overlay.GeographicBounds.MaxLongitude:F8}]")));
     }
 
     private static bool TryCollapseBoundarySliverSplit(

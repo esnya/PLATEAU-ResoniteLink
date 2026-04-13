@@ -386,11 +386,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int laneIndex,
         CancellationToken cancellationToken)
     {
+        QueuedCityObject? currentCityObject = null;
         try
         {
             await foreach (QueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
             {
+                currentCityObject = queuedCityObject;
                 await ProcessQueuedCityObjectAsync(client, queuedCityObject, cancellationToken);
+                currentCityObject = null;
             }
 
             ReportProgress($"[live] Send lane {laneIndex + 1}/{connectionCount} drained.");
@@ -404,7 +407,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             TryMarkProcessingFailure(exception);
             CancelProcessing();
-            ReportProgress($"[live][error] Send lane {laneIndex + 1}/{connectionCount} failed: {exception.Message}");
+            string cityObjectContext = currentCityObject is null
+                ? string.Empty
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $" while processing '{currentCityObject.CityObject.DisplayName}' "
+                    + $"({currentCityObject.CityObject.PackageName}/{currentCityObject.CityObject.SlotKey}) "
+                    + $"mesh='{currentCityObject.CityObject.ActualMeshCode}' "
+                    + $"sourceUnit='{currentCityObject.CityObject.SourceUnitKey ?? "<null>"}'");
+            ReportProgress($"[live][error] Send lane {laneIndex + 1}/{connectionCount} failed{cityObjectContext}: {exception.Message}");
             throw;
         }
     }
@@ -478,7 +489,25 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         if (cityObjectBaker is not null)
         {
+            (string Name, int InputCount, int OutputCount)[] pendingBakeSummaries = cityObjectBaker
+                .GetBakeSummaries()
+                .Where(static summary => summary.InputCount > 0)
+                .ToArray();
+            if (pendingBakeSummaries.Length > 0)
+            {
+                string summaryText = string.Join(
+                    ", ",
+                    pendingBakeSummaries.Select(static summary =>
+                        $"{summary.Name}: input={summary.InputCount}, currentOutput={summary.OutputCount}"));
+                ReportProgress($"[live] Starting buffered bake flush: {summaryText}.");
+            }
+
+            Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
             IReadOnlyList<ResoniteConstructionCityObject> bakedCityObjects = await cityObjectBaker.FlushAllAsync(cancellationToken);
+            bakeFlushStopwatch.Stop();
+            ReportProgress(
+                $"[live] Buffered bake flush produced {bakedCityObjects.Count} baked city objects "
+                + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s.");
             foreach (ResoniteConstructionCityObject bakedCityObject in bakedCityObjects)
             {
                 await EnqueueCityObjectAsync(bakedCityObject, cancellationToken);
@@ -893,6 +922,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (await TrySkipDuplicateCityObjectAsync(
                 mutationClient,
                 objectSlots,
+                cityObject,
                 sendScope,
                 cancellationToken))
         {
@@ -1163,19 +1193,31 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return clientSession.SetupClient;
     }
 
-    private static async Task<bool> TrySkipDuplicateCityObjectAsync(
+    private async Task<bool> TrySkipDuplicateCityObjectAsync(
         IResoniteLinkClient mutationClient,
         ObjectSlotHierarchy objectSlots,
+        ResoniteConstructionCityObject cityObject,
         ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope,
         CancellationToken cancellationToken)
     {
-        if (await TryGetUniqueChildSlotByTagAsync(
-                mutationClient,
-                objectSlots.LodSlot.SlotId,
-                objectSlots.CityObjectIdentityTag,
-                cancellationToken) is null)
+        ChildSlotTagLookupResult lookupResult = await GetChildSlotTagLookupResultAsync(
+            mutationClient,
+            objectSlots.LodSlot.SlotId,
+            objectSlots.CityObjectIdentityTag,
+            cancellationToken);
+        if (lookupResult.MatchCount == 0)
         {
             return false;
+        }
+
+        if (lookupResult.MatchCount > 1)
+        {
+            ReportProgress(
+                PlateauLog.Warning(
+                    "live",
+                    $"Detected {lookupResult.MatchCount} existing child slots with duplicate identity tag "
+                    + $"'{objectSlots.CityObjectIdentityTag}' under '{objectSlots.LodSlot.SlotId}'. "
+                    + $"Treating '{cityObject.DisplayName}' as already imported."));
         }
 
         sendScope.MarkSkippedDuplicate();
@@ -2073,7 +2115,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return TryFindUniqueChildSlotByName(snapshot.Root, slotName, parentId);
     }
 
-    private static async Task<CreatedSlot?> TryGetUniqueChildSlotByTagAsync(
+    private static async Task<ChildSlotTagLookupResult> GetChildSlotTagLookupResultAsync(
         IResoniteLinkClient client,
         string parentId,
         string slotTag,
@@ -2084,7 +2126,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             parentId,
             1,
             cancellationToken);
-        return TryFindUniqueChildSlotByTag(snapshot.Root, slotTag, parentId);
+        return FindChildSlotByTag(snapshot.Root, slotTag, parentId);
     }
 
     private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameWithRetryAsync(
@@ -2128,14 +2170,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             parentId);
     }
 
-    private static CreatedSlot? TryFindUniqueChildSlotByTag(
+    private static ChildSlotTagLookupResult FindChildSlotByTag(
         Slot? parentSlot,
         string slotTag,
         string? parentId = null)
     {
         if (parentSlot?.Children is null)
         {
-            return null;
+            return ChildSlotTagLookupResult.None;
         }
 
         Slot[] matches = parentSlot.Children
@@ -2143,21 +2185,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             .ToArray();
         if (matches.Length == 0)
         {
-            return null;
+            return ChildSlotTagLookupResult.None;
         }
 
-        if (matches.Length > 1)
-        {
-            string parentIdentifier = parentId ?? parentSlot.ID ?? "<unknown>";
-            throw new InvalidOperationException(
-                $"Parent slot '{parentIdentifier}' contains multiple child slots tagged '{slotTag}'.");
-        }
-
-        Slot match = matches[0];
+        Slot match = SelectPreferredExistingSlot(matches);
         string existingSlotId = match.ID
             ?? throw new InvalidOperationException(
                 $"Child slot tagged '{slotTag}' under parent '{parentId ?? parentSlot.ID ?? "<unknown>"}' did not surface an ID.");
-        return new CreatedSlot(existingSlotId, match.Name?.Value ?? string.Empty);
+        return new ChildSlotTagLookupResult(
+            new CreatedSlot(existingSlotId, match.Name?.Value ?? string.Empty),
+            matches.Length);
+    }
+
+    private static Slot SelectPreferredExistingSlot(IReadOnlyList<Slot> matches)
+    {
+        return matches
+            .OrderByDescending(static slot => slot.Components?.Count ?? 0)
+            .ThenBy(static slot => slot.ID, StringComparer.Ordinal)
+            .First();
     }
 
     private static CreatedSlot? TryFindUniqueMatchingChildSlot(
@@ -2300,6 +2345,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string LocalId,
         string MessageId,
         string SlotName);
+
+    private readonly record struct ChildSlotTagLookupResult(
+        CreatedSlot? Slot,
+        int MatchCount)
+    {
+        public static ChildSlotTagLookupResult None => new(null, 0);
+    }
 
     private readonly record struct PendingBatchComponent(
         string LocalId,

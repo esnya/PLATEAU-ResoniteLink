@@ -60,6 +60,48 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.Contains(results, static result => result.Overlay?.TexturePath == "terrain://dem/plateau-ortho/east");
     }
 
+    [Fact]
+    public void SplitParsedCityObjectFallsBackToNearestOverlayWhenSurfaceMissesOverlayBounds()
+    {
+        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = CreateSurface(
+            "dem-nearest-overlay",
+            [
+                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0200002, 0.0),
+                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200002, 1.0),
+                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200006, 2.0),
+            ]);
+        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject(surface);
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay("west", 139.0000, 139.0100),
+            CreateOverlay("east", 139.0100, 139.0200),
+        ];
+
+        (LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+
+        (LocalCityGmlResonitePlanBuilder.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        Assert.Equal("terrain://dem/plateau-ortho/east", overlay!.TexturePath);
+        Assert.Equal("terrain://dem/plateau-ortho/east", Assert.Single(splitCityObject.Surfaces).TexturePath);
+    }
+
+    [Fact]
+    public void FindOverlayThrowsDetailedErrorWhenTexturePathIsUnknown()
+    {
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay("west", 139.0000, 139.0100),
+            CreateOverlay("east", 139.0100, 139.0200),
+        ];
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => DemTerrainOverlayAssignment.FindOverlay("terrain://dem/plateau-ortho/missing", overlays));
+
+        Assert.Contains("terrain://dem/plateau-ortho/missing", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("OverlayCount=2", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("terrain://dem/plateau-ortho/east", exception.Message, StringComparison.Ordinal);
+    }
+
     private static LocalCityGmlResonitePlanBuilder.ParsedCityObject CreateCityObject(
         LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
     {

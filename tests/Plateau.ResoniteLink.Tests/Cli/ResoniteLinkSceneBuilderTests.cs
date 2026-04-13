@@ -1837,6 +1837,42 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncSkipsDuplicateCityObjectWhenExistingLodSlotAlreadyContainsDuplicateIdentityTags()
+    {
+        CapturedResoniteScene scene = CreateAppendScene("53394525", "Building 25");
+        ResoniteConstructionCityObject building = Assert.Single(
+            scene.CityObjects,
+            static cityObject => string.Equals(cityObject.PackageName, "bldg", StringComparison.Ordinal));
+        FakeResoniteLinkSession session = new();
+        SeedExistingCityObjectDuplicates(
+            session,
+            $"PLATEAU {scene.Metadata.Request.Dataset}",
+            building,
+            duplicateCount: 2);
+
+        using FakeResoniteLinkClient fakeClient = new(session);
+        List<string> progressMessages = [];
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            progressReporter: progressMessages.Add);
+
+        await RunBuilderAsync(builder, scene);
+
+        string identityTag = CreateExpectedIdentityTag(building);
+        Assert.Contains(
+            progressMessages,
+            message => message.Contains(
+                $"Detected 2 existing child slots with duplicate identity tag '{identityTag}'",
+                StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            fakeClient.AddedSlots,
+            request => string.Equals(request.Data.Tag?.Value, identityTag, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BeginAsyncDoesNotWaitForDeferredWorkerConnections()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
@@ -5432,7 +5468,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         }
     }
 
-    private static string CreateSlotPath(IReadOnlyDictionary<string, string> slotPaths, Slot slot)
+    private static string CreateSlotPath(Dictionary<string, string> slotPaths, Slot slot)
     {
         string slotName = slot.Name?.Value ?? slot.ID;
         if (slot.Parent is null || string.Equals(slot.Parent.TargetID, "Root", StringComparison.Ordinal))
@@ -5693,6 +5729,68 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SubmeshIndices: [0]),
             ],
             SourceObjectKey: sourceObjectKey);
+    }
+
+    private static void SeedExistingCityObjectDuplicates(
+        FakeResoniteLinkSession session,
+        string datasetRootName,
+        ResoniteConstructionCityObject cityObject,
+        int duplicateCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(duplicateCount, 2);
+
+        string datasetRootId = AddSeedSlot(session, "Root", datasetRootName);
+        string meshRootId = AddSeedSlot(session, datasetRootId, cityObject.ActualMeshCode);
+        string packageSlotId = AddSeedSlot(session, meshRootId, cityObject.PackageName);
+        string lodSlotId = AddSeedSlot(session, packageSlotId, FormatLodSlotName(cityObject.LodLevel));
+        string identityTag = CreateExpectedIdentityTag(cityObject);
+        for (int duplicateIndex = 0; duplicateIndex < duplicateCount; duplicateIndex++)
+        {
+            AddSeedSlot(
+                session,
+                lodSlotId,
+                $"{cityObject.DisplayName} duplicate {duplicateIndex + 1}",
+                identityTag);
+        }
+    }
+
+    private static string AddSeedSlot(
+        FakeResoniteLinkSession session,
+        string parentId,
+        string slotName,
+        string? tag = null)
+    {
+        string slotId = session.AllocateSlotId();
+        Slot slot = new()
+        {
+            ID = slotId,
+            Parent = new Reference
+            {
+                TargetID = parentId,
+            },
+            Name = new Field_string
+            {
+                Value = slotName,
+            },
+            Tag = string.IsNullOrWhiteSpace(tag)
+                ? null
+                : new Field_string
+                {
+                    Value = tag,
+                },
+        };
+        session.SlotsById[slotId] = slot;
+        session.SlotPaths[slotId] = CreateSlotPath(session.SlotPaths, slot);
+        return slotId;
+    }
+
+    private static string CreateExpectedIdentityTag(ResoniteConstructionCityObject cityObject)
+    {
+        string objectIdentity = cityObject.SourceObjectKey ?? cityObject.SlotKey;
+        string lodKey = cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{lodKey}|{objectIdentity}");
     }
 
     private sealed record CapturedResoniteScene(

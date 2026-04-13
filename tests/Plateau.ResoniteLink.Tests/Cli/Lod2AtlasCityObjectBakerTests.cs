@@ -421,7 +421,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             "veg-three",
             "textures/one.png",
             0.0,
-            "unit-a"));
+            "unit-a")));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
         ResoniteConstructionCityObject cityObject = Assert.Single(baked);
