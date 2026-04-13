@@ -10,15 +10,15 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstrapCoordinator
 {
-    private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<(ResoniteLinkSceneBuilder.CreatedSlot Slot, bool Existed)>> getOrCreateDatasetRootAsync;
-    private readonly Func<IResoniteLinkClient, ResoniteLinkSceneBuilder.CreatedSlot, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<ResoniteLinkSceneBuilder.CreatedSlot>> getOrCreateSharedChildSlotAsync;
-    private readonly Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<ResoniteLinkSceneBuilder.CreatedComponent>> createComponentAsync;
+    private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<(CreatedSlot Slot, bool Existed)>> getOrCreateDatasetRootAsync;
+    private readonly Func<IResoniteLinkClient, CreatedSlot, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync;
+    private readonly Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 
     internal ResoniteSceneBootstrapCoordinator(
-        Func<IResoniteLinkClient, string, CancellationToken, Task<(ResoniteLinkSceneBuilder.CreatedSlot Slot, bool Existed)>> getOrCreateDatasetRootAsync,
-        Func<IResoniteLinkClient, ResoniteLinkSceneBuilder.CreatedSlot, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<ResoniteLinkSceneBuilder.CreatedSlot>> getOrCreateSharedChildSlotAsync,
-        Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<ResoniteLinkSceneBuilder.CreatedComponent>> createComponentAsync,
+        Func<IResoniteLinkClient, string, CancellationToken, Task<(CreatedSlot Slot, bool Existed)>> getOrCreateDatasetRootAsync,
+        Func<IResoniteLinkClient, CreatedSlot, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
+        Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
         IResoniteSceneAnchorResolver sceneAnchorResolver)
     {
         this.getOrCreateDatasetRootAsync = getOrCreateDatasetRootAsync;
@@ -36,18 +36,18 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         ArgumentNullException.ThrowIfNull(metadata);
 
         string completionMeshCode = ResolveCompletionMeshCode(metadata);
-        (ResoniteLinkSceneBuilder.CreatedSlot datasetRootSlot, bool datasetRootExisted) = await getOrCreateDatasetRootAsync(
+        (CreatedSlot datasetRootSlot, bool datasetRootExisted) = await getOrCreateDatasetRootAsync(
             setupClient,
             $"PLATEAU {metadata.Request.Dataset}",
             cancellationToken);
-        ResoniteLinkSceneBuilder.CreatedSlot datasetAssetsRootSlot = await getOrCreateSharedChildSlotAsync(
+        CreatedSlot datasetAssetsRootSlot = await getOrCreateSharedChildSlotAsync(
             setupClient,
             datasetRootSlot,
             "Assets",
             null,
             null,
             cancellationToken);
-        ResoniteLinkSceneBuilder.CreatedSlot commonAssetsRootSlot = await getOrCreateSharedChildSlotAsync(
+        CreatedSlot commonAssetsRootSlot = await getOrCreateSharedChildSlotAsync(
             setupClient,
             datasetAssetsRootSlot,
             "Common",
@@ -95,12 +95,12 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
 
     private async Task<SceneAnchor> CreateInitialSceneAnchorAsync(
         IResoniteLinkClient setupClient,
-        ResoniteLinkSceneBuilder.CreatedSlot datasetRootSlot,
+        CreatedSlot datasetRootSlot,
         string completionMeshCode,
         CancellationToken cancellationToken)
     {
         ResoniteFloat3 anchorPosition = new(0.0, 0.0, 0.0);
-        ResoniteLinkSceneBuilder.CreatedSlot anchorSlot = await getOrCreateSharedChildSlotAsync(
+        CreatedSlot anchorSlot = await getOrCreateSharedChildSlotAsync(
             setupClient,
             datasetRootSlot,
             completionMeshCode,

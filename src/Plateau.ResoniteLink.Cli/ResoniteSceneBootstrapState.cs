@@ -1,8 +1,8 @@
 namespace Plateau.ResoniteLink.Cli;
 
 internal readonly record struct ResoniteSceneBootstrapState(
-    ResoniteLinkSceneBuilder.CreatedSlot DatasetRootSlot,
-    ResoniteLinkSceneBuilder.CreatedSlot DatasetAssetsRootSlot,
-    ResoniteLinkSceneBuilder.CreatedSlot CommonAssetsRootSlot,
+    CreatedSlot DatasetRootSlot,
+    CreatedSlot DatasetAssetsRootSlot,
+    CreatedSlot CommonAssetsRootSlot,
     bool DatasetRootExisted,
     SceneAnchor SceneAnchor);

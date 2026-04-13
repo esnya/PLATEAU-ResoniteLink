@@ -15,12 +15,12 @@ public sealed class ResoniteMaterialAssetManagerTests
         ResoniteMaterialAssetManager manager = new(
             static (_, _, _, _, _) => throw new NotSupportedException(),
             static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("material-slot-child", "Material")),
+            static (_, _, _, _) => Task.FromResult(new CreatedSlot("material-slot-child", "Material")),
             async (_, _, componentType, _, cancellationToken) =>
             {
                 int currentCall = Interlocked.Increment(ref createComponentCallCount);
                 await allowComponentCreation.Task.WaitAsync(cancellationToken);
-                return new ResoniteLinkSceneBuilder.CreatedComponent(
+                return new CreatedComponent(
                     $"srv_component_{currentCall}",
                     componentType);
             },
@@ -71,7 +71,7 @@ public sealed class ResoniteMaterialAssetManagerTests
         ResoniteMaterialAssetManager manager = new(
             static (_, _, _, _, _) => throw new NotSupportedException(),
             static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("material-slot-child", "Material")),
+            static (_, _, _, _) => Task.FromResult(new CreatedSlot("material-slot-child", "Material")),
             (_, _, componentType, _, _) =>
             {
                 int currentCall = Interlocked.Increment(ref createComponentCallCount);
@@ -80,7 +80,7 @@ public sealed class ResoniteMaterialAssetManagerTests
                     throw new InvalidOperationException("Simulated component creation failure.");
                 }
 
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent(
+                return Task.FromResult(new CreatedComponent(
                     $"srv_component_{currentCall}",
                     componentType));
             },
@@ -131,12 +131,12 @@ public sealed class ResoniteMaterialAssetManagerTests
             (_, _, _, _) =>
             {
                 calls.Add("create-shared-slot");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material"));
+                return Task.FromResult(new CreatedSlot("shared-slot", "Material"));
             },
             (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+                return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
             static (_, _, _, _) => Task.FromResult<Slot?>(null),
             async (_, _, ct) =>
@@ -191,12 +191,12 @@ public sealed class ResoniteMaterialAssetManagerTests
             (_, _, _, _) =>
             {
                 calls.Add("create-shared-slot");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material"));
+                return Task.FromResult(new CreatedSlot("shared-slot", "Material"));
             },
             (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+                return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
             static (_, _, _, _) => Task.FromResult<Slot?>(null),
             static (_, _, _) => throw new InvalidOperationException("texture import failed"));
@@ -257,12 +257,12 @@ public sealed class ResoniteMaterialAssetManagerTests
             (_, _, _, _) =>
             {
                 calls.Add("create-shared-slot");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material"));
+                return Task.FromResult(new CreatedSlot("shared-slot", "Material"));
             },
             (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+                return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
             (_, slotId, _, _) =>
             {
@@ -326,12 +326,12 @@ public sealed class ResoniteMaterialAssetManagerTests
         ResoniteMaterialAssetManager manager = new(
             static (_, _, _, _, _) => throw new NotSupportedException(),
             static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material")),
+            static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
             (_, _, componentType, _, _) =>
             {
                 int currentCall = Interlocked.Increment(ref createComponentCallCount);
                 calls.Add($"create-component:{currentCall}:{componentType}");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent(
+                return Task.FromResult(new CreatedComponent(
                     $"srv_component_{currentCall}",
                     componentType));
             },
@@ -385,11 +385,11 @@ public sealed class ResoniteMaterialAssetManagerTests
         ResoniteMaterialAssetManager manager = new(
             static (_, _, _, _, _) => throw new NotSupportedException(),
             static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new ResoniteLinkSceneBuilder.CreatedSlot("shared-slot", "Material")),
+            static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
             (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
-                return Task.FromResult(new ResoniteLinkSceneBuilder.CreatedComponent("material-component", componentType));
+                return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
             static (_, _, _, _) => Task.FromResult<Slot?>(null),
             (_, textureImport, _) =>

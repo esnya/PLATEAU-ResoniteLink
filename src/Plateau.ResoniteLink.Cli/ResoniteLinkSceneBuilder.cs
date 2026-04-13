@@ -2271,14 +2271,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
     }
 
-    internal readonly record struct CreatedSlot(
-        string SlotId,
-        string SlotName);
-
-    internal readonly record struct CreatedComponent(
-        string ComponentId,
-        string ComponentType);
-
     private readonly record struct PendingBatchSlot(
         string LocalId,
         string MessageId,
