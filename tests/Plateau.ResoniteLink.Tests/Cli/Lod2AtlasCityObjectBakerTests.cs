@@ -365,6 +365,86 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Empty(await baker.FlushAllAsync());
     }
 
+    [Fact]
+    public async Task TryBufferAsyncBuffersNonBuildingLod2ObjectForPassThroughWhenTextureless()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        bool buffered = await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", null, 0.0, "unit-a"));
+
+        Assert.True(buffered);
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("veg", cityObject.PackageName);
+        Assert.Equal("veg-one", cityObject.SlotKey);
+        Assert.Single(cityObject.Materials);
+        Assert.DoesNotContain(
+            cityObject.Materials,
+            static material => material.TexturePath?.StartsWith("generated/lod2-atlas/", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncBuffersNonBuildingLod2OrLaterWithVertexColorMaterial()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2VegetationVertexColor("veg-two", 10.0, "unit-a")));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal(ResoniteMaterialType.VertexColor, cityObject.Materials[0].MaterialType);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncCanAtlasNonBuildingObjectsWhenTextureMaterialIsSuitable()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            textureImportRegistry,
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1);
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation(
+            "veg-three",
+            "textures/one.png",
+            0.0,
+            "unit-a"));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Single(cityObject.Materials);
+        Assert.StartsWith("generated/lod2-atlas/", cityObject.Materials[0].TexturePath!, StringComparison.Ordinal);
+        Assert.True(textureImportRegistry.TryGet(cityObject.Materials[0].TexturePath!, cityObject.Materials[0].TextureSourceKind, out ResoniteTextureImport? _));
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncBuffersNonBuildingLod3Object()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-three", null, 0.0, "unit-a") with { LodLevel = 3 }));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+        Assert.Single(baked);
+    }
+
     private static ResoniteConstructionCityObject CreateLod2Building(
         string slotKey,
         string? texturePath,
@@ -401,6 +481,93 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     Family: Family)
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey);
+    }
+
+    private static ResoniteConstructionCityObject CreateLod2Vegetation(
+        string slotKey,
+        string? texturePath,
+        double x,
+        string sourceUnitKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "veg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, $"{slotKey}-material", [0, 1, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePath: texturePath,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey);
+    }
+
+    private static ResoniteConstructionCityObject CreateLod2VegetationVertexColor(
+        string slotKey,
+        double x,
+        string sourceUnitKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "frn",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(0.0, 0.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(0.0, 0.0),
+                        new ResoniteColor(1.0, 0.0, 0.0, 1.0)),
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(1.0, 0.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(1.0, 0.0),
+                        new ResoniteColor(0.0, 1.0, 0.0, 1.0)),
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(0.0, 1.0),
+                        new ResoniteColor(0.0, 0.0, 1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, $"{slotKey}-material", [0, 1, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.VertexColor,
+                    TexturePath: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
             SourceUnitKey: sourceUnitKey);

@@ -13,12 +13,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
     ResoniteTextureImageLoader textureImageLoader,
     ResoniteTextureImportRegistry textureImportRegistry,
     int maxAtlasSize = 2048,
-    int tilePaddingPixels = 2) : IResoniteBufferedCityObjectBaker
+    int tilePaddingPixels = 2,
+    IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 2048;
     internal const int DefaultTilePaddingPixels = 2;
 
-    private readonly Dictionary<SourceUnitKey, List<ResoniteConstructionCityObject>> bufferedCityObjectsBySourceUnit = [];
+    private readonly Dictionary<SourceUnitKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
+    private readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> bakePolicies = bakePolicies
+        ?? Lod2AtlasCityObjectBakePolicies.DefaultPolicies;
 
     public string Name => "LOD2AtlasBake";
 
@@ -31,20 +34,21 @@ internal sealed class Lod2AtlasCityObjectBaker(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
-
-        if (!CanBake(cityObject))
+        Lod2AtlasCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
+        if (policy is null)
         {
             return ValueTask.FromResult(false);
         }
 
-        SourceUnitKey sourceUnitKey = CreateSourceUnitKey(cityObject);
-        if (!bufferedCityObjectsBySourceUnit.TryGetValue(sourceUnitKey, out List<ResoniteConstructionCityObject>? bufferedCityObjects))
+        SourceUnitKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
+        BufferedCityObject bufferedCityObject = new(cityObject, policy);
+        if (!bufferedCityObjectsBySourceUnit.TryGetValue(sourceUnitKey, out List<BufferedCityObject>? bufferedCityObjects))
         {
             bufferedCityObjects = [];
             bufferedCityObjectsBySourceUnit.Add(sourceUnitKey, bufferedCityObjects);
         }
 
-        bufferedCityObjects.Add(cityObject);
+        bufferedCityObjects.Add(bufferedCityObject);
         BakedInputCityObjectCount++;
         return ValueTask.FromResult(true);
     }
@@ -58,7 +62,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         List<ResoniteConstructionCityObject> bakedCityObjects = [];
-        foreach ((SourceUnitKey sourceUnitKey, List<ResoniteConstructionCityObject> cityObjects) in bufferedCityObjectsBySourceUnit
+        foreach ((SourceUnitKey sourceUnitKey, List<BufferedCityObject> cityObjects) in bufferedCityObjectsBySourceUnit
                      .OrderBy(static pair => pair.Key, SourceUnitKeyComparer.Instance))
         {
             IReadOnlyList<ResoniteConstructionCityObject> bakedSourceUnitCityObjects = await BakeSourceUnitAsync(
@@ -72,18 +76,22 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return bakedCityObjects;
     }
 
-    private static bool CanBake(ResoniteConstructionCityObject cityObject)
+    private Lod2AtlasCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)
     {
-        return PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
-            && cityObject.LodLevel == 2
-            && cityObject.Geometry is ResoniteTriangleMeshGeometry
-            && cityObject.Transform.Rotation is null
-            && CanBakeMaterials(cityObject);
+        foreach (Lod2AtlasCityObjectBakePolicy policy in bakePolicies)
+        {
+            if (policy.CanBuffer(cityObject) && CanBufferCityObjectMaterials(cityObject, policy))
+            {
+                return policy;
+            }
+        }
+
+        return null;
     }
 
     private async Task<IReadOnlyList<ResoniteConstructionCityObject>> BakeSourceUnitAsync(
         SourceUnitKey sourceUnitKey,
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
+        IReadOnlyList<BufferedCityObject> cityObjects,
         CancellationToken cancellationToken)
     {
         List<CityObjectBakeCandidate> candidates = await CreateCandidatesAsync(cityObjects, cancellationToken);
@@ -94,8 +102,13 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         try
         {
-            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(candidates);
-            List<ResoniteConstructionCityObject> bakedCityObjects = new(batchPlan.Batches.Count + batchPlan.FallbackCandidates.Count);
+            List<CityObjectBakeCandidate> passThroughCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count == 0)];
+            List<CityObjectBakeCandidate> atlasCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count > 0)];
+
+            List<ResoniteConstructionCityObject> bakedCityObjects = [];
+            bakedCityObjects.AddRange(passThroughCandidates.Select(static candidate => candidate.CityObject));
+
+            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(atlasCandidates);
             for (int batchIndex = 0; batchIndex < batchPlan.Batches.Count; batchIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -125,13 +138,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
     }
 
     private async Task<List<CityObjectBakeCandidate>> CreateCandidatesAsync(
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
+        IReadOnlyList<BufferedCityObject> cityObjects,
         CancellationToken cancellationToken)
     {
         List<CityObjectBakeCandidate> candidates = [];
 
-        foreach (ResoniteConstructionCityObject cityObject in cityObjects.OrderBy(static candidate => candidate.SlotKey, StringComparer.Ordinal))
+        foreach (BufferedCityObject bufferedCityObject in cityObjects.OrderBy(
+                     static bufferedCityObject => bufferedCityObject.CityObject.SlotKey,
+                     StringComparer.Ordinal))
         {
+            ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
+            Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
             if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
             {
                 continue;
@@ -147,19 +164,29 @@ internal sealed class Lod2AtlasCityObjectBaker(
                     continue;
                 }
 
-                if (IsAtlasBakeCandidate(material))
+                Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
+                switch (category)
                 {
-                    UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
-                    MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
-                    atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
-                }
-                else
-                {
-                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
+                    case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
+                        UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
+                        MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
+                        atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
+                        break;
+                    case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
+                    case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
+                    case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
+                    case Lod2AtlasMaterialBakeCategory.PreservedOther:
+                        preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
+                        break;
                 }
             }
 
-            if (atlasEntries.Count > 0)
+            if (policy.RequireAtlasCandidateMaterial && atlasEntries.Count == 0)
+            {
+                continue;
+            }
+
+            if (atlasEntries.Count > 0 || preservedEntries.Count > 0)
             {
                 candidates.Add(new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries));
             }
@@ -201,15 +228,42 @@ internal sealed class Lod2AtlasCityObjectBaker(
             image.Clone());
     }
 
-    private static bool CanBakeMaterials(ResoniteConstructionCityObject cityObject)
+    private static bool CanBufferCityObjectMaterials(
+        ResoniteConstructionCityObject cityObject,
+        Lod2AtlasCityObjectBakePolicy policy)
     {
         if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
         {
             return false;
         }
 
-        return cityObject.Mesh.Submeshes.All(submesh => materialBySubmeshIndex.ContainsKey(submesh.Index))
-            && cityObject.Materials.Any(IsAtlasBakeCandidate);
+        bool hasAtlasCandidateSubmesh = false;
+        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes)
+        {
+            if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
+            {
+                return false;
+            }
+
+            Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
+            hasAtlasCandidateSubmesh |= category == Lod2AtlasMaterialBakeCategory.AtlasCandidate;
+            if (category == Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial && !policy.PreserveCommonMaterials)
+            {
+                return false;
+            }
+
+            if (category == Lod2AtlasMaterialBakeCategory.PreservedVertexColor && !policy.PreserveVertexColorMaterials)
+            {
+                return false;
+            }
+
+            if (category == Lod2AtlasMaterialBakeCategory.PreservedTextureless && !policy.PreserveTexturelessMaterials)
+            {
+                return false;
+            }
+        }
+
+        return policy.RequireAtlasCandidateMaterial ? hasAtlasCandidateSubmesh : true;
     }
 
     private static bool TryCreateMaterialBySubmeshIndex(
@@ -244,6 +298,33 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return material.MaterialType == ResoniteMaterialType.Standard
             && (string.IsNullOrWhiteSpace(material.TexturePath)
                 || material.TextureSourceKind == ResoniteTextureSourceKind.Dataset);
+    }
+
+    private static Lod2AtlasMaterialBakeCategory ClassifyMaterial(ResoniteMaterialBinding material)
+    {
+        if (material.MaterialType == ResoniteMaterialType.VertexColor)
+        {
+            return Lod2AtlasMaterialBakeCategory.PreservedVertexColor;
+        }
+
+        if (material.AssetScope == ResoniteMaterialAssetScope.Common
+            || !string.IsNullOrWhiteSpace(material.Family))
+        {
+            return Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial;
+        }
+
+        if (IsAtlasBakeCandidate(material))
+        {
+            return Lod2AtlasMaterialBakeCategory.AtlasCandidate;
+        }
+
+        if (material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
+            && string.IsNullOrWhiteSpace(material.TexturePath))
+        {
+            return Lod2AtlasMaterialBakeCategory.PreservedTextureless;
+        }
+
+        return Lod2AtlasMaterialBakeCategory.PreservedOther;
     }
 
     private AtlasBatchPlan BuildAtlasCandidateBatches(
@@ -600,14 +681,32 @@ internal sealed class Lod2AtlasCityObjectBaker(
             (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
     }
 
-    private static SourceUnitKey CreateSourceUnitKey(ResoniteConstructionCityObject cityObject)
+    private static SourceUnitKey CreateSourceUnitKey(
+        ResoniteConstructionCityObject cityObject,
+        Lod2AtlasCityObjectBakePolicy policy)
     {
         string sourceUnitIdentity = cityObject.SourceUnitKey ?? cityObject.SourceObjectKey ?? cityObject.SlotKey;
+        string context = policy.Name;
+        if (policy.EnableGridPassThrough && policy.PassThroughGridCellSizeMeters > 0)
+        {
+            context = $"{context}_{CreateGridCellToken(cityObject, policy.PassThroughGridCellSizeMeters)}";
+        }
+
         return new SourceUnitKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
-            sourceUnitIdentity);
+            sourceUnitIdentity,
+            context);
+    }
+
+    private static string CreateGridCellToken(
+        ResoniteConstructionCityObject cityObject,
+        int gridSizeMeters)
+    {
+        long cellX = (long)Math.Floor(cityObject.Transform.Position.X / gridSizeMeters);
+        long cellZ = (long)Math.Floor(cityObject.Transform.Position.Z / gridSizeMeters);
+        return $"{cellX}_{cellZ}";
     }
 
     private static string CreateBatchSlotKey(SourceUnitKey sourceUnitKey, int batchIndex)
@@ -818,6 +917,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image);
 
+    private readonly record struct BufferedCityObject(
+        ResoniteConstructionCityObject CityObject,
+        Lod2AtlasCityObjectBakePolicy Policy);
+
     private sealed record AtlasBatchEntry(
         ResoniteConstructionCityObject CityObject,
         ResoniteMeshSubmesh Submesh,
@@ -861,7 +964,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
-        string SourceUnitIdentity);
+        string SourceUnitIdentity,
+        string PolicyContext);
 
     private readonly record struct PreservedMaterialGroupingKey(
         string MaterialKey,
@@ -895,6 +999,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
             }
 
             compare = Nullable.Compare(x.LodLevel, y.LodLevel);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = string.CompareOrdinal(x.PolicyContext, y.PolicyContext);
             if (compare != 0)
             {
                 return compare;
