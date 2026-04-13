@@ -26,6 +26,7 @@ internal static class DemTerrainOverlaySurfaceClipper
                     .Select(coordinate => ResolveSurfacePoint(surface, coordinate))
                     .Distinct()
                     .ToArray();
+                vertices = PreserveSurfaceWinding(surface.ExteriorRing.Vertices, vertices);
                 if (vertices.Length < 3)
                 {
                     continue;
@@ -196,6 +197,71 @@ internal static class DemTerrainOverlaySurfaceClipper
         return new LocalCityGmlResonitePlanBuilder.GeodeticPoint(coordinate.Y, coordinate.X, origin.Altitude);
     }
 
+    private static LocalCityGmlResonitePlanBuilder.GeodeticPoint[] PreserveSurfaceWinding(
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] sourceVertices,
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] clippedVertices)
+    {
+        _ = sourceVertices;
+        if (clippedVertices.Length < 3)
+        {
+            return clippedVertices;
+        }
+
+        Vector3? clippedNormal = ComputePolygonNormal(clippedVertices);
+        if (clippedNormal is not Vector3 clipped)
+        {
+            return clippedVertices;
+        }
+
+        if (clipped.Y <= 0.0)
+        {
+            return clippedVertices;
+        }
+
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] reversed = (LocalCityGmlResonitePlanBuilder.GeodeticPoint[])clippedVertices.Clone();
+        Array.Reverse(reversed);
+        return reversed;
+    }
+
+    private static Vector3? ComputePolygonNormal(LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
+    {
+        if (vertices.Length < 3)
+        {
+            return null;
+        }
+
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint origin = vertices[0];
+        double normalX = 0.0;
+        double normalY = 0.0;
+        double normalZ = 0.0;
+        for (int index = 0; index < vertices.Length; index++)
+        {
+            Vector3 current = ToApproximateResonitePosition(vertices[index], origin);
+            Vector3 next = ToApproximateResonitePosition(vertices[(index + 1) % vertices.Length], origin);
+            normalX += (current.Y - next.Y) * (current.Z + next.Z);
+            normalY += (current.Z - next.Z) * (current.X + next.X);
+            normalZ += (current.X - next.X) * (current.Y + next.Y);
+        }
+
+        double magnitude = Math.Sqrt((normalX * normalX) + (normalY * normalY) + (normalZ * normalZ));
+        if (magnitude <= 1e-12)
+        {
+            return null;
+        }
+
+        return new Vector3(normalX / magnitude, normalY / magnitude, normalZ / magnitude);
+    }
+
+    private static Vector3 ToApproximateResonitePosition(
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint point,
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint origin)
+    {
+        return new Vector3(
+            point.Latitude - origin.Latitude,
+            point.Altitude - origin.Altitude,
+            point.Longitude - origin.Longitude);
+    }
+
     private static bool TryResolveTrianglePoint(
         LocalCityGmlResonitePlanBuilder.GeodeticPoint a,
         LocalCityGmlResonitePlanBuilder.GeodeticPoint b,
@@ -244,4 +310,6 @@ internal static class DemTerrainOverlaySurfaceClipper
         long west = (long)Math.Round(rectangle.MinLongitude * 1_000_000.0, MidpointRounding.AwayFromZero);
         return $"{south}_{west}";
     }
+
+    private readonly record struct Vector3(double X, double Y, double Z);
 }

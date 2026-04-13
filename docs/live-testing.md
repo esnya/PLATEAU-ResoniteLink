@@ -118,6 +118,8 @@ cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\reso
 
 Continue only if list mode reports zero matching dataset roots within the polling window.
 
+Do not run cleanup automatically at the end of a successful validation by default. End-of-run cleanup is opt-in and should happen only when the user explicitly requests cleanup or when the workflow itself is explicitly destructive, such as disposable headless teardown. Keep the dataset root in place after the final successful run unless there is a stated reason to remove it.
+
 Then launch the send from Windows with the bundled wrapper:
 
 ```bash
@@ -191,4 +193,4 @@ Map live validation back to `docs/requirements.md` with these checks:
 - CI-equivalent validation:
   Keep `bash scripts/test-fast.sh` green during local iteration and `bash scripts/verify-ci.sh` green before treating any live result as trustworthy.
 
-When you stop a run early, stop only the specific launched PID, verify that it exited, then run cleanup again and keep the logs. When a run exits on its own, record the exit code before cleanup.
+When you stop a run early, stop only the specific launched PID, verify that it exited, then run cleanup again and keep the logs. When a run exits on its own, record the exit code before any optional cleanup. Do not treat final cleanup as implicit.

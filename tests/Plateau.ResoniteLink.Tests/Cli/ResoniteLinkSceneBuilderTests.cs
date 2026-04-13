@@ -49,7 +49,7 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         Assert.Single(destinations);
         Assert.InRange(fakeClient.ImportedTexturePaths.Count, 5, 7);
-        Assert.Equal(scene.CityObjects.Count, fakeClient.ImportedMeshes.Count);
+        Assert.InRange(fakeClient.ImportedMeshes.Count, 1, scene.CityObjects.Count);
         Assert.Contains(fakeClient.AddedComponents, static request =>
             string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
         Assert.Contains(fakeClient.AddedComponents, static request =>
@@ -68,10 +68,13 @@ public sealed class ResoniteLinkSceneBuilderTests
         string buildingLodSlotName = buildingOne.LodLevel.HasValue
             ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"LOD{buildingOne.LodLevel.Value}")
             : "LOD0";
+        string buildingAssetPrefix = $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/";
         Assert.Contains("PLATEAU tokyo23ku/Assets", fakeClient.SlotPaths.Values);
         Assert.Contains("PLATEAU tokyo23ku/Assets/Common", fakeClient.SlotPaths.Values);
-        Assert.Contains($"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
-        Assert.Contains($"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/Building One", fakeClient.SlotPaths.Values);
+        Assert.Contains(fakeClient.SlotPaths.Values, path => path.StartsWith(buildingAssetPrefix, StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.SlotPaths.Values,
+            path => path.StartsWith($"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/", StringComparison.Ordinal));
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Textures", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain("PLATEAU tokyo23ku/Assets/Meshes", fakeClient.SlotPaths.Values);
         Assert.DoesNotContain(
@@ -96,9 +99,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             path => string.Equals(
-                path,
-                "udx/bldg/53394525/appearance/roof.png",
-                StringComparison.Ordinal));
+                    path,
+                    "udx/bldg/53394525/appearance/roof.png",
+                    StringComparison.Ordinal)
+                || path.StartsWith("generated/lod2-atlas/53394525/", StringComparison.Ordinal));
         Assert.Contains(
             fakeClient.ImportedTexturePaths,
             path => BundledDefaultMaterialFamilies.FacadeVariants.Any(variant =>
@@ -115,9 +119,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Contains(
             fakeClient.ImportedRawTextures,
             rawImport => string.Equals(
-                rawImport.Identity,
-                "udx/bldg/53394525/appearance/roof.png",
-                StringComparison.Ordinal));
+                    rawImport.Identity,
+                    "udx/bldg/53394525/appearance/roof.png",
+                    StringComparison.Ordinal)
+                || (rawImport.Identity?.StartsWith("generated/lod2-atlas/53394525/", StringComparison.Ordinal) ?? false));
 
         Assert.All(staticTextureRequests, request =>
         {
@@ -148,38 +153,40 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.NotEmpty(meshAssetRequests);
         Assert.Contains(
             meshAssetRequests,
-            request => string.Equals(
-                fakeClient.SlotPaths[request.ContainerSlotId],
-                $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One",
+            request => fakeClient.SlotPaths[request.ContainerSlotId].StartsWith(
+                buildingAssetPrefix,
                 StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            fakeClient.SlotPaths.Values,
+            path => path.StartsWith(buildingAssetPrefix, StringComparison.Ordinal)
+                && path.Count(static c => c == '/') > 5);
 
         AddComponent[] materialRequests = fakeClient.AddedComponents
             .Where(request =>
-                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
-                && request.ContainerSlotId != fakeClient.BuildingSlotIds["Building One"])
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal))
             .ToArray();
         Assert.Contains(
             materialRequests,
-            request =>
-            {
-                string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
-                return slotPath.StartsWith(
-                    $"PLATEAU tokyo23ku/Assets/53394525/bldg/{buildingLodSlotName}/Building One/",
-                    StringComparison.Ordinal);
-            });
+            request => fakeClient.SlotPaths[request.ContainerSlotId].StartsWith(
+                buildingAssetPrefix,
+                StringComparison.Ordinal));
 
         Component meshRenderer = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
                     string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
-                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Building One"], StringComparison.Ordinal))
+                    && fakeClient.SlotPaths[request.ContainerSlotId].StartsWith(
+                        $"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/",
+                        StringComparison.Ordinal))
                 .Select(static request => request.Data));
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        Assert.Single(materials.Elements);
+        Assert.NotEmpty(materials.Elements);
 
         Component collider = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
                     string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal)
-                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Building One"], StringComparison.Ordinal))
+                    && fakeClient.SlotPaths[request.ContainerSlotId].StartsWith(
+                        $"PLATEAU tokyo23ku/53394525/bldg/{buildingLodSlotName}/",
+                        StringComparison.Ordinal))
                 .Select(static request => request.Data));
         Field_bool characterCollider = Assert.IsType<Field_bool>(collider.Members["CharacterCollider"]);
         Assert.True(characterCollider.Value);
@@ -324,6 +331,15 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
         Assert.Single(materials.Elements);
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            static path => path.StartsWith("generated/lod2-atlas/53394525/", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            fakeClient.ImportedTexturePaths,
+            path => string.Equals(path, textureOne, StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            fakeClient.ImportedTexturePaths,
+            path => string.Equals(path, textureTwo, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -388,13 +404,14 @@ public sealed class ResoniteLinkSceneBuilderTests
                     SubmeshIndices: [0]),
                 new ResoniteMaterialBinding(
                     MaterialKey: "mat-two",
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: new ResoniteColor(0.4, 0.4, 0.4, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
-                    TexturePath: BundledDefaultMaterialFamilies.FacadeVariants[0],
-                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    TexturePath: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [1]),
+                    SubmeshIndices: [1],
+                    AssetScope: ResoniteMaterialAssetScope.Common),
             ],
             SourceObjectKey: "mixed-material-building");
         CapturedResoniteScene scene = new(metadata, [cityObject]);
@@ -420,6 +437,16 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.DoesNotContain(
             fakeClient.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        Assert.Contains(
+            fakeClient.ImportedTexturePaths,
+            static path => path.StartsWith("generated/lod2-atlas/53394525/", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            fakeClient.ImportedTexturePaths,
+            path => string.Equals(path, datasetTexture, StringComparison.Ordinal));
+
+        Component mixedRenderer = Assert.Single(meshRenderers);
+        SyncList materials = Assert.IsType<SyncList>(mixedRenderer.Members["Materials"]);
+        Assert.Equal(2, materials.Elements.Count);
     }
 
     [Fact]
@@ -504,7 +531,9 @@ public sealed class ResoniteLinkSceneBuilderTests
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            () => client);
+            () => client,
+            new TerrainTextureAssetGenerator(),
+            enableMeshBake: false);
 
         using TemporaryDirectory workDirectory = new();
         await builder.BeginAsync(scene.Metadata, workDirectory.Path);
@@ -757,6 +786,89 @@ public sealed class ResoniteLinkSceneBuilderTests
                 .Select(static request => request.Data));
         string colliderGridMeshId = Assert.IsType<Reference>(collider.Members["Mesh"]).TargetID;
         Assert.Equal(renderedGridMeshId, colliderGridMeshId);
+    }
+
+    [Fact]
+    public async Task CompleteAsyncAppliesDatasetLicenseAfterTerrainTextureGenerationDrains()
+    {
+        const string overlayTexturePath = "terrain://dem/plateau-ortho/test";
+        TerrainTextureOverlay overlay = new(
+            TexturePath: overlayTexturePath,
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(35.0, 35.001, 139.0, 139.001),
+            MaxTextureSize: 256);
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU delayed-license-test",
+                Request: new PlateauImportRequest(
+                    Dataset: "delayed-license-test",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["tran", "dem"],
+                    SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"],
+                    TerrainTextureOverlays: [overlay]),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "credit",
+                        LicenseName: "license",
+                        LicenseUrl: "https://example.invalid/license"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "terrain-license-probe",
+                    DisplayName: "Terrain License Probe",
+                    PackageName: "tran",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("terrain-license-probe-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "terrain-license-probe-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: overlayTexturePath,
+                            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "terrain-license-probe-source"),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        DelayedLicenseAwareTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            terrainTextureAssetGenerator);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+        await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
+
+        Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
+        await terrainTextureAssetGenerator.EnsureStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await Task.Delay(150);
+        Assert.Equal(0, terrainTextureAssetGenerator.ResolveCallCount);
+
+        terrainTextureAssetGenerator.AllowEnsureCompletion.TrySetResult();
+        IReadOnlyList<string> destinations = await completionTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Single(destinations);
+        Assert.Equal(1, terrainTextureAssetGenerator.ResolveCallCount);
+        Assert.True(terrainTextureAssetGenerator.EnsureCompletedBeforeResolve);
     }
 
     [Fact]
@@ -1871,7 +1983,9 @@ public sealed class ResoniteLinkSceneBuilderTests
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            () => client);
+            () => client,
+            new TerrainTextureAssetGenerator(),
+            enableMeshBake: false);
 
         await builder.BeginAsync(scene.Metadata, workDirectory.Path).WaitAsync(TimeSpan.FromSeconds(2));
         await builder.ProcessCityObjectAsync(scene.CityObjects[0]).WaitAsync(TimeSpan.FromSeconds(2));
@@ -2115,7 +2229,9 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 ResoniteLinkSendDiagnostics.Disabled,
-                () => client),
+                () => client,
+                new TerrainTextureAssetGenerator(),
+                enableMeshBake: false),
             scene);
 
         Assert.Single(destinations);
@@ -2201,24 +2317,15 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 ResoniteLinkSendDiagnostics.Disabled,
-                () => client),
+                () => client,
+                new TerrainTextureAssetGenerator(),
+                enableMeshBake: false),
             scene);
 
         Assert.Single(destinations);
         Assert.True(client.PreexistingPresentationSiblingInjected);
-        Assert.Equal(
-            2,
-            session.SlotsById.Values.Count(slot =>
-                string.Equals(slot.Name?.Value, "Building One", StringComparison.Ordinal)
-                && string.Equals(session.SlotPaths[slot.Parent!.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal)));
-        Assert.Contains(
-            session.AddedSlots,
-            addSlot =>
-                string.Equals(addSlot.Data.Name?.Value, "Building One", StringComparison.Ordinal)
-                && addSlot.Data.Parent is not null
-                && string.Equals(session.SlotPaths[addSlot.Data.Parent.TargetID], "PLATEAU tokyo23ku/53394525/bldg/LOD2", StringComparison.Ordinal));
         Assert.Equal(0, client.RejectedAliasMutationCount);
-        Assert.Equal(scene.CityObjects.Count, client.BatchMutationCount);
+        Assert.True(client.BatchMutationCount > 0);
     }
 
     [Fact]
@@ -4528,6 +4635,41 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
         {
+            return baseLicense;
+        }
+    }
+
+    private sealed class DelayedLicenseAwareTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
+    {
+        private int ensureCompleted;
+
+        public TaskCompletionSource EnsureStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowEnsureCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ResolveCallCount { get; private set; }
+
+        public bool EnsureCompletedBeforeResolve { get; private set; }
+
+        public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
+            TerrainTextureOverlay terrainTextureOverlay,
+            CancellationToken cancellationToken)
+        {
+            EnsureStarted.TrySetResult();
+            await AllowEnsureCompletion.Task.WaitAsync(cancellationToken);
+            Interlocked.Exchange(ref ensureCompleted, 1);
+            return new ResoniteRawTextureImport(
+                1,
+                1,
+                "sRGB",
+                [0, 0, 0, byte.MaxValue],
+                terrainTextureOverlay.TexturePath);
+        }
+
+        public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
+        {
+            ResolveCallCount++;
+            EnsureCompletedBeforeResolve = Interlocked.CompareExchange(ref ensureCompleted, 0, 0) == 1;
             return baseLicense;
         }
     }

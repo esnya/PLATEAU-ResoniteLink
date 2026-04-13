@@ -6,7 +6,6 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
 
 namespace Plateau.ResoniteLink.Cli;
 
@@ -78,7 +77,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
             && cityObject.LodLevel == 2
             && cityObject.Geometry is ResoniteTriangleMeshGeometry
-            && cityObject.Transform.Rotation is null;
+            && cityObject.Transform.Rotation is null
+            && CanBakeMaterials(cityObject);
     }
 
     private async Task<IReadOnlyList<ResoniteConstructionCityObject>> BakeSourceUnitAsync(
@@ -86,25 +86,24 @@ internal sealed class Lod2AtlasCityObjectBaker(
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         CancellationToken cancellationToken)
     {
-        List<AtlasBatchEntry> entries = await CreateEntriesAsync(cityObjects, cancellationToken);
-        if (entries.Count == 0)
+        List<CityObjectBakeCandidate> candidates = await CreateCandidatesAsync(cityObjects, cancellationToken);
+        if (candidates.Count == 0)
         {
             return [];
         }
 
         try
         {
-            List<IReadOnlyList<AtlasBatchEntry>> entryBatches = BuildAtlasEntryBatches(entries);
-            List<ResoniteConstructionCityObject> bakedCityObjects = new(entryBatches.Count);
-            for (int batchIndex = 0; batchIndex < entryBatches.Count; batchIndex++)
+            List<IReadOnlyList<CityObjectBakeCandidate>> candidateBatches = BuildAtlasCandidateBatches(candidates);
+            List<ResoniteConstructionCityObject> bakedCityObjects = new(candidateBatches.Count);
+            for (int batchIndex = 0; batchIndex < candidateBatches.Count; batchIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
                     sourceUnitKey,
-                    cityObjects,
-                    entryBatches[batchIndex],
+                    candidateBatches[batchIndex],
                     batchIndex,
-                    entryBatches.Count,
+                    candidateBatches.Count,
                     cancellationToken);
                 bakedCityObjects.Add(bakedCityObject);
             }
@@ -114,7 +113,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
         finally
         {
-            foreach (Image<Rgba32> tileImage in entries
+            foreach (Image<Rgba32> tileImage in candidates
+                         .SelectMany(static candidate => candidate.AtlasEntries)
                          .Select(static entry => entry.Tile.Image)
                          .Distinct())
             {
@@ -123,18 +123,21 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
     }
 
-    private async Task<List<AtlasBatchEntry>> CreateEntriesAsync(
+    private async Task<List<CityObjectBakeCandidate>> CreateCandidatesAsync(
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         CancellationToken cancellationToken)
     {
-        List<AtlasBatchEntry> entries = [];
+        List<CityObjectBakeCandidate> candidates = [];
 
         foreach (ResoniteConstructionCityObject cityObject in cityObjects.OrderBy(static candidate => candidate.SlotKey, StringComparer.Ordinal))
         {
-            Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex = cityObject.Materials
-                .SelectMany(material => material.SubmeshIndices.Select(submeshIndex => (submeshIndex, material)))
-                .ToDictionary(static pair => pair.submeshIndex, static pair => pair.material);
+            if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
+            {
+                continue;
+            }
 
+            List<AtlasBatchEntry> atlasEntries = [];
+            List<PreservedSubmeshEntry> preservedEntries = [];
             foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -143,23 +146,32 @@ internal sealed class Lod2AtlasCityObjectBaker(
                     continue;
                 }
 
-                MaterialAtlasTile tile = await CreateAtlasTileAsync(material, cancellationToken);
-                entries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile));
+                if (IsAtlasBakeCandidate(material))
+                {
+                    UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
+                    MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
+                    atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
+                }
+                else
+                {
+                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
+                }
+            }
+
+            if (atlasEntries.Count > 0)
+            {
+                candidates.Add(new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries));
             }
         }
 
-        return entries;
+        return candidates;
     }
 
     private async Task<MaterialAtlasTile> CreateAtlasTileAsync(
         ResoniteMaterialBinding material,
+        UvBounds uvBounds,
         CancellationToken cancellationToken)
     {
-        if (material.MaterialType == ResoniteMaterialType.VertexColor)
-        {
-            return CreateSolidColorTile(material.BaseColor);
-        }
-
         if (string.IsNullOrWhiteSpace(material.TexturePath))
         {
             return CreateSolidColorTile(material.BaseColor);
@@ -170,14 +182,14 @@ internal sealed class Lod2AtlasCityObjectBaker(
             material.TextureSourceKind,
             cancellationToken);
 
-        int targetWidth = Math.Max(1, Math.Min(maxAtlasSize - (tilePaddingPixels * 2), sourceImage.Width));
-        int targetHeight = Math.Max(1, Math.Min(maxAtlasSize - (tilePaddingPixels * 2), sourceImage.Height));
-        using Image<Rgba32> resizedImage = (sourceImage.Width == targetWidth && sourceImage.Height == targetHeight)
-            ? sourceImage.Clone()
-            : sourceImage.Clone(context => context.Resize(targetWidth, targetHeight));
+        int maxTileWidth = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
+        int maxTileHeight = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
+        int targetWidth = Math.Max(1, Math.Min(maxTileWidth, (int)Math.Ceiling(sourceImage.Width * uvBounds.Width)));
+        int targetHeight = Math.Max(1, Math.Min(maxTileHeight, (int)Math.Ceiling(sourceImage.Height * uvBounds.Height)));
+        using Image<Rgba32> bakedImage = BakeUsedUvRegion(sourceImage, uvBounds, targetWidth, targetHeight);
 
-        ApplyBaseColor(resizedImage, material.BaseColor);
-        return new MaterialAtlasTile(material.TexturePath!, resizedImage.Clone());
+        ApplyBaseColor(bakedImage, material.BaseColor);
+        return new MaterialAtlasTile(material.TexturePath!, bakedImage.Clone());
     }
 
     private static MaterialAtlasTile CreateSolidColorTile(ResoniteColor color)
@@ -188,33 +200,76 @@ internal sealed class Lod2AtlasCityObjectBaker(
             image.Clone());
     }
 
-    private List<IReadOnlyList<AtlasBatchEntry>> BuildAtlasEntryBatches(
-        IReadOnlyList<AtlasBatchEntry> entries)
+    private static bool CanBakeMaterials(ResoniteConstructionCityObject cityObject)
     {
-        List<IReadOnlyList<AtlasBatchEntry>> batches = [];
-        List<AtlasBatchEntry> pending = entries
-            .OrderByDescending(static entry => entry.Tile.Image.Height)
-            .ThenByDescending(static entry => entry.Tile.Image.Width)
-            .ThenBy(static entry => entry.CityObject.SlotKey, StringComparer.Ordinal)
-            .ThenBy(static entry => entry.Submesh.Index)
+        if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
+        {
+            return false;
+        }
+
+        return cityObject.Mesh.Submeshes.All(submesh => materialBySubmeshIndex.ContainsKey(submesh.Index))
+            && cityObject.Materials.Any(IsAtlasBakeCandidate);
+    }
+
+    private static bool TryCreateMaterialBySubmeshIndex(
+        ResoniteConstructionCityObject cityObject,
+        out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex)
+    {
+        materialBySubmeshIndex = [];
+        foreach (ResoniteMaterialBinding material in cityObject.Materials)
+        {
+            foreach (int submeshIndex in material.SubmeshIndices)
+            {
+                if (!materialBySubmeshIndex.TryAdd(submeshIndex, material))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsAtlasBakeCandidate(ResoniteMaterialBinding material)
+    {
+        if (material.DepthOffset is not null
+            || !string.IsNullOrWhiteSpace(material.Family)
+            || material.Projection != ResoniteMaterialProjection.Uv
+            || material.AssetScope == ResoniteMaterialAssetScope.Common)
+        {
+            return false;
+        }
+
+        return material.MaterialType == ResoniteMaterialType.Standard
+            && (string.IsNullOrWhiteSpace(material.TexturePath)
+                || material.TextureSourceKind == ResoniteTextureSourceKind.Dataset);
+    }
+
+    private List<IReadOnlyList<CityObjectBakeCandidate>> BuildAtlasCandidateBatches(
+        IReadOnlyList<CityObjectBakeCandidate> candidates)
+    {
+        List<IReadOnlyList<CityObjectBakeCandidate>> batches = [];
+        List<CityObjectBakeCandidate> pending = candidates
+            .OrderByDescending(static candidate => candidate.AtlasEntries.Sum(entry => entry.Tile.Image.Width * entry.Tile.Image.Height))
+            .ThenBy(static candidate => candidate.CityObject.SlotKey, StringComparer.Ordinal)
             .ToList();
 
         while (pending.Count > 0)
         {
-            List<AtlasBatchEntry> currentBatch = [];
-            foreach (AtlasBatchEntry entry in pending.ToArray())
+            List<CityObjectBakeCandidate> currentBatch = [];
+            foreach (CityObjectBakeCandidate candidate in pending.ToArray())
             {
-                List<AtlasBatchEntry> candidateBatch = [.. currentBatch, entry];
-                if (TryCreateAtlasLayout(candidateBatch, out _))
+                List<AtlasBatchEntry> candidateEntries = [.. currentBatch.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
+                if (TryCreateAtlasLayout(candidateEntries, out _))
                 {
-                    currentBatch.Add(entry);
-                    pending.Remove(entry);
+                    currentBatch.Add(candidate);
+                    pending.Remove(candidate);
                 }
             }
 
             if (currentBatch.Count == 0)
             {
-                throw new InvalidOperationException("Failed to fit LOD2 atlas entries within the configured atlas size.");
+                throw new InvalidOperationException("Failed to fit a LOD2 city object atlas set within the configured atlas size.");
             }
 
             batches.Add(currentBatch);
@@ -225,12 +280,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
         SourceUnitKey sourceUnitKey,
-        IReadOnlyList<ResoniteConstructionCityObject> sourceCityObjects,
-        IReadOnlyList<AtlasBatchEntry> entries,
+        IReadOnlyList<CityObjectBakeCandidate> candidates,
         int batchIndex,
         int batchCount,
         CancellationToken cancellationToken)
     {
+        List<AtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
         if (!TryCreateAtlasLayout(entries, out AtlasLayout? layout) || layout is null)
         {
             throw new InvalidOperationException("Failed to create LOD2 atlas layout.");
@@ -243,25 +298,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
             DrawAtlasTile(atlasImage, placement);
         }
 
-        string texturePath = CreateAtlasTexturePath(sourceUnitKey, batchIndex);
-        textureImportRegistry.Register(
-            texturePath,
-            ResoniteTextureSourceKind.Dataset,
-            ResoniteTextureImportFactory.CreateRawFromImage(atlasImage, identity: texturePath));
-
-        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(entries);
-        List<ResoniteMeshVertex> vertices = [];
-        List<int> triangleIndices = [];
-
-        foreach (AtlasPlacement placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
-        {
-            AppendPlacementGeometry(vertices, triangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
-        }
-
-        ResoniteConstructionCityObject firstCityObject = sourceCityObjects[0];
+        ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
         bool preservePrimaryIdentity = batchCount == 1
-            && sourceCityObjects.Count == 1
-            && entries.All(entry => ReferenceEquals(entry.CityObject, firstCityObject));
+            && candidates.Count == 1;
         string slotKey = preservePrimaryIdentity
             ? firstCityObject.SlotKey
             : CreateBatchSlotKey(sourceUnitKey, batchIndex);
@@ -271,6 +310,66 @@ internal sealed class Lod2AtlasCityObjectBaker(
         string? sourceObjectKey = preservePrimaryIdentity
             ? firstCityObject.SourceObjectKey
             : CreateBatchSourceObjectKey(sourceUnitKey, batchIndex);
+
+        string texturePath = CreateAtlasTexturePath(sourceUnitKey, batchIndex);
+        textureImportRegistry.Register(
+            texturePath,
+            ResoniteTextureSourceKind.Dataset,
+            ResoniteTextureImportFactory.CreateRawFromImage(atlasImage, identity: texturePath));
+
+        ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
+        List<ResoniteMeshVertex> vertices = [];
+        List<ResoniteMeshSubmesh> submeshes = [];
+        List<ResoniteMaterialBinding> materials = [];
+
+        List<int> atlasTriangleIndices = [];
+        foreach (AtlasPlacement placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
+        }
+
+        string atlasMaterialKey = string.Create(CultureInfo.InvariantCulture, $"{slotKey}_atlas");
+        submeshes.Add(new ResoniteMeshSubmesh(0, atlasMaterialKey, atlasTriangleIndices));
+        materials.Add(
+            new ResoniteMaterialBinding(
+                MaterialKey: atlasMaterialKey,
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.Standard,
+                TexturePath: texturePath,
+                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]));
+
+        foreach (IGrouping<PreservedMaterialGroupingKey, PreservedSubmeshEntry> preservedGroup in candidates
+                     .SelectMany(static candidate => candidate.PreservedEntries)
+                     .GroupBy(static entry => CreatePreservedMaterialGroupingKey(entry.Material), PreservedMaterialGroupingKeyComparer.Instance)
+                     .OrderBy(static group => group.Key.MaterialKey, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            List<int> preservedTriangleIndices = [];
+            foreach (PreservedSubmeshEntry preservedEntry in preservedGroup
+                         .OrderBy(static entry => entry.CityObject.SlotKey, StringComparer.Ordinal)
+                         .ThenBy(static entry => entry.Submesh.Index))
+            {
+                AppendOriginalGeometry(vertices, preservedTriangleIndices, bakeOrigin, preservedEntry);
+            }
+
+            if (preservedTriangleIndices.Count == 0)
+            {
+                continue;
+            }
+
+            int submeshIndex = submeshes.Count;
+            ResoniteMaterialBinding preservedMaterial = NormalizePreservedMaterial(preservedGroup.First().Material) with
+            {
+                SubmeshIndices = [submeshIndex],
+            };
+            submeshes.Add(new ResoniteMeshSubmesh(submeshIndex, preservedMaterial.MaterialKey, preservedTriangleIndices));
+            materials.Add(preservedMaterial);
+        }
+
         return new ResoniteConstructionCityObject(
             SlotKey: slotKey,
             DisplayName: displayName,
@@ -278,22 +377,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
             ActualMeshCode: firstCityObject.ActualMeshCode,
             LodLevel: firstCityObject.LodLevel,
             Transform: new ResoniteTransform(bakeOrigin),
-            Mesh: new ResoniteImportedMesh(
-                vertices,
-                [new ResoniteMeshSubmesh(0, slotKey, triangleIndices)]),
-            Materials:
-            [
-                new ResoniteMaterialBinding(
-                    MaterialKey: slotKey,
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                    MaterialType: ResoniteMaterialType.Standard,
-                    TexturePath: texturePath,
-                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-                    Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
-                    SubmeshIndices: [0])
-            ],
-            CollisionEnabled: sourceCityObjects.Any(static cityObject => cityObject.CollisionEnabled),
+            Mesh: new ResoniteImportedMesh(vertices, submeshes),
+            Materials: materials,
+            CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
             SourceObjectKey: sourceObjectKey,
             SourceUnitKey: sourceUnitKey.SourceUnitIdentity);
     }
@@ -314,7 +400,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         {
             ResoniteMeshVertex sourceVertex = sourceVertices[sourceIndex];
             ResoniteFloat2 sourceUv = ApplyMaterialUvTransform(sourceVertex.UV0, placement.Entry.Material);
-            ResoniteFloat2 atlasUv = MapUvToAtlas(sourceUv, innerRect, atlasWidth, atlasHeight);
+            ResoniteFloat2 atlasUv = MapUvToAtlas(sourceUv, placement.Entry.UvBounds, innerRect, atlasWidth, atlasHeight);
             vertices.Add(sourceVertex with
             {
                 Position = Add(sourceVertex.Position, cityObjectOffset),
@@ -324,17 +410,37 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
     }
 
+    private static void AppendOriginalGeometry(
+        List<ResoniteMeshVertex> vertices,
+        List<int> triangleIndices,
+        ResoniteFloat3 bakeOrigin,
+        PreservedSubmeshEntry preservedEntry)
+    {
+        IReadOnlyList<ResoniteMeshVertex> sourceVertices = preservedEntry.CityObject.Mesh.Vertices;
+        ResoniteFloat3 cityObjectOffset = Subtract(preservedEntry.CityObject.Transform.Position, bakeOrigin);
+        foreach (int sourceIndex in preservedEntry.Submesh.TriangleVertexIndices)
+        {
+            ResoniteMeshVertex sourceVertex = sourceVertices[sourceIndex];
+            vertices.Add(sourceVertex with
+            {
+                Position = Add(sourceVertex.Position, cityObjectOffset),
+            });
+            triangleIndices.Add(vertices.Count - 1);
+        }
+    }
+
     private static ResoniteFloat2 MapUvToAtlas(
         ResoniteFloat2 sourceUv,
+        UvBounds uvBounds,
         Rect atlasRect,
         double atlasWidth,
         double atlasHeight)
     {
-        double clampedU = Math.Clamp(sourceUv.X, 0.0, 1.0);
-        double clampedV = Math.Clamp(sourceUv.Y, 0.0, 1.0);
+        double normalizedU = NormalizeToBounds(sourceUv.X, uvBounds.MinU, uvBounds.Width);
+        double normalizedV = NormalizeToBounds(sourceUv.Y, uvBounds.MinV, uvBounds.Height);
         return new ResoniteFloat2(
-            (atlasRect.X + (clampedU * atlasRect.Width)) / atlasWidth,
-            (atlasRect.Y + (clampedV * atlasRect.Height)) / atlasHeight);
+            (atlasRect.X + (normalizedU * atlasRect.Width)) / atlasWidth,
+            (atlasHeight - atlasRect.Y - atlasRect.Height + (normalizedV * atlasRect.Height)) / atlasHeight);
     }
 
     private static ResoniteFloat2 ApplyMaterialUvTransform(
@@ -350,17 +456,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
             (sourceUv.Y * scaleY) + offsetY);
     }
 
-    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<AtlasBatchEntry> entries)
+    private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
     {
         double minX = double.PositiveInfinity;
         double minY = double.PositiveInfinity;
         double minZ = double.PositiveInfinity;
 
-        foreach (AtlasBatchEntry entry in entries)
+        foreach (ResoniteConstructionCityObject cityObject in candidates.Select(static candidate => candidate.CityObject))
         {
-            foreach (ResoniteMeshVertex vertex in entry.CityObject.Mesh.Vertices)
+            foreach (ResoniteMeshVertex vertex in cityObject.Mesh.Vertices)
             {
-                ResoniteFloat3 worldPosition = Add(vertex.Position, entry.CityObject.Transform.Position);
+                ResoniteFloat3 worldPosition = Add(vertex.Position, cityObject.Transform.Position);
                 minX = Math.Min(minX, worldPosition.X);
                 minY = Math.Min(minY, worldPosition.Y);
                 minZ = Math.Min(minZ, worldPosition.Z);
@@ -546,13 +652,183 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return new ResoniteFloat3(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
     }
 
+    private static UvBounds ComputeUvBounds(
+        IReadOnlyList<ResoniteMeshVertex> vertices,
+        ResoniteMeshSubmesh submesh,
+        ResoniteMaterialBinding material)
+    {
+        double minU = double.PositiveInfinity;
+        double minV = double.PositiveInfinity;
+        double maxU = double.NegativeInfinity;
+        double maxV = double.NegativeInfinity;
+
+        foreach (int sourceIndex in submesh.TriangleVertexIndices)
+        {
+            ResoniteFloat2 transformedUv = ApplyMaterialUvTransform(vertices[sourceIndex].UV0, material);
+            minU = Math.Min(minU, transformedUv.X);
+            minV = Math.Min(minV, transformedUv.Y);
+            maxU = Math.Max(maxU, transformedUv.X);
+            maxV = Math.Max(maxV, transformedUv.Y);
+        }
+
+        if (double.IsPositiveInfinity(minU) || double.IsPositiveInfinity(minV))
+        {
+            return new UvBounds(0.0, 0.0, 1.0, 1.0);
+        }
+
+        double width = Math.Max(1.0 / 1024.0, maxU - minU);
+        double height = Math.Max(1.0 / 1024.0, maxV - minV);
+        return new UvBounds(minU, minV, width, height);
+    }
+
+    private static Image<Rgba32> BakeUsedUvRegion(
+        Image<Rgba32> sourceImage,
+        UvBounds uvBounds,
+        int targetWidth,
+        int targetHeight)
+    {
+        Image<Rgba32> bakedImage = new(targetWidth, targetHeight);
+        for (int y = 0; y < targetHeight; y++)
+        {
+            double normalizedV = 1.0 - ((y + 0.5) / targetHeight);
+            double sourceV = uvBounds.MinV + (normalizedV * uvBounds.Height);
+            for (int x = 0; x < targetWidth; x++)
+            {
+                double normalizedU = (x + 0.5) / targetWidth;
+                double sourceU = uvBounds.MinU + (normalizedU * uvBounds.Width);
+                bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceU, sourceV);
+            }
+        }
+
+        return bakedImage;
+    }
+
+    private static Rgba32 SampleWrappedPixelBilinear(Image<Rgba32> sourceImage, double u, double v)
+    {
+        double wrappedU = WrapUvCoordinate(u);
+        double wrappedV = WrapUvCoordinate(v);
+        double sourceX = (wrappedU * sourceImage.Width) - 0.5;
+        double sourceY = ((1.0 - wrappedV) * sourceImage.Height) - 0.5;
+        int x0 = (int)Math.Floor(sourceX);
+        int y0 = (int)Math.Floor(sourceY);
+        int x1 = x0 + 1;
+        int y1 = y0 + 1;
+        double tx = sourceX - x0;
+        double ty = sourceY - y0;
+
+        Rgba32 topLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
+        Rgba32 topRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y0, sourceImage.Height)];
+        Rgba32 bottomLeft = sourceImage[WrapPixelCoordinate(x0, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
+        Rgba32 bottomRight = sourceImage[WrapPixelCoordinate(x1, sourceImage.Width), WrapPixelCoordinate(y1, sourceImage.Height)];
+        return LerpPixels(topLeft, topRight, bottomLeft, bottomRight, tx, ty);
+    }
+
+    private static double WrapUvCoordinate(double value)
+    {
+        double wrapped = value - Math.Floor(value);
+        return wrapped >= 1.0 ? 0.0 : wrapped;
+    }
+
+    private static int WrapPixelCoordinate(int value, int length)
+    {
+        int wrapped = value % length;
+        return wrapped < 0 ? wrapped + length : wrapped;
+    }
+
+    private static Rgba32 LerpPixels(
+        Rgba32 topLeft,
+        Rgba32 topRight,
+        Rgba32 bottomLeft,
+        Rgba32 bottomRight,
+        double tx,
+        double ty)
+    {
+        return new Rgba32(
+            LerpChannel(topLeft.R, topRight.R, bottomLeft.R, bottomRight.R, tx, ty),
+            LerpChannel(topLeft.G, topRight.G, bottomLeft.G, bottomRight.G, tx, ty),
+            LerpChannel(topLeft.B, topRight.B, bottomLeft.B, bottomRight.B, tx, ty),
+            LerpChannel(topLeft.A, topRight.A, bottomLeft.A, bottomRight.A, tx, ty));
+    }
+
+    private static byte LerpChannel(
+        byte topLeft,
+        byte topRight,
+        byte bottomLeft,
+        byte bottomRight,
+        double tx,
+        double ty)
+    {
+        double top = topLeft + ((topRight - topLeft) * tx);
+        double bottom = bottomLeft + ((bottomRight - bottomLeft) * tx);
+        double value = top + ((bottom - top) * ty);
+        return (byte)Math.Clamp(Math.Round(value), 0.0, 255.0);
+    }
+
+    private static double NormalizeToBounds(double value, double min, double length)
+    {
+        if (length <= 0.0)
+        {
+            return 0.0;
+        }
+
+        return Math.Clamp((value - min) / length, 0.0, 1.0);
+    }
+
+    private static PreservedMaterialGroupingKey CreatePreservedMaterialGroupingKey(ResoniteMaterialBinding material)
+    {
+        ResoniteMaterialBinding normalizedMaterial = NormalizePreservedMaterial(material);
+        return new PreservedMaterialGroupingKey(
+            normalizedMaterial.MaterialKey,
+            normalizedMaterial.BaseColor,
+            normalizedMaterial.MaterialType,
+            normalizedMaterial.TexturePath,
+            normalizedMaterial.TextureSourceKind,
+            normalizedMaterial.Projection,
+            normalizedMaterial.DepthOffset,
+            normalizedMaterial.TextureScale,
+            normalizedMaterial.Family,
+            normalizedMaterial.TextureOffset,
+            normalizedMaterial.AssetScope);
+    }
+
+    private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
+    {
+        if (material.AssetScope != ResoniteMaterialAssetScope.Common
+            || (material.Family != BundledDefaultMaterialFamilies.Facade
+                && material.Family != BundledDefaultMaterialFamilies.Roof))
+        {
+            return material;
+        }
+
+        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariants(material.Family)[0];
+        return material with
+        {
+            MaterialKey = $"common-{material.Family}",
+            TexturePath = canonicalTexturePath,
+            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+            TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
+            TextureOffset = null,
+        };
+    }
+
     private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image);
 
     private sealed record AtlasBatchEntry(
         ResoniteConstructionCityObject CityObject,
         ResoniteMeshSubmesh Submesh,
         ResoniteMaterialBinding Material,
-        MaterialAtlasTile Tile);
+        MaterialAtlasTile Tile,
+        UvBounds UvBounds);
+
+    private sealed record PreservedSubmeshEntry(
+        ResoniteConstructionCityObject CityObject,
+        ResoniteMeshSubmesh Submesh,
+        ResoniteMaterialBinding Material);
+
+    private sealed record CityObjectBakeCandidate(
+        ResoniteConstructionCityObject CityObject,
+        IReadOnlyList<AtlasBatchEntry> AtlasEntries,
+        IReadOnlyList<PreservedSubmeshEntry> PreservedEntries);
 
     private sealed record AtlasLayout(
         int Width,
@@ -566,11 +842,30 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private readonly record struct Rect(int X, int Y, int Width, int Height);
 
+    private readonly record struct UvBounds(
+        double MinU,
+        double MinV,
+        double Width,
+        double Height);
+
     private readonly record struct SourceUnitKey(
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
         string SourceUnitIdentity);
+
+    private readonly record struct PreservedMaterialGroupingKey(
+        string MaterialKey,
+        ResoniteColor BaseColor,
+        ResoniteMaterialType MaterialType,
+        string? TexturePath,
+        ResoniteTextureSourceKind TextureSourceKind,
+        ResoniteMaterialProjection Projection,
+        ResoniteMaterialDepthOffset? DepthOffset,
+        ResoniteFloat2? TextureScale,
+        string? Family,
+        ResoniteFloat2? TextureOffset,
+        ResoniteMaterialAssetScope AssetScope);
 
     private sealed class SourceUnitKeyComparer : IComparer<SourceUnitKey>
     {
@@ -597,6 +892,43 @@ internal sealed class Lod2AtlasCityObjectBaker(
             }
 
             return string.CompareOrdinal(x.SourceUnitIdentity, y.SourceUnitIdentity);
+        }
+    }
+
+    private sealed class PreservedMaterialGroupingKeyComparer : IEqualityComparer<PreservedMaterialGroupingKey>
+    {
+        internal static readonly PreservedMaterialGroupingKeyComparer Instance = new();
+
+        public bool Equals(PreservedMaterialGroupingKey x, PreservedMaterialGroupingKey y)
+        {
+            return string.Equals(x.MaterialKey, y.MaterialKey, StringComparison.Ordinal)
+                && x.BaseColor == y.BaseColor
+                && x.MaterialType == y.MaterialType
+                && string.Equals(x.TexturePath, y.TexturePath, StringComparison.Ordinal)
+                && x.TextureSourceKind == y.TextureSourceKind
+                && x.Projection == y.Projection
+                && EqualityComparer<ResoniteMaterialDepthOffset?>.Default.Equals(x.DepthOffset, y.DepthOffset)
+                && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
+                && string.Equals(x.Family, y.Family, StringComparison.Ordinal)
+                && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureOffset, y.TextureOffset)
+                && x.AssetScope == y.AssetScope;
+        }
+
+        public int GetHashCode(PreservedMaterialGroupingKey obj)
+        {
+            HashCode hash = new();
+            hash.Add(obj.MaterialKey, StringComparer.Ordinal);
+            hash.Add(obj.BaseColor);
+            hash.Add(obj.MaterialType);
+            hash.Add(obj.TexturePath, StringComparer.Ordinal);
+            hash.Add(obj.TextureSourceKind);
+            hash.Add(obj.Projection);
+            hash.Add(obj.DepthOffset);
+            hash.Add(obj.TextureScale);
+            hash.Add(obj.Family, StringComparer.Ordinal);
+            hash.Add(obj.TextureOffset);
+            hash.Add(obj.AssetScope);
+            return hash.ToHashCode();
         }
     }
 }

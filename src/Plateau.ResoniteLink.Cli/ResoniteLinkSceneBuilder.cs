@@ -492,12 +492,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
         }
 
-        await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
-            clientSession.SetupClient,
-            datasetRootSlot.Value.SlotId,
-            terrainTextureAssetGenerator.ResolveDatasetLicense(metadata.Attribution.DatasetLicense),
-            cancellationToken);
-
         ReportProgress("[live] Completing live send. Closing lane writers.");
         foreach (Channel<QueuedCityObject> channel in cityObjectChannels)
         {
@@ -519,6 +513,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         await allProcessingTasks.WaitAsync(cancellationToken);
         ReportProgress("[live] All send lanes drained.");
+        await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
+            clientSession.SetupClient,
+            datasetRootSlot.Value.SlotId,
+            terrainTextureAssetGenerator.ResolveDatasetLicense(metadata.Attribution.DatasetLicense),
+            cancellationToken);
         diagnostics.CompleteSendWindow();
         ReportProgress(
             $"[live] Completed {processedCityObjectCount} city objects "
@@ -1456,6 +1455,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         List<MaterialReferenceTarget> resolvedMaterialTargets = [];
         int preparedDedicatedMaterialAssetIndex = 0;
+        bool preserveDedicatedMaterialSlot = preparedGeometryBatch is PreparedHeightMapGridAssetBatch && IsDemPackage(cityObject.PackageName);
         foreach (MaterialReferenceTarget materialTarget in materialTargets)
         {
             if (materialTarget.DedicatedMaterial is null)
@@ -1469,6 +1469,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 meshAssetSlot.LocalId,
                 materialTarget.DedicatedMaterial,
                 preparedDedicatedMaterialAssets[preparedDedicatedMaterialAssetIndex++],
+                preserveDedicatedMaterialSlot,
                 cancellationToken);
             resolvedMaterialTargets.Add(materialTarget with
             {
@@ -1539,20 +1540,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string meshAssetSlotLocalId,
         ResoniteMaterialBinding material,
         PreparedDedicatedMaterialAssets preparedAssets,
+        bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
-        string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: false);
-        PendingBatchSlot materialSlot = batchBuilder.AddSlot(
-            meshAssetSlotLocalId,
-            materialSlotName,
-            null,
-            null);
+        string materialContainerLocalId = meshAssetSlotLocalId;
+        if (preserveDedicatedMaterialSlot)
+        {
+            string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: false);
+            PendingBatchSlot materialSlot = batchBuilder.AddSlot(
+                meshAssetSlotLocalId,
+                materialSlotName,
+                null,
+                null);
+            materialContainerLocalId = materialSlot.LocalId;
+        }
+
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
 
         if (preparedAssets.AlbedoTextureUri is not null)
         {
             PendingBatchComponent albedoTexture = batchBuilder.AddComponent(
-                materialSlot.LocalId,
+                materialContainerLocalId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 CreateTextureMembers(preparedAssets.AlbedoTextureUri));
             materialMembers["AlbedoTexture"] = new Reference
@@ -1564,7 +1572,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (preparedAssets.NormalTextureUri is not null)
         {
             PendingBatchComponent normalTexture = batchBuilder.AddComponent(
-                materialSlot.LocalId,
+                materialContainerLocalId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 CreateTextureMembers(preparedAssets.NormalTextureUri));
             materialMembers["NormalMap"] = new Reference
@@ -1580,7 +1588,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (preparedAssets.HeightTextureUri is not null)
         {
             PendingBatchComponent heightTexture = batchBuilder.AddComponent(
-                materialSlot.LocalId,
+                materialContainerLocalId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 CreateTextureMembers(preparedAssets.HeightTextureUri));
             materialMembers["HeightMap"] = new Reference
@@ -1596,7 +1604,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (preparedAssets.MetallicTextureUri is not null)
         {
             PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
-                materialSlot.LocalId,
+                materialContainerLocalId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 CreateTextureMembers(preparedAssets.MetallicTextureUri));
             materialMembers["MetallicMap"] = new Reference
@@ -1612,7 +1620,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (preparedAssets.EmissionTextureUri is not null)
         {
             PendingBatchComponent emissionTexture = batchBuilder.AddComponent(
-                materialSlot.LocalId,
+                materialContainerLocalId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 CreateTextureMembers(preparedAssets.EmissionTextureUri));
             materialMembers["EmissiveMap"] = new Reference
@@ -1624,7 +1632,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         return Task.FromResult(batchBuilder.AddComponent(
-            materialSlot.LocalId,
+            materialContainerLocalId,
             ResoniteMaterialComponentBuilder.GetComponentType(material),
             materialMembers));
     }

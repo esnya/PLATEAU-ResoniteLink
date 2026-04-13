@@ -1651,6 +1651,19 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 continue;
             }
 
+            if (string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
+                && resoniteNormal.Y < 0.0)
+            {
+                (position1, position2) = (position2, position1);
+                (uv1, uv2) = (uv2, uv1);
+                (color1, color2) = (color2, color1);
+                resoniteNormal = ComputeNormal(position0, position2, position1);
+                if (resoniteNormal is null)
+                {
+                    continue;
+                }
+            }
+
             int baseIndex = vertices.Count;
             vertices.Add(new ResoniteMeshVertex(position0, resoniteNormal, uv0, color0));
             vertices.Add(new ResoniteMeshVertex(position1, resoniteNormal, uv1, color1));

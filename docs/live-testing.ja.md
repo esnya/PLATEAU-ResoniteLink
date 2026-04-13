@@ -118,6 +118,8 @@ cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\reso
 
 polling window 内に list mode が 0 件を返した場合だけ次へ進みます。
 
+successful validation の終了時に cleanup を既定で自動実行してはいけません。終了時 cleanup は opt-in とし、user が明示した場合、または disposable headless の teardown のように workflow 自体が明示的に破壊的な場合だけ実施します。最終 run が成功した後は、削除理由が明示されていない限り dataset root を残してください。
+
 その後、bundled wrapper を使って Windows 側から send を起動します。
 
 ```bash
@@ -190,4 +192,4 @@ Get-Content <stderr-log> -Tail 40
 - CI 相当の検証:
   反復中は `bash scripts/test-fast.sh` を緑に保ちつつ、live 結果を評価する前には `bash scripts/verify-ci.sh` を成功させる。
 
-途中で run を止めた場合は、起動した PID だけを止め、終了を確認してから cleanup を再実行し、log は保持します。自然終了した run でも、cleanup の前に exit code を記録してください。
+途中で run を止めた場合は、起動した PID だけを止め、終了を確認してから cleanup を再実行し、log は保持します。自然終了した run でも、optional な cleanup の前に exit code を記録してください。最終 cleanup を暗黙動作として扱ってはいけません。

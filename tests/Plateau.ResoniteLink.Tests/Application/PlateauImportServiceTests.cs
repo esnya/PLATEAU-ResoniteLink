@@ -1825,6 +1825,47 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncKeepsGeneratedDemOverlayWindingAlignedWithVertexNormals()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeSplitDemFixture(datasetRoot.Path);
+
+        StubResoniteSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+        CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(
+            scene.CityObjects,
+            static candidate => candidate.PackageName == "dem"
+                && candidate.Materials.Any(material =>
+                    material.TexturePath is not null
+                    && material.TexturePath.StartsWith(
+                        LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                        StringComparison.Ordinal)));
+        ResoniteMeshSubmesh submesh = Assert.Single(cityObject.Mesh.Submeshes);
+        ResoniteFloat3 faceNormal = ComputeTriangleNormal(cityObject.Mesh, submesh);
+
+        Assert.True(faceNormal.Y > 0.0, $"Expected generated DEM face normal to point upward, but normal was {faceNormal}.");
+        foreach (int vertexIndex in submesh.TriangleVertexIndices.Take(3))
+        {
+            ResoniteFloat3 vertexNormal = cityObject.Mesh.Vertices[vertexIndex].Normal;
+            Assert.True(
+                Dot(faceNormal, vertexNormal) > 0.99,
+                $"Expected vertex normal {vertexNormal} to align with DEM face normal {faceNormal}.");
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsyncRejectsLocalSourceWithoutInput()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -4348,6 +4389,51 @@ public sealed class PlateauImportServiceTests
 
         File.WriteAllText(
             Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_triangle.gml"),
+            xml);
+    }
+
+    private static void CreateRuntimeSplitDemFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(demDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.6834 139.6873 5</gml:lowerCorner>
+                  <gml:upperCorner>35.6915 139.7050 30</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-split">
+                  <gml:name>Split DEM</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-split-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-split">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-split">
+                                  <gml:posList>35.6834 139.6873 5 35.6915 139.6878 20 35.6914 139.7050 30 35.6834 139.6873 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(
+            Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525_split.gml"),
             xml);
     }
 

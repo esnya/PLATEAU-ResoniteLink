@@ -252,6 +252,85 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Equal(512, successfulTexture.Width);
     }
 
+    [Fact]
+    public void ResolveDatasetLicenseReturnsBaseLicenseWhenNoTerrainTextureWasUsed()
+    {
+        TerrainTextureAssetGenerator generator = new();
+        ResoniteLicenseComponentMetadata baseLicense = new(
+            RequireCredit: true,
+            CreditText: "base credit",
+            LicenseName: "base license",
+            LicenseUrl: "https://example.invalid/base");
+
+        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
+
+        Assert.Equal(baseLicense, resolved);
+    }
+
+    [Fact]
+    public async Task ResolveDatasetLicenseUsesPlateauOnlyTermsWhenNoFallbackTileWasUsed()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureOverlay terrainTextureOverlay = CreateFullCoverageOverlay(
+            "https://tiles.example/{z}/{x}/{y}.png");
+        ResoniteLicenseComponentMetadata baseLicense = new(
+            RequireCredit: true,
+            CreditText: "base credit",
+            LicenseName: "base license",
+            LicenseUrl: "https://example.invalid/base");
+
+        _ = await generator.EnsureTextureAsync(terrainTextureOverlay, CancellationToken.None);
+
+        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
+
+        Assert.Contains("Project PLATEAU Ortho xyz tiles.", resolved.CreditText, StringComparison.Ordinal);
+        Assert.DoesNotContain("fallback to GSI", resolved.CreditText, StringComparison.Ordinal);
+        Assert.Equal("PLATEAU Open Data Terms + Project PLATEAU Site Policy", resolved.LicenseName);
+        Assert.Equal("https://www.mlit.go.jp/plateau/site-policy/", resolved.LicenseUrl);
+    }
+
+    [Fact]
+    public async Task ResolveDatasetLicenseUsesGsiTermsWhenFallbackTileWasUsed()
+    {
+        using PrimaryFallbackMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureOverlay terrainTextureOverlay = CreateFullCoverageOverlay(
+            "https://primary.example/{z}/{x}/{y}.png",
+            "https://fallback.example/{z}/{x}/{y}.png");
+        ResoniteLicenseComponentMetadata baseLicense = new(
+            RequireCredit: true,
+            CreditText: "base credit",
+            LicenseName: "base license",
+            LicenseUrl: "https://example.invalid/base");
+
+        _ = await generator.EnsureTextureAsync(terrainTextureOverlay, CancellationToken.None);
+
+        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
+
+        Assert.Contains("fallback to GSI seamless photo tiles", resolved.CreditText, StringComparison.Ordinal);
+        Assert.Equal("PLATEAU Open Data Terms + GSI Maps Terms", resolved.LicenseName);
+        Assert.Equal("https://maps.gsi.go.jp/help/termsofuse.html", resolved.LicenseUrl);
+    }
+
+    private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)
+    {
+        return new TerrainTextureOverlay(
+            TexturePath: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+            PackageName: "dem",
+            UrlTemplate: urlTemplate,
+            ZoomLevel: 1,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
+            FallbackUrlTemplate: fallbackUrlTemplate);
+    }
+
     private static void AssertColor(Rgba32 color, byte expectedR, byte expectedG, byte expectedB)
     {
         Assert.Equal(expectedR, color.R);
@@ -324,6 +403,37 @@ public sealed class TerrainTextureAssetGeneratorTests
             if (currentRequest == 1)
             {
                 return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            }
+
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+
+            using Image<Rgba32> image = new(
+                WebMercatorTileMath.TileSizePixels,
+                WebMercatorTileMath.TileSizePixels,
+                FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            };
+        }
+    }
+
+    private sealed class PrimaryFallbackMapTileHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(request.RequestUri?.Host, "primary.example", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
             }
 
             string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');

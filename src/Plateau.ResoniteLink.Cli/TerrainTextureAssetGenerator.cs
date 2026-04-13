@@ -19,6 +19,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, ResoniteRawTextureImport> cachedTextures = new();
+    private int usedTerrainTileCount;
     private int fallbackTileUseCount;
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
@@ -36,6 +37,11 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
     public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
     {
         ArgumentNullException.ThrowIfNull(baseLicense);
+
+        if (Interlocked.CompareExchange(ref usedTerrainTileCount, 0, 0) == 0)
+        {
+            return baseLicense;
+        }
 
         if (Interlocked.CompareExchange(ref fallbackTileUseCount, 0, 0) == 0)
         {
@@ -112,8 +118,19 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         int tileY,
         CancellationToken cancellationToken)
     {
-        return await TryDownloadTileAsync(terrainTextureOverlay.UrlTemplate, tileX, tileY, terrainTextureOverlay.ZoomLevel, cancellationToken)
-            ?? await DownloadFallbackTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
+        Image<Rgba32>? primaryImage = await TryDownloadTileAsync(
+            terrainTextureOverlay.UrlTemplate,
+            tileX,
+            tileY,
+            terrainTextureOverlay.ZoomLevel,
+            cancellationToken);
+        if (primaryImage is not null)
+        {
+            _ = Interlocked.Increment(ref usedTerrainTileCount);
+            return primaryImage;
+        }
+
+        return await DownloadFallbackTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
     }
 
     private async Task<Image<Rgba32>> DownloadFallbackTileAsync(
@@ -140,6 +157,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
                 $"Terrain texture tile download failed for both primary and fallback sources at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
         }
 
+        _ = Interlocked.Increment(ref usedTerrainTileCount);
         _ = Interlocked.Increment(ref fallbackTileUseCount);
         return image;
     }
