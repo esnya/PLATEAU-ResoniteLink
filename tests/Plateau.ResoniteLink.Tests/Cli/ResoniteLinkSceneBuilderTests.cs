@@ -158,16 +158,6 @@ public sealed class ResoniteLinkSceneBuilderTests
                 string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
                 && request.ContainerSlotId != fakeClient.BuildingSlotIds["Building One"])
             .ToArray();
-        Assert.InRange(materialRequests.Length, 2, 3);
-        Assert.Contains(
-            materialRequests,
-            request =>
-            {
-                string slotPath = fakeClient.SlotPaths[request.ContainerSlotId];
-                return slotPath.StartsWith("PLATEAU tokyo23ku/Assets/Common/", StringComparison.Ordinal)
-                    && !string.Equals(slotPath, "PLATEAU tokyo23ku/Assets/Common", StringComparison.Ordinal)
-                    && slotPath.Contains("_uv_", StringComparison.Ordinal);
-            });
         Assert.Contains(
             materialRequests,
             request =>
@@ -184,7 +174,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Building One"], StringComparison.Ordinal))
                 .Select(static request => request.Data));
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        Assert.Equal(2, materials.Elements.Count);
+        Assert.Single(materials.Elements);
 
         Component collider = Assert.Single(
             fakeClient.AddedComponents.Where(request =>
@@ -321,7 +311,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         AddComponent[] materialRequests = fakeClient.AddedComponents
             .Where(request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal))
             .ToArray();
-        Assert.NotEmpty(materialRequests);
+        Assert.Single(materialRequests);
         Assert.DoesNotContain(
             fakeClient.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
@@ -333,7 +323,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 .Select(static request => request.Data));
         Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        Assert.Equal(2, materials.Elements.Count);
+        Assert.Single(materials.Elements);
     }
 
     [Fact]
@@ -418,12 +408,15 @@ public sealed class ResoniteLinkSceneBuilderTests
 
         await RunBuilderAsync(builder, scene);
 
-        Component meshRenderer = Assert.Single(
-            fakeClient.AddedComponents.Where(request =>
-                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
-                    && string.Equals(request.ContainerSlotId, fakeClient.BuildingSlotIds["Mixed Material Building"], StringComparison.Ordinal))
-                .Select(static request => request.Data));
-        Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys);
+        Component[] meshRenderers = fakeClient.AddedComponents.Where(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && fakeClient.SlotPaths.TryGetValue(request.ContainerSlotId, out string? slotPath)
+                && slotPath.Contains("/bldg/LOD2/", StringComparison.Ordinal)
+                && !slotPath.Contains("/Assets/", StringComparison.Ordinal))
+            .Select(static request => request.Data)
+            .ToArray();
+        Assert.NotEmpty(meshRenderers);
+        Assert.All(meshRenderers, static meshRenderer => Assert.DoesNotContain("MaterialPropertyBlocks", meshRenderer.Members.Keys));
         Assert.DoesNotContain(
             fakeClient.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));

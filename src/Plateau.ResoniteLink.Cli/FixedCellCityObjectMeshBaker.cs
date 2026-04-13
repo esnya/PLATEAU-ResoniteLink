@@ -6,7 +6,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Cli;
 
-internal sealed class FixedCellCityObjectMeshBaker
+internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObjectBaker
 {
     internal const double DefaultCellSizeMeters = 128.0;
     internal const int DefaultMaxCityObjectsPerBatch = 64;
@@ -46,6 +46,8 @@ internal sealed class FixedCellCityObjectMeshBaker
         this.maxBufferedCells = maxBufferedCells;
     }
 
+    public string Name => "LOD1MeshBake";
+
     public int BakedInputCityObjectCount { get; private set; }
 
     public int BakedOutputCityObjectCount { get; private set; }
@@ -75,6 +77,14 @@ internal sealed class FixedCellCityObjectMeshBaker
         return true;
     }
 
+    public ValueTask<bool> TryBufferAsync(
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(TryBuffer(cityObject, out _));
+    }
+
     public IReadOnlyList<ResoniteConstructionCityObject> FlushAll()
     {
         if (buffers.Count == 0)
@@ -91,6 +101,13 @@ internal sealed class FixedCellCityObjectMeshBaker
 
         buffers.Clear();
         return bakedCityObjects;
+    }
+
+    public Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(FlushAll());
     }
 
     private static bool CanBake(ResoniteConstructionCityObject cityObject)

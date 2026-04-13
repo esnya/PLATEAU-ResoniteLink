@@ -6,6 +6,7 @@ namespace Plateau.ResoniteLink.Cli;
 internal sealed class ResoniteTextureImportResolver
 {
     private readonly IPlateauDatasetContentSource datasetContentSource;
+    private readonly ResoniteTextureImportRegistry textureImportRegistry;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly TerrainTextureOverlayLookup terrainTextureOverlayLookup;
     private readonly AsyncCompletedResultCache<TextureReferenceKey, ResoniteTextureImport> resolvedTextureCache = new();
@@ -14,12 +15,27 @@ internal sealed class ResoniteTextureImportResolver
         IPlateauDatasetContentSource datasetContentSource,
         IEnumerable<TerrainTextureOverlay> terrainTextureOverlays,
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
+        : this(
+            datasetContentSource,
+            new ResoniteTextureImportRegistry(),
+            terrainTextureOverlays,
+            terrainTextureAssetGenerator)
+    {
+    }
+
+    public ResoniteTextureImportResolver(
+        IPlateauDatasetContentSource datasetContentSource,
+        ResoniteTextureImportRegistry textureImportRegistry,
+        IEnumerable<TerrainTextureOverlay> terrainTextureOverlays,
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
     {
         ArgumentNullException.ThrowIfNull(datasetContentSource);
+        ArgumentNullException.ThrowIfNull(textureImportRegistry);
         ArgumentNullException.ThrowIfNull(terrainTextureOverlays);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
 
         this.datasetContentSource = datasetContentSource;
+        this.textureImportRegistry = textureImportRegistry;
         this.terrainTextureAssetGenerator = terrainTextureAssetGenerator;
         terrainTextureOverlayLookup = new TerrainTextureOverlayLookup(terrainTextureOverlays);
     }
@@ -43,6 +59,11 @@ internal sealed class ResoniteTextureImportResolver
         ResoniteTextureSourceKind textureSourceKind,
         CancellationToken cancellationToken)
     {
+        if (textureImportRegistry.TryGet(texturePath, textureSourceKind, out ResoniteTextureImport? registeredTextureImport))
+        {
+            return registeredTextureImport!;
+        }
+
         if (terrainTextureOverlayLookup.TryGetOverlay(texturePath, out TerrainTextureOverlay? terrainTextureOverlay))
         {
             return await terrainTextureAssetGenerator.EnsureTextureAsync(

@@ -45,6 +45,42 @@ public sealed class ResoniteTextureImportResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncUsesRegisteredGeneratedTextureBeforeDatasetRead()
+    {
+        using TemporaryDirectory datasetRoot = new();
+
+        string relativeTexturePath = "generated/lod2-atlas/53394525/unit_0000.png";
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        ResoniteRawTextureImport generatedImport = new(
+            Width: 2,
+            Height: 2,
+            ColorProfile: ResoniteTextureColorProfiles.Srgb,
+            RawRgba32Bytes: new byte[16],
+            Identity: relativeTexturePath);
+        textureImportRegistry.Register(
+            relativeTexturePath,
+            ResoniteTextureSourceKind.Dataset,
+            generatedImport);
+
+        ResoniteTextureImportResolver resolver = new(
+            datasetContentSource,
+            textureImportRegistry,
+            [],
+            terrainTextureAssetGenerator);
+
+        ResoniteTextureImport resolvedImport = await resolver.ResolveAsync(
+            relativeTexturePath,
+            ResoniteTextureSourceKind.Dataset,
+            CancellationToken.None);
+
+        Assert.Same(generatedImport, resolvedImport);
+        Assert.Equal(0, datasetContentSource.OpenReadCount);
+        Assert.Empty(terrainTextureAssetGenerator.RequestedOverlays);
+    }
+
+    [Fact]
     public async Task ResolveAsyncUsesTerrainOverlayBeforeDatasetMaterialization()
     {
         using TemporaryDirectory workRoot = new();

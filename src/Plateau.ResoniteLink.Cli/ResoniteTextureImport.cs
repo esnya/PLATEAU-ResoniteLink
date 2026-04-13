@@ -70,7 +70,21 @@ internal static class ResoniteTextureImportFactory
         return CreateRawFromImage(image, colorProfile, identity);
     }
 
-    private static ResoniteRawTextureImport CreateRawFromImage(
+    public static ResoniteRawTextureImport CreateRawFromImage(
+        Image<Rgba32> image,
+        string colorProfile = ResoniteTextureColorProfiles.Srgb,
+        string? identity = null)
+    {
+        ArgumentNullException.ThrowIfNull(image);
+        ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
+
+        return CreateRawFromImageCore(
+            image,
+            colorProfile,
+            identity ?? Guid.NewGuid().ToString("N"));
+    }
+
+    private static ResoniteRawTextureImport CreateRawFromImageCore(
         Image<Rgba32> image,
         string colorProfile,
         string identity)

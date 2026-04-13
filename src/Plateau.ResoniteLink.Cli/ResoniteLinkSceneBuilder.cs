@@ -57,7 +57,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private Task[]? processingTasks;
     private CancellationTokenSource? processingCancellationSource;
     private TaskCompletionSource<Exception>? firstProcessingFailureSource;
-    private FixedCellCityObjectMeshBaker? meshBaker;
+    private CompositeCityObjectBaker? cityObjectBaker;
     private int attemptedCityObjectCount;
     private int processedCityObjectCount;
     private int failedCityObjectCount;
@@ -66,6 +66,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private int firstPreparedCityObjectLogged;
     private int firstBuiltCityObjectLogged;
     private IPlateauDatasetContentSource? datasetContentSource;
+    private ResoniteTextureImportRegistry? textureImportRegistry;
     private SceneAnchor? sceneAnchor;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
@@ -221,10 +222,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         ReportProgress("[live] Opening resolved dataset content source for texture imports.");
         datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(localSource.LocalSourcePath!, cancellationToken);
+        textureImportRegistry = new ResoniteTextureImportRegistry();
         textureImportResolver = new ResoniteTextureImportResolver(
             datasetContentSource,
+            textureImportRegistry,
             metadata.SourceDataset.TerrainTextureOverlays,
             terrainTextureAssetGenerator);
+        ResoniteTextureImageLoader textureImageLoader = new(datasetContentSource);
         ReportProgress("[live] Creating dataset root, asset groups, and anchor slots.");
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         IResoniteLinkClient setupClient = clientSession.SetupClient;
@@ -255,7 +259,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
         firstBuiltCityObjectLogged = 0;
-        meshBaker = MeshBakeEnabled ? new FixedCellCityObjectMeshBaker() : null;
+        cityObjectBaker = MeshBakeEnabled
+            ? new CompositeCityObjectBaker(
+                new Lod2AtlasCityObjectBaker(textureImageLoader, textureImportRegistry),
+                new FixedCellCityObjectMeshBaker())
+            : null;
         diagnostics.StartSendWindow(connectionCount);
         processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -439,14 +447,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
 
-        if (meshBaker?.TryBuffer(cityObject, out ResoniteConstructionCityObject? bakedCityObject) == true)
+        if (cityObjectBaker is not null)
         {
-            if (bakedCityObject is null)
+            IReadOnlyList<ResoniteConstructionCityObject> queuedCityObjects = await cityObjectBaker.BufferAsync(
+                cityObject,
+                cancellationToken);
+            if (queuedCityObjects.Count == 0)
             {
                 return;
             }
 
-            cityObject = bakedCityObject;
+            foreach (ResoniteConstructionCityObject queuedCityObject in queuedCityObjects)
+            {
+                await EnqueueCityObjectAsync(queuedCityObject, cancellationToken);
+            }
+
+            return;
         }
 
         await EnqueueCityObjectAsync(cityObject, cancellationToken);
@@ -460,19 +476,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         ObjectDisposedException.ThrowIf(datasetRootSlot is null, this);
 
-        if (meshBaker is not null)
+        if (cityObjectBaker is not null)
         {
-            IReadOnlyList<ResoniteConstructionCityObject> bakedCityObjects = meshBaker.FlushAll();
+            IReadOnlyList<ResoniteConstructionCityObject> bakedCityObjects = await cityObjectBaker.FlushAllAsync(cancellationToken);
             foreach (ResoniteConstructionCityObject bakedCityObject in bakedCityObjects)
             {
                 await EnqueueCityObjectAsync(bakedCityObject, cancellationToken);
             }
 
-            if (meshBaker.BakedOutputCityObjectCount > 0)
+            foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
             {
                 ReportProgress(
-                    $"[live] MeshBake batched {meshBaker.BakedInputCityObjectCount} input city objects "
-                    + $"into {meshBaker.BakedOutputCityObjectCount} baked cell batches.");
+                    $"[live] {name} batched {inputCount} input city objects "
+                    + $"into {outputCount} baked batch objects.");
             }
         }
 
@@ -570,9 +586,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             importedTextureUriCache = null;
             dispatchLaneAllocator = null;
             textureImportResolver = null;
+            textureImportRegistry = null;
             cityObjectChannels = null;
             processingTasks = null;
-            meshBaker = null;
+            cityObjectBaker = null;
             processingCancellationSource?.Dispose();
             processingCancellationSource = null;
             firstProcessingFailureSource = null;
