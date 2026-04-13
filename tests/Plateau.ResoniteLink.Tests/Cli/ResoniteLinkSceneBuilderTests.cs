@@ -888,9 +888,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                         TexturePath: overlayTexturePath,
                         PackageName: "dem",
                         UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
+                        FallbackUrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate,
                         ZoomLevel: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel,
                         GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-                        MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize),
+                        MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
+                        LicenseMode: TerrainTextureLicenseMode.Unknown),
                 ]),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new ResoniteLicenseComponentMetadata(
@@ -4529,6 +4531,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                     "sRGB",
                     rawBytes,
                     terrainTextureOverlay.TexturePath));
+        }
+
+        public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
+        {
+            return baseLicense;
         }
     }
 

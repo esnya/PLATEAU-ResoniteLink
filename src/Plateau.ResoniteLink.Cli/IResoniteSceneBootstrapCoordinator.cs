@@ -8,4 +8,10 @@ internal interface IResoniteSceneBootstrapCoordinator
         IResoniteLinkClient setupClient,
         ResoniteConstructionMetadata metadata,
         CancellationToken cancellationToken);
+
+    Task ApplyDatasetLicenseAsync(
+        IResoniteLinkClient setupClient,
+        string datasetRootSlotId,
+        ResoniteLicenseComponentMetadata license,
+        CancellationToken cancellationToken);
 }

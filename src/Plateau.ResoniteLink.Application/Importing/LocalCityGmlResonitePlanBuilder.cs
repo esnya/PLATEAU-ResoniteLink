@@ -14,8 +14,9 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public static partial class LocalCityGmlResonitePlanBuilder
 {
-    public const string DefaultDemTerrainTexturePath = "terrain://dem/gsi-seamlessphoto";
-    public const string DefaultDemTerrainTextureUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
+    public const string DefaultDemTerrainTexturePath = "terrain://dem/plateau-ortho";
+    public const string DefaultDemTerrainTextureUrlTemplate = "https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png";
+    public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
     public const int DefaultDemTerrainTextureZoomLevel = 18;
     public const int DefaultDemTerrainTextureMaxSize = 4096;
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
@@ -118,10 +119,13 @@ public static partial class LocalCityGmlResonitePlanBuilder
             SharedAcrossMeshCodes: sharedAcrossMeshCodes);
     }
 
-    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(MeshCodeArea demBounds)
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        MeshCodeArea demBounds,
+        IReadOnlyList<string> requestedMeshCodes)
     {
         return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(demBounds));
+            global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(demBounds),
+            requestedMeshCodes);
     }
 
     private static string CreateDemTerrainTexturePath(
@@ -3606,11 +3610,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         GeodeticPoint sharedOrigin = GetCityObjectOrigin(parsedCityObject);
         ParsedSurface[] generatedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => IsGeneratedDemTexturePath(surface.TexturePath))
-            .Select(surface =>
-            {
-                TerrainTextureOverlay overlay = SelectDemTerrainTextureOverlay(surface, demTerrainTextureOverlays);
-                return surface with { TexturePath = overlay.TexturePath };
-            })
             .ToArray();
 
         ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
@@ -3623,8 +3622,24 @@ public static partial class LocalCityGmlResonitePlanBuilder
             yield break;
         }
 
-        IGrouping<string, ParsedSurface>[] groups = generatedSurfaces
-            .GroupBy(static surface => surface.TexturePath!, StringComparer.Ordinal)
+        List<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> splitGeneratedSurfaces = [];
+        foreach (ParsedSurface generatedSurface in generatedSurfaces)
+        {
+            IReadOnlyList<(ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces = DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
+                generatedSurface,
+                demTerrainTextureOverlays);
+            if (clippedSurfaces.Count > 0)
+            {
+                splitGeneratedSurfaces.AddRange(clippedSurfaces);
+                continue;
+            }
+
+            TerrainTextureOverlay overlay = SelectDemTerrainTextureOverlay(generatedSurface, demTerrainTextureOverlays);
+            splitGeneratedSurfaces.Add((generatedSurface with { TexturePath = overlay.TexturePath }, overlay));
+        }
+
+        IGrouping<string, (ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] groups = splitGeneratedSurfaces
+            .GroupBy(static surface => surface.Overlay.TexturePath, StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
 
@@ -3633,10 +3648,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
             yield return (
                 parsedCityObject with
                 {
-                    Surfaces = groups[0].ToArray(),
+                    Surfaces = groups[0].Select(static entry => entry.Surface).ToArray(),
                     OriginOverride = sharedOrigin,
                 },
-                FindOverlay(groups[0].Key, demTerrainTextureOverlays));
+                groups[0].First().Overlay);
             yield break;
         }
 
@@ -3644,7 +3659,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         for (int index = 0; index < groups.Length; index++)
         {
-            IGrouping<string, ParsedSurface> group = groups[index];
+            IGrouping<string, (ParsedSurface Surface, TerrainTextureOverlay Overlay)> group = groups[index];
             yield return (
                 parsedCityObject with
                 {
@@ -3653,10 +3668,10 @@ public static partial class LocalCityGmlResonitePlanBuilder
                     DisplayName = suffixGeneratedObjects
                         ? $"{parsedCityObject.DisplayName} ({index + 1})"
                         : parsedCityObject.DisplayName,
-                    Surfaces = group.ToArray(),
+                    Surfaces = group.Select(static entry => entry.Surface).ToArray(),
                     OriginOverride = sharedOrigin,
                 },
-                FindOverlay(group.Key, demTerrainTextureOverlays));
+                group.First().Overlay);
         }
 
         if (nonGeneratedSurfaces.Length == 0)

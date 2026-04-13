@@ -11,12 +11,15 @@ internal interface ITerrainTextureAssetGenerator
     Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken);
+
+    ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense);
 }
 
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, ResoniteRawTextureImport> cachedTextures = new();
+    private int fallbackTileUseCount;
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -28,6 +31,28 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             terrainTextureOverlay,
             ct => CreateTextureAsync(terrainTextureOverlay, ct),
             cancellationToken);
+    }
+
+    public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
+    {
+        ArgumentNullException.ThrowIfNull(baseLicense);
+
+        if (Interlocked.CompareExchange(ref fallbackTileUseCount, 0, 0) == 0)
+        {
+            return baseLicense with
+            {
+                CreditText = $"{baseLicense.CreditText} DEM terrain imagery used Project PLATEAU Ortho xyz tiles.",
+                LicenseName = "PLATEAU Open Data Terms + Project PLATEAU Site Policy",
+                LicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/",
+            };
+        }
+
+        return baseLicense with
+        {
+            CreditText = $"{baseLicense.CreditText} DEM terrain imagery used Project PLATEAU Ortho xyz tiles with fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage was unavailable.",
+            LicenseName = "PLATEAU Open Data Terms + GSI Maps Terms",
+            LicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html",
+        };
     }
 
     private async Task<ResoniteRawTextureImport> CreateTextureAsync(
@@ -87,19 +112,65 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         int tileY,
         CancellationToken cancellationToken)
     {
-        string tileUrl = WebMercatorTileMath.FormatTileUrl(
-            terrainTextureOverlay.UrlTemplate,
-            terrainTextureOverlay.ZoomLevel,
-            tileX,
-            tileY);
-        using HttpResponseMessage response = await httpClient.GetAsync(
-            tileUrl,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
+        return await TryDownloadTileAsync(terrainTextureOverlay.UrlTemplate, tileX, tileY, terrainTextureOverlay.ZoomLevel, cancellationToken)
+            ?? await DownloadFallbackTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
+    }
 
-        await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        return await Image.LoadAsync<Rgba32>(responseStream, cancellationToken);
+    private async Task<Image<Rgba32>> DownloadFallbackTileAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        int tileX,
+        int tileY,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(terrainTextureOverlay.FallbackUrlTemplate))
+        {
+            throw new HttpRequestException(
+                $"Terrain texture tile download failed for '{terrainTextureOverlay.TexturePath}' at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
+        }
+
+        Image<Rgba32>? image = await TryDownloadTileAsync(
+            terrainTextureOverlay.FallbackUrlTemplate,
+            tileX,
+            tileY,
+            terrainTextureOverlay.ZoomLevel,
+            cancellationToken);
+        if (image is null)
+        {
+            throw new HttpRequestException(
+                $"Terrain texture tile download failed for both primary and fallback sources at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
+        }
+
+        _ = Interlocked.Increment(ref fallbackTileUseCount);
+        return image;
+    }
+
+    private async Task<Image<Rgba32>?> TryDownloadTileAsync(
+        string urlTemplate,
+        int tileX,
+        int tileY,
+        int zoomLevel,
+        CancellationToken cancellationToken)
+    {
+        string tileUrl = WebMercatorTileMath.FormatTileUrl(urlTemplate, zoomLevel, tileX, tileY);
+
+        try
+        {
+            using HttpResponseMessage response = await httpClient.GetAsync(
+                tileUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return await Image.LoadAsync<Rgba32>(responseStream, cancellationToken);
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
     }
 
     private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image, string identity)

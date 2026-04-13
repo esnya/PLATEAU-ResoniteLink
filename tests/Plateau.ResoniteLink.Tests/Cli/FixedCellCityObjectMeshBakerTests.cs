@@ -18,7 +18,9 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(firstBuffered);
         Assert.Null(firstBaked);
         Assert.True(secondBuffered);
-        Assert.NotNull(baked);
+        Assert.Null(baked);
+        ResoniteConstructionCityObject bakedOnFlush = Assert.Single(baker.FlushAll());
+        baked = bakedOnFlush;
         Assert.Equal("bldg", baked.PackageName);
         Assert.Equal(1, baked.LodLevel);
         Assert.Equal(6, baked.Mesh.Vertices.Count);
@@ -45,9 +47,9 @@ public sealed class FixedCellCityObjectMeshBakerTests
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = baker.FlushAll();
 
-        Assert.Equal(2, baked.Count);
-        Assert.Contains(baked, static cityObject => cityObject.Transform.Position == new ResoniteFloat3(10.0, 0.0, 10.0));
-        Assert.Contains(baked, static cityObject => cityObject.Transform.Position == new ResoniteFloat3(80.0, 0.0, 10.0));
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), cityObject.Transform.Position);
+        Assert.Equal(6, cityObject.Mesh.Vertices.Count);
     }
 
     [Fact]
@@ -66,12 +68,11 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(thirdBuffered);
         Assert.Null(firstBaked);
         Assert.Null(secondBaked);
-        Assert.NotNull(flushed);
-        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), flushed.Transform.Position);
-        Assert.Equal("53394525", flushed.ActualMeshCode);
+        Assert.Null(flushed);
 
         IReadOnlyList<ResoniteConstructionCityObject> remainingBatches = baker.FlushAll();
-        Assert.Equal(2, remainingBatches.Count);
+        Assert.Equal(3, remainingBatches.Count);
+        Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394525");
         Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394526");
         Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394527");
     }
@@ -111,16 +112,12 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("first", x: 10.0, z: 10.0, sourceUnitKey: "shared-unit"), out ResoniteConstructionCityObject? firstBaked));
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("second", x: 80.0, z: 10.0, sourceUnitKey: "shared-unit"), out ResoniteConstructionCityObject? secondBaked));
 
-        Assert.NotNull(firstBaked);
-        Assert.NotNull(secondBaked);
-        Assert.Equal("53394525", firstBaked.ActualMeshCode);
-        Assert.Equal("53394525", secondBaked.ActualMeshCode);
-        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), firstBaked.Transform.Position);
-        Assert.Equal(new ResoniteFloat3(80.0, 0.0, 10.0), secondBaked.Transform.Position);
-        Assert.Equal(3, firstBaked.Mesh.Vertices.Count);
-        Assert.Equal(3, secondBaked.Mesh.Vertices.Count);
-
-        Assert.Empty(baker.FlushAll());
+        Assert.Null(firstBaked);
+        Assert.Null(secondBaked);
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+        Assert.Equal("53394525", baked.ActualMeshCode);
+        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), baked.Transform.Position);
+        Assert.Equal(6, baked.Mesh.Vertices.Count);
     }
 
     [Fact]

@@ -19,7 +19,6 @@ internal sealed class FixedCellCityObjectMeshBaker
     private readonly int maxBufferedCells;
     private readonly Dictionary<CellKey, CellBuffer> buffers = [];
     private readonly Dictionary<CellKey, int> flushSequenceByCell = [];
-    private long nextBufferSequence;
 
     public FixedCellCityObjectMeshBaker()
         : this(
@@ -72,18 +71,7 @@ internal sealed class FixedCellCityObjectMeshBaker
 
         buffer.CityObjects.Add(cityObject);
         buffer.VertexCount += cityObject.Mesh.Vertices.Count;
-        buffer.LastTouchedSequence = nextBufferSequence++;
         BakedInputCityObjectCount++;
-
-        if (buffer.CityObjects.Count < maxCityObjectsPerBatch
-            && buffer.VertexCount < maxVerticesPerBatch)
-        {
-            _ = TryFlushOldestBufferExcept(cellKey, out bakedCityObject);
-            return true;
-        }
-
-        buffers.Remove(cellKey);
-        bakedCityObject = BakeCell(cellKey, buffer);
         return true;
     }
 
@@ -113,71 +101,23 @@ internal sealed class FixedCellCityObjectMeshBaker
             && cityObject.Transform.Rotation is null;
     }
 
-    private CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
+    private static CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
     {
         string sourceUnitKey = cityObject.SourceUnitKey ?? cityObject.SourceObjectKey ?? cityObject.SlotKey;
-        if (ShouldBakeAsSingleEightDigitMesh(cityObject))
-        {
-            return new CellKey(
-                cityObject.ActualMeshCode,
-                cityObject.PackageName,
-                cityObject.LodLevel,
-                sourceUnitKey,
-                CellX: 0,
-                CellZ: 0);
-        }
-
-        int cellX = (int)Math.Floor(cityObject.Transform.Position.X / cellSizeMeters);
-        int cellZ = (int)Math.Floor(cityObject.Transform.Position.Z / cellSizeMeters);
         return new CellKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
             sourceUnitKey,
-            cellX,
-            cellZ);
+            CellX: 0,
+            CellZ: 0);
     }
 
-    private static bool ShouldBakeAsSingleEightDigitMesh(ResoniteConstructionCityObject cityObject)
-    {
-        return CanBake(cityObject)
-            && cityObject.ActualMeshCode.Length == 8;
-    }
-
-    private bool TryFlushOldestBufferExcept(
+    private static bool TryFlushOldestBufferExcept(
         CellKey protectedCellKey,
         out ResoniteConstructionCityObject? bakedCityObject)
     {
         bakedCityObject = null;
-        if (buffers.Count <= maxBufferedCells)
-        {
-            return false;
-        }
-
-        KeyValuePair<CellKey, CellBuffer>? candidate = null;
-        foreach ((CellKey cellKey, CellBuffer buffer) in buffers)
-        {
-            if (cellKey == protectedCellKey)
-            {
-                continue;
-            }
-
-            if (candidate is null
-                || buffer.LastTouchedSequence < candidate.Value.Value.LastTouchedSequence
-                || (buffer.LastTouchedSequence == candidate.Value.Value.LastTouchedSequence
-                    && CellKeyComparer.Instance.Compare(cellKey, candidate.Value.Key) < 0))
-            {
-                candidate = new KeyValuePair<CellKey, CellBuffer>(cellKey, buffer);
-            }
-        }
-
-        if (candidate is null)
-        {
-            return false;
-        }
-
-        buffers.Remove(candidate.Value.Key);
-        bakedCityObject = BakeCell(candidate.Value.Key, candidate.Value.Value);
         return true;
     }
 
@@ -298,9 +238,10 @@ internal sealed class FixedCellCityObjectMeshBaker
     private static string CreateBatchDisplayName(CellKey cellKey, int flushSequence)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        string sourceUnitToken = CreateSourceUnitToken(cellKey.SourceUnitKey);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"MeshBake {cellKey.PackageName} LOD{lodToken} {cellKey.CellX},{cellKey.CellZ} #{flushSequence + 1}");
+            $"MeshBake {cellKey.PackageName} LOD{lodToken} {sourceUnitToken} #{flushSequence + 1}");
     }
 
     private static string CreateBatchSourceObjectKey(CellKey cellKey, int flushSequence)

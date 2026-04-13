@@ -76,7 +76,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
 
-        Assert.Equal(3, demCityObjects.Length);
+        Assert.Equal(2, demCityObjects.Length);
 
         const string explicitTexturePath = "udx/dem/53394525/appearance/mixed_surface.png";
 
@@ -88,7 +88,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
                     && material.TexturePath.StartsWith(
                         LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
                         StringComparison.Ordinal)));
-        Assert.Equal(2, generatedChunkCount);
+        Assert.Equal(1, generatedChunkCount);
 
         int explicitChunkCount = demCityObjects
             .Count(cityObject => cityObject.Materials.Any(material => string.Equals(

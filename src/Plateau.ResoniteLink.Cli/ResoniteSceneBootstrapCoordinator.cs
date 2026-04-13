@@ -54,12 +54,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             null,
             null,
             cancellationToken);
-        _ = await createComponentAsync(
-            setupClient,
-            datasetRootSlot.SlotId,
-            "[FrooxEngine]FrooxEngine.License",
-            CreateDatasetLicenseMembers(metadata.Attribution.DatasetLicense),
-            cancellationToken);
         SceneAnchor sceneAnchor = datasetRootExisted
             ? await sceneAnchorResolver.ResolveAsync(
                 setupClient,
@@ -79,6 +73,24 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             commonAssetsRootSlot,
             datasetRootExisted,
             sceneAnchor);
+    }
+
+    public async Task ApplyDatasetLicenseAsync(
+        IResoniteLinkClient setupClient,
+        string datasetRootSlotId,
+        ResoniteLicenseComponentMetadata license,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(setupClient);
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRootSlotId);
+        ArgumentNullException.ThrowIfNull(license);
+
+        _ = await createComponentAsync(
+            setupClient,
+            datasetRootSlotId,
+            "[FrooxEngine]FrooxEngine.License",
+            CreateDatasetLicenseMembers(license),
+            cancellationToken);
     }
 
     private async Task<SceneAnchor> CreateInitialSceneAnchorAsync(

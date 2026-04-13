@@ -59,11 +59,36 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             WestLongitude: 139.0,
             EastLongitude: 139.0001);
 
-        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(demBounds);
+        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            demBounds,
+            ["53394525"]);
 
         Assert.Single(result);
         Assert.Equal("dem", result[0].PackageName);
         Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, result[0].TexturePath);
+    }
+
+    [Fact]
+    public void CreateDemTerrainTextureOverlaysDeduplicatesExpandedThirdMeshCodes()
+    {
+        DemTerrainBounds demBounds = new(
+            SouthLatitude: 36.225,
+            NorthLatitude: 36.2333334,
+            WestLongitude: 137.9666666,
+            EastLongitude: 137.9791667);
+
+        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            demBounds,
+            ["543727", "54372778"]);
+
+        Assert.Equal(4, result.Length);
+        Assert.Equal(
+            1,
+            result.Count(static overlay =>
+                string.Equals(
+                    overlay.TexturePath,
+                    $"{LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath}/54372778",
+                    StringComparison.Ordinal)));
     }
 
     private static BootstrapParsedCityObject CreateCityObject()

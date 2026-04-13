@@ -286,6 +286,11 @@ public sealed class ResoniteTextureImportResolverTests
                     [0, 0, 0, byte.MaxValue],
                     terrainTextureOverlay.TexturePath));
         }
+
+        public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
+        {
+            return baseLicense;
+        }
     }
 
     private sealed class DelayedDatasetContentSource : IPlateauDatasetContentSource

@@ -456,6 +456,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
+        ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
+        ObjectDisposedException.ThrowIf(datasetRootSlot is null, this);
 
         if (meshBaker is not null)
         {
@@ -472,6 +475,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     + $"into {meshBaker.BakedOutputCityObjectCount} baked cell batches.");
             }
         }
+
+        await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
+            clientSession.SetupClient,
+            datasetRootSlot.Value.SlotId,
+            terrainTextureAssetGenerator.ResolveDatasetLicense(metadata.Attribution.DatasetLicense),
+            cancellationToken);
 
         ReportProgress("[live] Completing live send. Closing lane writers.");
         foreach (Channel<QueuedCityObject> channel in cityObjectChannels)

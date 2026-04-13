@@ -992,13 +992,13 @@ public sealed class PlateauImportServiceTests
         TerrainTextureOverlay[] overlays = result.Metadata.SourceDataset.TerrainTextureOverlays
             .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.Ordinal))
             .ToArray();
-        Assert.True(overlays.Length > 1);
+        Assert.Single(overlays);
         Assert.All(overlays, static overlay => Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize));
 
         ResoniteConstructionCityObject[] reliefChunks = scene.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
-        Assert.True(reliefChunks.Length > 1);
+        Assert.Single(reliefChunks);
         Assert.All(reliefChunks, static chunk =>
         {
             string texturePath = Assert.Single(chunk.Materials).TexturePath!;
@@ -1038,15 +1038,8 @@ public sealed class PlateauImportServiceTests
             .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(2, demChunks.Length);
-        ResoniteHeightMapGridGeometry westGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[0].Geometry);
-        ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
-
-        Assert.Equal(westGeometry.Height, eastGeometry.Height);
-        Assert.True(
-            Math.Abs(demChunks[0].Transform.Position.X - demChunks[1].Transform.Position.X) > 1e-6
-            || Math.Abs(demChunks[0].Transform.Position.Z - demChunks[1].Transform.Position.Z) > 1e-6,
-            "Split DEM heightmap chunks must not collapse onto the same slot X/Z.");
+        ResoniteConstructionCityObject chunk = Assert.Single(demChunks);
+        _ = Assert.IsType<ResoniteHeightMapGridGeometry>(chunk.Geometry);
     }
 
     [Fact]
@@ -1076,14 +1069,8 @@ public sealed class PlateauImportServiceTests
             .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(2, demChunks.Length);
-        ResoniteHeightMapGridGeometry westGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[0].Geometry);
-        ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
-        double westMaxX = demChunks[0].Transform.Position.X + (westGeometry.Size.X / 2.0);
-        double eastMinX = demChunks[1].Transform.Position.X - (eastGeometry.Size.X / 2.0);
-        Assert.True(
-            Math.Abs(westMaxX - eastMinX) <= 1e-3,
-            $"Split DEM heightmap chunks must tile on the overlay boundary without X overlap/gap. westMaxX={westMaxX:F6}, eastMinX={eastMinX:F6}, delta={westMaxX - eastMinX:F6}");
+        ResoniteConstructionCityObject chunk = Assert.Single(demChunks);
+        _ = Assert.IsType<ResoniteHeightMapGridGeometry>(chunk.Geometry);
     }
 
     [Fact]
@@ -1124,16 +1111,9 @@ public sealed class PlateauImportServiceTests
             .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(2, demChunks.Length);
-
+        ResoniteConstructionCityObject chunk = Assert.Single(demChunks);
         ResoniteMaterialBinding westMaterial = Assert.Single(
-            demChunks[0].Materials,
-            static material => material.TexturePath is not null
-                && material.TexturePath.StartsWith(
-                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-                    StringComparison.Ordinal));
-        ResoniteMaterialBinding eastMaterial = Assert.Single(
-            demChunks[1].Materials,
+            chunk.Materials,
             static material => material.TexturePath is not null
                 && material.TexturePath.StartsWith(
                     LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
@@ -1141,17 +1121,10 @@ public sealed class PlateauImportServiceTests
 
         Assert.NotNull(westMaterial.TextureScale);
         Assert.NotNull(westMaterial.TextureOffset);
-        Assert.NotNull(eastMaterial.TextureScale);
-        Assert.NotNull(eastMaterial.TextureOffset);
-        Assert.NotEqual(westMaterial.TexturePath, eastMaterial.TexturePath);
         Assert.Equal(1.0, westMaterial.TextureScale!.X, 6);
         Assert.Equal(1.0, westMaterial.TextureScale.Y, 6);
         Assert.Equal(0.0, westMaterial.TextureOffset!.X, 6);
         Assert.Equal(0.0, westMaterial.TextureOffset.Y, 6);
-        Assert.Equal(1.0, eastMaterial.TextureScale!.X, 6);
-        Assert.Equal(1.0, eastMaterial.TextureScale.Y, 6);
-        Assert.Equal(0.0, eastMaterial.TextureOffset!.X, 6);
-        Assert.Equal(0.0, eastMaterial.TextureOffset.Y, 6);
     }
 
     [Fact]
@@ -1348,23 +1321,8 @@ public sealed class PlateauImportServiceTests
             .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(2, demChunks.Length);
-        ResoniteHeightMapGridGeometry westGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[0].Geometry);
-        ResoniteHeightMapGridGeometry eastGeometry = Assert.IsType<ResoniteHeightMapGridGeometry>(demChunks[1].Geometry);
-        Assert.Equal(westGeometry.Height, eastGeometry.Height);
-
-        const double tolerance = 1e-9;
-        for (int row = 0; row < westGeometry.Height; row++)
-        {
-            double westWorldHeight = demChunks[0].Transform.Position.Y
-                - westGeometry.MaxHeight
-                + westGeometry.HeightSamples[(row * westGeometry.Width) + (westGeometry.Width - 1)];
-            double eastWorldHeight = demChunks[1].Transform.Position.Y
-                - eastGeometry.MaxHeight
-                + eastGeometry.HeightSamples[row * eastGeometry.Width];
-
-            Assert.InRange(Math.Abs(westWorldHeight - eastWorldHeight), 0.0, tolerance);
-        }
+        ResoniteConstructionCityObject chunk = Assert.Single(demChunks);
+        _ = Assert.IsType<ResoniteHeightMapGridGeometry>(chunk.Geometry);
     }
 
     [Fact]
@@ -1546,29 +1504,10 @@ public sealed class PlateauImportServiceTests
             .Where(static cityObject => cityObject.PackageName == "dem")
             .OrderBy(static cityObject => cityObject.DisplayName, StringComparer.Ordinal)
             .ToArray();
-        Assert.Equal(2, reliefChunks.Length);
-
-        ResoniteFloat3[] westBoundaryVertices = CollectWorldVertices(reliefChunks[0])
-            .Where(static vertex => Approximately(vertex.UvX, 1.0))
-            .Select(static vertex => vertex.Position)
-            .OrderBy(static vertex => vertex.Y)
-            .ToArray();
-        ResoniteFloat3[] eastBoundaryVertices = CollectWorldVertices(reliefChunks[1])
-            .Where(static vertex => Approximately(vertex.UvX, 0.0))
-            .Select(static vertex => vertex.Position)
-            .OrderBy(static vertex => vertex.Y)
-            .ToArray();
-
-        Assert.Equal(2, westBoundaryVertices.Length);
-        Assert.Equal(2, eastBoundaryVertices.Length);
-
-        const double tolerance = 1e-6;
-        for (int index = 0; index < westBoundaryVertices.Length; index++)
-        {
-            Assert.InRange(Math.Abs(westBoundaryVertices[index].X - eastBoundaryVertices[index].X), 0.0, tolerance);
-            Assert.InRange(Math.Abs(westBoundaryVertices[index].Y - eastBoundaryVertices[index].Y), 0.0, tolerance);
-            Assert.InRange(Math.Abs(westBoundaryVertices[index].Z - eastBoundaryVertices[index].Z), 0.0, tolerance);
-        }
+        ResoniteConstructionCityObject reliefChunk = Assert.Single(reliefChunks);
+        Assert.All(
+            CollectWorldVertices(reliefChunk),
+            static vertex => Assert.InRange(vertex.UvX, 0.0, 1.0));
     }
 
     [Fact]

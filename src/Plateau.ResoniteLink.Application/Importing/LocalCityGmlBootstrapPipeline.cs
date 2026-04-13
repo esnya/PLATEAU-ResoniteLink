@@ -145,7 +145,7 @@ internal static class LocalCityGmlBootstrapPipeline
             ? LocalCityGmlResonitePlanBuilder.ResolveDemTerrainBounds(demParsedSourceFiles, effectiveRequestedMeshArea)
             : null;
         TerrainTextureOverlay[] terrainTextureOverlays = demTerrainBounds is not null && demPipelines.Count > 0
-            ? LocalCityGmlResonitePlanBuilder.CreateDemTerrainTextureOverlays(demTerrainBounds)
+            ? LocalCityGmlResonitePlanBuilder.CreateDemTerrainTextureOverlays(demTerrainBounds, discoveryResult.RequestedMeshCodes)
             : [];
 
         LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler =
