@@ -4,6 +4,9 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal static class DemTerrainOverlayAssignment
 {
+    private const double BoundarySliverMaxThicknessMeters = 0.10;
+    private const double BoundarySliverMaxAreaRatio = 0.01;
+
     public static IEnumerable<(LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
         LocalCityGmlResonitePlanBuilder.ParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
@@ -39,6 +42,12 @@ internal static class DemTerrainOverlayAssignment
                     demTerrainTextureOverlays);
             if (clippedSurfaces.Count > 0)
             {
+                if (TryCollapseBoundarySliverSplit(generatedSurface, clippedSurfaces, out (LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay) collapsedSurface))
+                {
+                    splitGeneratedSurfaces.Add(collapsedSurface);
+                    continue;
+                }
+
                 splitGeneratedSurfaces.AddRange(clippedSurfaces);
                 continue;
             }
@@ -231,4 +240,108 @@ internal static class DemTerrainOverlayAssignment
         return !string.IsNullOrWhiteSpace(texturePath)
             && texturePath.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, StringComparison.Ordinal);
     }
+
+    private static bool TryCollapseBoundarySliverSplit(
+        LocalCityGmlResonitePlanBuilder.ParsedSurface sourceSurface,
+        IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces,
+        out (LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay) collapsedSurface)
+    {
+        collapsedSurface = default;
+        if (clippedSurfaces.Count <= 1)
+        {
+            return false;
+        }
+
+        SurfaceMetrics[] metrics = clippedSurfaces
+            .Select(static entry => ComputeSurfaceMetrics(entry.Surface))
+            .ToArray();
+        double totalArea = metrics.Sum(static metric => metric.AreaSquareMeters);
+        if (totalArea <= 1e-9)
+        {
+            return false;
+        }
+
+        int dominantIndex = 0;
+        for (int index = 1; index < metrics.Length; index++)
+        {
+            if (metrics[index].AreaSquareMeters > metrics[dominantIndex].AreaSquareMeters)
+            {
+                dominantIndex = index;
+            }
+        }
+
+        bool hasBoundarySliver = false;
+        for (int index = 0; index < metrics.Length; index++)
+        {
+            if (index == dominantIndex)
+            {
+                continue;
+            }
+
+            double areaRatio = metrics[index].AreaSquareMeters / totalArea;
+            if (areaRatio > BoundarySliverMaxAreaRatio
+                || metrics[index].EstimatedThicknessMeters > BoundarySliverMaxThicknessMeters)
+            {
+                return false;
+            }
+
+            hasBoundarySliver = true;
+        }
+
+        if (!hasBoundarySliver)
+        {
+            return false;
+        }
+
+        TerrainTextureOverlay dominantOverlay = clippedSurfaces[dominantIndex].Overlay;
+        collapsedSurface = (sourceSurface with { TexturePath = dominantOverlay.TexturePath }, dominantOverlay);
+        return true;
+    }
+
+    private static SurfaceMetrics ComputeSurfaceMetrics(LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
+    {
+        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        if (vertices.Length < 3)
+        {
+            return new SurfaceMetrics(0.0, 0.0);
+        }
+
+        double referenceLatitude = vertices.Average(static point => point.Latitude) * (Math.PI / 180.0);
+        double referenceLongitude = vertices.Average(static point => point.Longitude);
+        double metersPerLatitudeDegree = 111_320.0;
+        double metersPerLongitudeDegree = metersPerLatitudeDegree * Math.Cos(referenceLatitude);
+
+        ProjectedPoint[] projected = vertices
+            .Select(point => new ProjectedPoint(
+                (point.Longitude - referenceLongitude) * metersPerLongitudeDegree,
+                (point.Latitude - vertices[0].Latitude) * metersPerLatitudeDegree))
+            .ToArray();
+
+        double signedArea = 0.0;
+        double maxDistance = 0.0;
+        for (int index = 0; index < projected.Length; index++)
+        {
+            ProjectedPoint current = projected[index];
+            ProjectedPoint next = projected[(index + 1) % projected.Length];
+            signedArea += (current.X * next.Y) - (next.X * current.Y);
+            maxDistance = Math.Max(maxDistance, Distance(current, next));
+        }
+
+        double areaSquareMeters = Math.Abs(signedArea) * 0.5;
+        double estimatedThicknessMeters = maxDistance <= 1e-9
+            ? 0.0
+            : (2.0 * areaSquareMeters) / maxDistance;
+        return new SurfaceMetrics(areaSquareMeters, estimatedThicknessMeters);
+    }
+
+    private static double Distance(ProjectedPoint left, ProjectedPoint right)
+    {
+        double deltaX = right.X - left.X;
+        double deltaY = right.Y - left.Y;
+        return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+    }
+
+    private readonly record struct ProjectedPoint(double X, double Y);
+
+    private readonly record struct SurfaceMetrics(double AreaSquareMeters, double EstimatedThicknessMeters);
 }
