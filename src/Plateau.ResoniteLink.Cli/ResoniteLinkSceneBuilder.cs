@@ -27,6 +27,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const string HeightMapAssetSlotSuffix = "_heightmap";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
+    private const string CityGmlSlotDuplicateSuffixFormat = "{0:D4}";
     private static readonly TimeSpan DatasetRootLookupRetryDelay = TimeSpan.Zero;
     private static readonly TimeSpan SlowCityObjectOperationWarningThreshold = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan SlowRunDataModelBatchThreshold = TimeSpan.FromSeconds(10);
@@ -42,7 +43,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private readonly Action<string>? progressReporter;
     private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> canonicalParentScopeCache = new();
+    private readonly AsyncCompletedResultCache<string, string> cityGmlSlotNameCache = new();
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Task> commonMaterialFamilyWarmupTasks = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, Task<CreatedMaterialAsset>> commonMaterialCreationTasks = new(StringComparer.Ordinal);
 #pragma warning disable CA1859
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 #pragma warning restore CA1859
@@ -165,7 +169,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         sceneAnchorResolver = new ResoniteSceneAnchorResolver();
         sceneBootstrapCoordinator = new ResoniteSceneBootstrapCoordinator(
             GetOrCreateDatasetRootAsync,
-            GetOrCreateStartupChildSlotAsync,
+            GetOrCreateSharedChildSlotAsync,
             CreateComponentAsync,
             UpdateComponentAsync,
             sceneAnchorResolver);
@@ -284,24 +288,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 + $"common_root={commonAssetsRootSlot.Value.SlotName}, "
                 + $"dataset_root_existed={bootstrapState.DatasetRootExisted}, "
                 + $"anchor_mesh='{bootstrapState.SceneAnchor.MeshCode}')."));
-        Stopwatch startupWarmupStopwatch = Stopwatch.StartNew();
-        int datasetAssetsWarmupCount = await WarmupStartupChildSlotsAsync(
-            setupClient,
-            datasetAssetsRootSlot.Value,
-            "dataset assets",
-            cancellationToken);
-        int commonWarmupCount = await WarmupStartupChildSlotsAsync(
-            setupClient,
-            commonAssetsRootSlot.Value,
-            "common assets",
-            cancellationToken);
-        startupWarmupStopwatch.Stop();
-        ReportProgress(
-            PlateauLog.Info(
-                "live",
-                $"Startup slot warmup complete in {startupWarmupStopwatch.Elapsed.TotalSeconds:F2}s "
-                + $"(cached dataset assets children={datasetAssetsWarmupCount}, "
-                + $"cached common materials children={commonWarmupCount})."));
         ReportProgress(
             PlateauLog.Info(
                 "live",
@@ -345,6 +331,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstCityObjectStreamingStartedLogged = 0;
         firstCityObjectDequeuedLogged = 0;
         firstCommonMaterialPrepLogged = 0;
+        commonMaterialFamilyWarmupTasks.Clear();
+        commonMaterialCreationTasks.Clear();
         cityGmlSlotNamesByRelativePath = CreateCityGmlSlotNamesByRelativePath(metadata.SourceDataset.SourceFiles);
         cityObjectBaker = MeshBakeEnabled
             ? new CompositeCityObjectBaker(
@@ -376,55 +364,141 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 
-    public async Task PrepareCommonMaterialAsync(
-        ResoniteMaterialBinding material,
+    public Task StartCommonMaterialWarmupAsync(
+        IReadOnlyList<ResoniteMaterialBinding> materials,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(materials);
 
-        if (material.AssetScope != ResoniteMaterialAssetScope.Common)
+        if (materials.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
-
-        material = NormalizeCommonMaterialBinding(material);
 
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
+
+        Dictionary<string, ResoniteMaterialBinding> canonicalMaterialsByKey = [];
+        foreach (ResoniteMaterialBinding material in materials)
+        {
+            if (material.AssetScope != ResoniteMaterialAssetScope.Common)
+            {
+                continue;
+            }
+
+            ResoniteMaterialBinding normalizedMaterial = NormalizeCommonMaterialBinding(material);
+            if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
+            {
+                continue;
+            }
+
+            string materialKey = CreateCanonicalCommonMaterialKey(
+                normalizedMaterial.Family!,
+                normalizedMaterial.TexturePath!,
+                normalizedMaterial.Projection);
+            canonicalMaterialsByKey.TryAdd(materialKey, normalizedMaterial);
+        }
+
+        if (canonicalMaterialsByKey.Count == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        IResoniteLinkClient setupClient = clientSession.SetupClient;
         string commonAssetsSlotId = commonAssetsRootSlot.Value.SlotId;
-        string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: true);
-        int commonMaterialProgress = Interlocked.Increment(ref firstCommonMaterialPrepLogged);
-        if (commonMaterialProgress == 1)
+        int commonMaterialProgress = firstCommonMaterialPrepLogged;
+        if (commonMaterialProgress == 0)
         {
-            ReportProgress(
-                $"[live] Common material warmup started for '{commonAssetsRootSlot.Value.SlotName}'.");
+            ReportProgress($"[live] Common material warmup started for '{commonAssetsRootSlot.Value.SlotName}'.");
         }
 
-        if (commonMaterialProgress % 25 == 1)
+        Dictionary<string, IReadOnlyList<ResoniteMaterialBinding>> materialsByFamily = canonicalMaterialsByKey
+            .Values
+            .GroupBy(
+                static material => material.Family ?? BundledDefaultMaterialFamilies.Other,
+                StringComparer.Ordinal)
+            .ToDictionary(
+                static group => group.Key,
+                static group => (IReadOnlyList<ResoniteMaterialBinding>)[.. group.OrderBy(static material => material.MaterialKey)],
+                StringComparer.Ordinal);
+
+        foreach ((string family, IReadOnlyList<ResoniteMaterialBinding> sortedFamilyMaterials) in materialsByFamily
+            .OrderBy(static entry => entry.Key, StringComparer.Ordinal))
         {
-            ReportProgress(
-                $"[live] Common material '{materialSlotName}' prep started (count={commonMaterialProgress}).");
+            Task priorFamilyTask = Task.CompletedTask;
+            foreach (ResoniteMaterialBinding material in sortedFamilyMaterials)
+            {
+                string canonicalKey = CreateCanonicalCommonMaterialKey(
+                    material.Family ?? BundledDefaultMaterialFamilies.Other,
+                    material.TexturePath!,
+                    material.Projection);
+                Task<CreatedMaterialAsset> materialTask = CreateOrStartCommonMaterialWarmupTask(
+                    setupClient,
+                    commonAssetsSlotId,
+                    material,
+                    priorFamilyTask,
+                    cancellationToken);
+                Task<CreatedMaterialAsset> existingMaterialTask = commonMaterialCreationTasks.GetOrAdd(canonicalKey, materialTask);
+                if (existingMaterialTask != materialTask)
+                {
+                    materialTask = existingMaterialTask;
+                }
+
+                Interlocked.Increment(ref commonMaterialProgress);
+                if (commonMaterialProgress % 25 == 1)
+                {
+                    ReportProgress($"[live] Common material '{CreateMaterialSlotName(material, useCommonMaterialAssets: true)}' prep started (count={commonMaterialProgress}).");
+                }
+
+                priorFamilyTask = materialTask;
+            }
+            _ = commonMaterialFamilyWarmupTasks.GetOrAdd(family, _ => priorFamilyTask);
         }
 
+        return Task.CompletedTask;
+    }
+
+    private Task<CreatedMaterialAsset> CreateOrStartCommonMaterialWarmupTask(
+        IResoniteLinkClient setupClient,
+        string commonAssetsSlotId,
+        ResoniteMaterialBinding material,
+        Task priorFamilyTask,
+        CancellationToken cancellationToken)
+    {
+        return CreateOrStartCommonMaterialWarmupTaskCore(setupClient, commonAssetsSlotId, material, priorFamilyTask, cancellationToken);
+    }
+
+    private async Task<CreatedMaterialAsset> CreateOrStartCommonMaterialWarmupTaskCore(
+        IResoniteLinkClient setupClient,
+        string commonAssetsSlotId,
+        ResoniteMaterialBinding material,
+        Task priorFamilyTask,
+        CancellationToken cancellationToken)
+    {
+        await priorFamilyTask.ConfigureAwait(false);
+        ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
         Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
-        await materialAssetManager.CreateMaterialComponentAsync(
-            clientSession.SetupClient,
+        CreatedMaterialAsset asset = await materialAssetManager.CreateMaterialComponentAsync(
+            setupClient,
             material,
             preparedTexturePathsByKey: new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
             materialSlotId: commonAssetsSlotId,
             materialSlotParentId: commonAssetsSlotId,
-            materialSlotName: materialSlotName,
+            materialSlotName: CreateMaterialSlotName(material, useCommonMaterialAssets: true),
             rendererSlotId: commonAssetsSlotId,
             textureOverrideAssetSlotId: commonAssetsSlotId,
             cancellationToken);
         commonMaterialStopwatch.Stop();
-        if (commonMaterialProgress == 1 || commonMaterialProgress % 25 == 0)
+        int completedCount = Interlocked.Increment(ref firstCommonMaterialPrepLogged);
+        if (completedCount == 1 || completedCount % 25 == 0)
         {
             ReportProgress(
-                $"[live] Common material '{materialSlotName}' prepared in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s "
-                + $"(count={commonMaterialProgress}).");
+                $"[live] Common material '{CreateMaterialSlotName(material, useCommonMaterialAssets: true)}' prepared in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s "
+                + $"(count={completedCount}).");
         }
+
+        return asset;
     }
 
     private async Task<(CreatedSlot Slot, bool Existed)> GetOrCreateDatasetRootAsync(
@@ -788,6 +862,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObjectMemoryGate = null;
             cityObjectChannel = null;
             processingTasks = null;
+            commonMaterialFamilyWarmupTasks.Clear();
+            commonMaterialCreationTasks.Clear();
             cityObjectBaker = null;
             processingCancellationSource?.Dispose();
             processingCancellationSource = null;
@@ -1596,51 +1672,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
     }
 
-    private async Task<int> WarmupStartupChildSlotsAsync(
-        IResoniteLinkClient setupClient,
-        CreatedSlot parentSlot,
-        string parentName,
-        CancellationToken cancellationToken)
-    {
-        ReportProgress($"[live] Loading cached children under '{parentName}' ({parentSlot.SlotName}) before runtime create-only path.");
-        ResoniteSceneSlotSnapshot startupSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
-            setupClient,
-            parentSlot.SlotId,
-            1,
-            cancellationToken);
-        if (startupSnapshot.Root?.Children is null)
-        {
-            ReportProgress($"[live] No cached children found under '{parentName}' ({parentSlot.SlotName}).");
-            return 0;
-        }
-
-        int cachedChildren = 0;
-
-        foreach (string childName in startupSnapshot.Root.Children
-            .Select(static child => child.Name?.Value)
-            .Where(static childName => !string.IsNullOrWhiteSpace(childName))
-            .Select(static childName => childName!))
-        {
-            CreatedSlot? existingChild = TryFindUniqueMatchingChildSlot(
-                startupSnapshot.Root,
-                childName,
-                static _ => true,
-                parentSlot.SlotId);
-            if (existingChild is null)
-            {
-                continue;
-            }
-
-            sharedSlotCache.Remember((parentSlot.SlotId, childName), existingChild.Value);
-            cachedChildren++;
-        }
-
-        ReportProgress(
-            $"[live] Cached {cachedChildren} existing child slots under '{parentName}' ({parentSlot.SlotName}).");
-        return cachedChildren;
-    }
-
-
     private async Task<(IReadOnlyList<MaterialReferenceTarget> MaterialTargets, IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> DedicatedMaterialPreparationTasks)> PrepareMaterialTargetsAsync(
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
@@ -1658,6 +1689,25 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
             if (material.AssetScope == ResoniteMaterialAssetScope.Common)
             {
+                material = NormalizeCommonMaterialBinding(material);
+                if (material.AssetScope == ResoniteMaterialAssetScope.Common)
+                {
+                    string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
+                    if (commonMaterialFamilyWarmupTasks.TryGetValue(family, out Task? familyWarmupTask))
+                    {
+                        await familyWarmupTask.WaitAsync(cancellationToken);
+                    }
+
+                    string materialKey = CreateCanonicalCommonMaterialKey(
+                        material.Family ?? BundledDefaultMaterialFamilies.Other,
+                        material.TexturePath!,
+                        material.Projection);
+                    if (commonMaterialCreationTasks.TryGetValue(materialKey, out Task<CreatedMaterialAsset>? materialCreationTask))
+                    {
+                        _ = await materialCreationTask.WaitAsync(cancellationToken);
+                    }
+                }
+
                 CreatedMaterialAsset materialAsset = await CreateMaterialComponentAsync(
                     importClient,
                     material,
@@ -1744,6 +1794,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return material;
         }
 
+        if (!IsBundledCommonMaterialCandidate(material))
+        {
+            return material with { AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped };
+        }
+
         string canonicalTexturePath = material.TexturePath
             ?? throw new InvalidOperationException("Common materials must provide a bundled texture path.");
         string canonicalFamily = string.IsNullOrWhiteSpace(material.Family)
@@ -1763,6 +1818,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             TextureOffset = null,
             DepthOffset = null,
         };
+    }
+
+    private static bool IsBundledCommonMaterialCandidate(ResoniteMaterialBinding material)
+    {
+        return material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && !string.IsNullOrWhiteSpace(material.TexturePath)
+            && material.TexturePath.StartsWith("default-materials/", StringComparison.Ordinal);
     }
 
     private static string CreateCanonicalCommonMaterialKey(
@@ -2463,36 +2525,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 ct),
             cancellationToken);
         return createdSlot;
-    }
-
-    private async Task<CreatedSlot> GetOrCreateStartupChildSlotAsync(
-        IResoniteLinkClient client,
-        CreatedSlot parent,
-        string slotName,
-        ResoniteFloat3? position,
-        ResoniteFloatQ? rotation,
-        CancellationToken cancellationToken)
-    {
-        CreatedSlot? existingChild = await TryGetUniqueChildSlotByNameWithRetryAsync(
-            client,
-            parent.SlotId,
-            slotName,
-            DatasetRootLookupAttemptLimit,
-            DatasetRootLookupRetryDelay,
-            cancellationToken);
-        if (existingChild is not null)
-        {
-            sharedSlotCache.Remember((parent.SlotId, slotName), existingChild.Value);
-            return existingChild.Value;
-        }
-
-        return await GetOrCreateSharedChildSlotAsync(
-            client,
-            parent,
-            slotName,
-            position,
-            rotation,
-            cancellationToken);
     }
 
     private async Task<CreatedSlot> GetOrCreateSharedChildSlotCoreAsync(

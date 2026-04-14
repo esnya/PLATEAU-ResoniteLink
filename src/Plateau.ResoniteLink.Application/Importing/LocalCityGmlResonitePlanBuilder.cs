@@ -3,12 +3,12 @@ using System.Xml.Linq;
 
 using GeographicLib;
 
-using LocalCartesian = GeographicLib.LocalCartesian;
-using Geocentric = GeographicLib.Geocentric;
-
 using LibTessDotNet;
 
 using Plateau.ResoniteLink.Domain.Importing;
+
+using Geocentric = GeographicLib.Geocentric;
+using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
@@ -1248,7 +1248,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 new ResolvedMaterial(
                     ResoniteMaterialType.Standard,
                     surface.TexturePath,
-                    ResoniteTextureSourceKind.Bundled,
+                    ResoniteTextureSourceKind.Dataset,
                     ResoniteMaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,

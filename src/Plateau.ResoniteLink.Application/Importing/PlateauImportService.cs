@@ -57,20 +57,17 @@ public sealed class PlateauImportService(
             await sceneBuilder.BeginAsync(source.Metadata, datasetWorkRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
-            Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
             IReadOnlyList<ResoniteMaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(
                 source.Metadata.SourceDataset.PackageNames);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
                     $"Starting common material setup ({commonMaterials.Count} materials)."));
-            await WarmCommonMaterialsAsync(commonMaterials, cancellationToken);
-            commonMaterialStopwatch.Stop();
+            await sceneBuilder.StartCommonMaterialWarmupAsync(commonMaterials, cancellationToken);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
-                    $"Common material setup completed in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s "
-                    + $"({commonMaterials.Count} materials)."));
+                    $"Common material warmup kickoff completed ({commonMaterials.Count} materials)."));
             ReportProgress(PlateauLog.Info("import", "Starting city object streaming."));
 
             bool processedAnyCityObject = false;
@@ -115,16 +112,5 @@ public sealed class PlateauImportService(
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
-    }
-
-    private async Task WarmCommonMaterialsAsync(
-        IReadOnlyList<ResoniteMaterialBinding> materials,
-        CancellationToken cancellationToken)
-    {
-        foreach (ResoniteMaterialBinding material in materials)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await sceneBuilder.PrepareCommonMaterialAsync(material, cancellationToken);
-        }
     }
 }

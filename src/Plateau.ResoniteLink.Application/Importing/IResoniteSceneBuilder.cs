@@ -18,8 +18,8 @@ public interface IResoniteSceneBuilder : IAsyncDisposable
         string workRoot,
         CancellationToken cancellationToken = default);
 
-    Task PrepareCommonMaterialAsync(
-        ResoniteMaterialBinding material,
+    Task StartCommonMaterialWarmupAsync(
+        IReadOnlyList<ResoniteMaterialBinding> materials,
         CancellationToken cancellationToken = default);
 
     Task ProcessCityObjectAsync(

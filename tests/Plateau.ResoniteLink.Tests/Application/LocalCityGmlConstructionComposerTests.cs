@@ -61,7 +61,6 @@ public sealed class LocalCityGmlConstructionComposerTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            TerrainHeightSampler? terrainHeightSampler,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {

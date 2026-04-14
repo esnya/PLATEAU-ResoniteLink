@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Globalization;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 using GeographicLib;
 
@@ -905,6 +905,295 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task PrepareMaterialTargetsAwaitsReferencedCommonMaterialFamilyBeforeMaterialCreation()
+    {
+        string roadTexture = BundledDefaultMaterialFamilies.RoadVariants[0];
+        string facadeTexture = BundledDefaultMaterialFamilies.FacadeVariants[0];
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU warmup-family",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["bldg"],
+                    SourceFiles: ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "road-building",
+                    DisplayName: "Road Building",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("road-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "road-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: roadTexture,
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Family: "road",
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0],
+                            AssetScope: ResoniteMaterialAssetScope.Common),
+                    ],
+                    SourceObjectKey: "road-building-source"),
+            ]);
+        ResoniteMaterialBinding facadeCommonMaterial = new(
+            MaterialKey: "facade-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePath: facadeTexture,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Family: "facade",
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        FamilyAwareMaterialClient client = new(
+            new FakeResoniteLinkClient(),
+            delayedCommonMaterialFamily: "facade");
+        ResoniteMaterialBinding roadCommonMaterial = scene.CityObjects[0].Materials[0];
+
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => client);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+        _ = builder.StartCommonMaterialWarmupAsync(
+            [roadCommonMaterial, facadeCommonMaterial]);
+        Task<IReadOnlyList<string>> completionTask = builder.CompleteAsync();
+
+        await builder.ProcessCityObjectAsync(scene.CityObjects[0]);
+        await Task.WhenAny(
+            client.MeshRendererAdded.Task,
+            Task.Delay(TimeSpan.FromSeconds(2)));
+        Assert.True(client.MeshRendererAdded.Task.IsCompleted);
+        Assert.False(client.AllowDelayedCommonMaterialCreation.Task.IsCompleted);
+        await completionTask.WaitAsync(TimeSpan.FromSeconds(2));
+        client.AllowDelayedCommonMaterialCreation.TrySetResult(true);
+    }
+
+    [Fact]
+    public async Task StartCommonMaterialWarmupReusesCommonMaterialCreationAcrossRepeatedReferences()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = new(
+            new ResoniteConstructionMetadata(
+                SchemaVersion: "3.0",
+                WorldName: "PLATEAU warmup-reuse",
+                Request: new PlateauImportRequest(
+                    Dataset: "tokyo23ku",
+                    MeshCode: "53394525",
+                    SourceKind: DatasetSourceKind.Local,
+                    LocalSourcePath: fixturePath,
+                    ServerUri: null),
+                SourceDataset: new PlateauSourceDataset(
+                    PackageNames: ["bldg"],
+                    SourceFiles: ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+                    TerrainTextureOverlays: []),
+                Attribution: new ResoniteAttribution(
+                    DatasetLicense: new ResoniteLicenseComponentMetadata(
+                        RequireCredit: true,
+                        CreditText: "PLATEAU Open Data Terms",
+                        LicenseName: "PLATEAU Open Data Terms",
+                        LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                    MaterialLicenses: []),
+                LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0)),
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "road-building-one",
+                    DisplayName: "Road Building One",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("shared-road-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "shared-road-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: BundledDefaultMaterialFamilies.RoadVariants[0],
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Family: "road",
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0],
+                            AssetScope: ResoniteMaterialAssetScope.Common),
+                    ],
+                    SourceObjectKey: "road-building-one-source"),
+                new ResoniteConstructionCityObject(
+                    SlotKey: "road-building-two",
+                    DisplayName: "Road Building Two",
+                    PackageName: "bldg",
+                    ActualMeshCode: "53394525",
+                    LodLevel: 1,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("shared-road-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "shared-road-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: BundledDefaultMaterialFamilies.RoadVariants[0],
+                            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                            Family: "road",
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0],
+                            AssetScope: ResoniteMaterialAssetScope.Common),
+                    ],
+                    SourceObjectKey: "road-building-two-source"),
+            ]);
+
+        FamilyAwareMaterialClient client = new(new FakeResoniteLinkClient());
+        using TemporaryDirectory workDirectory = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => client);
+
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+        await builder.StartCommonMaterialWarmupAsync(scene.CityObjects[0].Materials);
+        foreach (ResoniteConstructionCityObject cityObject in scene.CityObjects)
+        {
+            await builder.ProcessCityObjectAsync(cityObject);
+        }
+
+        await builder.CompleteAsync();
+
+        List<AddComponent> commonMaterialRequests = client.AddedComponents
+            .Where(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && request.ContainerSlotId is not null
+                && client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? materialSlotPath)
+                && materialSlotPath.Contains("/Assets/Common/", StringComparison.Ordinal))
+            .ToList();
+        Assert.Single(commonMaterialRequests);
+
+        List<AddComponent> meshRenderers = client.AddedComponents
+            .Where(request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && request.ContainerSlotId is not null)
+            .ToList();
+        Assert.Equal(2, meshRenderers.Count);
+        string firstRendererMaterialId = Assert.IsType<Reference>(
+                Assert.IsType<SyncList>(meshRenderers[0].Data.Members["Materials"]).Elements[0]).TargetID;
+        string secondRendererMaterialId = Assert.IsType<Reference>(
+                Assert.IsType<SyncList>(meshRenderers[1].Data.Members["Materials"]).Elements[0]).TargetID;
+        Assert.Equal(firstRendererMaterialId, secondRendererMaterialId);
+    }
+
+    [Fact]
+    public async Task StartCommonMaterialWarmupStateIsClearedBetweenRuns()
+    {
+        string roadTexture = BundledDefaultMaterialFamilies.RoadVariants[0];
+        ResoniteMaterialBinding roadCommonMaterial = new(
+            MaterialKey: "road-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePath: roadTexture,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Family: "road",
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.Common);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "road-building",
+            DisplayName: "Road Building",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTriangleMesh("road-material"),
+            Materials: [roadCommonMaterial],
+            SourceObjectKey: "road-building-source");
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "PLATEAU warmup-reset",
+            Request: new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["bldg"],
+                SourceFiles: ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+                TerrainTextureOverlays: []),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+
+        using TemporaryDirectory firstRunDirectory = new();
+        using TemporaryDirectory secondRunDirectory = new();
+        FamilyAwareMaterialClient firstRunClient = new(new FakeResoniteLinkClient(), delayedCommonMaterialFamily: "road");
+
+        await using ResoniteLinkSceneBuilder firstRunBuilder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => firstRunClient);
+
+        await firstRunBuilder.BeginAsync(metadata, firstRunDirectory.Path);
+        _ = firstRunBuilder.StartCommonMaterialWarmupAsync([roadCommonMaterial]);
+        await firstRunClient.DelayedCommonMaterialCreationStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await firstRunBuilder.DisposeAsync();
+
+        FamilyAwareMaterialClient secondClient = new(new FakeResoniteLinkClient());
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => secondClient);
+
+        await builder.BeginAsync(metadata, secondRunDirectory.Path);
+        await builder.StartCommonMaterialWarmupAsync([roadCommonMaterial]);
+        await builder.ProcessCityObjectAsync(cityObject);
+        IReadOnlyList<string> destinations = await builder.CompleteAsync()
+            .WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Single(destinations);
+
+        if (!firstRunClient.AllowDelayedCommonMaterialCreation.Task.IsCompleted)
+        {
+            firstRunClient.AllowDelayedCommonMaterialCreation.TrySetResult(true);
+        }
+    }
+
+    [Fact]
     public async Task BuildAsyncWritesHeightMapTextureAsHdrRawWithBlueOnlyScaledDisplacement()
     {
         const string dataset = "tokyo23ku";
@@ -1117,6 +1406,95 @@ public sealed class ResoniteLinkSceneBuilderTests
             $"PLATEAU tokyo23ku/Assets/53394525/{cityObjectFileSlot}/LOD0/HeightMap Overlay Test/",
             fakeClient.SlotPaths[materialTextureSlot.ID],
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotProcessTerrainOverlayAsBundledMaterial()
+    {
+        const string dataset = "tokyo23ku";
+        const string meshCode = "53394525";
+        const string overlayTexturePath = "terrain://dem/plateau-ortho/00000-00000-TEST";
+
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: $"PLATEAU {dataset} {meshCode}",
+            Request: new PlateauImportRequest(
+                Dataset: dataset,
+                MeshCode: meshCode,
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
+                ServerUri: null),
+            SourceDataset: new PlateauSourceDataset(
+                PackageNames: ["dem"],
+                SourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+                TerrainTextureOverlays:
+                [
+                    new TerrainTextureOverlay(
+                        TexturePath: overlayTexturePath,
+                        PackageName: "dem",
+                        UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
+                        FallbackUrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate,
+                        ZoomLevel: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel,
+                        GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                        MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
+                        LicenseMode: TerrainTextureLicenseMode.Unknown),
+                ]),
+            Attribution: new ResoniteAttribution(
+                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                    RequireCredit: true,
+                    CreditText: "PLATEAU Open Data Terms",
+                    LicenseName: "PLATEAU Open Data Terms",
+                    LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+                MaterialLicenses: []),
+            LocalOrigin: new ResoniteLocalOrigin(35.6875, 139.69375, 0.0));
+        CapturedResoniteScene scene = new(
+            metadata,
+            [
+                new ResoniteConstructionCityObject(
+                    SlotKey: "dem_heightmap_overlay_test",
+                    DisplayName: "DEM Overlay",
+                    PackageName: "dem",
+                    ActualMeshCode: meshCode,
+                    LodLevel: 0,
+                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                    Mesh: CreateTriangleMesh("dem-overlay-material"),
+                    Materials:
+                    [
+                        new ResoniteMaterialBinding(
+                            MaterialKey: "dem-overlay-material",
+                            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                            MaterialType: ResoniteMaterialType.Standard,
+                            TexturePath: overlayTexturePath,
+                            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                            Projection: ResoniteMaterialProjection.Uv,
+                            DepthOffset: null,
+                            SubmeshIndices: [0]),
+                    ],
+                    SourceObjectKey: "dem-overlay-source"),
+            ]);
+
+        using FakeResoniteLinkClient fakeClient = new();
+        StubTerrainTextureAssetGenerator terrainTextureAssetGenerator = new();
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            terrainTextureAssetGenerator);
+
+        using TemporaryDirectory workDirectory = new();
+        await RunBuilderAsync(builder, scene, workDirectory.Path);
+
+        Assert.DoesNotContain(
+            fakeClient.AddedComponents,
+            request =>
+                string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && fakeClient.SlotPaths.TryGetValue(request.ContainerSlotId, out string? materialSlotPath)
+                && materialSlotPath.Contains("/Assets/Common/", StringComparison.Ordinal));
+        Assert.All(
+            fakeClient.ImportedTexturePaths,
+            static importedTexturePath => Assert.False(
+                importedTexturePath.StartsWith("default-materials/", StringComparison.Ordinal)));
     }
 
 
@@ -3157,6 +3535,158 @@ public sealed class ResoniteLinkSceneBuilderTests
             }
 
             return clone;
+        }
+    }
+
+    private sealed class FamilyAwareMaterialClient : IResoniteLinkClient
+    {
+        private readonly FakeResoniteLinkClient inner;
+        private readonly string? delayedCommonMaterialFamily;
+
+        public FamilyAwareMaterialClient(FakeResoniteLinkClient inner, string? delayedCommonMaterialFamily = null)
+        {
+            this.inner = inner;
+            this.delayedCommonMaterialFamily = delayedCommonMaterialFamily;
+            AllowDelayedCommonMaterialCreation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            DelayedCommonMaterialCreationStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            MeshRendererAdded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        public TaskCompletionSource<bool> AllowDelayedCommonMaterialCreation { get; }
+
+        public TaskCompletionSource<bool> DelayedCommonMaterialCreationStarted { get; }
+
+        public TaskCompletionSource<bool> MeshRendererAdded { get; }
+
+        public int ConnectCallCount => inner.ConnectCallCount;
+
+        public List<AddComponent> AddedComponents => inner.AddedComponents;
+
+        public List<AddSlot> AddedSlots => inner.AddedSlots;
+
+        public Dictionary<string, string> BuildingSlotIds => inner.BuildingSlotIds;
+
+        public List<ImportMeshRawData> ImportedMeshes => inner.ImportedMeshes;
+
+        public List<string> ImportedTexturePaths => inner.ImportedTexturePaths;
+
+        public List<ResoniteRawTextureImport> ImportedRawTextures => inner.ImportedRawTextures;
+
+        public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures => inner.ImportedRawHdrTextures;
+
+        public Dictionary<string, Component> ComponentsById => inner.ComponentsById;
+
+        public Dictionary<string, Slot> SlotsById => inner.SlotsById;
+
+        public Dictionary<string, string> SlotPaths => inner.SlotPaths;
+
+        public int ImportedMeshCount => inner.ImportedMeshCount;
+
+        public int BatchMutationCount => inner.BatchMutationCount;
+
+        public void Dispose()
+        {
+            inner.Dispose();
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            return inner.ConnectAsync(endpoint, cancellationToken);
+        }
+
+        public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            {
+                MeshRendererAdded.TrySetResult(true);
+            }
+
+            if (IsCommonMaterialForDelayedFamily(request.ContainerSlotId, request.Data.ComponentType))
+            {
+                DelayedCommonMaterialCreationStarted.TrySetResult(true);
+                await AllowDelayedCommonMaterialCreation.Task.WaitAsync(cancellationToken);
+            }
+
+            return await inner.AddComponentAsync(request, cancellationToken);
+        }
+
+        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            return inner.AddSlotAsync(request, cancellationToken);
+        }
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            if (!MeshRendererAdded.Task.IsCompleted)
+            {
+                if (operations.OfType<AddComponent>().Any(static op =>
+                        string.Equals(op.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)))
+                {
+                    MeshRendererAdded.TrySetResult(true);
+                }
+            }
+
+            return inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            return inner.GetComponentAsync(componentId, cancellationToken);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            return inner.GetSlotAsync(slotId, depth, cancellationToken);
+        }
+
+        public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            return inner.ImportMeshAsync(request, cancellationToken);
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            return inner.ImportTextureAsync(textureImport, cancellationToken);
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            return inner.UpdateComponentAsync(request, cancellationToken);
+        }
+
+        private bool IsCommonMaterialForDelayedFamily(string containerSlotId, string componentType)
+        {
+            if (delayedCommonMaterialFamily is null)
+            {
+                return false;
+            }
+
+            if (!string.Equals(componentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            if (!inner.SlotPaths.TryGetValue(containerSlotId, out string? slotPath))
+            {
+                return false;
+            }
+
+            if (!slotPath.Contains("/Assets/Common/", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            int slotNameStart = slotPath.LastIndexOf('/');
+            string slotName = slotNameStart >= 0
+                ? slotPath.AsSpan(slotNameStart + 1).ToString()
+                : slotPath;
+
+            return slotName.Contains(
+                string.Create(CultureInfo.InvariantCulture, $"_{delayedCommonMaterialFamily}_"),
+                StringComparison.Ordinal);
         }
     }
 

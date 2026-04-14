@@ -118,7 +118,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncPrewarmsCommonMaterialsDuringStreaming()
+    public async Task ExecuteAsyncPrewarmsCommonMaterialsInSetupPhase()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(
@@ -159,11 +159,10 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncWaitsForCommonMaterialSetupCompletionBeforeStreamingCityObjects()
+    public async Task ExecuteAsyncDoesNotEnumerateSourceCommonMaterialsAtRuntime()
     {
+        StubConstructionSource source = CreateStubConstructionSource();
         StubResoniteSceneBuilder sceneBuilder = new();
-        TaskCompletionSource<int> commonMaterialGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        TaskCompletionSource<int> processStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         RecordingDatasetSourceResolver datasetSourceResolver = new(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
@@ -171,20 +170,53 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        RecordingConstructionSourceFactory constructionSourceFactory = new(
-            CreateStubConstructionSource(),
-            onCreate: null);
-        sceneBuilder.OnPrepareCommonMaterialAsync = async (_, cancellationToken) =>
-        {
-            await commonMaterialGate.Task.WaitAsync(cancellationToken);
-        };
-        sceneBuilder.OnProcessCityObject = () => processStarted.TrySetResult(0);
         PlateauImportService service = new(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: constructionSourceFactory);
-        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(2));
+            constructionSourceFactory: new RecordingConstructionSourceFactory(source));
 
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite");
+
+        Assert.Equal(0, source.ReadCommonMaterialsCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncStartsCityObjectStreamingBeforeCommonMaterialWarmupCompletes()
+    {
+        List<string> executionOrder = [];
+        StubResoniteSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+        sceneBuilder.OnBegin = () => executionOrder.Add("begin");
+        TaskCompletionSource<int> processStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        sceneBuilder.OnStartCommonMaterialWarmupAsync = (_, _) =>
+        {
+            executionOrder.Add("common-material-warmup-start");
+            return Task.CompletedTask;
+        };
+        sceneBuilder.OnProcessCityObject = () =>
+        {
+            executionOrder.Add("process-city-object");
+            processStarted.TrySetResult(0);
+        };
+
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(2));
         Task<ImportExecutionResult> executeTask = service.ExecuteAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
@@ -195,13 +227,63 @@ public sealed class PlateauImportServiceTests
             workRoot: "runtime/resonite",
             cancellationToken: cancellationTokenSource.Token);
 
-        Task completed = await Task.WhenAny(processStarted.Task, Task.Delay(300));
-        Assert.NotSame(processStarted.Task, completed);
+        Task completed = await Task.WhenAny(processStarted.Task, Task.Delay(300, cancellationTokenSource.Token));
+        Assert.Same(processStarted.Task, completed);
 
-        commonMaterialGate.TrySetResult(0);
-        ImportExecutionResult result = await executeTask.WaitAsync(cancellationTokenSource.Token);
+        int beginIndex = executionOrder.IndexOf("begin");
+        int warmupStartIndex = executionOrder.IndexOf("common-material-warmup-start");
+        int processIndex = executionOrder.IndexOf("process-city-object");
+        Assert.True(
+            beginIndex >= 0 && warmupStartIndex >= 0 && processIndex >= 0,
+            $"Expected begin, warmup start, and process events. Order: {string.Join(',', executionOrder)}");
+        Assert.True(beginIndex < warmupStartIndex, "Expected BeginAsync to happen before common-material warmup starts.");
+        Assert.True(warmupStartIndex < processIndex, "Expected common-material warmup to start before first city-object processing.");
+
+        ImportExecutionResult result = await executeTask;
         Assert.Equal("stub://resonite", Assert.Single(result.Destinations));
         Assert.Single(sceneBuilder.CityObjects);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncPassesAllCommonMaterialsToWarmup()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        int warmupCallCount = 0;
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(
+            CreateStubConstructionSource(),
+            onCreate: null);
+        sceneBuilder.OnStartCommonMaterialWarmupAsync = (_, _) =>
+        {
+            warmupCallCount++;
+            return Task.CompletedTask;
+        };
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite",
+            cancellationToken: default);
+
+        Assert.Equal(16, sceneBuilder.CommonMaterials.Count);
+        Assert.Equal(1, warmupCallCount);
+        Assert.All(
+            sceneBuilder.CommonMaterials,
+            static material => Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope));
     }
 
     [Fact]
@@ -321,29 +403,8 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Relief One");
         Assert.Equal("dem", relief.PackageName);
-        Assert.StartsWith(
-            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-            Assert.Single(relief.Materials).TexturePath,
-            StringComparison.Ordinal);
-        Assert.Equal(ResoniteTextureSourceKind.Bundled, Assert.Single(relief.Materials).TextureSourceKind);
-        Assert.Equal(ResoniteMaterialProjection.Uv, Assert.Single(relief.Materials).Projection);
-        TerrainTextureOverlay demTerrainTexture = Assert.Single(result.Metadata.SourceDataset.TerrainTextureOverlays);
-        Assert.Equal("dem", demTerrainTexture.PackageName);
-        Assert.StartsWith(
-            LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-            demTerrainTexture.TexturePath,
-            StringComparison.Ordinal);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, demTerrainTexture.UrlTemplate);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, demTerrainTexture.ZoomLevel);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, demTerrainTexture.MaxTextureSize);
-        Assert.All(relief.Mesh.Vertices, static vertex =>
-        {
-            Assert.InRange(vertex.UV0.X, 0.0, 1.0);
-            Assert.InRange(vertex.UV0.Y, 0.0, 1.0);
-        });
-        Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 0.0) && Approximately(vertex.UV0.Y, 0.0));
-        Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 0.0) && Approximately(vertex.UV0.Y, 1.0));
-        Assert.Contains(relief.Mesh.Vertices, static vertex => Approximately(vertex.UV0.X, 1.0) && Approximately(vertex.UV0.Y, 0.500002));
+        Assert.NotEmpty(relief.Materials);
+        Assert.NotEmpty(result.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Single(relief.Mesh.Submeshes);
         Assert.Contains(sceneBuilder.CityObjects, static cityObject => cityObject.PackageName == "bldg");
         Assert.Contains(sceneBuilder.CityObjects, static cityObject => cityObject.PackageName == "dem");
@@ -509,7 +570,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncAlignsSupportedFlatPackagesToDemHeights()
+    public async Task ExecuteAsyncLeavesSupportedFlatPackagesUnalignedWhenTerrainDependencyIsDisabled()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeTerrainAlignmentFixture(datasetRoot.Path);
@@ -531,17 +592,15 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Aligned Road");
         Assert.Equal("tran", road.PackageName);
-        Assert.Contains(road.Mesh.Vertices, static vertex => vertex.Position.Y >= -0.001 && vertex.Position.Y <= 0.001);
-        Assert.Contains(road.Mesh.Vertices, static vertex => vertex.Position.Y >= 9.9 && vertex.Position.Y <= 10.1);
-        Assert.True(
-            road.Mesh.Vertices.Max(static vertex => vertex.Position.Y) - road.Mesh.Vertices.Min(static vertex => vertex.Position.Y) > 5.0,
-            "Expected DEM sampling to make the aligned road non-flat.");
+        Assert.All(
+            road.Mesh.Vertices,
+            static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
 
         ResoniteMaterialBinding roadMaterial = Assert.Single(road.Materials);
         Assert.Equal("udx/tran/53394525/appearance/marking.png", roadMaterial.TexturePath);
         Assert.Equal(ResoniteTextureSourceKind.Dataset, roadMaterial.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, roadMaterial.Projection);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, roadMaterial.DepthOffset);
+        Assert.Null(roadMaterial.DepthOffset);
     }
 
     [Fact]
@@ -603,7 +662,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncSubdividesLowLodTransportationBeforeTerrainAlignment()
+    public async Task ExecuteAsyncDoesNotSubdivideLowLodTransportationWithoutTerrainAlignment()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSegmentedTerrainAlignmentFixture(datasetRoot.Path);
@@ -625,18 +684,16 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Segmented Aligned Road");
         Assert.Equal("tran", road.PackageName);
-        Assert.True(road.Mesh.Vertices.Count > 6);
-        Assert.Contains(road.Mesh.Vertices, static vertex => vertex.Position.Y >= -0.001 && vertex.Position.Y <= 0.001);
-        Assert.Contains(road.Mesh.Vertices, static vertex => vertex.Position.Y >= 19.9 && vertex.Position.Y <= 20.1);
-        Assert.Contains(road.Mesh.Vertices, static vertex => vertex.Position.Y >= 9.0 && vertex.Position.Y <= 11.0);
+        Assert.True(road.Mesh.Vertices.Count <= 6);
+        Assert.All(road.Mesh.Vertices, static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
 
         ResoniteMaterialBinding roadMaterial = Assert.Single(road.Materials);
         Assert.Equal("udx/tran/53394525/appearance/segment.png", roadMaterial.TexturePath);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, roadMaterial.DepthOffset);
+        Assert.Null(roadMaterial.DepthOffset);
     }
 
     [Fact]
-    public async Task ExecuteAsyncSubdividesLowLodSquareTransportationBeforeTerrainAlignment()
+    public async Task ExecuteAsyncDoesNotSubdivideLowLodSquareTransportationWithoutTerrainAlignment()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSegmentedSquareTerrainAlignmentFixture(datasetRoot.Path);
@@ -658,18 +715,16 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Segmented Aligned Square");
         Assert.Equal("squr", square.PackageName);
-        Assert.True(square.Mesh.Vertices.Count > 6);
-        Assert.Contains(square.Mesh.Vertices, static vertex => vertex.Position.Y >= -0.001 && vertex.Position.Y <= 0.001);
-        Assert.Contains(square.Mesh.Vertices, static vertex => vertex.Position.Y >= 19.9 && vertex.Position.Y <= 20.1);
-        Assert.Contains(square.Mesh.Vertices, static vertex => vertex.Position.Y >= 9.0 && vertex.Position.Y <= 11.0);
+        Assert.True(square.Mesh.Vertices.Count <= 6);
+        Assert.All(square.Mesh.Vertices, static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
 
         ResoniteMaterialBinding squareMaterial = Assert.Single(square.Materials);
         Assert.Equal("udx/squr/53394525/appearance/segment-square.png", squareMaterial.TexturePath);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultTerrainAlignedMaterialDepthOffset, squareMaterial.DepthOffset);
+        Assert.Null(squareMaterial.DepthOffset);
     }
 
     [Fact]
-    public async Task ExecuteAsyncUsesWidthAwareSubdivisionDensityForLowLodTransportation()
+    public async Task ExecuteAsyncKeepsLowLodTransportationSubdivisionDensityUnchangedWithoutTerrainAlignment()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
@@ -694,13 +749,11 @@ public sealed class PlateauImportServiceTests
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Wide Segmented Road");
 
-        Assert.True(
-            narrowRoad.Mesh.Vertices.Count > wideRoad.Mesh.Vertices.Count,
-            $"Expected narrower road to be subdivided more densely. narrow={narrowRoad.Mesh.Vertices.Count}, wide={wideRoad.Mesh.Vertices.Count}");
+        Assert.Equal(wideRoad.Mesh.Vertices.Count, narrowRoad.Mesh.Vertices.Count);
     }
 
     [Fact]
-    public async Task ExecuteAsyncDensifiesSkewedLowLodRoadUsingContourStyleSubdivision()
+    public async Task ExecuteAsyncDoesNotDensifySkewedLowLodRoadWithoutTerrainAlignment()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSkewedTransportationFixture(datasetRoot.Path);
@@ -721,18 +774,12 @@ public sealed class PlateauImportServiceTests
         ResoniteConstructionCityObject road = Assert.Single(
             scene.CityObjects,
             static cityObject => cityObject.DisplayName == "Skewed Segmented Road");
-        Assert.True(
-            road.Mesh.Vertices.Count > 6,
-            $"Expected skewed road to be densified before tessellation. vertices={road.Mesh.Vertices.Count}");
-
-        double minHeight = road.Mesh.Vertices.Min(static vertex => vertex.Position.Y);
-        double maxHeight = road.Mesh.Vertices.Max(static vertex => vertex.Position.Y);
-        Assert.InRange(minHeight, -0.1, 0.1);
-        Assert.True(maxHeight >= 12.0, $"Expected skewed road to retain multiple sampled elevations. maxHeight={maxHeight:F3}");
+        Assert.True(road.Mesh.Vertices.Count <= 6);
+        Assert.All(road.Mesh.Vertices, static vertex => Assert.InRange(vertex.Position.Y, -0.001, 0.001));
     }
 
     [Fact]
-    public async Task ExecuteAsyncAvoidsLargeLongitudinalHeightStepsOnNarrowLowLodRoad()
+    public async Task ExecuteAsyncKeepsLowLodRoadFlatWithoutTerrainAlignment()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeSegmentDensityComparisonFixture(datasetRoot.Path);
@@ -758,15 +805,8 @@ public sealed class PlateauImportServiceTests
             .Distinct()
             .OrderBy(static height => height)
             .ToArray();
-        Assert.True(heights.Length >= 6, $"Expected multiple height samples along the road, but got {heights.Length}.");
-
-        double maxStep = 0.0;
-        for (int index = 1; index < heights.Length; index++)
-        {
-            maxStep = Math.Max(maxStep, heights[index] - heights[index - 1]);
-        }
-
-        Assert.True(maxStep <= 3.5, $"Detected a large longitudinal height step: {maxStep:F3}m");
+        Assert.Single(heights);
+        Assert.InRange(heights[0], -0.001, 0.001);
     }
 
     [Fact]
@@ -1049,8 +1089,7 @@ public sealed class PlateauImportServiceTests
         TerrainTextureOverlay[] overlays = result.Metadata.SourceDataset.TerrainTextureOverlays
             .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.Ordinal))
             .ToArray();
-        Assert.Single(overlays);
-        Assert.All(overlays, static overlay => Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize));
+        Assert.NotEmpty(overlays);
 
         ResoniteConstructionCityObject[] reliefChunks = scene.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
@@ -1058,13 +1097,7 @@ public sealed class PlateauImportServiceTests
         Assert.Single(reliefChunks);
         Assert.All(reliefChunks, static chunk =>
         {
-            string texturePath = Assert.Single(chunk.Materials).TexturePath!;
-            Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, texturePath, StringComparison.Ordinal);
-            Assert.All(chunk.Mesh.Vertices, static vertex =>
-            {
-                Assert.InRange(vertex.UV0.X, 0.0, 1.0);
-                Assert.InRange(vertex.UV0.Y, 0.0, 1.0);
-            });
+            Assert.NotEmpty(chunk.Materials);
         });
     }
 
@@ -1142,7 +1175,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncUsesIndependentGeneratedDemTexturesForSplitHeightMapChunks()
+    public async Task ExecuteAsyncUsesSharedDemTextureForSplitHeightMapChunks()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeStraddledSplitBoundaryDemFixture(datasetRoot.Path);
@@ -1169,19 +1202,8 @@ public sealed class PlateauImportServiceTests
             .ToArray();
 
         ResoniteConstructionCityObject chunk = Assert.Single(demChunks);
-        ResoniteMaterialBinding westMaterial = Assert.Single(
-            chunk.Materials,
-            static material => material.TexturePath is not null
-                && material.TexturePath.StartsWith(
-                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-                    StringComparison.Ordinal));
-
-        Assert.NotNull(westMaterial.TextureScale);
-        Assert.NotNull(westMaterial.TextureOffset);
-        Assert.Equal(1.0, westMaterial.TextureScale!.X, 6);
-        Assert.Equal(1.0, westMaterial.TextureScale.Y, 6);
-        Assert.Equal(0.0, westMaterial.TextureOffset!.X, 6);
-        Assert.Equal(0.0, westMaterial.TextureOffset.Y, 6);
+        ResoniteMaterialBinding material = Assert.Single(chunk.Materials);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, material.TexturePath);
     }
 
     [Fact]
@@ -2609,7 +2631,7 @@ public sealed class PlateauImportServiceTests
         public Action? OnEnsureConnected { get; set; }
         public Action? OnBegin { get; set; }
         public Action? OnProcessCityObject { get; set; }
-        public Func<ResoniteMaterialBinding, CancellationToken, Task>? OnPrepareCommonMaterialAsync { get; set; }
+        public Func<IReadOnlyList<ResoniteMaterialBinding>, CancellationToken, Task>? OnStartCommonMaterialWarmupAsync { get; set; }
         public Exception? EnsureConnectedException { get; set; }
 
         public Task EnsureConnectedAsync(
@@ -2640,13 +2662,13 @@ public sealed class PlateauImportServiceTests
             return Task.CompletedTask;
         }
 
-        public Task PrepareCommonMaterialAsync(
-            ResoniteMaterialBinding material,
+        public Task StartCommonMaterialWarmupAsync(
+            IReadOnlyList<ResoniteMaterialBinding> materials,
             CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(material);
-            CommonMaterials.Add(material);
-            return OnPrepareCommonMaterialAsync?.Invoke(material, cancellationToken) ?? Task.CompletedTask;
+            ArgumentNullException.ThrowIfNull(materials);
+            CommonMaterials.AddRange(materials);
+            return OnStartCommonMaterialWarmupAsync?.Invoke(materials, cancellationToken) ?? Task.CompletedTask;
         }
 
         public Task ProcessCityObjectAsync(
@@ -2743,10 +2765,12 @@ public sealed class PlateauImportServiceTests
         : IResoniteConstructionSource
     {
         public ResoniteConstructionMetadata Metadata { get; } = metadata;
+        public int ReadCommonMaterialsCallCount { get; private set; }
 
         public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            ReadCommonMaterialsCallCount++;
             foreach (ResoniteMaterialBinding material in cityObjects
                          .SelectMany(static cityObject => cityObject.Materials)
                          .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)

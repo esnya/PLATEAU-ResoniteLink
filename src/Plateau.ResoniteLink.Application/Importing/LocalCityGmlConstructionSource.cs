@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Threading.Channels;
 
-using LocalCartesian = GeographicLib.LocalCartesian;
-
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
+
+using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
@@ -58,7 +58,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                              globalOriginPoint.ToLegacy(),
                              globalCartesian,
                              demTerrainTextureOverlays,
-                             null,
+                             terrainHeightSampler: null,
                              request,
                              emittedMaterialKeys))
                 {
@@ -89,7 +89,6 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                              globalOriginPoint,
                              globalCartesian,
                              demTerrainTextureOverlays,
-                             null,
                              request))
                 {
                     yield return cityObject;
@@ -229,7 +228,6 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         null,
                          request))
             {
                 cancellationToken.ThrowIfCancellationRequested();

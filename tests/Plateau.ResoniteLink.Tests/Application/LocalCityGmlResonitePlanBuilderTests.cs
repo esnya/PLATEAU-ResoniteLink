@@ -83,12 +83,32 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         int generatedChunkCount = demCityObjects
             .Count(static cityObject => cityObject.Materials.Any(
                 static material =>
-                    material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+                    material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
                     && material.TexturePath is not null
                     && material.TexturePath.StartsWith(
                         LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
                         StringComparison.Ordinal)));
         Assert.Equal(1, generatedChunkCount);
+        IEnumerable<ResoniteMaterialBinding> generatedMaterials = demCityObjects.SelectMany(
+            static cityObject => cityObject.Materials,
+            static (cityObject, material) => material)
+            .Where(static material =>
+                material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
+                && material.TexturePath is not null
+                && material.TexturePath.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    StringComparison.Ordinal));
+        Assert.All(
+            generatedMaterials,
+            static material =>
+            {
+                Assert.Equal(ResoniteTextureSourceKind.Dataset, material.TextureSourceKind);
+                Assert.False(
+                    material.TexturePath!.StartsWith(
+                        "default-materials/",
+                        StringComparison.Ordinal),
+                    "DEM overlay should not resolve through bundled material roots.");
+            });
 
         int explicitChunkCount = demCityObjects
             .Count(cityObject => cityObject.Materials.Any(material => string.Equals(
@@ -282,11 +302,12 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
             return Task.CompletedTask;
         }
 
-        public Task PrepareCommonMaterialAsync(
-            ResoniteMaterialBinding material,
+        public Task StartCommonMaterialWarmupAsync(
+            IReadOnlyList<ResoniteMaterialBinding> materials,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _ = materials;
             return Task.CompletedTask;
         }
 

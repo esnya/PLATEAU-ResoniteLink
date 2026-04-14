@@ -1,7 +1,7 @@
+using Plateau.ResoniteLink.Domain.Importing;
+
 using SharpCompress.Archives;
 using SharpCompress.Readers;
-
-using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 

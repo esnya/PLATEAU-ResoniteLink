@@ -112,7 +112,21 @@ public sealed class LocalCityGmlBootstrapParityTests
         Assert.Equal("http://www.opengis.net/def/crs/EPSG/0/6697", documentSet.BootstrapReferenceSystem.SrsName);
         Assert.True(documentSet.BootstrapReferenceSystem.IsGeographic);
         Assert.Equal(expectedTerrainSamplerPresent, documentSet.BootstrapTerrainHeightSampler is not null);
-        Assert.Empty(documentSet.TerrainTextureOverlays);
+        if (expectedPackageNames.Contains("dem", StringComparer.Ordinal))
+        {
+            Assert.NotEmpty(documentSet.TerrainTextureOverlays);
+            Assert.All(
+                documentSet.TerrainTextureOverlays,
+                static overlay => Assert.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    overlay.TexturePath,
+                    StringComparison.Ordinal));
+        }
+        else
+        {
+            Assert.Empty(documentSet.TerrainTextureOverlays);
+        }
+
         Assert.Empty(documentSet.BootstrapCachedDemSourceFiles);
     }
 }

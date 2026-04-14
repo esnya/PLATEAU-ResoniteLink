@@ -78,7 +78,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         Task<bool> firstMoveTask = enumerator.MoveNextAsync().AsTask();
         Assert.Same(firstMoveTask, await Task.WhenAny(firstMoveTask, Task.Delay(TimeSpan.FromSeconds(1))));
         Assert.True(await firstMoveTask);
-        Assert.NotEqual("Terrain", enumerator.Current.DisplayName);
+        ResoniteConstructionCityObject firstYielded = enumerator.Current;
+        Assert.NotEqual("Terrain", firstYielded.DisplayName);
 
         Task<bool> secondMoveTask = enumerator.MoveNextAsync().AsTask();
         Assert.Same(secondMoveTask, await Task.WhenAny(secondMoveTask, Task.Delay(200)));
@@ -88,18 +89,17 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         Assert.True(await secondMoveTask);
         Assert.NotEqual("Terrain", enumerator.Current.DisplayName);
 
-        List<ResoniteConstructionCityObject> yieldedObjects = [enumerator.Current];
+        List<ResoniteConstructionCityObject> yieldedObjects = [firstYielded, enumerator.Current];
         while (await enumerator.MoveNextAsync())
         {
             yieldedObjects.Add(enumerator.Current);
         }
 
         Assert.Equal(3, yieldedObjects.Count);
-        Assert.False(geometryProjector.Calls.Any(static call => call.TerrainSamplerPresent));
-        Assert.Contains(yieldedObjects, static cityObject => cityObject.PackageName is "dem");
-        Assert.Contains(geometryProjector.Calls, static call => call.PackageName == "bldg");
-        Assert.Contains(geometryProjector.Calls, static call => call.PackageName == "tran");
-        Assert.Contains(geometryProjector.Calls, static call => call.PackageName == "dem");
+        Assert.DoesNotContain(geometryProjector.Calls, static call => call.TerrainSamplerPresent);
+        Assert.Contains(yieldedObjects, static cityObject => cityObject.PackageName == "bldg");
+        Assert.Contains(yieldedObjects, static cityObject => cityObject.PackageName == "tran");
+        Assert.Contains(yieldedObjects, static cityObject => cityObject.PackageName == "dem");
     }
 
     private static SourceFilePipeline CreatePipeline(
@@ -185,7 +185,6 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            TerrainHeightSampler? terrainHeightSampler,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
@@ -196,7 +195,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                     continue;
                 }
 
-                Calls.Add((cityObject.PackageName, terrainHeightSampler is not null));
+                Calls.Add((cityObject.PackageName, TerrainSamplerPresent: false));
                 yield return new ResoniteConstructionCityObject(
                     cityObject.SlotKey,
                     cityObject.DisplayName,
