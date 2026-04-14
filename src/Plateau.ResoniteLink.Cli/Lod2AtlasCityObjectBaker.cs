@@ -102,65 +102,102 @@ internal sealed class Lod2AtlasCityObjectBaker(
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        List<CityObjectBakeCandidate> candidates = await CreateCandidatesAsync(cityObjects, cancellationToken);
-        if (candidates.Count == 0)
+        List<CityObjectBakeCandidate> passThroughCandidates = [];
+        List<CityObjectBakeCandidate> currentAtlasBatch = [];
+        int batchIndex = 0;
+        bool preservePrimaryIdentity = cityObjects.Count == 1;
+
+        foreach (BufferedCityObject bufferedCityObject in cityObjects.OrderBy(
+                     static bufferedCityObject => bufferedCityObject.CityObject.SlotKey,
+                     StringComparer.Ordinal))
         {
-            return;
+            cancellationToken.ThrowIfCancellationRequested();
+            CityObjectBakeCandidate? candidate = await CreateCandidateAsync(bufferedCityObject, cancellationToken);
+            if (candidate is null)
+            {
+                continue;
+            }
+
+            if (candidate.AtlasEntries.Count == 0)
+            {
+                passThroughCandidates.Add(candidate);
+                continue;
+            }
+
+            if (currentAtlasBatch.Count == 0)
+            {
+                if (CanFitSingleCandidate(candidate))
+                {
+                    currentAtlasBatch.Add(candidate);
+                }
+                else
+                {
+                    await EmitFallbackCandidateAsync(candidate, onBakedCityObject, cancellationToken);
+                }
+
+                continue;
+            }
+
+            if (CanAppendToAtlasBatch(currentAtlasBatch, candidate))
+            {
+                currentAtlasBatch.Add(candidate);
+                continue;
+            }
+
+            await EmitAtlasBatchAsync(
+                sourceUnitKey,
+                currentAtlasBatch,
+                batchIndex++,
+                preservePrimaryIdentity && passThroughCandidates.Count == 0,
+                onBakedCityObject,
+                cancellationToken);
+            currentAtlasBatch.Clear();
+
+            if (CanFitSingleCandidate(candidate))
+            {
+                currentAtlasBatch.Add(candidate);
+            }
+            else
+            {
+                await EmitFallbackCandidateAsync(candidate, onBakedCityObject, cancellationToken);
+            }
         }
 
-        try
+        if (currentAtlasBatch.Count > 0)
         {
-            List<CityObjectBakeCandidate> passThroughCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count == 0)];
-            List<CityObjectBakeCandidate> atlasCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count > 0)];
-            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(atlasCandidates);
-            int mergedPassThroughBatchCount = passThroughCandidates.Count > 1 ? 1 : 0;
-            int totalBatchCount = batchPlan.Batches.Count + mergedPassThroughBatchCount;
+            await EmitAtlasBatchAsync(
+                sourceUnitKey,
+                currentAtlasBatch,
+                batchIndex++,
+                preservePrimaryIdentity && passThroughCandidates.Count == 0,
+                onBakedCityObject,
+                cancellationToken);
+            currentAtlasBatch.Clear();
+        }
 
-            if (passThroughCandidates.Count == 1)
-            {
-                BakedOutputCityObjectCount++;
-                await onBakedCityObject(passThroughCandidates[0].CityObject, cancellationToken);
-            }
-            else if (passThroughCandidates.Count > 1)
+        if (passThroughCandidates.Count == 1)
+        {
+            CityObjectBakeCandidate passThroughCandidate = passThroughCandidates[0];
+            BakedOutputCityObjectCount++;
+            await onBakedCityObject(passThroughCandidate.CityObject, cancellationToken);
+            DisposeCandidateImages(passThroughCandidate);
+        }
+        else if (passThroughCandidates.Count > 1)
+        {
+            try
             {
                 ResoniteConstructionCityObject mergedPassThroughCityObject = await BakeBatchAsync(
                     sourceUnitKey,
                     passThroughCandidates,
-                    batchIndex: batchPlan.Batches.Count,
-                    batchCount: totalBatchCount,
+                    batchIndex,
+                    preservePrimaryIdentity: false,
                     cancellationToken);
                 BakedOutputCityObjectCount++;
                 await onBakedCityObject(mergedPassThroughCityObject, cancellationToken);
             }
-
-            for (int batchIndex = 0; batchIndex < batchPlan.Batches.Count; batchIndex++)
+            finally
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
-                    sourceUnitKey,
-                    batchPlan.Batches[batchIndex],
-                    batchIndex,
-                    totalBatchCount,
-                    cancellationToken);
-                BakedOutputCityObjectCount++;
-                await onBakedCityObject(bakedCityObject, cancellationToken);
-            }
-
-            foreach (CityObjectBakeCandidate fallbackCandidate in batchPlan.FallbackCandidates)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                BakedOutputCityObjectCount++;
-                await onBakedCityObject(fallbackCandidate.CityObject, cancellationToken);
-            }
-        }
-        finally
-        {
-            foreach (Image<Rgba32> tileImage in candidates
-                         .SelectMany(static candidate => candidate.AtlasEntries)
-                         .Select(static entry => entry.Tile.Image)
-                         .Distinct())
-            {
-                tileImage.Dispose();
+                DisposeCandidateImages(passThroughCandidates);
             }
         }
     }
@@ -178,62 +215,53 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return null;
     }
 
-    private async Task<List<CityObjectBakeCandidate>> CreateCandidatesAsync(
-        IReadOnlyList<BufferedCityObject> cityObjects,
+    private async Task<CityObjectBakeCandidate?> CreateCandidateAsync(
+        BufferedCityObject bufferedCityObject,
         CancellationToken cancellationToken)
     {
-        List<CityObjectBakeCandidate> candidates = [];
-
-        foreach (BufferedCityObject bufferedCityObject in cityObjects.OrderBy(
-                     static bufferedCityObject => bufferedCityObject.CityObject.SlotKey,
-                     StringComparer.Ordinal))
+        ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
+        Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
+        if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
-            ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
-            Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
-            if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
+            return null;
+        }
+
+        List<AtlasBatchEntry> atlasEntries = [];
+        List<PreservedSubmeshEntry> preservedEntries = [];
+        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
             {
                 continue;
             }
 
-            List<AtlasBatchEntry> atlasEntries = [];
-            List<PreservedSubmeshEntry> preservedEntries = [];
-            foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
+            Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
+            switch (category)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
-                {
-                    continue;
-                }
-
-                Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
-                switch (category)
-                {
-                    case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
-                        UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
-                        MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
-                        atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
-                        break;
-                    case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
-                    case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
-                    case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
-                    case Lod2AtlasMaterialBakeCategory.PreservedOther:
-                        preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
-                        break;
-                }
-            }
-
-            if (policy.RequireAtlasCandidateMaterial && atlasEntries.Count == 0)
-            {
-                continue;
-            }
-
-            if (atlasEntries.Count > 0 || preservedEntries.Count > 0)
-            {
-                candidates.Add(new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries));
+                case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
+                    UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
+                    MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
+                    atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
+                    break;
+                case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
+                case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
+                case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
+                case Lod2AtlasMaterialBakeCategory.PreservedOther:
+                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
+                    break;
             }
         }
 
-        return candidates;
+        if (policy.RequireAtlasCandidateMaterial && atlasEntries.Count == 0)
+        {
+            DisposeCandidateImages(new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries));
+            return null;
+        }
+
+        return atlasEntries.Count > 0 || preservedEntries.Count > 0
+            ? new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries)
+            : null;
     }
 
     private async Task<MaterialAtlasTile> CreateAtlasTileAsync(
@@ -408,7 +436,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         SourceUnitKey sourceUnitKey,
         IReadOnlyList<CityObjectBakeCandidate> candidates,
         int batchIndex,
-        int batchCount,
+        bool preservePrimaryIdentity,
         CancellationToken cancellationToken)
     {
         List<AtlasBatchEntry> entries = candidates.SelectMany(static candidate => candidate.AtlasEntries).ToList();
@@ -432,8 +460,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
-        bool preservePrimaryIdentity = batchCount == 1
-            && candidates.Count == 1;
         string slotKey = preservePrimaryIdentity
             ? firstCityObject.SlotKey
             : CreateBatchSlotKey(sourceUnitKey, batchIndex);
@@ -995,6 +1021,76 @@ internal sealed class Lod2AtlasCityObjectBaker(
             TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
             TextureOffset = null,
         };
+    }
+
+    private async Task EmitAtlasBatchAsync(
+        SourceUnitKey sourceUnitKey,
+        IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
+        int batchIndex,
+        bool preservePrimaryIdentity,
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
+                sourceUnitKey,
+                batchCandidates,
+                batchIndex,
+                preservePrimaryIdentity,
+                cancellationToken);
+            BakedOutputCityObjectCount++;
+            await onBakedCityObject(bakedCityObject, cancellationToken);
+        }
+        finally
+        {
+            DisposeCandidateImages(batchCandidates);
+        }
+    }
+
+    private async Task EmitFallbackCandidateAsync(
+        CityObjectBakeCandidate fallbackCandidate,
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            BakedOutputCityObjectCount++;
+            await onBakedCityObject(fallbackCandidate.CityObject, cancellationToken);
+        }
+        finally
+        {
+            DisposeCandidateImages(fallbackCandidate);
+        }
+    }
+
+    private bool CanFitSingleCandidate(CityObjectBakeCandidate candidate)
+    {
+        return candidate.AtlasEntries.Count == 0 || TryCreateAtlasLayout(candidate.AtlasEntries, out _);
+    }
+
+    private bool CanAppendToAtlasBatch(
+        IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
+        CityObjectBakeCandidate candidate)
+    {
+        List<AtlasBatchEntry> candidateEntries = [.. batchCandidates.SelectMany(static current => current.AtlasEntries), .. candidate.AtlasEntries];
+        return TryCreateAtlasLayout(candidateEntries, out _);
+    }
+
+    private static void DisposeCandidateImages(CityObjectBakeCandidate candidate)
+    {
+        DisposeCandidateImages([candidate]);
+    }
+
+    private static void DisposeCandidateImages(IReadOnlyList<CityObjectBakeCandidate> candidates)
+    {
+        foreach (Image<Rgba32> tileImage in candidates
+                     .SelectMany(static candidate => candidate.AtlasEntries)
+                     .Select(static entry => entry.Tile.Image)
+                     .Distinct())
+        {
+            tileImage.Dispose();
+        }
     }
 
     private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image);

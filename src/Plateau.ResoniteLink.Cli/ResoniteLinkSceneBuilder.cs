@@ -17,6 +17,8 @@ namespace Plateau.ResoniteLink.Cli;
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
     private const int MaxQueuedCityObjects = 4;
+    private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
+    private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
     private const int WorkerConnectTimeoutMilliseconds = 5000;
     private const int DatasetRootLookupAttemptLimit = 5;
     private const string RootSlotId = "Root";
@@ -59,6 +61,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private CancellationTokenSource? processingCancellationSource;
     private TaskCompletionSource<Exception>? firstProcessingFailureSource;
     private CompositeCityObjectBaker? cityObjectBaker;
+    private AsyncWeightedGate? cityObjectMemoryGate;
     private int attemptedCityObjectCount;
     private int processedCityObjectCount;
     private int failedCityObjectCount;
@@ -275,6 +278,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 new Lod2AtlasCityObjectBaker(textureImageLoader, textureImportRegistry),
                 new FixedCellCityObjectMeshBaker())
             : null;
+        cityObjectMemoryGate = new AsyncWeightedGate(
+            Math.Max(
+                MaxInFlightCityObjectWorkingSetBytesFloor,
+                connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane));
         diagnostics.StartSendWindow(connectionCount);
         processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -641,6 +648,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             dispatchLaneAllocator = null;
             textureImportResolver = null;
             textureImportRegistry = null;
+            cityObjectMemoryGate = null;
             cityObjectChannels = null;
             processingTasks = null;
             cityObjectBaker = null;
@@ -737,6 +745,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey}). "
                     + $"Reason: {exception.Message}"));
         }
+        finally
+        {
+            await queuedCityObject.MemoryLease.DisposeAsync();
+        }
     }
 
     private static bool IsRecoverableCityObjectSendFailure(Exception exception)
@@ -785,6 +797,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     {
         await AwaitProcessingTasksIfCompletedAsync();
 
+        ObjectDisposedException.ThrowIf(cityObjectMemoryGate is null, this);
+        AsyncWeightedGate.Lease cityObjectMemoryLease = await cityObjectMemoryGate.AcquireAsync(
+            EstimateCityObjectWorkingSetBytes(cityObject),
+            cancellationToken);
         Task<PreparedCityObject> preparationTask = CreatePreparationTask(cityObject, cancellationToken);
         if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
         {
@@ -803,12 +819,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         try
         {
             await cityObjectChannels[dispatchLane].Writer.WriteAsync(
-                new QueuedCityObject(cityObject, preparationTask),
+                new QueuedCityObject(cityObject, preparationTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
         }
         catch (OperationCanceledException) when (processingCancellationSource?.IsCancellationRequested == true)
         {
+            await cityObjectMemoryLease.DisposeAsync();
             await AwaitProcessingTasksIfCompletedAsync();
+            throw;
+        }
+        catch
+        {
+            await cityObjectMemoryLease.DisposeAsync();
+            _ = ObserveTaskFailureAsync(preparationTask);
             throw;
         }
 
@@ -835,6 +858,43 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Task finishedTask = await Task.WhenAny(tasks).WaitAsync(cancellationToken);
         tasks.Remove(finishedTask);
         await finishedTask.WaitAsync(cancellationToken);
+    }
+
+    private static long EstimateCityObjectWorkingSetBytes(ResoniteConstructionCityObject cityObject)
+    {
+        const long minimumWeightBytes = 256L * 1024L;
+        const long textureReferenceWeightBytes = 4L * 1024L * 1024L;
+        const long heightSampleWeightBytes = sizeof(double);
+        const long hdrHeightTextureWeightBytes = 4L * sizeof(float);
+        const long materialBindingWeightBytes = 512L;
+        const long vertexWeightBytes = 64L;
+        const long indexWeightBytes = sizeof(int);
+        const long perSubmeshWeightBytes = 256L;
+
+        long geometryWeightBytes = cityObject.Geometry switch
+        {
+            ResoniteTriangleMeshGeometry triangleMesh => EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh),
+            ResoniteHeightMapGridGeometry heightMap => checked(
+                (heightMap.HeightSamples.Count * heightSampleWeightBytes)
+                + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)),
+            _ => minimumWeightBytes,
+        };
+
+        int distinctTextureCount = cityObject.Materials
+            .Where(static material => !string.IsNullOrWhiteSpace(material.TexturePath))
+            .Select(static material => (material.TexturePath!, material.TextureSourceKind))
+            .Distinct()
+            .Count();
+        long materialWeightBytes = checked((cityObject.Materials.Count * materialBindingWeightBytes) + (distinctTextureCount * textureReferenceWeightBytes));
+        return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
+
+        static long EstimateTriangleMeshWorkingSetBytes(ResoniteImportedMesh mesh)
+        {
+            long vertexBytes = mesh.Vertices.Count * vertexWeightBytes;
+            long indexBytes = mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * indexWeightBytes);
+            long submeshBytes = mesh.Submeshes.Count * perSubmeshWeightBytes;
+            return checked(vertexBytes + indexBytes + submeshBytes);
+        }
     }
 
     private void ReportProgress(string message)
@@ -2631,7 +2691,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,
-        Task<PreparedCityObject> PreparationTask);
+        Task<PreparedCityObject> PreparationTask,
+        AsyncWeightedGate.Lease MemoryLease);
 
     private abstract record PreparedConstructionGeometry;
 
