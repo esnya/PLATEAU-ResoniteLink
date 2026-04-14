@@ -347,6 +347,10 @@ public sealed class ResoniteTextureImportResolverTests
         {
             return baseLicense;
         }
+
+        public void ResetUsageTracking()
+        {
+        }
     }
 
     private sealed class DelayedDatasetContentSource : IPlateauDatasetContentSource

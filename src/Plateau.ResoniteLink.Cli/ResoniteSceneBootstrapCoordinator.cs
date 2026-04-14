@@ -13,17 +13,20 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
     private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<(CreatedSlot Slot, bool Existed)>> getOrCreateDatasetRootAsync;
     private readonly Func<IResoniteLinkClient, CreatedSlot, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync;
     private readonly Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync;
+    private readonly Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 
     internal ResoniteSceneBootstrapCoordinator(
         Func<IResoniteLinkClient, string, CancellationToken, Task<(CreatedSlot Slot, bool Existed)>> getOrCreateDatasetRootAsync,
         Func<IResoniteLinkClient, CreatedSlot, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
         Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
+        Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync,
         IResoniteSceneAnchorResolver sceneAnchorResolver)
     {
         this.getOrCreateDatasetRootAsync = getOrCreateDatasetRootAsync;
         this.getOrCreateSharedChildSlotAsync = getOrCreateSharedChildSlotAsync;
         this.createComponentAsync = createComponentAsync;
+        this.updateComponentAsync = updateComponentAsync;
         this.sceneAnchorResolver = sceneAnchorResolver;
     }
 
@@ -75,22 +78,57 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             sceneAnchor);
     }
 
-    public async Task ApplyDatasetLicenseAsync(
+    public async Task<string> ApplyDatasetLicenseAsync(
         IResoniteLinkClient setupClient,
         string datasetRootSlotId,
         ResoniteLicenseComponentMetadata license,
+        string? existingComponentId,
+        bool allowUpdateExisting,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(setupClient);
         ArgumentException.ThrowIfNullOrWhiteSpace(datasetRootSlotId);
         ArgumentNullException.ThrowIfNull(license);
 
-        _ = await createComponentAsync(
+        IReadOnlyDictionary<string, Member> members = CreateDatasetLicenseMembers(license);
+        if (!string.IsNullOrWhiteSpace(existingComponentId))
+        {
+            await updateComponentAsync(
+                setupClient,
+                existingComponentId,
+                members,
+                cancellationToken);
+            return existingComponentId;
+        }
+
+        if (allowUpdateExisting)
+        {
+            Slot? datasetRootSlot = await setupClient.GetSlotAsync(datasetRootSlotId, 0, cancellationToken);
+            Component? existingLicenseComponent = datasetRootSlot?.Components?
+                .Where(static component => string.Equals(
+                    component.ComponentType,
+                    "[FrooxEngine]FrooxEngine.License",
+                    StringComparison.Ordinal))
+                .OrderBy(static component => component.ID, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (existingLicenseComponent is not null && !string.IsNullOrWhiteSpace(existingLicenseComponent.ID))
+            {
+                await updateComponentAsync(
+                    setupClient,
+                    existingLicenseComponent.ID,
+                    members,
+                    cancellationToken);
+                return existingLicenseComponent.ID;
+            }
+        }
+
+        CreatedComponent createdComponent = await createComponentAsync(
             setupClient,
             datasetRootSlotId,
             "[FrooxEngine]FrooxEngine.License",
-            CreateDatasetLicenseMembers(license),
+            members,
             cancellationToken);
+        return createdComponent.ComponentId;
     }
 
     private async Task<SceneAnchor> CreateInitialSceneAnchorAsync(

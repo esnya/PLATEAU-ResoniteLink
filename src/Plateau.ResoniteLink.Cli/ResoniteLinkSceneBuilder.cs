@@ -69,6 +69,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private IPlateauDatasetContentSource? datasetContentSource;
     private ResoniteTextureImportRegistry? textureImportRegistry;
     private SceneAnchor? sceneAnchor;
+    private string? datasetLicenseComponentId;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
         : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
@@ -157,6 +158,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             GetOrCreateDatasetRootAsync,
             GetOrCreateSharedChildSlotAsync,
             CreateComponentAsync,
+            UpdateComponentAsync,
             sceneAnchorResolver);
         geometryAssetAssembler = new ResoniteGeometryAssetAssembler(ReportProgress);
         clientSession = new LiveSendClientSession(
@@ -241,6 +243,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         datasetAssetsRootSlot = bootstrapState.DatasetAssetsRootSlot;
         commonAssetsRootSlot = bootstrapState.CommonAssetsRootSlot;
         sceneAnchor = bootstrapState.SceneAnchor;
+        terrainTextureAssetGenerator.ResetUsageTracking();
+        datasetLicenseComponentId = await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
+            clientSession.SetupClient,
+            datasetRootSlot.Value.SlotId,
+            metadata.Attribution.DatasetLicense,
+            existingComponentId: null,
+            allowUpdateExisting: bootstrapState.DatasetRootExisted,
+            cancellationToken);
 
         ReportProgress("[live] Dataset slots and asset groups are ready.");
         clientSession.BeginWorkerClientTracking();
@@ -505,22 +515,19 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
             Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
             int bakedCityObjectCount = 0;
-            using SemaphoreSlim bakeEnqueueLock = new(1, 1);
+            ConcurrentBag<Task> bakeEnqueueTasks = [];
             await cityObjectBaker.FlushAllAsync(
-                async (bakedCityObject, callbackCancellationToken) =>
+                (bakedCityObject, callbackCancellationToken) =>
                 {
-                    await bakeEnqueueLock.WaitAsync(callbackCancellationToken);
-                    try
-                    {
-                        bakedCityObjectCount++;
-                        await EnqueueCityObjectAsync(bakedCityObject, callbackCancellationToken);
-                    }
-                    finally
-                    {
-                        bakeEnqueueLock.Release();
-                    }
+                    _ = Interlocked.Increment(ref bakedCityObjectCount);
+                    bakeEnqueueTasks.Add(EnqueueCityObjectAsync(bakedCityObject, callbackCancellationToken));
+                    return Task.CompletedTask;
                 },
                 cancellationToken);
+            if (!bakeEnqueueTasks.IsEmpty)
+            {
+                await Task.WhenAll(bakeEnqueueTasks).WaitAsync(cancellationToken);
+            }
             bakeFlushStopwatch.Stop();
             ReportProgress(
                 $"[live] Buffered bake flush produced {bakedCityObjectCount} baked city objects "
@@ -555,10 +562,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
         await allProcessingTasks.WaitAsync(cancellationToken);
         ReportProgress("[live] All send lanes drained.");
-        await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
+        datasetLicenseComponentId = await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
             clientSession.SetupClient,
             datasetRootSlot.Value.SlotId,
             terrainTextureAssetGenerator.ResolveDatasetLicense(metadata.Attribution.DatasetLicense),
+            datasetLicenseComponentId,
+            allowUpdateExisting: true,
             cancellationToken);
         diagnostics.CompleteSendWindow();
         ReportProgress(
@@ -2068,6 +2077,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             CreateAddComponentOperation(containerSlotId, componentType, members),
             cancellationToken);
         return new CreatedComponent(responseComponentId, componentType);
+    }
+
+    private static Task UpdateComponentAsync(
+        IResoniteLinkClient client,
+        string componentId,
+        IReadOnlyDictionary<string, Member> members,
+        CancellationToken cancellationToken)
+    {
+        return client.UpdateComponentAsync(
+            new UpdateComponent
+            {
+                Data = new Component
+                {
+                    ID = componentId,
+                    Members = members.ToDictionary(
+                        static pair => pair.Key,
+                        static pair => pair.Value,
+                        StringComparer.Ordinal),
+                },
+            },
+            cancellationToken);
     }
 
     private Task<CreatedComponent> CreateSharedAssetComponentAsync(

@@ -872,6 +872,40 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BeginAsyncAppliesBaseDatasetLicenseBeforeStreamingStarts()
+    {
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        CapturedResoniteScene scene = LoadScene(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: fixturePath,
+                ServerUri: null));
+
+        using FakeResoniteLinkClient fakeClient = new();
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient);
+
+        using TemporaryDirectory workDirectory = new();
+        await builder.BeginAsync(scene.Metadata, workDirectory.Path);
+
+        Component license = Assert.Single(
+            fakeClient.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        Field_bool requireCredit = Assert.IsType<Field_bool>(license.Members["RequireCredit"]);
+        Assert.Equal(scene.Metadata.Attribution.DatasetLicense.RequireCredit, requireCredit.Value);
+        Field_string creditString = Assert.IsType<Field_string>(license.Members["CreditString"]);
+        Assert.Contains(scene.Metadata.Attribution.DatasetLicense.CreditText, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(scene.Metadata.Attribution.DatasetLicense.LicenseName, creditString.Value, StringComparison.Ordinal);
+        Assert.Contains(scene.Metadata.Attribution.DatasetLicense.LicenseUrl, creditString.Value, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncWritesHeightMapTextureAsHdrRawWithBlueOnlyScaledDisplacement()
     {
         const string dataset = "tokyo23ku";
@@ -4755,6 +4789,10 @@ public sealed class ResoniteLinkSceneBuilderTests
         {
             return baseLicense;
         }
+
+        public void ResetUsageTracking()
+        {
+        }
     }
 
     private sealed class DelayedLicenseAwareTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
@@ -4789,6 +4827,11 @@ public sealed class ResoniteLinkSceneBuilderTests
             ResolveCallCount++;
             EnsureCompletedBeforeResolve = Interlocked.CompareExchange(ref ensureCompleted, 0, 0) == 1;
             return baseLicense;
+        }
+
+        public void ResetUsageTracking()
+        {
+            Interlocked.Exchange(ref ensureCompleted, 0);
         }
     }
 

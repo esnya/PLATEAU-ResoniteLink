@@ -9,9 +9,11 @@ internal interface IResoniteSceneBootstrapCoordinator
         ResoniteConstructionMetadata metadata,
         CancellationToken cancellationToken);
 
-    Task ApplyDatasetLicenseAsync(
+    Task<string> ApplyDatasetLicenseAsync(
         IResoniteLinkClient setupClient,
         string datasetRootSlotId,
         ResoniteLicenseComponentMetadata license,
+        string? existingComponentId,
+        bool allowUpdateExisting,
         CancellationToken cancellationToken);
 }

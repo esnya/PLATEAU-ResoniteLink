@@ -12,6 +12,8 @@ internal interface ITerrainTextureAssetGenerator
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken);
 
+    void ResetUsageTracking();
+
     ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense);
 }
 
@@ -34,16 +36,25 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             cancellationToken);
     }
 
+    public void ResetUsageTracking()
+    {
+        Interlocked.Exchange(ref usedTerrainTileCount, 0);
+        Interlocked.Exchange(ref fallbackTileUseCount, 0);
+    }
+
     public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
     {
         ArgumentNullException.ThrowIfNull(baseLicense);
 
-        if (Interlocked.CompareExchange(ref usedTerrainTileCount, 0, 0) == 0)
+        int usedTerrainTiles = Interlocked.Exchange(ref usedTerrainTileCount, 0);
+        int fallbackTerrainTiles = Interlocked.Exchange(ref fallbackTileUseCount, 0);
+
+        if (usedTerrainTiles == 0)
         {
             return baseLicense;
         }
 
-        if (Interlocked.CompareExchange(ref fallbackTileUseCount, 0, 0) == 0)
+        if (fallbackTerrainTiles == 0)
         {
             return baseLicense with
             {

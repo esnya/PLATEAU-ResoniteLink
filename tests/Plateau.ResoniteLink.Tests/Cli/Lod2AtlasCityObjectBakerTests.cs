@@ -506,6 +506,32 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncUsesDisjointBatchIndicesForMergedPassThroughAndAtlasOutputs()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        WriteDatasetImage(datasetRoot.Path, "textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            textureImportRegistry,
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1);
+
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-textured-one", "textures/one.png", 10.0, "unit-a")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-textured-two", "textures/two.png", 90.0, "unit-b")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-plain-one", null, 20.0, "unit-c")));
+        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-plain-two", null, 100.0, "unit-d")));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        Assert.Equal(2, baked.Select(static cityObject => cityObject.SourceObjectKey).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(2, baked.Select(static cityObject => cityObject.SlotKey).Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
     public async Task FlushAllAsyncSeparatesNonBuildingAtlasCandidatesAcrossGridCells()
     {
         using TemporaryDirectory datasetRoot = new();

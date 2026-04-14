@@ -122,6 +122,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
         {
             List<CityObjectBakeCandidate> passThroughCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count == 0)];
             List<CityObjectBakeCandidate> atlasCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count > 0)];
+            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(atlasCandidates);
+            int mergedPassThroughBatchCount = passThroughCandidates.Count > 1 ? 1 : 0;
+            int totalBatchCount = batchPlan.Batches.Count + mergedPassThroughBatchCount;
 
             List<ResoniteConstructionCityObject> bakedCityObjects = [];
             if (passThroughCandidates.Count == 1)
@@ -133,13 +136,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 ResoniteConstructionCityObject mergedPassThroughCityObject = await BakeBatchAsync(
                     sourceUnitKey,
                     passThroughCandidates,
-                    batchIndex: 0,
-                    batchCount: 1,
+                    batchIndex: batchPlan.Batches.Count,
+                    batchCount: totalBatchCount,
                     cancellationToken);
                 bakedCityObjects.Add(mergedPassThroughCityObject);
             }
 
-            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(atlasCandidates);
             for (int batchIndex = 0; batchIndex < batchPlan.Batches.Count; batchIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -147,7 +149,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
                     sourceUnitKey,
                     batchPlan.Batches[batchIndex],
                     batchIndex,
-                    batchPlan.Batches.Count,
+                    totalBatchCount,
                     cancellationToken);
                 bakedCityObjects.Add(bakedCityObject);
             }

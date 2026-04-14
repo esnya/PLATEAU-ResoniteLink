@@ -315,6 +315,29 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Equal("https://maps.gsi.go.jp/help/termsofuse.html", resolved.LicenseUrl);
     }
 
+    [Fact]
+    public async Task ResolveDatasetLicenseConsumesUsageCountersPerImportLifecycle()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureOverlay terrainTextureOverlay = CreateFullCoverageOverlay(
+            "https://tiles.example/{z}/{x}/{y}.png");
+        ResoniteLicenseComponentMetadata baseLicense = new(
+            RequireCredit: true,
+            CreditText: "base credit",
+            LicenseName: "base license",
+            LicenseUrl: "https://example.invalid/base");
+
+        _ = await generator.EnsureTextureAsync(terrainTextureOverlay, CancellationToken.None);
+
+        ResoniteLicenseComponentMetadata firstResolved = generator.ResolveDatasetLicense(baseLicense);
+        ResoniteLicenseComponentMetadata secondResolved = generator.ResolveDatasetLicense(baseLicense);
+
+        Assert.NotEqual(baseLicense, firstResolved);
+        Assert.Equal(baseLicense, secondResolved);
+    }
+
     private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)
     {
         return new TerrainTextureOverlay(
