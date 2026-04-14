@@ -86,6 +86,7 @@ public sealed class PlateauImportService(
             }
 
             Stopwatch completeStopwatch = Stopwatch.StartNew();
+            ReportProgress(PlateauLog.Info("import", "Starting live scene completion."));
             IReadOnlyList<string> destinations = await sceneBuilder.CompleteAsync(cancellationToken);
             completeStopwatch.Stop();
             ReportProgress(

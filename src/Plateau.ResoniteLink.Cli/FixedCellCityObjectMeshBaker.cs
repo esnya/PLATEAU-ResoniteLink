@@ -110,6 +110,18 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         return Task.FromResult(FlushAll());
     }
 
+    public async Task FlushAllAsync(
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onBakedCityObject);
+        foreach (ResoniteConstructionCityObject bakedCityObject in await FlushAllAsync(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await onBakedCityObject(bakedCityObject, cancellationToken);
+        }
+    }
+
     private static bool CanBake(ResoniteConstructionCityObject cityObject)
     {
         return string.Equals(cityObject.PackageName, "bldg", StringComparison.OrdinalIgnoreCase)

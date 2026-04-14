@@ -26,21 +26,23 @@ internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjec
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
         CancellationToken cancellationToken = default)
     {
-        Task<IReadOnlyList<ResoniteConstructionCityObject>>[] flushTasks = bakers
-            .Select(baker => baker.FlushAllAsync(cancellationToken))
-            .ToArray();
-        IReadOnlyList<ResoniteConstructionCityObject>[] flushedCityObjects = await Task.WhenAll(flushTasks);
-
         List<ResoniteConstructionCityObject> bakedCityObjects = [];
-        foreach (IReadOnlyList<ResoniteConstructionCityObject> baked in flushedCityObjects)
-        {
-            if (baked.Count > 0)
+        await FlushAllAsync(
+            (bakedCityObject, _) =>
             {
-                bakedCityObjects.AddRange(baked);
-            }
-        }
-
+                bakedCityObjects.Add(bakedCityObject);
+                return Task.CompletedTask;
+            },
+            cancellationToken);
         return bakedCityObjects;
+    }
+
+    public Task FlushAllAsync(
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onBakedCityObject);
+        return Task.WhenAll(bakers.Select(baker => baker.FlushAllAsync(onBakedCityObject, cancellationToken)));
     }
 
     public IEnumerable<(string Name, int InputCount, int OutputCount)> GetBakeSummaries()

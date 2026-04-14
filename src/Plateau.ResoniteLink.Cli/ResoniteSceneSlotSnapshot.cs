@@ -59,13 +59,7 @@ internal sealed class ResoniteSceneSlotSnapshot
             return new ResoniteSceneChildLookupResult(ResoniteSceneChildLookupState.NotFound, null);
         }
 
-        if (matches.Length > 1)
-        {
-            throw new InvalidOperationException(
-                $"Parent slot '{parentId}' contains multiple child slots named '{slotName}'.");
-        }
-
-        Slot match = matches[0];
+        Slot match = SelectPreferredExistingSlot(matches);
         return new ResoniteSceneChildLookupResult(
             string.IsNullOrWhiteSpace(match.ID)
                 ? ResoniteSceneChildLookupState.FoundWithoutId
@@ -119,5 +113,13 @@ internal sealed class ResoniteSceneSlotSnapshot
         }
 
         return childrenByName;
+    }
+
+    private static Slot SelectPreferredExistingSlot(IReadOnlyList<Slot> matches)
+    {
+        return matches
+            .OrderByDescending(static slot => slot.Components?.Count ?? 0)
+            .ThenBy(static slot => slot.ID, StringComparer.Ordinal)
+            .First();
     }
 }

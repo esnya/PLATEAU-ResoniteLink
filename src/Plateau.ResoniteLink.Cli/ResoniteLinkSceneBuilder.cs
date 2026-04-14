@@ -26,6 +26,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
     private static readonly TimeSpan DatasetRootLookupRetryDelay = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan SlowCityObjectOperationWarningThreshold = TimeSpan.FromSeconds(30);
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -503,15 +504,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
 
             Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
-            IReadOnlyList<ResoniteConstructionCityObject> bakedCityObjects = await cityObjectBaker.FlushAllAsync(cancellationToken);
+            int bakedCityObjectCount = 0;
+            using SemaphoreSlim bakeEnqueueLock = new(1, 1);
+            await cityObjectBaker.FlushAllAsync(
+                async (bakedCityObject, callbackCancellationToken) =>
+                {
+                    await bakeEnqueueLock.WaitAsync(callbackCancellationToken);
+                    try
+                    {
+                        bakedCityObjectCount++;
+                        await EnqueueCityObjectAsync(bakedCityObject, callbackCancellationToken);
+                    }
+                    finally
+                    {
+                        bakeEnqueueLock.Release();
+                    }
+                },
+                cancellationToken);
             bakeFlushStopwatch.Stop();
             ReportProgress(
-                $"[live] Buffered bake flush produced {bakedCityObjects.Count} baked city objects "
+                $"[live] Buffered bake flush produced {bakedCityObjectCount} baked city objects "
                 + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s.");
-            foreach (ResoniteConstructionCityObject bakedCityObject in bakedCityObjects)
-            {
-                await EnqueueCityObjectAsync(bakedCityObject, cancellationToken);
-            }
 
             foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
             {
@@ -663,8 +676,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Interlocked.Increment(ref attemptedCityObjectCount);
         try
         {
-            PreparedCityObject preparedCityObject = await queuedCityObject.PreparationTask.WaitAsync(cancellationToken);
-            bool builtCityObject = await BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken);
+            PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
+                queuedCityObject.PreparationTask,
+                queuedCityObject.CityObject,
+                "preparing",
+                cancellationToken);
+            bool builtCityObject = await AwaitWithSlowCityObjectWarningAsync(
+                BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken),
+                preparedCityObject.CityObject,
+                "building",
+                cancellationToken);
             if (!builtCityObject)
             {
                 ReportProgress(
@@ -708,6 +729,28 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private static bool IsRecoverableCityObjectSendFailure(Exception exception)
     {
         return FindResoniteLinkOperationException(exception) is { OperationName: "ImportMesh" or "ImportTexture" or "GetSlot" or "GetComponent" };
+    }
+
+    private async Task<T> AwaitWithSlowCityObjectWarningAsync<T>(
+        Task<T> operationTask,
+        ResoniteConstructionCityObject cityObject,
+        string phase,
+        CancellationToken cancellationToken)
+    {
+        Task completedTask = await Task.WhenAny(
+            operationTask,
+            Task.Delay(SlowCityObjectOperationWarningThreshold, CancellationToken.None));
+        if (!ReferenceEquals(completedTask, operationTask))
+        {
+            ReportProgress(
+                $"[live][warn] City object '{cityObject.DisplayName}' "
+                + $"({cityObject.PackageName}/{cityObject.SlotKey}) "
+                + $"mesh='{cityObject.ActualMeshCode}' "
+                + $"sourceUnit='{cityObject.SourceUnitKey ?? "<null>"}' "
+                + $"is still {phase} after {SlowCityObjectOperationWarningThreshold.TotalSeconds:F0}s.");
+        }
+
+        return await operationTask.WaitAsync(cancellationToken);
     }
 
     private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
@@ -2225,14 +2268,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return null;
         }
 
-        if (matches.Length > 1)
-        {
-            string parentIdentifier = parentId ?? parentSlot.ID ?? "<unknown>";
-            throw new InvalidOperationException(
-                $"Parent slot '{parentIdentifier}' contains multiple child slots named '{slotName}'.");
-        }
-
-        string existingSlotId = matches[0].ID
+        Slot preferredMatch = SelectPreferredExistingSlot(matches);
+        string existingSlotId = preferredMatch.ID
             ?? throw new InvalidOperationException(
                 $"Child slot '{slotName}' under parent '{parentId ?? parentSlot.ID ?? "<unknown>"}' did not surface an ID.");
         return new CreatedSlot(existingSlotId, slotName);

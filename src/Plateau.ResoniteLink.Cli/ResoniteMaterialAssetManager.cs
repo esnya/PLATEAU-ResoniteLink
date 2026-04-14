@@ -389,11 +389,16 @@ internal sealed class ResoniteMaterialAssetManager(
 
         if (matchingSlots.Length > 1)
         {
-            throw new InvalidOperationException(
-                $"Parent slot '{materialSlotParentId}' contains multiple child slots named '{materialSlotName}'.");
+            ReportProgress(
+                $"[live][warn] Detected {matchingSlots.Length} existing child slots named '{materialSlotName}' "
+                + $"under '{materialSlotParentId}'. Reusing the preferred existing material slot.");
         }
 
-        Component? existingMaterialComponent = matchingSlots[0].Components?.FirstOrDefault(component =>
+        Slot preferredSlot = matchingSlots
+            .OrderByDescending(static slot => slot.Components?.Count ?? 0)
+            .ThenBy(static slot => slot.ID, StringComparer.Ordinal)
+            .First();
+        Component? existingMaterialComponent = preferredSlot.Components?.FirstOrDefault(component =>
             string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal));
         if (existingMaterialComponent is null)
         {

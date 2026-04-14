@@ -3,7 +3,7 @@ param(
     [string]$Endpoint,
 
     [string]$Dataset = '14100-yokohama-shi',
-    [string]$RepoPath = (Split-Path -Parent $PSScriptRoot),
+    [string]$RepoPath,
     [switch]$ListOnly,
     [switch]$KeepLogs,
     [int]$VerificationTimeoutSeconds = 20,
@@ -11,6 +11,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($RepoPath)) {
+    $scriptRoot = Split-Path -Parent $PSCommandPath
+    $RepoPath = Split-Path -Parent $scriptRoot
+}
 
 . (Join-Path $PSScriptRoot 'windows-build-tools.ps1')
 
@@ -23,12 +28,9 @@ if (-not $ListOnly) {
     Write-Warning "This cleanup removes live dataset roots from the current Resonite session and can destroy experiment results."
     Get-CimInstance Win32_Process |
         Where-Object {
-            (
-                $_.Name -eq 'dotnet.exe'
-                -or $_.Name -eq 'Plateau.ResoniteLink.Cli.exe'
-            )
-            -and $_.CommandLine -like '*Plateau.ResoniteLink.Cli*'
-            -and $_.CommandLine -like "*$RepoPath*"
+            $isSenderProcess = $_.Name -eq 'dotnet.exe' -or $_.Name -eq 'Plateau.ResoniteLink.Cli.exe'
+            $isRepoProcess = $_.CommandLine -like '*Plateau.ResoniteLink.Cli*' -and $_.CommandLine -like "*$RepoPath*"
+            $isSenderProcess -and $isRepoProcess
         } |
         ForEach-Object {
             $stoppedProcessIds += $_.ProcessId

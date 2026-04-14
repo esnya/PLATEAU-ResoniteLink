@@ -56,12 +56,27 @@ internal sealed class Lod2AtlasCityObjectBaker(
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
         CancellationToken cancellationToken = default)
     {
+        List<ResoniteConstructionCityObject> bakedCityObjects = [];
+        await FlushAllAsync(
+            (bakedCityObject, _) =>
+            {
+                bakedCityObjects.Add(bakedCityObject);
+                return Task.CompletedTask;
+            },
+            cancellationToken);
+        return bakedCityObjects;
+    }
+
+    public async Task FlushAllAsync(
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(onBakedCityObject);
         if (bufferedCityObjectsBySourceUnit.Count == 0)
         {
-            return [];
+            return;
         }
 
-        List<ResoniteConstructionCityObject> bakedCityObjects = [];
         foreach ((SourceUnitKey sourceUnitKey, List<BufferedCityObject> cityObjects) in bufferedCityObjectsBySourceUnit
                      .OrderBy(static pair => pair.Key, SourceUnitKeyComparer.Instance))
         {
@@ -69,11 +84,14 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 sourceUnitKey,
                 cityObjects,
                 cancellationToken);
-            bakedCityObjects.AddRange(bakedSourceUnitCityObjects);
+            foreach (ResoniteConstructionCityObject bakedCityObject in bakedSourceUnitCityObjects)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await onBakedCityObject(bakedCityObject, cancellationToken);
+            }
         }
 
         bufferedCityObjectsBySourceUnit.Clear();
-        return bakedCityObjects;
     }
 
     private Lod2AtlasCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)

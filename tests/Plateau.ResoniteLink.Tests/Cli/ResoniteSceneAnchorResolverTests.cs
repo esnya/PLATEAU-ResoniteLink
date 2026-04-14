@@ -189,6 +189,26 @@ public sealed class ResoniteSceneAnchorResolverTests
         Assert.Equal(expectedPosition.Z, position.Value.z, 3);
     }
 
+    [Fact]
+    public void SnapshotSelectsPreferredChildWhenDuplicateNamesExist()
+    {
+        Slot datasetRoot = CreateSlot(
+            "dataset-root",
+            "PLATEAU tokyo23ku",
+            children:
+            [
+                CreateSlot("mesh-b", "53394525", "dataset-root"),
+                CreateSlot("mesh-a", "53394525", "dataset-root"),
+            ]);
+
+        ResoniteSceneSlotSnapshot snapshot = new(datasetRoot);
+
+        ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult("53394525", "dataset-root");
+
+        Assert.Equal(ResoniteSceneChildLookupState.FoundWithId, lookup.State);
+        Assert.Equal("mesh-a", lookup.SlotId);
+    }
+
     private static ResoniteFloat3 ComputeExpectedAnchorPosition(
         string referenceMeshCode,
         string completionMeshCode,

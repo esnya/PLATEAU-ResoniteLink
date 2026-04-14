@@ -296,6 +296,70 @@ public sealed class ResoniteMaterialAssetManagerTests
     }
 
     [Fact]
+    public async Task CreateMaterialComponentAsyncReusesPreferredExistingSharedMaterialWhenDuplicateNamedSlotsExist()
+    {
+        List<string> progressMessages = [];
+        Slot parentSlot = new()
+        {
+            ID = "common-slot",
+            Children =
+            [
+                new Slot
+                {
+                    ID = "duplicate-material-slot-b",
+                    Name = new Field_string
+                    {
+                        Value = "Material",
+                    },
+                },
+                new Slot
+                {
+                    ID = "duplicate-material-slot-a",
+                    Name = new Field_string
+                    {
+                        Value = "Material",
+                    },
+                    Components =
+                    [
+                        new Component
+                        {
+                            ID = "existing-material-component",
+                            ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
+                        },
+                    ],
+                },
+            ],
+        };
+        ResoniteMaterialAssetManager manager = new(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
+            static (_, _, _, _, _) => throw new InvalidOperationException("component creation should not run"),
+            (_, _, _, _) => Task.FromResult<Slot?>(parentSlot),
+            static (_, _, _) => throw new InvalidOperationException("texture import should not run"),
+            progressReporter: progressMessages.Add);
+        using StubResoniteLinkClient client = new();
+
+        CreatedMaterialAsset created = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        Assert.Equal("existing-material-component", created.MaterialComponentId);
+        Assert.Contains(
+            progressMessages,
+            message => message.Contains(
+                "Detected 2 existing child slots named 'Material'",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task CreateMaterialComponentAsyncDoesNotReuseCachedComponentAcrossDifferentMaterialTypes()
     {
         List<string> calls = [];

@@ -1877,6 +1877,50 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncReusesPreferredExistingMeshRootWhenDatasetRootContainsDuplicateNamedChildren()
+    {
+        CapturedResoniteScene scene = CreateAppendScene("53394525", "Building 25");
+        FakeResoniteLinkSession session = new();
+        string datasetRootId = AddSeedSlot(session, "Root", $"PLATEAU {scene.Metadata.Request.Dataset}");
+        string duplicateMeshRootId = AddSeedSlot(session, datasetRootId, "533945");
+        AddSeedSlot(session, datasetRootId, "533945");
+        AddSeedSlot(session, duplicateMeshRootId, "dem");
+
+        using FakeResoniteLinkClient fakeClient = new(session);
+        List<string> progressMessages = [];
+        ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            () => fakeClient,
+            progressReporter: progressMessages.Add);
+
+        await RunBuilderAsync(builder, scene);
+
+        Assert.Contains(
+            progressMessages,
+            message => message.Contains(
+                "Detected 2 existing child slots with duplicate identity tag",
+                StringComparison.Ordinal)
+                || message.Contains(
+                    "Dataset root reuses pre-existing mesh slot '533945'",
+                    StringComparison.Ordinal)
+                || message.Contains(
+                    "Sent city object",
+                    StringComparison.Ordinal));
+        Assert.Equal(
+            2,
+            fakeClient.SlotsById.Values.Count(slot =>
+                string.Equals(slot.Name?.Value, "533945", StringComparison.Ordinal)
+                && string.Equals(slot.Parent?.TargetID, datasetRootId, StringComparison.Ordinal)));
+        Assert.DoesNotContain(
+            fakeClient.AddedSlots,
+            request =>
+                string.Equals(request.Data.Name?.Value, "533945", StringComparison.Ordinal)
+                && string.Equals(request.Data.Parent?.TargetID, datasetRootId, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BeginAsyncDoesNotWaitForDeferredWorkerConnections()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
@@ -2511,6 +2555,34 @@ public sealed class ResoniteLinkSceneBuilderTests
             session.SlotsById.Values,
             slot => string.Equals(slot.Parent?.TargetID, datasetSlot.ID, StringComparison.Ordinal)
                 && string.Equals(slot.Name?.Value, "53394525", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesPreferredSharedMeshRootWhenDuplicateNamedChildrenAlreadyExist()
+    {
+        FakeResoniteLinkSession session = new();
+        string datasetRootId = AddSeedSlot(session, "Root", "PLATEAU tokyo23ku");
+        string preferredMeshRootId = AddSeedSlot(session, datasetRootId, "53394525");
+        string duplicateMeshRootId = AddSeedSlot(session, datasetRootId, "53394525");
+        _ = preferredMeshRootId;
+        _ = duplicateMeshRootId;
+
+        IReadOnlyList<string> destinations = await RunBuilderAsync(
+            new ResoniteLinkSceneBuilder(
+                new Uri("ws://localhost:12345/"),
+                1,
+                ResoniteLinkSendDiagnostics.Disabled,
+                () => new FakeResoniteLinkClient(session),
+                new TerrainTextureAssetGenerator(),
+                enableMeshBake: false),
+            CreateAppendScene("53394525", "Building 25"));
+
+        Assert.Single(destinations);
+        Assert.Equal(
+            2,
+            session.SlotsById.Values.Count(slot =>
+                string.Equals(slot.Parent?.TargetID, datasetRootId, StringComparison.Ordinal)
+                && string.Equals(slot.Name?.Value, "53394525", StringComparison.Ordinal)));
     }
 
     [Fact]
