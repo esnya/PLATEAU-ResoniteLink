@@ -233,6 +233,29 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/b.gml");
     }
 
+    [Fact]
+    public void FlushAllKeepsSameSourceFileMergedAcrossDifferentSourceUnits()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(
+            baker.TryBuffer(CreateTriangleBuilding("a-one", x: 10.0, z: 10.0, sourceUnitKey: "unit-a") with
+            {
+                SourceFileRelativePath = "udx/bldg/53394525_citygml/common.gml",
+            },
+            out _));
+        Assert.True(
+            baker.TryBuffer(CreateTriangleBuilding("a-two", x: 18.0, z: 12.0, sourceUnitKey: "unit-b") with
+            {
+                SourceFileRelativePath = "udx/bldg/53394525_citygml/common.gml",
+            },
+            out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+        Assert.Equal("udx/bldg/53394525_citygml/common.gml", baked.SourceFileRelativePath);
+        Assert.Null(baked.SourceUnitKey);
+        Assert.Equal(6, baked.Mesh.Vertices.Count);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,

@@ -184,8 +184,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             cityObject.PackageName,
             cityObject.LodLevel,
             scopeIdentity,
-            cityObject.SourceUnitKey,
-            cityObject.SourceFileRelativePath,
             CellX: 0,
             CellZ: 0);
     }
@@ -204,6 +202,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     {
         int flushSequence = flushSequenceByCell.GetValueOrDefault(cellKey);
         flushSequenceByCell[cellKey] = flushSequence + 1;
+        string? sourceUnitKey = GetMergedSourceUnitKey(buffer.CityObjects);
+        string? sourceFileRelativePath = GetMergedSourceFileRelativePath(buffer.CityObjects);
 
         ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(buffer);
         List<ResoniteMeshVertex> vertices = [];
@@ -277,8 +277,50 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             Materials: materials,
             CollisionEnabled: buffer.CityObjects.Any(static cityObject => cityObject.CollisionEnabled),
             SourceObjectKey: CreateBatchSourceObjectKey(cellKey, flushSequence),
-            SourceUnitKey: cellKey.SourceUnitKey,
-            SourceFileRelativePath: cellKey.SourceFileRelativePath);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static string? GetMergedSourceUnitKey(IEnumerable<ResoniteConstructionCityObject> cityObjects)
+    {
+        HashSet<string?> sourceUnitKeys = [];
+        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
+        {
+            sourceUnitKeys.Add(cityObject.SourceUnitKey);
+        }
+
+        if (sourceUnitKeys.Count == 0)
+        {
+            return null;
+        }
+
+        if (sourceUnitKeys.Count == 1)
+        {
+            return sourceUnitKeys.Single();
+        }
+
+        return null;
+    }
+
+    private static string? GetMergedSourceFileRelativePath(IEnumerable<ResoniteConstructionCityObject> cityObjects)
+    {
+        HashSet<string?> sourceFileRelativePaths = [];
+        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
+        {
+            sourceFileRelativePaths.Add(cityObject.SourceFileRelativePath);
+        }
+
+        if (sourceFileRelativePaths.Count == 0)
+        {
+            return null;
+        }
+
+        if (sourceFileRelativePaths.Count == 1)
+        {
+            return sourceFileRelativePaths.Single();
+        }
+
+        return null;
     }
 
     private static ResoniteFloat3 ComputeBakeOrigin(CellBuffer buffer)
@@ -367,8 +409,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         string PackageName,
         int? LodLevel,
         string ScopeIdentity,
-        string? SourceUnitKey,
-        string? SourceFileRelativePath,
         int CellX,
         int CellZ);
 
