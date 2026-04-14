@@ -30,10 +30,15 @@ internal static partial class ResoniteSourceMeshCodeAnchor
 
         if (concreteSourceMeshCodes.Length == 0)
         {
+            if (PlateauMeshCode.TryGetCenter(metadata.Request.MeshCode, out _))
+            {
+                return metadata.Request.MeshCode;
+            }
+
             throw new InvalidOperationException(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Live Offset V2 requires at least one concrete meshcode from discovered source filenames, but none were resolved for '{metadata.Request.MeshCode}'."));
+                    $"Live Offset V2 requires at least one concrete meshcode from discovered source filenames, and request mesh '{metadata.Request.MeshCode}' was not concrete."));
         }
 
         return ResolveMeshCodeClosestToBoundsCenter(concreteSourceMeshCodes);

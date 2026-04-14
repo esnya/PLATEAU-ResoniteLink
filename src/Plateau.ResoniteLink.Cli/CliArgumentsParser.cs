@@ -41,8 +41,6 @@ public static class CliArgumentsParser
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
                                                              Optional. Experimental parallel ResoniteLink connection count for live sends. Default: 1.
-          --resonitelink-import-mesh-timeout-ms <milliseconds>
-                                                            Optional. Accepted for backward compatibility but ignored. Default: 0.
           --no-mesh-bake       Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.
@@ -69,7 +67,6 @@ public static class CliArgumentsParser
         string workRoot = "local";
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
-        int resoniteLinkImportMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds;
         bool enableMeshBake = true;
         bool enableSendMetrics = false;
         bool verboseLogging = false;
@@ -175,18 +172,6 @@ public static class CliArgumentsParser
                             {
                                 return CliParseResult.Failure(
                                     $"The value '{connectionCountValue}' is not a valid ResoniteLink connection count.");
-                            }
-
-                            break;
-                        }
-                    case "--resonitelink-import-mesh-timeout-ms":
-                        {
-                            string timeoutValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
-                            if (!int.TryParse(timeoutValue, out resoniteLinkImportMeshTimeoutMilliseconds)
-                                || resoniteLinkImportMeshTimeoutMilliseconds < 0)
-                            {
-                                return CliParseResult.Failure(
-                                    $"The value '{timeoutValue}' is not a valid ResoniteLink ImportMesh timeout.");
                             }
 
                             break;
@@ -360,7 +345,6 @@ public static class CliArgumentsParser
                 workRoot,
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
-                resoniteLinkImportMeshTimeoutMilliseconds,
                 enableMeshBake,
                 enableSendMetrics,
                 verboseLogging));

@@ -16,7 +16,6 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Action<string>? reporter;
-    private readonly int importMeshTimeoutMilliseconds;
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
     private readonly ConcurrentBag<ClientState> knownClients = [];
     private ClientState currentClient;
@@ -25,12 +24,10 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 
     public RetryingResoniteLinkClient(
         Func<IResoniteLinkClient> clientFactory,
-        Action<string>? reporter = null,
-        int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds)
+        Action<string>? reporter = null)
     {
         this.clientFactory = clientFactory;
         this.reporter = reporter;
-        this.importMeshTimeoutMilliseconds = importMeshTimeoutMilliseconds;
 
         currentClient = new ClientState(clientFactory());
         knownClients.Add(currentClient);
@@ -46,7 +43,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         reconnectGate.Dispose();
         foreach (ClientState client in knownClients)
         {
-            client.ForceDispose();
+            client.MarkRetired();
         }
     }
 
@@ -145,7 +142,6 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        _ = importMeshTimeoutMilliseconds;
         return ExecuteTimedImportAsync(
             static (client, state, ct) => client.ImportMeshAsync(state, ct),
             request,
@@ -353,6 +349,17 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             catch (Exception exception)
             {
                 lastException = exception;
+                if (ShouldRetireClientAfterFailure(exception))
+                {
+                    ReplaceClientWithoutConnecting(observedClient);
+                    reporter?.Invoke(
+                        PlateauLog.Warning(
+                            "live",
+                            $"ResoniteLink {operationName} retired the active client after a fatal protocol failure. "
+                            + $"Reason: {exception.Message}"));
+                    throw ResoniteLinkOperationException.Wrap(operationName, exception);
+                }
+
                 if (attempt >= AttemptLimit)
                 {
                     break;
@@ -409,7 +416,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                     Interlocked.CompareExchange(ref currentClient, replacementClient, observedClient),
                     observedClient))
                 {
-                    replacementClient.ForceDispose();
+                    replacementClient.MarkRetired();
                     return;
                 }
 
@@ -418,7 +425,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             }
             catch
             {
-                replacementClient.ForceDispose();
+                replacementClient.MarkRetired();
                 throw;
             }
         }
@@ -437,7 +444,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             Interlocked.CompareExchange(ref currentClient, replacementClient, observedClient),
             observedClient))
         {
-            replacementClient.ForceDispose();
+            replacementClient.MarkRetired();
             return;
         }
 
@@ -481,6 +488,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         private int activeOperations;
         private int retired;
         private int disposed;
+        private int clientDisposed;
 
         public IResoniteLinkClient Client { get; } = client;
 
@@ -513,28 +521,24 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 
         public void MarkRetired()
         {
+            Interlocked.Exchange(ref disposed, 1);
             Interlocked.Exchange(ref retired, 1);
             TryDisposeIfIdle();
         }
 
-        public void ForceDispose()
-        {
-            if (Interlocked.Exchange(ref disposed, 1) != 0)
-            {
-                return;
-            }
-
-            Client.Dispose();
-        }
-
         private void TryDisposeIfIdle()
         {
-            if (Volatile.Read(ref retired) == 0 || Volatile.Read(ref activeOperations) != 0)
+            if (Volatile.Read(ref disposed) == 0
+                || Volatile.Read(ref retired) == 0
+                || Volatile.Read(ref activeOperations) != 0)
             {
                 return;
             }
 
-            ForceDispose();
+            if (Interlocked.Exchange(ref clientDisposed, 1) == 0)
+            {
+                Client.Dispose();
+            }
         }
     }
 

@@ -44,14 +44,6 @@ public static class CliCompositionRoot
                     $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
                     + "Use the default value 1 for reliable live sends."));
         }
-        if (options.ResoniteLinkImportMeshTimeoutMilliseconds > 0)
-        {
-            reporter(
-                PlateauLog.Warning(
-                    "live",
-                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is ignored. "
-                    + "Live imports no longer use a forced timeout."));
-        }
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
             : ResoniteLinkSendDiagnostics.Disabled;
