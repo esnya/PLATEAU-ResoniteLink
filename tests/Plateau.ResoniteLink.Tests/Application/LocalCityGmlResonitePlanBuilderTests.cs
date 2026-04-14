@@ -98,6 +98,46 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         Assert.Equal(1, explicitChunkCount);
     }
 
+    [Fact]
+    public async Task DemMeshModeNormalizesGeneratedUvPerChunkAndUsesMaterialTextureTransform()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemChunkFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        ImportExecutionResult result = await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        PlateauImportServiceTests.CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
+        ResoniteConstructionCityObject demCityObject = Assert.Single(
+            scene.CityObjects,
+            static cityObject => cityObject.PackageName == "dem");
+
+        ResoniteMaterialBinding material = Assert.Single(demCityObject.Materials);
+        Assert.NotNull(material.TextureScale);
+        Assert.NotNull(material.TextureOffset);
+        Assert.InRange(material.TextureScale!.X, 0.5, 1.0);
+        Assert.InRange(material.TextureScale!.Y, 0.5, 1.0);
+        Assert.InRange(material.TextureOffset!.X, 0.0, 1.0);
+        Assert.InRange(material.TextureOffset!.Y, 0.0, 1.0);
+
+        double minU = demCityObject.Mesh.Vertices.Min(static vertex => vertex.UV0.X);
+        double maxU = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.X);
+        double minV = demCityObject.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        double maxV = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
+        Assert.True(maxU - minU > 0.9);
+        Assert.True(maxV - minV > 0.9);
+    }
+
     private static void CreateRuntimeMixedSurfaceDemFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
@@ -170,6 +210,56 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
 
         Directory.CreateDirectory(Path.Combine(packageDirectory, "appearance"));
         File.WriteAllText(Path.Combine(packageDirectory, "appearance", "mixed_surface.png"), "");
+    }
+
+    private static void CreateRuntimeDemChunkFixture(string datasetRoot)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.6699 139.7100 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-chunk">
+                  <gml:name>Chunk Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-chunk-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-dem-a">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-a">
+                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7008 10 35.6698 139.7098 12 35.6669 139.7008 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-dem-b">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-dem-b">
+                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7098 12 35.6669 139.7098 7 35.6669 139.7008 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_chunk.gml"), xml);
     }
 
     private sealed class StubSceneBuilder : IResoniteSceneBuilder
