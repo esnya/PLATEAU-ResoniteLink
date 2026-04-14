@@ -115,9 +115,24 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(onBakedCityObject);
-        foreach (ResoniteConstructionCityObject bakedCityObject in await FlushAllAsync(cancellationToken))
+        if (buffers.Count == 0)
+        {
+            return;
+        }
+
+        CellKey[] orderedCellKeys = buffers.Keys
+            .OrderBy(static cellKey => cellKey, CellKeyComparer.Instance)
+            .ToArray();
+        foreach (CellKey cellKey in orderedCellKeys)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!buffers.Remove(cellKey, out CellBuffer? buffer))
+            {
+                continue;
+            }
+
+            ResoniteConstructionCityObject bakedCityObject = BakeCell(cellKey, buffer);
+            buffer.CityObjects.Clear();
             await onBakedCityObject(bakedCityObject, cancellationToken);
         }
     }

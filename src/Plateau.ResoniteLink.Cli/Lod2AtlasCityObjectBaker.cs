@@ -77,21 +77,92 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return;
         }
 
-        foreach ((SourceUnitKey sourceUnitKey, List<BufferedCityObject> cityObjects) in bufferedCityObjectsBySourceUnit
-                     .OrderBy(static pair => pair.Key, SourceUnitKeyComparer.Instance))
+        SourceUnitKey[] orderedSourceUnitKeys = bufferedCityObjectsBySourceUnit.Keys
+            .OrderBy(static key => key, SourceUnitKeyComparer.Instance)
+            .ToArray();
+        foreach (SourceUnitKey sourceUnitKey in orderedSourceUnitKeys)
         {
-            IReadOnlyList<ResoniteConstructionCityObject> bakedSourceUnitCityObjects = await BakeSourceUnitAsync(
+            if (!bufferedCityObjectsBySourceUnit.Remove(sourceUnitKey, out List<BufferedCityObject>? cityObjects))
+            {
+                continue;
+            }
+
+            await BakeSourceUnitAsync(
                 sourceUnitKey,
                 cityObjects,
+                onBakedCityObject,
                 cancellationToken);
-            foreach (ResoniteConstructionCityObject bakedCityObject in bakedSourceUnitCityObjects)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await onBakedCityObject(bakedCityObject, cancellationToken);
-            }
+            cityObjects.Clear();
+        }
+    }
+
+    private async Task BakeSourceUnitAsync(
+        SourceUnitKey sourceUnitKey,
+        IReadOnlyList<BufferedCityObject> cityObjects,
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken)
+    {
+        List<CityObjectBakeCandidate> candidates = await CreateCandidatesAsync(cityObjects, cancellationToken);
+        if (candidates.Count == 0)
+        {
+            return;
         }
 
-        bufferedCityObjectsBySourceUnit.Clear();
+        try
+        {
+            List<CityObjectBakeCandidate> passThroughCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count == 0)];
+            List<CityObjectBakeCandidate> atlasCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count > 0)];
+            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(atlasCandidates);
+            int mergedPassThroughBatchCount = passThroughCandidates.Count > 1 ? 1 : 0;
+            int totalBatchCount = batchPlan.Batches.Count + mergedPassThroughBatchCount;
+
+            if (passThroughCandidates.Count == 1)
+            {
+                BakedOutputCityObjectCount++;
+                await onBakedCityObject(passThroughCandidates[0].CityObject, cancellationToken);
+            }
+            else if (passThroughCandidates.Count > 1)
+            {
+                ResoniteConstructionCityObject mergedPassThroughCityObject = await BakeBatchAsync(
+                    sourceUnitKey,
+                    passThroughCandidates,
+                    batchIndex: batchPlan.Batches.Count,
+                    batchCount: totalBatchCount,
+                    cancellationToken);
+                BakedOutputCityObjectCount++;
+                await onBakedCityObject(mergedPassThroughCityObject, cancellationToken);
+            }
+
+            for (int batchIndex = 0; batchIndex < batchPlan.Batches.Count; batchIndex++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
+                    sourceUnitKey,
+                    batchPlan.Batches[batchIndex],
+                    batchIndex,
+                    totalBatchCount,
+                    cancellationToken);
+                BakedOutputCityObjectCount++;
+                await onBakedCityObject(bakedCityObject, cancellationToken);
+            }
+
+            foreach (CityObjectBakeCandidate fallbackCandidate in batchPlan.FallbackCandidates)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                BakedOutputCityObjectCount++;
+                await onBakedCityObject(fallbackCandidate.CityObject, cancellationToken);
+            }
+        }
+        finally
+        {
+            foreach (Image<Rgba32> tileImage in candidates
+                         .SelectMany(static candidate => candidate.AtlasEntries)
+                         .Select(static entry => entry.Tile.Image)
+                         .Distinct())
+            {
+                tileImage.Dispose();
+            }
+        }
     }
 
     private Lod2AtlasCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)
@@ -105,69 +176,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         return null;
-    }
-
-    private async Task<IReadOnlyList<ResoniteConstructionCityObject>> BakeSourceUnitAsync(
-        SourceUnitKey sourceUnitKey,
-        IReadOnlyList<BufferedCityObject> cityObjects,
-        CancellationToken cancellationToken)
-    {
-        List<CityObjectBakeCandidate> candidates = await CreateCandidatesAsync(cityObjects, cancellationToken);
-        if (candidates.Count == 0)
-        {
-            return [];
-        }
-
-        try
-        {
-            List<CityObjectBakeCandidate> passThroughCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count == 0)];
-            List<CityObjectBakeCandidate> atlasCandidates = [.. candidates.Where(static candidate => candidate.AtlasEntries.Count > 0)];
-            AtlasBatchPlan batchPlan = BuildAtlasCandidateBatches(atlasCandidates);
-            int mergedPassThroughBatchCount = passThroughCandidates.Count > 1 ? 1 : 0;
-            int totalBatchCount = batchPlan.Batches.Count + mergedPassThroughBatchCount;
-
-            List<ResoniteConstructionCityObject> bakedCityObjects = [];
-            if (passThroughCandidates.Count == 1)
-            {
-                bakedCityObjects.Add(passThroughCandidates[0].CityObject);
-            }
-            else if (passThroughCandidates.Count > 1)
-            {
-                ResoniteConstructionCityObject mergedPassThroughCityObject = await BakeBatchAsync(
-                    sourceUnitKey,
-                    passThroughCandidates,
-                    batchIndex: batchPlan.Batches.Count,
-                    batchCount: totalBatchCount,
-                    cancellationToken);
-                bakedCityObjects.Add(mergedPassThroughCityObject);
-            }
-
-            for (int batchIndex = 0; batchIndex < batchPlan.Batches.Count; batchIndex++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
-                    sourceUnitKey,
-                    batchPlan.Batches[batchIndex],
-                    batchIndex,
-                    totalBatchCount,
-                    cancellationToken);
-                bakedCityObjects.Add(bakedCityObject);
-            }
-
-            bakedCityObjects.AddRange(batchPlan.FallbackCandidates.Select(static candidate => candidate.CityObject));
-            BakedOutputCityObjectCount += bakedCityObjects.Count;
-            return bakedCityObjects;
-        }
-        finally
-        {
-            foreach (Image<Rgba32> tileImage in candidates
-                         .SelectMany(static candidate => candidate.AtlasEntries)
-                         .Select(static entry => entry.Tile.Image)
-                         .Distinct())
-            {
-                tileImage.Dispose();
-            }
-        }
     }
 
     private async Task<List<CityObjectBakeCandidate>> CreateCandidatesAsync(

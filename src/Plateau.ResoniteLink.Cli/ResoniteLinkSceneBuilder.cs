@@ -515,16 +515,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
             Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
             int bakedCityObjectCount = 0;
-            ConcurrentBag<Task> bakeEnqueueTasks = [];
+            List<Task> bakeEnqueueTasks = [];
+            int maxInFlightBakeEnqueueTasks = Math.Max(4, connectionCount * 2);
             await cityObjectBaker.FlushAllAsync(
-                (bakedCityObject, callbackCancellationToken) =>
+                async (bakedCityObject, callbackCancellationToken) =>
                 {
                     _ = Interlocked.Increment(ref bakedCityObjectCount);
                     bakeEnqueueTasks.Add(EnqueueCityObjectAsync(bakedCityObject, callbackCancellationToken));
-                    return Task.CompletedTask;
+                    if (bakeEnqueueTasks.Count >= maxInFlightBakeEnqueueTasks)
+                    {
+                        await AwaitOneTaskSlotAsync(bakeEnqueueTasks, callbackCancellationToken);
+                    }
                 },
                 cancellationToken);
-            if (!bakeEnqueueTasks.IsEmpty)
+            if (bakeEnqueueTasks.Count > 0)
             {
                 await Task.WhenAll(bakeEnqueueTasks).WaitAsync(cancellationToken);
             }
@@ -809,6 +813,28 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         await AwaitProcessingTasksIfCompletedAsync();
+    }
+
+    private static async Task AwaitOneTaskSlotAsync(
+        List<Task> tasks,
+        CancellationToken cancellationToken)
+    {
+        for (int index = tasks.Count - 1; index >= 0; index--)
+        {
+            if (!tasks[index].IsCompleted)
+            {
+                continue;
+            }
+
+            Task completedTask = tasks[index];
+            tasks.RemoveAt(index);
+            await completedTask.WaitAsync(cancellationToken);
+            return;
+        }
+
+        Task finishedTask = await Task.WhenAny(tasks).WaitAsync(cancellationToken);
+        tasks.Remove(finishedTask);
+        await finishedTask.WaitAsync(cancellationToken);
     }
 
     private void ReportProgress(string message)

@@ -696,6 +696,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                     string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
                     && request.Data.Members.ContainsKey("AlbedoTexture")
                     && request.Data.Members.ContainsKey("TextureScale"))
+                .Where(static data => data.Data.Members.ContainsKey("HeightMap"))
                 .Select(static request => request.Data));
         Field_float2 uvScale = Assert.IsType<Field_float2>(uvFacadeMaterial.Members["TextureScale"]);
         Assert.Equal((float)(1.0 / 13.0), uvScale.Value.x, 6);
