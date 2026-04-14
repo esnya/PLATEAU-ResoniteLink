@@ -78,15 +78,15 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         Task<bool> firstMoveTask = enumerator.MoveNextAsync().AsTask();
         Assert.Same(firstMoveTask, await Task.WhenAny(firstMoveTask, Task.Delay(TimeSpan.FromSeconds(1))));
         Assert.True(await firstMoveTask);
-        Assert.Equal("Building", enumerator.Current.DisplayName);
+        Assert.NotEqual("Terrain", enumerator.Current.DisplayName);
 
         Task<bool> secondMoveTask = enumerator.MoveNextAsync().AsTask();
-        Assert.NotSame(secondMoveTask, await Task.WhenAny(secondMoveTask, Task.Delay(200)));
+        Assert.Same(secondMoveTask, await Task.WhenAny(secondMoveTask, Task.Delay(200)));
 
         demReleaseSignal.TrySetResult();
 
         Assert.True(await secondMoveTask);
-        Assert.True(enumerator.Current.DisplayName is "Road" or "Terrain");
+        Assert.NotEqual("Terrain", enumerator.Current.DisplayName);
 
         List<ResoniteConstructionCityObject> yieldedObjects = [enumerator.Current];
         while (await enumerator.MoveNextAsync())
@@ -94,8 +94,12 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             yieldedObjects.Add(enumerator.Current);
         }
 
-        Assert.Equal(2, yieldedObjects.Count);
-        Assert.Contains(geometryProjector.Calls, static call => call is ("tran", true));
+        Assert.Equal(3, yieldedObjects.Count);
+        Assert.False(geometryProjector.Calls.Any(static call => call.TerrainSamplerPresent));
+        Assert.Contains(yieldedObjects, static cityObject => cityObject.PackageName is "dem");
+        Assert.Contains(geometryProjector.Calls, static call => call.PackageName == "bldg");
+        Assert.Contains(geometryProjector.Calls, static call => call.PackageName == "tran");
+        Assert.Contains(geometryProjector.Calls, static call => call.PackageName == "dem");
     }
 
     private static SourceFilePipeline CreatePipeline(
