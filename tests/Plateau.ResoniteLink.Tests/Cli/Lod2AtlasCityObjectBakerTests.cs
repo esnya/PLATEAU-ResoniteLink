@@ -532,7 +532,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncSeparatesNonBuildingAtlasCandidatesAcrossGridCells()
+    public async Task FlushAllAsyncMergesNonBuildingAtlasCandidatesAcrossLodScopedBuffers()
     {
         using TemporaryDirectory datasetRoot = new();
         WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
@@ -553,7 +553,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
         List<ResoniteConstructionCityObject> baked = [.. first.ReadyCityObjects, .. second.ReadyCityObjects];
         baked.AddRange(await baker.FlushAllAsync());
 
-        Assert.Equal(2, baked.Count);
+        Assert.Single(baked);
         Assert.All(
             baked,
             cityObject => Assert.StartsWith("generated/lod2-atlas/", cityObject.Materials[0].TexturePath!, StringComparison.Ordinal));
@@ -641,11 +641,10 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
         Assert.True(second.Buffered);
-        Assert.NotEmpty(second.ReadyCityObjects);
-        Assert.Single(second.ReadyCityObjects);
+        Assert.Empty(second.ReadyCityObjects);
 
         IReadOnlyList<ResoniteConstructionCityObject> flushed = await baker.FlushAllAsync();
-        Assert.Empty(flushed);
+        Assert.Single(flushed);
     }
 
     [Fact]
@@ -672,9 +671,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Empty(second.ReadyCityObjects);
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
-        Assert.Equal(2, baked.Count);
-        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-a");
-        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b");
+        Assert.Single(baked);
     }
 
     [Fact]
@@ -697,19 +694,16 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
         Assert.True(second.Buffered);
-        ResoniteConstructionCityObject flushedSecond = Assert.Single(second.ReadyCityObjects);
-        Assert.Equal("unit-a", flushedSecond.SourceUnitKey);
+        Assert.Empty(second.ReadyCityObjects);
         Assert.True(third.Buffered);
-        ResoniteConstructionCityObject flushedThird = Assert.Single(third.ReadyCityObjects);
-        Assert.Equal("unit-b", flushedThird.SourceUnitKey);
+        Assert.Empty(third.ReadyCityObjects);
 
         IReadOnlyList<ResoniteConstructionCityObject> remaining = await baker.FlushAllAsync();
         Assert.Single(remaining);
-        Assert.Equal("unit-c", remaining[0].SourceUnitKey);
     }
 
     [Fact]
-    public async Task FlushAllAsyncKeepsSameScopeMergedAcrossInterleavedDifferentScopes()
+    public async Task FlushAllAsyncSeparatesLodsAcrossInterleavedInputs()
     {
         using TemporaryDirectory datasetRoot = new();
         WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
@@ -730,24 +724,18 @@ public sealed class Lod2AtlasCityObjectBakerTests
         await baker.TryBufferAsync(CreateLod2Building("b-one", "textures/two.png", 20.0, "unit-b") with
         {
             SourceFileRelativePath = "udx/bldg/53394525_citygml/b.gml",
+            LodLevel = 3,
         });
         await baker.TryBufferAsync(CreateLod2Building("a-two", "textures/three.png", 30.0, "unit-a") with
         {
-            SourceFileRelativePath = "udx/bldg/53394525_citygml/a.gml",
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/c.gml",
         });
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
         Assert.Equal(2, baked.Count);
-        ResoniteConstructionCityObject scopeA = Assert.Single(
-            baked,
-            static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/a.gml");
-        Assert.Equal("unit-a", scopeA.SourceUnitKey);
-        Assert.StartsWith("generated/lod2-atlas/", scopeA.Materials[0].TexturePath!, StringComparison.Ordinal);
-        Assert.Contains(
-            baked,
-            static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/b.gml"
-                && cityObject.SourceUnitKey == "unit-b");
+        Assert.Contains(baked, static cityObject => cityObject.LodLevel == 2);
+        Assert.Contains(baked, static cityObject => cityObject.LodLevel == 3);
     }
 
     [Fact]
@@ -770,9 +758,9 @@ public sealed class Lod2AtlasCityObjectBakerTests
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
-        Assert.Equal(2, baked.Count);
-        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/veg/53394525_citygml/a.gml");
-        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/veg/53394525_citygml/b.gml");
+        Assert.Single(baked);
+        Assert.Equal("shared-unit", baked[0].SourceUnitKey);
+        Assert.Equal("udx/veg/53394525_citygml/a.gml", baked[0].SourceFileRelativePath);
     }
 
     private static async Task AssertBufferedAsync(

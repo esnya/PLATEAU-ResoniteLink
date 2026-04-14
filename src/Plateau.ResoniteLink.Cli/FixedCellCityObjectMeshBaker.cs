@@ -16,11 +16,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     private readonly double cellSizeMeters;
     private readonly int maxCityObjectsPerBatch;
     private readonly int maxVerticesPerBatch;
-    private readonly int maxBufferedCells;
     private readonly Dictionary<CellKey, CellBuffer> buffers = [];
     private readonly Dictionary<CellKey, int> flushSequenceByCell = [];
-    private readonly Dictionary<CellKey, long> lastTouchedSequenceByCell = [];
-    private long lastSequence;
 
     public FixedCellCityObjectMeshBaker()
         : this(
@@ -40,12 +37,10 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(cellSizeMeters, 0.0);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCityObjectsPerBatch);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxVerticesPerBatch);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedCells);
 
         this.cellSizeMeters = cellSizeMeters;
         this.maxCityObjectsPerBatch = maxCityObjectsPerBatch;
         this.maxVerticesPerBatch = maxVerticesPerBatch;
-        this.maxBufferedCells = maxBufferedCells;
     }
 
     public string Name => "LOD1MeshBake";
@@ -71,7 +66,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         {
             buffer = new CellBuffer();
             buffers.Add(cellKey, buffer);
-            lastTouchedSequenceByCell.Add(cellKey, 0);
         }
 
         List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer);
@@ -95,7 +89,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         {
             buffer = new CellBuffer();
             buffers.Add(cellKey, buffer);
-            lastTouchedSequenceByCell.Add(cellKey, 0);
         }
 
         List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer);
@@ -117,7 +110,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         }
 
         buffers.Clear();
-        lastTouchedSequenceByCell.Clear();
         return bakedCityObjects;
     }
 
@@ -162,24 +154,12 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     {
         buffer.CityObjects.Add(cityObject);
         buffer.VertexCount += cityObject.Mesh.Vertices.Count;
-        long lastTouchedSequence = ++lastSequence;
-        buffer.LastTouchedSequence = lastTouchedSequence;
-        lastTouchedSequenceByCell[cellKey] = lastTouchedSequence;
         BakedInputCityObjectCount++;
 
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         if (buffer.CityObjects.Count > maxCityObjectsPerBatch || buffer.VertexCount > maxVerticesPerBatch)
         {
             readyCityObjects.Add(FlushCell(cellKey));
-        }
-
-        while (buffers.Count > maxBufferedCells
-               && TryFlushOldestBufferExcept(cellKey, out ResoniteConstructionCityObject? flushedCityObject))
-        {
-            if (flushedCityObject is not null)
-            {
-                readyCityObjects.Add(flushedCityObject);
-            }
         }
 
         return readyCityObjects;
@@ -210,52 +190,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             CellZ: 0);
     }
 
-    private bool TryFlushOldestBufferExcept(
-        CellKey protectedCellKey,
-        out ResoniteConstructionCityObject? bakedCityObject)
-    {
-        bakedCityObject = null;
-        if (buffers.Count <= maxBufferedCells || buffers.Count == 0)
-        {
-            return false;
-        }
-
-        CellKey? oldestCellKey = null;
-        CellBuffer? oldestBuffer = null;
-        long oldestSequence = long.MaxValue;
-        bool hasOldest = false;
-        foreach (KeyValuePair<CellKey, CellBuffer> candidate in buffers)
-        {
-            if (candidate.Key == protectedCellKey)
-            {
-                continue;
-            }
-
-            if (!hasOldest || candidate.Value.LastTouchedSequence < oldestSequence)
-            {
-                oldestSequence = candidate.Value.LastTouchedSequence;
-                oldestCellKey = candidate.Key;
-                oldestBuffer = candidate.Value;
-                hasOldest = true;
-            }
-        }
-
-        if (!hasOldest)
-        {
-            return false;
-        }
-
-        if (oldestCellKey is null || oldestBuffer is null)
-        {
-            return false;
-        }
-
-        _ = buffers.Remove(oldestCellKey);
-        lastTouchedSequenceByCell.Remove(oldestCellKey);
-        bakedCityObject = BakeCell(oldestCellKey, oldestBuffer);
-        return true;
-    }
-
     private ResoniteConstructionCityObject FlushCell(CellKey cellKey)
     {
         if (!buffers.Remove(cellKey, out CellBuffer? buffer))
@@ -263,7 +197,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             throw new InvalidOperationException($"Cannot flush missing bake buffer '{cellKey}'.");
         }
 
-        lastTouchedSequenceByCell.Remove(cellKey);
         return BakeCell(cellKey, buffer);
     }
 
@@ -421,8 +354,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
 
         public int VertexCount { get; set; }
-
-        public long LastTouchedSequence { get; set; }
 
         public void Clear()
         {

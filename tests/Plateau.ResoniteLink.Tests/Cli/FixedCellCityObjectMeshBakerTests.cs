@@ -53,7 +53,7 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
-    public void TryBufferFlushesOldestSparseCellWhenBufferedCellLimitIsExceeded()
+    public void TryBufferNoEvictionEvenWithBufferedCellLimit()
     {
         FixedCellCityObjectMeshBaker baker = new(
             cellSizeMeters: 64.0,
@@ -68,11 +68,11 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(thirdBuffered);
         Assert.Null(firstBaked);
         Assert.Null(secondBaked);
-        Assert.NotNull(flushed);
-        Assert.Equal("53394525", flushed.ActualMeshCode);
+        Assert.Null(flushed);
 
         IReadOnlyList<ResoniteConstructionCityObject> remainingBatches = baker.FlushAll();
-        Assert.Equal(2, remainingBatches.Count);
+        Assert.Equal(3, remainingBatches.Count);
+        Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394525");
         Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394526");
         Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394527");
     }
