@@ -14,9 +14,10 @@ internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjec
 
         foreach (IResoniteBufferedCityObjectBaker baker in bakers)
         {
-            if (await baker.TryBufferAsync(cityObject, cancellationToken))
+            BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject, cancellationToken);
+            if (result.Buffered)
             {
-                return [];
+                return result.ReadyCityObjects;
             }
         }
 

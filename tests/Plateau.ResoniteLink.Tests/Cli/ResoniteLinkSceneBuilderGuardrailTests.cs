@@ -33,7 +33,7 @@ public sealed class ResoniteLinkSceneBuilderGuardrailTests
     }
 
     [Fact]
-    public async Task BuildAsyncSkipsOverlappingParentChildBuildingAppendDuplicates()
+    public async Task BuildAsyncCreatesOverlappingParentChildBuildingAppendDuplicates()
     {
         FakeSession session = new();
 
@@ -53,11 +53,11 @@ public sealed class ResoniteLinkSceneBuilderGuardrailTests
                 () => new FakeClient(session)),
             CreateChildRequestChildBuildingScene());
 
-        Assert.Equal(1, CountNamedSceneSlots(session, "Building 25"));
+        Assert.Equal(2, CountNamedSceneSlots(session, "Building 25"));
     }
 
     [Fact]
-    public async Task BuildAsyncSkipsOverlappingParentChildDemAppendDuplicates()
+    public async Task BuildAsyncCreatesOverlappingParentChildDemAppendDuplicates()
     {
         FakeSession session = new();
 
@@ -77,7 +77,7 @@ public sealed class ResoniteLinkSceneBuilderGuardrailTests
                 () => new FakeClient(session)),
             CreateChildRequestSharedDemScene());
 
-        Assert.Equal(1, CountNamedSceneSlots(session, "Shared Terrain"));
+        Assert.Equal(2, CountNamedSceneSlots(session, "Shared Terrain"));
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class ResoniteLinkSceneBuilderGuardrailTests
     }
 
     [Fact]
-    public async Task BuildAsyncSkipsSameConstructionIdentityWhenDisplayNameDiffersAcrossAppendRuns()
+    public async Task BuildAsyncCreatesSameConstructionIdentityWhenDisplayNameDiffersAcrossAppendRuns()
     {
         FakeSession session = new();
 
@@ -129,14 +129,22 @@ public sealed class ResoniteLinkSceneBuilderGuardrailTests
                 sourceObjectKey: "building-identity"));
 
         Assert.Equal(1, CountNamedSceneSlots(session, "Original Building"));
-        Assert.Equal(0, CountNamedSceneSlots(session, "Renamed Building"));
+        Assert.Equal(1, CountNamedSceneSlots(session, "Renamed Building"));
         Assert.DoesNotContain(
             session.SlotsById.Values,
             slot => slot.Name?.Value is not null
                 && slot.Name.Value.StartsWith("__identity_", StringComparison.Ordinal));
+        Assert.Equal(
+            2,
+            session.SlotsById.Values.Count(
+                slot => string.Equals(slot.Tag?.Value, "53394525|bldg|2|building-identity", StringComparison.Ordinal)));
         Assert.Contains(
             session.SlotsById.Values,
             slot => string.Equals(slot.Name?.Value, "Original Building", StringComparison.Ordinal)
+                && string.Equals(slot.Tag?.Value, "53394525|bldg|2|building-identity", StringComparison.Ordinal));
+        Assert.Contains(
+            session.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "Renamed Building", StringComparison.Ordinal)
                 && string.Equals(slot.Tag?.Value, "53394525|bldg|2|building-identity", StringComparison.Ordinal));
     }
 }

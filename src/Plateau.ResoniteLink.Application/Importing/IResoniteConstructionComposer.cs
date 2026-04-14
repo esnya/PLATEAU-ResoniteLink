@@ -6,5 +6,6 @@ public interface IResoniteConstructionComposer
 {
     IResoniteConstructionSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet);
+        LocalCityGmlDocumentSet documentSet,
+        Action<string>? progressReporter = null);
 }

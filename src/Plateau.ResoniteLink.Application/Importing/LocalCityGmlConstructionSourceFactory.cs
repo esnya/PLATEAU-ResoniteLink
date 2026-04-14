@@ -32,6 +32,6 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
             request,
             progressReporter,
             cancellationToken);
-        return constructionComposer.Compose(request, documentSet);
+        return constructionComposer.Compose(request, documentSet, progressReporter);
     }
 }

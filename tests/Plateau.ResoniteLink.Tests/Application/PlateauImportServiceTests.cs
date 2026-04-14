@@ -148,6 +148,50 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncDoesNotWaitForCommonMaterialPrewarmCompletion()
+    {
+        StubResoniteSceneBuilder sceneBuilder = new();
+        TaskCompletionSource<int> unresolvedCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        RecordingDatasetSourceResolver datasetSourceResolver = new(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "/resolved/source",
+                ServerUri: null));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(
+            new NeverEndingCommonMaterialConstructionSource(CreateStubConstructionSource(), unresolvedCompletion.Task),
+            onCreate: null);
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory: constructionSourceFactory);
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(2));
+
+        Task<ImportExecutionResult> executeTask = service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Remote,
+                LocalSourcePath: null,
+                ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
+            workRoot: "runtime/resonite",
+            cancellationToken: cancellationTokenSource.Token);
+
+        Task completed = await Task.WhenAny(executeTask, Task.Delay(1000));
+        if (completed != executeTask)
+        {
+            await cancellationTokenSource.CancelAsync();
+            await Assert.ThrowsAsync<OperationCanceledException>(() => executeTask);
+            Assert.Fail("Expected city object streaming to complete without waiting for common material prewarm.");
+        }
+
+        ImportExecutionResult result = await executeTask;
+        Assert.Equal("stub://resonite", Assert.Single(result.Destinations));
+        Assert.Single(sceneBuilder.CityObjects);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncBuildsNormalizedSceneFromZipArchive()
     {
         using TemporaryDirectory archiveRoot = new();
@@ -2676,6 +2720,37 @@ public sealed class PlateauImportServiceTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromException<IResoniteConstructionSource>(exception);
+        }
+    }
+
+    private sealed class NeverEndingCommonMaterialConstructionSource(
+        IResoniteConstructionSource source,
+        Task completionTask) : IResoniteConstructionSource
+    {
+        public ResoniteConstructionMetadata Metadata => source.Metadata;
+
+        public IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return ReadCommonMaterialsCoreAsync(cancellationToken);
+        }
+
+        private async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsCoreAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await completionTask.WaitAsync(cancellationToken);
+            yield break;
+        }
+
+        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
+        {
+            return source.ReadCityObjects();
+        }
+
+        public IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+            CancellationToken cancellationToken = default)
+        {
+            return source.ReadCityObjectsAsync(cancellationToken);
         }
     }
 

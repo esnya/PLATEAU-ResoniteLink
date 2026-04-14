@@ -31,9 +31,9 @@ internal sealed record Lod2AtlasCityObjectBakePolicy(
 internal static class Lod2AtlasCityObjectBakePolicies
 {
     internal static readonly Lod2AtlasCityObjectBakePolicy DefaultBuildingLod2 = new(
-        Name: "building-lod2",
+        Name: "building-lod2-or-later",
         CanBufferCityObject: cityObject =>
-            cityObject.LodLevel == 2
+            cityObject.LodLevel >= 2
             && PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName)
             && cityObject.Geometry is ResoniteTriangleMeshGeometry
             && cityObject.Transform.Rotation is null,
@@ -51,10 +51,7 @@ internal static class Lod2AtlasCityObjectBakePolicies
             && cityObject.Transform.Rotation is null
             && cityObject.LodLevel.HasValue
             && cityObject.LodLevel.Value >= 2
-            && (PlateauPackageCatalog.IsRoadPackage(cityObject.PackageName)
-                || PlateauPackageCatalog.IsVegetationPackage(cityObject.PackageName)
-                || PlateauPackageCatalog.IsCityFurniturePackage(cityObject.PackageName)
-                || PlateauPackageCatalog.IsOtherMaterialPackage(cityObject.PackageName)),
+            && !PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName),
         RequireAtlasCandidateMaterial: false,
         PreserveVertexColorMaterials: true,
         PreserveTexturelessMaterials: true,

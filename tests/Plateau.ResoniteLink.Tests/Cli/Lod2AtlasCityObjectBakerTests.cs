@@ -23,8 +23,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Building("building-one", "textures/one.png", 0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Building("building-two", "textures/two.png", 2, "unit-a")));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", "textures/one.png", 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", "textures/two.png", 2, "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -56,7 +56,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateMultiTextureLod2Building("building-one", "textures/one.png", "textures/two.png", "unit-a")));
+        await AssertBufferedAsync(baker, CreateMultiTextureLod2Building("building-one", "textures/one.png", "textures/two.png", "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -90,12 +90,12 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 0);
 
-        Assert.True(await baker.TryBufferAsync(CreateUvScaledLod2Building(
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
             "building-one",
             "textures/striped.png",
             "unit-a",
             new ResoniteFloat2(0.25, 1.0),
-            new ResoniteFloat2(0.5, 0.0))));
+            new ResoniteFloat2(0.5, 0.0)));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -127,12 +127,12 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 0);
 
-        Assert.True(await baker.TryBufferAsync(CreateUvScaledLod2Building(
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
             "building-one",
             "textures/repeat.png",
             "unit-a",
             new ResoniteFloat2(2.0, 1.0),
-            null)));
+            null));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -170,7 +170,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteFloat2(0.625, 0.5),
             new ResoniteFloat2(0.125, 0.25));
 
-        Assert.True(await baker.TryBufferAsync(sourceCityObject));
+        await AssertBufferedAsync(baker, sourceCityObject);
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -227,7 +227,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateMixedScopeLod2Building("building-one", "textures/one.png", "unit-a")));
+        await AssertBufferedAsync(baker, CreateMixedScopeLod2Building("building-one", "textures/one.png", "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -252,7 +252,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 64,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateCommonFamilyMixedLod2Building("building-one", "textures/one.png", "unit-a")));
+        await AssertBufferedAsync(baker, CreateCommonFamilyMixedLod2Building("building-one", "textures/one.png", "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -285,8 +285,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 16,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Building("building-one", "textures/one.png", 0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Building("building-two", "textures/two.png", 2, "unit-a")));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", "textures/one.png", 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", "textures/two.png", 2, "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -314,7 +314,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             tilePaddingPixels: 1);
 
         ResoniteConstructionCityObject oversizedCandidate = CreateMultiTextureLod2Building("building-one", "textures/one.png", "textures/two.png", "unit-a");
-        Assert.True(await baker.TryBufferAsync(oversizedCandidate));
+        await AssertBufferedAsync(baker, oversizedCandidate);
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -337,9 +337,9 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        bool buffered = await baker.TryBufferAsync(CreateLod2Building("building-one", null, 0, "unit-a") with { LodLevel = 1 });
+        BufferedCityObjectBufferResult buffered = await baker.TryBufferAsync(CreateLod2Building("building-one", null, 0, "unit-a") with { LodLevel = 1 });
 
-        Assert.False(buffered);
+        Assert.False(buffered.Buffered);
         Assert.Empty(await baker.FlushAllAsync());
     }
 
@@ -353,7 +353,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        bool buffered = await baker.TryBufferAsync(CreateLod2Building(
+        BufferedCityObjectBufferResult buffered = await baker.TryBufferAsync(CreateLod2Building(
             "building-one",
             "textures/one.png",
             0,
@@ -361,7 +361,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Family: BundledDefaultMaterialFamilies.Facade));
 
-        Assert.False(buffered);
+        Assert.False(buffered.Buffered);
         Assert.Empty(await baker.FlushAllAsync());
     }
 
@@ -374,9 +374,9 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        bool buffered = await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", null, 0.0, "unit-a"));
+        BufferedCityObjectBufferResult buffered = await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", null, 0.0, "unit-a"));
 
-        Assert.True(buffered);
+        Assert.True(buffered.Buffered);
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
         ResoniteConstructionCityObject cityObject = Assert.Single(baked);
@@ -397,8 +397,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", null, 10.0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", null, 90.0, "unit-b")));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-one", null, 10.0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-two", null, 90.0, "unit-b"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -420,7 +420,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2VegetationVertexColor("veg-two", 10.0, "unit-a")));
+        await AssertBufferedAsync(baker, CreateLod2VegetationVertexColor("veg-two", 10.0, "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
         ResoniteConstructionCityObject cityObject = Assert.Single(baked);
@@ -436,8 +436,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2VegetationVertexColor("frn-one", 10.0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2VegetationVertexColor("frn-two", 90.0, "unit-b")));
+        await AssertBufferedAsync(baker, CreateLod2VegetationVertexColor("frn-one", 10.0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2VegetationVertexColor("frn-two", 90.0, "unit-b"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -462,11 +462,11 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation(
+        await AssertBufferedAsync(baker, CreateLod2Vegetation(
             "veg-three",
             "textures/one.png",
             0.0,
-            "unit-a")));
+            "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
         ResoniteConstructionCityObject cityObject = Assert.Single(baked);
@@ -489,8 +489,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", "textures/one.png", 10.0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", "textures/two.png", 90.0, "unit-b")));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-one", "textures/one.png", 10.0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-two", "textures/two.png", 90.0, "unit-b"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -519,10 +519,10 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-textured-one", "textures/one.png", 10.0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-textured-two", "textures/two.png", 90.0, "unit-b")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-plain-one", null, 20.0, "unit-c")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-plain-two", null, 100.0, "unit-d")));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-textured-one", "textures/one.png", 10.0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-textured-two", "textures/two.png", 90.0, "unit-b"));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-plain-one", null, 20.0, "unit-c"));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-plain-two", null, 100.0, "unit-d"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -545,10 +545,13 @@ public sealed class Lod2AtlasCityObjectBakerTests
             maxAtlasSize: 32,
             tilePaddingPixels: 1);
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", "textures/one.png", 10.0, "unit-a")));
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", "textures/two.png", 200.0, "unit-b")));
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-one", "textures/one.png", 10.0, "unit-a"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-two", "textures/two.png", 200.0, "unit-b"));
 
-        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+        List<ResoniteConstructionCityObject> baked = [.. first.ReadyCityObjects, .. second.ReadyCityObjects];
+        baked.AddRange(await baker.FlushAllAsync());
 
         Assert.Equal(2, baked.Count);
         Assert.All(
@@ -565,10 +568,145 @@ public sealed class Lod2AtlasCityObjectBakerTests
             new ResoniteTextureImageLoader(datasetContentSource),
             new ResoniteTextureImportRegistry());
 
-        Assert.True(await baker.TryBufferAsync(CreateLod2Vegetation("veg-three", null, 0.0, "unit-a") with { LodLevel = 3 }));
+        await AssertBufferedAsync(baker, CreateLod2Vegetation("veg-three", null, 0.0, "unit-a") with { LodLevel = 3 });
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
         Assert.Single(baked);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncBuffersNonBuildingLod2ObjectForUnclassifiedPackage()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Vegetation("wtr-one", null, 0.0, "unit-a") with { PackageName = "wtr" });
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("wtr", cityObject.PackageName);
+        Assert.Single(cityObject.Materials);
+        Assert.DoesNotContain(
+            "generated/lod2-atlas/",
+            cityObject.Materials[0].TexturePath ?? string.Empty,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncBuffersBuildingLod3Object()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        ResoniteTextureImportRegistry textureImportRegistry = new();
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            textureImportRegistry,
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-three", "textures/one.png", 0, "unit-a") with { LodLevel = 3 });
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(baked);
+        Assert.Equal("bldg", cityObject.PackageName);
+        Assert.StartsWith("generated/lod2-atlas/", cityObject.Materials[0].TexturePath!, StringComparison.Ordinal);
+        Assert.True(textureImportRegistry.TryGet(cityObject.Materials[0].TexturePath!, cityObject.Materials[0].TextureSourceKind, out ResoniteTextureImport? _));
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncCanEmitReadyCityObjectsBeforeCompletion()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry(),
+            maxBufferedCityObjectsPerSourceUnit: 1);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-one", null, 10.0, "unit-a"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-two", null, 90.0, "unit-a"));
+
+        Assert.True(first.Buffered);
+        Assert.Empty(first.ReadyCityObjects);
+        Assert.True(second.Buffered);
+        Assert.NotEmpty(second.ReadyCityObjects);
+        Assert.Single(second.ReadyCityObjects);
+
+        IReadOnlyList<ResoniteConstructionCityObject> flushed = await baker.FlushAllAsync();
+        Assert.Empty(flushed);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncReturnsReadyCityObjectsWhenSourceUnitChanges()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        WriteDatasetImage(datasetRoot.Path, "textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry(),
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateLod2Building("building-one", "textures/one.png", 10.0, "unit-a"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateLod2Building("building-two", "textures/two.png", 20.0, "unit-b"));
+
+        Assert.True(first.Buffered);
+        Assert.Empty(first.ReadyCityObjects);
+        Assert.True(second.Buffered);
+        ResoniteConstructionCityObject baked = Assert.Single(second.ReadyCityObjects);
+        Assert.Equal("unit-a", baked.SourceUnitKey);
+        Assert.StartsWith("generated/lod2-atlas/", baked.Materials[0].TexturePath!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncReturnsFlushedCityObjectForExceededSourceUnitLimit()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry(),
+            maxBufferedSourceUnits: 1);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-one", null, 10.0, "unit-a"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-two", null, 20.0, "unit-b"));
+        BufferedCityObjectBufferResult third = await baker.TryBufferAsync(
+            CreateLod2Vegetation("veg-three", null, 30.0, "unit-c"));
+
+        Assert.True(first.Buffered);
+        Assert.Empty(first.ReadyCityObjects);
+        Assert.True(second.Buffered);
+        Assert.True(third.Buffered);
+        Assert.Empty(third.ReadyCityObjects);
+
+        IReadOnlyList<ResoniteConstructionCityObject> remaining = await baker.FlushAllAsync();
+        Assert.Single(remaining);
+    }
+
+    private static async Task AssertBufferedAsync(
+        Lod2AtlasCityObjectBaker baker,
+        ResoniteConstructionCityObject cityObject)
+    {
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+        Assert.True(result.Buffered);
     }
 
     private static ResoniteConstructionCityObject CreateLod2Building(

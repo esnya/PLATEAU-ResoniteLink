@@ -12,16 +12,24 @@ namespace Plateau.ResoniteLink.Cli;
 internal sealed class Lod2AtlasCityObjectBaker(
     ResoniteTextureImageLoader textureImageLoader,
     ResoniteTextureImportRegistry textureImportRegistry,
-    int maxAtlasSize = 2048,
+    int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
-    IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null) : IResoniteBufferedCityObjectBaker
+    IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
+    int maxBufferedSourceUnits = 32,
+    int maxBufferedCityObjectsPerSourceUnit = 256) : IResoniteBufferedCityObjectBaker
 {
-    internal const int DefaultMaxAtlasSize = 2048;
+    internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
 
     private readonly Dictionary<SourceUnitKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
+    private readonly Dictionary<SourceUnitKey, long> lastTouchedSequenceBySourceUnit = [];
+    private readonly Dictionary<SourceUnitKey, int> nextBatchIndexBySourceUnit = [];
     private readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? Lod2AtlasCityObjectBakePolicies.DefaultPolicies;
+    private readonly int maxBufferedSourceUnits = maxBufferedSourceUnits;
+    private readonly int maxBufferedCityObjectsPerSourceUnit = maxBufferedCityObjectsPerSourceUnit;
+    private SourceUnitKey? lastBufferedSourceUnitKey;
+    private long lastSequence;
 
     public string Name => "LOD2AtlasBake";
 
@@ -29,18 +37,27 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     public int BakedOutputCityObjectCount { get; private set; }
 
-    public ValueTask<bool> TryBufferAsync(
+    public async ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
+        cancellationToken.ThrowIfCancellationRequested();
+
         Lod2AtlasCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
         if (policy is null)
         {
-            return ValueTask.FromResult(false);
+            return new BufferedCityObjectBufferResult(Buffered: false, []);
         }
 
         SourceUnitKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
+        List<ResoniteConstructionCityObject> readyCityObjects = [];
+        if (lastBufferedSourceUnitKey is { } previousSourceUnitKey
+            && previousSourceUnitKey != sourceUnitKey)
+        {
+            await AddReadyCityObjects(previousSourceUnitKey, readyCityObjects, cancellationToken);
+        }
+
         BufferedCityObject bufferedCityObject = new(cityObject, policy);
         if (!bufferedCityObjectsBySourceUnit.TryGetValue(sourceUnitKey, out List<BufferedCityObject>? bufferedCityObjects))
         {
@@ -50,7 +67,26 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         bufferedCityObjects.Add(bufferedCityObject);
         BakedInputCityObjectCount++;
-        return ValueTask.FromResult(true);
+        lastTouchedSequenceBySourceUnit[sourceUnitKey] = ++lastSequence;
+
+        if (bufferedCityObjects.Count > maxBufferedCityObjectsPerSourceUnit)
+        {
+            await AddReadyCityObjects(
+                sourceUnitKey,
+                readyCityObjects,
+                cancellationToken);
+        }
+
+        while (bufferedCityObjectsBySourceUnit.Count > maxBufferedSourceUnits
+            && TryPopOldestSourceUnitExcept(sourceUnitKey, out SourceUnitKey oldestSourceUnitKey))
+        {
+            await AddReadyCityObjects(oldestSourceUnitKey, readyCityObjects, cancellationToken);
+        }
+
+        lastBufferedSourceUnitKey = bufferedCityObjectsBySourceUnit.ContainsKey(sourceUnitKey)
+            ? sourceUnitKey
+            : null;
+        return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
     }
 
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
@@ -82,29 +118,118 @@ internal sealed class Lod2AtlasCityObjectBaker(
             .ToArray();
         foreach (SourceUnitKey sourceUnitKey in orderedSourceUnitKeys)
         {
-            if (!bufferedCityObjectsBySourceUnit.Remove(sourceUnitKey, out List<BufferedCityObject>? cityObjects))
+            await EmitSourceUnitAsync(sourceUnitKey, onBakedCityObject, cancellationToken);
+        }
+    }
+
+    private async Task EmitSourceUnitAsync(
+        SourceUnitKey sourceUnitKey,
+        Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+        CancellationToken cancellationToken)
+    {
+        if (!bufferedCityObjectsBySourceUnit.Remove(sourceUnitKey, out List<BufferedCityObject>? cityObjects))
+        {
+            return;
+        }
+
+        int emittedCount = 0;
+        int batchStartIndex = nextBatchIndexBySourceUnit.GetValueOrDefault(sourceUnitKey);
+
+        await BakeSourceUnitAsync(
+            sourceUnitKey,
+            cityObjects,
+            batchStartIndex,
+            (bakedCityObject, callbackCancellationToken) =>
+            {
+                emittedCount++;
+                return onBakedCityObject(bakedCityObject, callbackCancellationToken);
+            },
+            cancellationToken);
+
+        nextBatchIndexBySourceUnit[sourceUnitKey] = batchStartIndex + emittedCount;
+        lastTouchedSequenceBySourceUnit.Remove(sourceUnitKey);
+        cityObjects.Clear();
+        if (lastBufferedSourceUnitKey is { } previousSourceUnitKey && previousSourceUnitKey == sourceUnitKey)
+        {
+            lastBufferedSourceUnitKey = null;
+        }
+    }
+
+    private async Task AddReadyCityObjects(
+        SourceUnitKey sourceUnitKey,
+        List<ResoniteConstructionCityObject> readyCityObjects,
+        CancellationToken cancellationToken)
+    {
+        if (!bufferedCityObjectsBySourceUnit.TryGetValue(sourceUnitKey, out List<BufferedCityObject>? cityObjects))
+        {
+            return;
+        }
+
+        int batchStartIndex = nextBatchIndexBySourceUnit.GetValueOrDefault(sourceUnitKey);
+        int emittedCount = 0;
+
+        await BakeSourceUnitAsync(
+            sourceUnitKey,
+            cityObjects,
+            batchStartIndex,
+            (bakedCityObject, callbackCancellationToken) =>
+            {
+                emittedCount++;
+                readyCityObjects.Add(bakedCityObject);
+                return Task.CompletedTask;
+            },
+            cancellationToken);
+
+        nextBatchIndexBySourceUnit[sourceUnitKey] = batchStartIndex + emittedCount;
+        lastTouchedSequenceBySourceUnit.Remove(sourceUnitKey);
+        cityObjects.Clear();
+        bufferedCityObjectsBySourceUnit.Remove(sourceUnitKey);
+        if (lastBufferedSourceUnitKey is { } previousSourceUnitKey && previousSourceUnitKey == sourceUnitKey)
+        {
+            lastBufferedSourceUnitKey = null;
+        }
+    }
+
+    private bool TryPopOldestSourceUnitExcept(
+        SourceUnitKey protectedSourceUnitKey,
+        out SourceUnitKey oldestSourceUnitKey)
+    {
+        oldestSourceUnitKey = default;
+        if (bufferedCityObjectsBySourceUnit.Count <= maxBufferedSourceUnits || bufferedCityObjectsBySourceUnit.Count == 0)
+        {
+            return false;
+        }
+
+        long oldestSequence = long.MaxValue;
+        bool hasOldest = false;
+        foreach (KeyValuePair<SourceUnitKey, long> candidate in lastTouchedSequenceBySourceUnit)
+        {
+            if (candidate.Key == protectedSourceUnitKey)
             {
                 continue;
             }
 
-            await BakeSourceUnitAsync(
-                sourceUnitKey,
-                cityObjects,
-                onBakedCityObject,
-                cancellationToken);
-            cityObjects.Clear();
+            if (!hasOldest || candidate.Value < oldestSequence)
+            {
+                hasOldest = true;
+                oldestSequence = candidate.Value;
+                oldestSourceUnitKey = candidate.Key;
+            }
         }
+
+        return hasOldest;
     }
 
     private async Task BakeSourceUnitAsync(
         SourceUnitKey sourceUnitKey,
         IReadOnlyList<BufferedCityObject> cityObjects,
+        int batchStartIndex,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
         List<CityObjectBakeCandidate> passThroughCandidates = [];
         List<CityObjectBakeCandidate> currentAtlasBatch = [];
-        int batchIndex = 0;
+        int batchIndex = batchStartIndex;
         bool preservePrimaryIdentity = cityObjects.Count == 1;
 
         foreach (BufferedCityObject bufferedCityObject in cityObjects.OrderBy(

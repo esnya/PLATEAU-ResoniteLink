@@ -35,7 +35,6 @@ public sealed class PlateauImportService(
         ReportProgress(
             PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
-        await using CommonMaterialPrewarmSession commonMaterialPrewarm = new(progressReporter);
         try
         {
             Stopwatch connectStopwatch = Stopwatch.StartNew();
@@ -58,7 +57,7 @@ public sealed class PlateauImportService(
             await sceneBuilder.BeginAsync(source.Metadata, datasetWorkRoot, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
-            commonMaterialPrewarm.Start(source, sceneBuilder, cancellationToken);
+            ReportProgress(PlateauLog.Info("import", "Starting city object streaming."));
 
             bool processedAnyCityObject = false;
             int processedCityObjectCount = 0;
@@ -71,11 +70,13 @@ public sealed class PlateauImportService(
                 processedCityObjectCount++;
             }
 
-            await commonMaterialPrewarm.WhenCompletedAsync();
-
             cityObjectStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Info("import", $"Streamed {processedCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
+            ReportProgress(
+                PlateauLog.Debug(
+                    "import",
+                    $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after prewarm started."));
 
             if (!processedAnyCityObject)
             {

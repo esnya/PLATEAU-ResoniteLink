@@ -20,15 +20,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
     private const int WorkerConnectTimeoutMilliseconds = 5000;
-    private const int DatasetRootLookupAttemptLimit = 5;
+    private const int DatasetRootLookupAttemptLimit = 1;
     private const string RootSlotId = "Root";
     private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
     private const string HeightMapAssetSlotSuffix = "_heightmap";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private static readonly TimeSpan DatasetRootLookupRetryDelay = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan DatasetRootLookupRetryDelay = TimeSpan.Zero;
     private static readonly TimeSpan SlowCityObjectOperationWarningThreshold = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan SlowRunDataModelBatchThreshold = TimeSpan.FromSeconds(10);
     private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
@@ -54,9 +55,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ResoniteMaterialAssetManager? materialAssetManager;
     private string? runRoot;
     private AsyncCompletedResultCache<TextureImportCacheKey, Uri>? importedTextureUriCache;
-    private DispatchLaneAllocator? dispatchLaneAllocator;
     private ResoniteTextureImportResolver? textureImportResolver;
-    private Channel<QueuedCityObject>[]? cityObjectChannels;
+    private Channel<QueuedCityObject>? cityObjectChannel;
     private Task[]? processingTasks;
     private CancellationTokenSource? processingCancellationSource;
     private TaskCompletionSource<Exception>? firstProcessingFailureSource;
@@ -69,6 +69,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private int firstQueuedCityObjectLogged;
     private int firstPreparedCityObjectLogged;
     private int firstBuiltCityObjectLogged;
+    private int firstCityObjectPreparationStartedLogged;
+    private int firstCommonMaterialPrepLogged;
+    private int firstCityObjectStreamingStartedLogged;
+    private int firstCityObjectDequeuedLogged;
     private IPlateauDatasetContentSource? datasetContentSource;
     private ResoniteTextureImportRegistry? textureImportRegistry;
     private SceneAnchor? sceneAnchor;
@@ -159,7 +163,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         sceneAnchorResolver = new ResoniteSceneAnchorResolver();
         sceneBootstrapCoordinator = new ResoniteSceneBootstrapCoordinator(
             GetOrCreateDatasetRootAsync,
-            GetOrCreateSharedChildSlotAsync,
+            GetOrCreateStartupChildSlotAsync,
             CreateComponentAsync,
             UpdateComponentAsync,
             sceneAnchorResolver);
@@ -202,32 +206,49 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         runRoot = CreateRunRoot(resolvedWorkRoot);
         Directory.CreateDirectory(runRoot);
         ReportProgress(
-            $"[live] Initializing scene state for dataset '{metadata.Request.Dataset}' "
-            + $"mesh '{metadata.Request.MeshCode}' at '{resolvedWorkRoot}'.");
+            PlateauLog.Info(
+                "live",
+                $"Initializing scene state for dataset '{metadata.Request.Dataset}' "
+                + $"mesh '{metadata.Request.MeshCode}' at '{resolvedWorkRoot}'."));
+        Stopwatch connectionStopwatch = Stopwatch.StartNew();
         ReportProgress(
-            $"[live] Connecting setup ResoniteLink session to {endpoint} "
-            + $"and scheduling {Math.Max(connectionCount - 1, 0)} worker session(s).");
+            PlateauLog.Info(
+                "live",
+                $"Connecting setup ResoniteLink session to {endpoint} "
+                + $"and scheduling {Math.Max(connectionCount - 1, 0)} worker session(s)."));
         await clientSession.EnsureSetupClientConnectedAsync(metadata.Request, cancellationToken);
+        connectionStopwatch.Stop();
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Setup ResoniteLink connection ready in {connectionStopwatch.Elapsed.TotalSeconds:F2}s "
+                + $"(dataset='{metadata.Request.Dataset}', mesh='{metadata.Request.MeshCode}')."));
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         sharedSlotCache.Clear();
         createdSlotIds.Clear();
         importedTextureUriCache = new();
-        dispatchLaneAllocator = new DispatchLaneAllocator(connectionCount);
         materialAssetManager = new ResoniteMaterialAssetManager(
             CreateSharedAssetComponentAsync,
             CreateDedicatedAssetComponentAsync,
             (client, parentSlotId, slotName, ct) =>
                 GetOrCreateSharedChildSlotByIdAsync(client, parentSlotId, slotName, null, null, ct),
             CreateComponentAsync,
-            static (client, slotId, depth, ct) => client.GetSlotAsync(slotId, depth, ct),
             ImportTextureAsync,
-            createdSlotIds.ContainsKey,
             ReportProgress);
         PlateauLocalImportSource localSource = metadata.Request.Source as PlateauLocalImportSource
             ?? throw new InvalidOperationException("Live scene building requires a resolved local dataset source.");
 
-        ReportProgress("[live] Opening resolved dataset content source for texture imports.");
+        Stopwatch contentSourceStopwatch = Stopwatch.StartNew();
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Opening resolved dataset content source '{localSource.LocalSourcePath}'."));
         datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(localSource.LocalSourcePath!, cancellationToken);
+        contentSourceStopwatch.Stop();
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Dataset content source opened in {contentSourceStopwatch.Elapsed.TotalSeconds:F2}s."));
         textureImportRegistry = new ResoniteTextureImportRegistry();
         textureImportResolver = new ResoniteTextureImportResolver(
             datasetContentSource,
@@ -235,17 +256,55 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             metadata.SourceDataset.TerrainTextureOverlays,
             terrainTextureAssetGenerator);
         ResoniteTextureImageLoader textureImageLoader = new(datasetContentSource);
-        ReportProgress("[live] Creating dataset root, asset groups, and anchor slots.");
+        ReportProgress(
+            PlateauLog.Info("live", "Setting up mutable helpers (texture registry, resolver, baker)."));
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                "Starting setup slot bootstrap: dataset root, assets root, common assets root, and anchor slot."));
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         IResoniteLinkClient setupClient = clientSession.SetupClient;
+        Stopwatch bootstrapStopwatch = Stopwatch.StartNew();
         ResoniteSceneBootstrapState bootstrapState = await sceneBootstrapCoordinator.BootstrapAsync(
             setupClient,
             metadata,
             cancellationToken);
+        bootstrapStopwatch.Stop();
         datasetRootSlot = bootstrapState.DatasetRootSlot;
         datasetAssetsRootSlot = bootstrapState.DatasetAssetsRootSlot;
         commonAssetsRootSlot = bootstrapState.CommonAssetsRootSlot;
         sceneAnchor = bootstrapState.SceneAnchor;
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Scene bootstrap complete in {bootstrapStopwatch.Elapsed.TotalSeconds:F2}s "
+                + $"(dataset_root={datasetRootSlot.Value.SlotName}, assets_root={datasetAssetsRootSlot.Value.SlotName}, "
+                + $"common_root={commonAssetsRootSlot.Value.SlotName}, "
+                + $"dataset_root_existed={bootstrapState.DatasetRootExisted}, "
+                + $"anchor_mesh='{bootstrapState.SceneAnchor.MeshCode}')."));
+        Stopwatch startupWarmupStopwatch = Stopwatch.StartNew();
+        int datasetAssetsWarmupCount = await WarmupStartupChildSlotsAsync(
+            setupClient,
+            datasetAssetsRootSlot.Value,
+            "dataset assets",
+            cancellationToken);
+        int commonWarmupCount = await WarmupStartupChildSlotsAsync(
+            setupClient,
+            commonAssetsRootSlot.Value,
+            "common assets",
+            cancellationToken);
+        startupWarmupStopwatch.Stop();
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Startup slot warmup complete in {startupWarmupStopwatch.Elapsed.TotalSeconds:F2}s "
+                + $"(cached dataset assets children={datasetAssetsWarmupCount}, "
+                + $"cached common materials children={commonWarmupCount})."));
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                "Applying dataset license metadata/component before city-object streaming starts."));
+        Stopwatch datasetLicenseStopwatch = Stopwatch.StartNew();
         terrainTextureAssetGenerator.ResetUsageTracking();
         datasetLicenseComponentId = await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
             clientSession.SetupClient,
@@ -254,18 +313,25 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             existingComponentId: null,
             allowUpdateExisting: bootstrapState.DatasetRootExisted,
             cancellationToken);
+        datasetLicenseStopwatch.Stop();
 
-        ReportProgress("[live] Dataset slots and asset groups are ready.");
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Dataset metadata/license phase complete in {datasetLicenseStopwatch.Elapsed.TotalSeconds:F2}s. "
+                + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
         clientSession.BeginWorkerClientTracking();
-        cityObjectChannels = Enumerable.Range(0, connectionCount)
-            .Select(_ => Channel.CreateBounded<QueuedCityObject>(
-                new BoundedChannelOptions(Math.Max(MaxQueuedCityObjects, connectionCount))
-                {
-                    SingleReader = true,
-                    SingleWriter = false,
-                    FullMode = BoundedChannelFullMode.Wait,
-                }))
-            .ToArray();
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Starting lane session initialization (setup=1, workers={Math.Max(connectionCount - 1, 0)})."));
+        cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
+            new BoundedChannelOptions(Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount))
+            {
+                SingleReader = false,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            });
         processedCityObjectCount = 0;
         attemptedCityObjectCount = 0;
         failedCityObjectCount = 0;
@@ -273,11 +339,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
         firstBuiltCityObjectLogged = 0;
+        firstCityObjectPreparationStartedLogged = 0;
+        firstCityObjectStreamingStartedLogged = 0;
+        firstCityObjectDequeuedLogged = 0;
+        firstCommonMaterialPrepLogged = 0;
         cityObjectBaker = MeshBakeEnabled
             ? new CompositeCityObjectBaker(
                 new Lod2AtlasCityObjectBaker(textureImageLoader, textureImportRegistry),
                 new FixedCellCityObjectMeshBaker())
             : null;
+        Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         cityObjectMemoryGate = new AsyncWeightedGate(
             Math.Max(
                 MaxInFlightCityObjectWorkingSetBytesFloor,
@@ -286,7 +357,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
         processingTasks = CreateProcessingTasks(metadata.Request, processingCancellationSource.Token);
-        ReportProgress($"[live] Send lanes ready (setup=1, workers={Math.Max(connectionCount - 1, 0)}).");
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Send lane tasks launched (connection budget={connectionCount}, "
+                + $"queue_capacity_total={Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount)})."));
+        laneStartStopwatch.Stop();
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Send lanes ready (setup=1, workers={Math.Max(connectionCount - 1, 0)})."));
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 
     public async Task PrepareCommonMaterialAsync(
@@ -305,6 +389,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
         string commonAssetsSlotId = commonAssetsRootSlot.Value.SlotId;
         string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        int commonMaterialProgress = Interlocked.Increment(ref firstCommonMaterialPrepLogged);
+        if (commonMaterialProgress == 1)
+        {
+            ReportProgress(
+                $"[live] Common material warmup started for '{commonAssetsRootSlot.Value.SlotName}'.");
+        }
+
+        if (commonMaterialProgress % 25 == 1)
+        {
+            ReportProgress(
+                $"[live] Common material '{materialSlotName}' prep started (count={commonMaterialProgress}).");
+        }
+
+        Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
         await materialAssetManager.CreateMaterialComponentAsync(
             clientSession.SetupClient,
             material,
@@ -315,34 +413,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             rendererSlotId: commonAssetsSlotId,
             textureOverrideAssetSlotId: commonAssetsSlotId,
             cancellationToken);
+        commonMaterialStopwatch.Stop();
+        if (commonMaterialProgress == 1 || commonMaterialProgress % 25 == 0)
+        {
+            ReportProgress(
+                $"[live] Common material '{materialSlotName}' prepared in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s "
+                + $"(count={commonMaterialProgress}).");
+        }
     }
 
-    private async Task<(CreatedSlot DatasetRoot, CreatedSlot DatasetAssetsRoot, CreatedSlot CommonAssetsRoot, bool DatasetRootExisted)> CreateSetupSlotHierarchyAsync(
-        IResoniteLinkClient client,
-        CancellationToken cancellationToken)
-    {
-        ObjectDisposedException.ThrowIf(metadata is null, this);
-
-        (CreatedSlot datasetRoot, bool datasetRootExisted) = await GetOrCreateDatasetRootAsync(
-            client,
-            $"PLATEAU {metadata.Request.Dataset}",
-            cancellationToken);
-        CreatedSlot datasetAssetsRoot = await GetOrCreateSharedChildSlotAsync(
-            client,
-            datasetRoot,
-            "Assets",
-            null,
-            null,
-            cancellationToken);
-        CreatedSlot commonAssetsRoot = await GetOrCreateSharedChildSlotAsync(
-            client,
-            datasetAssetsRoot,
-            CommonAssetsSlotName,
-            null,
-            null,
-            cancellationToken);
-        return (datasetRoot, datasetAssetsRoot, commonAssetsRoot, datasetRootExisted);
-    }
     private async Task<(CreatedSlot Slot, bool Existed)> GetOrCreateDatasetRootAsync(
         IResoniteLinkClient client,
         string slotName,
@@ -382,14 +461,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         PlateauImportRequest request,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
 
         Task[] tasks = new Task[connectionCount];
         for (int laneIndex = 0; laneIndex < connectionCount; laneIndex++)
         {
             int capturedLaneIndex = laneIndex;
             tasks[capturedLaneIndex] = ProcessQueuedCityObjectsOnLaneAsync(
-                cityObjectChannels[capturedLaneIndex].Reader,
+                cityObjectChannel.Reader,
                 request,
                 capturedLaneIndex,
                 cancellationToken);
@@ -407,14 +486,36 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         QueuedCityObject? currentCityObject = null;
         try
         {
+            if (Interlocked.CompareExchange(ref firstCityObjectStreamingStartedLogged, 1, 0) == 0)
+            {
+                ReportProgress(
+                    PlateauLog.Info(
+                        "live",
+                        $"City-object send pipeline is active and waiting for queue on lane {laneIndex + 1}/{connectionCount}."));
+            }
+
             await foreach (QueuedCityObject queuedCityObject in reader.ReadAllAsync(cancellationToken))
             {
                 currentCityObject = queuedCityObject;
-                await ProcessQueuedCityObjectAsync(client, queuedCityObject, cancellationToken);
+                if (Interlocked.CompareExchange(ref firstCityObjectDequeuedLogged, 1, 0) == 0)
+                {
+                    ReportProgress(
+                        PlateauLog.Info(
+                            "live",
+                            $"First city object dequeued on lane {laneIndex + 1}/{connectionCount} "
+                            + $"after scene-start {GetSceneElapsedSeconds():F3}s: "
+                            + $"{queuedCityObject.CityObject.DisplayName} "
+                            + $"({queuedCityObject.CityObject.PackageName}/{queuedCityObject.CityObject.SlotKey})."));
+                }
+
+                await ProcessQueuedCityObjectAsync(client, queuedCityObject, laneIndex, cancellationToken);
                 currentCityObject = null;
             }
 
-            ReportProgress($"[live] Send lane {laneIndex + 1}/{connectionCount} drained.");
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"Send lane {laneIndex + 1}/{connectionCount} drained."));
         }
         catch (OperationCanceledException)
         {
@@ -444,17 +545,45 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         int laneIndex,
         CancellationToken cancellationToken)
     {
+        Stopwatch laneClientStopwatch = Stopwatch.StartNew();
+        if (laneIndex == 0)
+        {
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"Using setup ResoniteLink client for send lane {laneIndex + 1}/{connectionCount}."));
+        }
+        else
+        {
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"Connecting worker ResoniteLink session for send lane {laneIndex + 1}/{connectionCount} to {endpoint} "
+                    + $"for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
+        }
+
         IResoniteLinkClient client = await clientSession.CreateLaneClientAsync(
             request,
             laneIndex,
             cancellationToken);
+        laneClientStopwatch.Stop();
         try
         {
-            if (laneIndex > 0)
+            if (laneIndex == 0)
             {
                 ReportProgress(
-                    $"[live] Connected worker ResoniteLink session {laneIndex + 1}/{connectionCount} "
-                    + $"to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'.");
+                    PlateauLog.Info(
+                        "live",
+                        $"Setup ResoniteLink client ready for send lane {laneIndex + 1}/{connectionCount} "
+                        + $"in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s."));
+            }
+            else
+            {
+                ReportProgress(
+                    PlateauLog.Info(
+                        "live",
+                        $"Connected worker ResoniteLink session {laneIndex + 1}/{connectionCount} "
+                        + $"to {endpoint} in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s."));
             }
             await ProcessQueuedCityObjectsAsync(reader, client, laneIndex, cancellationToken);
         }
@@ -473,7 +602,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ArgumentNullException.ThrowIfNull(cityObject);
 
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
 
         if (cityObjectBaker is not null)
@@ -499,7 +628,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     public async Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
+        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
         ObjectDisposedException.ThrowIf(metadata is null, this);
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
@@ -517,7 +646,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     ", ",
                     pendingBakeSummaries.Select(static summary =>
                         $"{summary.Name}: input={summary.InputCount}, currentOutput={summary.OutputCount}"));
-                ReportProgress($"[live] Starting buffered bake flush: {summaryText}.");
+                ReportProgress(PlateauLog.Info("live", $"Starting buffered bake flush: {summaryText}."));
             }
 
             Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
@@ -541,8 +670,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
             bakeFlushStopwatch.Stop();
             ReportProgress(
-                $"[live] Buffered bake flush produced {bakedCityObjectCount} baked city objects "
-                + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s.");
+                PlateauLog.Info(
+                    "live",
+                    $"Buffered bake flush produced {bakedCityObjectCount} baked city objects "
+                    + $"in {bakeFlushStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             foreach ((string name, int inputCount, int outputCount) in cityObjectBaker.GetBakeSummaries().Where(static summary => summary.OutputCount > 0))
             {
@@ -552,13 +683,17 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             }
         }
 
-        ReportProgress("[live] Completing live send. Closing lane writers.");
-        foreach (Channel<QueuedCityObject> channel in cityObjectChannels)
-        {
-            channel.Writer.TryComplete();
-        }
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Completing live send. Closing lane writers (attempted={attemptedCityObjectCount}, "
+                + $"prepared={processedCityObjectCount}, failed={failedCityObjectCount})."));
+        cityObjectChannel.Writer.TryComplete();
 
-        ReportProgress($"[live] Awaiting {processingTasks.Length} send lane task(s) to drain.");
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                $"Awaiting {processingTasks.Length} send lane task(s) to drain after queue close."));
         Task allProcessingTasks = Task.WhenAll(processingTasks);
         if (firstProcessingFailureSource is not null)
         {
@@ -572,7 +707,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
 
         await allProcessingTasks.WaitAsync(cancellationToken);
-        ReportProgress("[live] All send lanes drained.");
+        ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
         datasetLicenseComponentId = await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
             clientSession.SetupClient,
             datasetRootSlot.Value.SlotId,
@@ -582,23 +717,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         diagnostics.CompleteSendWindow();
         ReportProgress(
-            $"[live] Completed {processedCityObjectCount} city objects "
-            + $"(failed={failedCityObjectCount}, attempted={attemptedCityObjectCount}).");
+            PlateauLog.Info(
+                "live",
+                $"Completed {processedCityObjectCount} city objects "
+                + $"(failed={failedCityObjectCount}, attempted={attemptedCityObjectCount})."));
         ReportProgress(
-            $"[live] Send summary: attempted={attemptedCityObjectCount} sent={processedCityObjectCount} failed={failedCityObjectCount}.");
+            PlateauLog.Info(
+                "live",
+                $"Send summary: attempted={attemptedCityObjectCount} sent={processedCityObjectCount} failed={failedCityObjectCount}."));
 
         return [$"{endpoint}#{sceneAnchor?.SlotId ?? datasetRootSlot?.SlotId ?? string.Empty}"];
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (cityObjectChannels is not null)
-        {
-            foreach (Channel<QueuedCityObject> channel in cityObjectChannels)
-            {
-                channel.Writer.TryComplete();
-            }
-        }
+        cityObjectChannel?.Writer.TryComplete();
 
         CancelProcessing();
 
@@ -645,11 +778,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             sharedSlotCache.Clear();
             createdSlotIds.Clear();
             importedTextureUriCache = null;
-            dispatchLaneAllocator = null;
             textureImportResolver = null;
             textureImportRegistry = null;
             cityObjectMemoryGate = null;
-            cityObjectChannels = null;
+            cityObjectChannel = null;
             processingTasks = null;
             cityObjectBaker = null;
             processingCancellationSource?.Dispose();
@@ -692,6 +824,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private async Task ProcessQueuedCityObjectAsync(
         IResoniteLinkClient client,
         QueuedCityObject queuedCityObject,
+        int laneIndex,
         CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref attemptedCityObjectCount);
@@ -702,21 +835,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 queuedCityObject.CityObject,
                 "preparing",
                 cancellationToken);
-            bool builtCityObject = await AwaitWithSlowCityObjectWarningAsync(
-                BuildPreparedCityObjectAsync(client, preparedCityObject, cancellationToken),
+            await AwaitWithSlowCityObjectWarningAsync(
+                BuildPreparedCityObjectAsync(client, preparedCityObject, laneIndex, cancellationToken),
                 preparedCityObject.CityObject,
                 "building",
                 cancellationToken);
-            if (!builtCityObject)
-            {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "live",
-                        $"Skipping duplicate city object: "
-                        + $"{preparedCityObject.CityObject.DisplayName} "
-                        + $"({preparedCityObject.CityObject.PackageName}/{preparedCityObject.CityObject.SlotKey})."));
-                return;
-            }
 
             int processedCount = Interlocked.Increment(ref processedCityObjectCount);
             ReportProgress(
@@ -778,6 +901,28 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return await operationTask.WaitAsync(cancellationToken);
     }
 
+    private async Task AwaitWithSlowCityObjectWarningAsync(
+        Task operationTask,
+        ResoniteConstructionCityObject cityObject,
+        string phase,
+        CancellationToken cancellationToken)
+    {
+        Task completedTask = await Task.WhenAny(
+            operationTask,
+            Task.Delay(SlowCityObjectOperationWarningThreshold, CancellationToken.None));
+        if (!ReferenceEquals(completedTask, operationTask))
+        {
+            ReportProgress(
+                $"[live][warn] City object '{cityObject.DisplayName}' "
+                + $"({cityObject.PackageName}/{cityObject.SlotKey}) "
+                + $"mesh='{cityObject.ActualMeshCode}' "
+                + $"sourceUnit='{cityObject.SourceUnitKey ?? "<null>"}' "
+                + $"is still {phase} after {SlowCityObjectOperationWarningThreshold.TotalSeconds:F0}s.");
+        }
+
+        await operationTask.WaitAsync(cancellationToken);
+    }
+
     private static ResoniteLinkOperationException? FindResoniteLinkOperationException(Exception exception)
     {
         for (Exception? current = exception; current is not null; current = current.InnerException)
@@ -798,27 +943,28 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         await AwaitProcessingTasksIfCompletedAsync();
 
         ObjectDisposedException.ThrowIf(cityObjectMemoryGate is null, this);
+        long estimatedWorksetBytes = EstimateCityObjectWorkingSetBytes(cityObject);
         AsyncWeightedGate.Lease cityObjectMemoryLease = await cityObjectMemoryGate.AcquireAsync(
-            EstimateCityObjectWorkingSetBytes(cityObject),
+            estimatedWorksetBytes,
             cancellationToken);
         Task<PreparedCityObject> preparationTask = CreatePreparationTask(cityObject, cancellationToken);
+        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
         if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
-                $"[live] First city object queued after {GetSceneElapsedSeconds():F3}s: "
-                + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
+                PlateauLog.Info(
+                    "live",
+                    $"First city object queued after {GetSceneElapsedSeconds():F3}s: "
+                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
+                    + $"estimated_workset_bytes={estimatedWorksetBytes}."));
         }
 
-        ObjectDisposedException.ThrowIf(dispatchLaneAllocator is null, this);
-        ObjectDisposedException.ThrowIf(cityObjectChannels is null, this);
-
-        int dispatchLane = dispatchLaneAllocator.GetLane(cityObject);
         using CancellationTokenSource enqueueCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             processingCancellationSource?.Token ?? CancellationToken.None);
         try
         {
-            await cityObjectChannels[dispatchLane].Writer.WriteAsync(
+            await cityObjectChannel.Writer.WriteAsync(
                 new QueuedCityObject(cityObject, preparationTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
         }
@@ -912,6 +1058,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteConstructionCityObject cityObject,
         CancellationToken callerCancellationToken)
     {
+        if (Interlocked.CompareExchange(ref firstCityObjectPreparationStartedLogged, 1, 0) == 0)
+        {
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"City object preparation started after {GetSceneElapsedSeconds():F3}s: "
+                    + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey}) "
+                    + $"mesh='{cityObject.ActualMeshCode}'."));
+        }
+
         CancellationToken processingCancellationToken = processingCancellationSource?.Token ?? CancellationToken.None;
         return PrepareCityObjectWithLinkedCancellationAsync(
             cityObject,
@@ -977,10 +1133,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         if (Interlocked.CompareExchange(ref firstPreparedCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
-                $"[live] First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
-                + $"after scene start {GetSceneElapsedSeconds():F3}s: "
-                + $"{cityObject.DisplayName} "
-                + $"(textures={preparedTextures.Length}, geometry={DescribePreparedGeometry(preparedGeometry)})");
+                PlateauLog.Info(
+                    "live",
+                    $"First city object prepared in {stopwatch.Elapsed.TotalSeconds:F3}s "
+                    + $"after scene start {GetSceneElapsedSeconds():F3}s: "
+                    + $"{cityObject.DisplayName} "
+                    + $"(textures={preparedTextures.Length}, geometry={DescribePreparedGeometry(preparedGeometry)})."));
         }
 
         return new PreparedCityObject(
@@ -1032,9 +1190,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return (meshCode, distanceSquared);
     }
 
-    private async Task<bool> BuildPreparedCityObjectAsync(
+    private async Task BuildPreparedCityObjectAsync(
         IResoniteLinkClient importClient,
         PreparedCityObject preparedCityObject,
+        int laneIndex,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
@@ -1057,16 +1216,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             cancellationToken);
         slotHierarchyStopwatch.Stop();
-        if (await TrySkipDuplicateCityObjectAsync(
-                mutationClient,
-                objectSlots,
-                cityObject,
-                sendScope,
-                cancellationToken))
-        {
-            return false;
-        }
-
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = CreatePreparedTextureDataByKey(preparedCityObject);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
@@ -1108,13 +1257,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         await CreateCityObjectBatchAsync(
             mutationClient,
-            importClient,
             objectSlots,
             cityObject,
             preparedTextureDataByKey,
             preparedGeometryBatch,
             materialTargets,
             preparedDedicatedMaterialAssets,
+            laneIndex,
             cancellationToken);
         batchStopwatch.Stop();
 
@@ -1136,8 +1285,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 $"[live] First city object built after {GetSceneElapsedSeconds():F3}s: "
                 + $"{cityObject.DisplayName} ({cityObject.PackageName}/{cityObject.SlotKey})");
         }
-
-        return true;
     }
 
     private static Dictionary<TextureReferenceKey, ResoniteTextureImport> CreatePreparedTextureDataByKey(
@@ -1213,19 +1360,30 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
+        ObjectDisposedException.ThrowIf(sceneAnchor is null, this);
         string rootMeshCode = cityObject.ActualMeshCode;
+        SceneAnchor anchor = sceneAnchor.Value;
+        string fileSlotName = CreateObjectFileSlotName(cityObject);
         ResoniteFloat3 cityObjectLocalPosition = ResolveCityObjectLocalPosition(
             metadata.LocalOrigin,
             rootMeshCode,
             cityObject.Transform.Position);
         ResoniteFloat3 rootMeshCodePosition = ResolveMeshCodeRootPosition(rootMeshCode);
-        CreatedSlot meshRootSlot = await GetOrCreateSharedChildSlotAsync(
-            client,
-            datasetRoot,
+        CreatedSlot meshRootSlot = string.Equals(
             rootMeshCode,
-            rootMeshCodePosition,
-            null,
-            cancellationToken);
+            anchor.MeshCode,
+            StringComparison.Ordinal)
+            ? new CreatedSlot(
+                anchor.SlotId,
+                rootMeshCode)
+            : await GetOrCreateSharedChildSlotAsync(
+                client,
+                datasetRoot,
+                rootMeshCode,
+                rootMeshCodePosition,
+                null,
+                cancellationToken);
+        sharedSlotCache.Remember((datasetRoot.SlotId, rootMeshCode), meshRootSlot);
         CreatedSlot assetMeshRootSlot = await GetOrCreateSharedChildSlotAsync(
             client,
             datasetAssetsRoot,
@@ -1233,30 +1391,30 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             null,
             null,
             cancellationToken);
-        CreatedSlot assetPackageSlot = await GetOrCreateSharedChildSlotAsync(
+        CreatedSlot assetFileSlot = await GetOrCreateSharedChildSlotAsync(
             client,
             assetMeshRootSlot,
-            cityObject.PackageName,
+            fileSlotName,
             null,
             null,
             cancellationToken);
-        CreatedSlot packageSlot = await GetOrCreateSharedChildSlotAsync(
+        CreatedSlot fileSlot = await GetOrCreateSharedChildSlotAsync(
             client,
             meshRootSlot,
-            cityObject.PackageName,
+            fileSlotName,
             null,
             null,
             cancellationToken);
         CreatedSlot assetLodSlot = await GetOrCreateSharedChildSlotAsync(
             client,
-            assetPackageSlot,
+            assetFileSlot,
             FormatLodSlotName(cityObject.LodLevel),
             null,
             null,
             cancellationToken);
         CreatedSlot lodSlot = await GetOrCreateSharedChildSlotAsync(
             client,
-            packageSlot,
+            fileSlot,
             FormatLodSlotName(cityObject.LodLevel),
             null,
             null,
@@ -1264,8 +1422,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return new ObjectSlotHierarchy(
             meshRootSlot,
             assetMeshRootSlot,
-            assetPackageSlot,
-            packageSlot,
+            assetFileSlot,
+            fileSlot,
             assetLodSlot,
             lodSlot,
             MeshAssetSlot: null,
@@ -1274,6 +1432,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             CityObjectIdentityTag: CreateCityObjectIdentityTag(cityObject),
             CityObjectLocalPosition: cityObjectLocalPosition,
             CityObjectRotation: cityObject.Transform.Rotation);
+    }
+
+    private static string CreateObjectFileSlotName(ResoniteConstructionCityObject cityObject)
+    {
+        if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
+        {
+            return cityObject.SourceUnitKey;
+        }
+
+        return cityObject.SlotKey;
     }
 
     private double GetSceneElapsedSeconds()
@@ -1331,36 +1499,50 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return clientSession.SetupClient;
     }
 
-    private async Task<bool> TrySkipDuplicateCityObjectAsync(
-        IResoniteLinkClient mutationClient,
-        ObjectSlotHierarchy objectSlots,
-        ResoniteConstructionCityObject cityObject,
-        ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope,
+    private async Task<int> WarmupStartupChildSlotsAsync(
+        IResoniteLinkClient setupClient,
+        CreatedSlot parentSlot,
+        string parentName,
         CancellationToken cancellationToken)
     {
-        ChildSlotTagLookupResult lookupResult = await GetChildSlotTagLookupResultAsync(
-            mutationClient,
-            objectSlots.LodSlot.SlotId,
-            objectSlots.CityObjectIdentityTag,
+        ReportProgress($"[live] Loading cached children under '{parentName}' ({parentSlot.SlotName}) before runtime create-only path.");
+        ResoniteSceneSlotSnapshot startupSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
+            setupClient,
+            parentSlot.SlotId,
+            1,
             cancellationToken);
-        if (lookupResult.MatchCount == 0)
+        if (startupSnapshot.Root?.Children is null)
         {
-            return false;
+            ReportProgress($"[live] No cached children found under '{parentName}' ({parentSlot.SlotName}).");
+            return 0;
         }
 
-        if (lookupResult.MatchCount > 1)
+        int cachedChildren = 0;
+
+        foreach (string childName in startupSnapshot.Root.Children
+            .Select(static child => child.Name?.Value)
+            .Where(static childName => !string.IsNullOrWhiteSpace(childName))
+            .Select(static childName => childName!))
         {
-            ReportProgress(
-                PlateauLog.Warning(
-                    "live",
-                    $"Detected {lookupResult.MatchCount} existing child slots with duplicate identity tag "
-                    + $"'{objectSlots.CityObjectIdentityTag}' under '{objectSlots.LodSlot.SlotId}'. "
-                    + $"Treating '{cityObject.DisplayName}' as already imported."));
+            CreatedSlot? existingChild = TryFindUniqueMatchingChildSlot(
+                startupSnapshot.Root,
+                childName,
+                static _ => true,
+                parentSlot.SlotId);
+            if (existingChild is null)
+            {
+                continue;
+            }
+
+            sharedSlotCache.Remember((parentSlot.SlotId, childName), existingChild.Value);
+            cachedChildren++;
         }
 
-        sendScope.MarkSkippedDuplicate();
-        return true;
+        ReportProgress(
+            $"[live] Cached {cachedChildren} existing child slots under '{parentName}' ({parentSlot.SlotName}).");
+        return cachedChildren;
     }
+
 
     private async Task<(IReadOnlyList<MaterialReferenceTarget> MaterialTargets, IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> DedicatedMaterialPreparationTasks)> PrepareMaterialTargetsAsync(
         IResoniteLinkClient importClient,
@@ -1551,13 +1733,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private async Task CreateCityObjectBatchAsync(
         IResoniteLinkClient client,
-        IResoniteLinkClient importClient,
         ObjectSlotHierarchy objectSlots,
         ResoniteConstructionCityObject cityObject,
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
         PreparedGeometryAssetBatch preparedGeometryBatch,
         IReadOnlyList<MaterialReferenceTarget> materialTargets,
         IReadOnlyList<PreparedDedicatedMaterialAssets> preparedDedicatedMaterialAssets,
+        int laneIndex,
         CancellationToken cancellationToken)
     {
         CityObjectBatchBuilder batchBuilder = new();
@@ -1703,7 +1885,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 },
             });
 
+        int operationCount = batchBuilder.Operations.Count;
+        Stopwatch batchStopwatch = Stopwatch.StartNew();
         BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+        batchStopwatch.Stop();
+        if (batchStopwatch.Elapsed >= SlowRunDataModelBatchThreshold)
+        {
+            ReportProgress(
+                $"[live][warn] City object '{cityObject.DisplayName}' "
+                + $"({cityObject.PackageName}/{cityObject.SlotKey}) "
+                + $"mesh='{cityObject.ActualMeshCode}' "
+                + $"sourceUnit='{cityObject.SourceUnitKey ?? "<null>"}' "
+                + $"lane={laneIndex + 1}/{connectionCount} "
+                + $"slow batch: operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)}, "
+                + $"actual={batchStopwatch.Elapsed.TotalSeconds:F3}s.");
+        }
+
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
         canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingOperations);
         _ = canonicalBatchEntityMap.ResolveSlot(meshAssetSlot);
@@ -1713,6 +1910,11 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             _ = canonicalBatchEntityMap.ResolveSlot(heightMapAssetSlot.Value);
         }
+    }
+
+    private static long EstimateBatchPayloadBytes(int operationCount)
+    {
+        return Math.Max(1L, operationCount) * 1024L;
     }
 
     private static Task<PendingBatchComponent> AddDedicatedMaterialOperationsAsync(
@@ -2127,6 +2329,36 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return createdSlot;
     }
 
+    private async Task<CreatedSlot> GetOrCreateStartupChildSlotAsync(
+        IResoniteLinkClient client,
+        CreatedSlot parent,
+        string slotName,
+        ResoniteFloat3? position,
+        ResoniteFloatQ? rotation,
+        CancellationToken cancellationToken)
+    {
+        CreatedSlot? existingChild = await TryGetUniqueChildSlotByNameWithRetryAsync(
+            client,
+            parent.SlotId,
+            slotName,
+            DatasetRootLookupAttemptLimit,
+            DatasetRootLookupRetryDelay,
+            cancellationToken);
+        if (existingChild is not null)
+        {
+            sharedSlotCache.Remember((parent.SlotId, slotName), existingChild.Value);
+            return existingChild.Value;
+        }
+
+        return await GetOrCreateSharedChildSlotAsync(
+            client,
+            parent,
+            slotName,
+            position,
+            rotation,
+            cancellationToken);
+    }
+
     private async Task<CreatedSlot> GetOrCreateSharedChildSlotCoreAsync(
         IResoniteLinkClient client,
         string parentId,
@@ -2135,20 +2367,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        if (!createdSlotIds.ContainsKey(parentId))
-        {
-            CreatedSlot? existingSlot = await TryGetUniqueChildSlotByNameAsync(
-                client,
-                parentId,
-                slotName,
-                cancellationToken);
-            if (existingSlot is not null)
-            {
-                sharedSlotCache.Remember((parentId, slotName), existingSlot.Value);
-                return existingSlot.Value;
-            }
-        }
-
         return await CreateSlotCoreAsync(client, parentId, slotName, position, rotation, cancellationToken);
     }
 
@@ -2274,20 +2492,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return TryFindUniqueChildSlotByName(snapshot.Root, slotName, parentId);
     }
 
-    private static async Task<ChildSlotTagLookupResult> GetChildSlotTagLookupResultAsync(
-        IResoniteLinkClient client,
-        string parentId,
-        string slotTag,
-        CancellationToken cancellationToken)
-    {
-        ResoniteSceneSlotSnapshot snapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
-            client,
-            parentId,
-            1,
-            cancellationToken);
-        return FindChildSlotByTag(snapshot.Root, slotTag, parentId);
-    }
-
     private static async Task<CreatedSlot?> TryGetUniqueChildSlotByNameWithRetryAsync(
         IResoniteLinkClient client,
         string parentId,
@@ -2327,33 +2531,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             slotName,
             static _ => true,
             parentId);
-    }
-
-    private static ChildSlotTagLookupResult FindChildSlotByTag(
-        Slot? parentSlot,
-        string slotTag,
-        string? parentId = null)
-    {
-        if (parentSlot?.Children is null)
-        {
-            return ChildSlotTagLookupResult.None;
-        }
-
-        Slot[] matches = parentSlot.Children
-            .Where(child => string.Equals(child.Tag?.Value, slotTag, StringComparison.Ordinal))
-            .ToArray();
-        if (matches.Length == 0)
-        {
-            return ChildSlotTagLookupResult.None;
-        }
-
-        Slot match = SelectPreferredExistingSlot(matches);
-        string existingSlotId = match.ID
-            ?? throw new InvalidOperationException(
-                $"Child slot tagged '{slotTag}' under parent '{parentId ?? parentSlot.ID ?? "<unknown>"}' did not surface an ID.");
-        return new ChildSlotTagLookupResult(
-            new CreatedSlot(existingSlotId, match.Name?.Value ?? string.Empty),
-            matches.Length);
     }
 
     private static Slot SelectPreferredExistingSlot(IReadOnlyList<Slot> matches)
@@ -2498,13 +2675,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string LocalId,
         string MessageId,
         string SlotName);
-
-    private readonly record struct ChildSlotTagLookupResult(
-        CreatedSlot? Slot,
-        int MatchCount)
-    {
-        public static ChildSlotTagLookupResult None => new(null, 0);
-    }
 
     private readonly record struct PendingBatchComponent(
         string LocalId,
@@ -2660,34 +2830,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         string CityObjectIdentityTag,
         ResoniteFloat3 CityObjectLocalPosition,
         ResoniteFloatQ? CityObjectRotation);
-
-    internal sealed class DispatchLaneAllocator
-    {
-        private readonly int connectionCount;
-        private readonly ConcurrentDictionary<string, int> lanesByDependencyKey = new(StringComparer.Ordinal);
-        private int nextLane = -1;
-
-        public DispatchLaneAllocator(int connectionCount)
-        {
-            ArgumentOutOfRangeException.ThrowIfLessThan(connectionCount, 1);
-            this.connectionCount = connectionCount;
-        }
-
-        public int GetLane(ResoniteConstructionCityObject cityObject)
-        {
-            ArgumentNullException.ThrowIfNull(cityObject);
-
-            if (connectionCount == 1)
-            {
-                return 0;
-            }
-
-            string dependencyKey = CreateDispatchDependencyKey(cityObject);
-            return lanesByDependencyKey.GetOrAdd(
-                dependencyKey,
-                _ => Interlocked.Increment(ref nextLane) % connectionCount);
-        }
-    }
 
     private sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,

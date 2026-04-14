@@ -12,9 +12,7 @@ internal sealed class ResoniteMaterialAssetManager(
     Func<IResoniteLinkClient, string, string, Func<CancellationToken, Task<Uri>>, CancellationToken, Task<CreatedComponent>> createDedicatedAssetComponentAsync,
     Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
     Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
-    Func<IResoniteLinkClient, string, int, CancellationToken, Task<Slot?>> getSlotAsync,
     Func<IResoniteLinkClient, ResoniteTextureImport, CancellationToken, Task<Uri>> importTextureAsync,
-    Func<string, bool>? wasCreatedInCurrentRun = null,
     Action<string>? progressReporter = null)
 {
     private const float DefaultNormalScale = 1.0f;
@@ -124,27 +122,6 @@ internal sealed class ResoniteMaterialAssetManager(
             $"[live] Material '{material.MaterialKey}' resolving as '{materialComponentType}' "
             + $"(projection={material.Projection}, texture={material.TexturePath ?? "none"}).");
 
-        Stopwatch lookupStopwatch = Stopwatch.StartNew();
-        CreatedComponent? reusedSharedMaterial = await TryReuseExistingSharedMaterialComponentAsync(
-            client,
-            materialSlotParentId,
-            materialSlotName,
-            materialComponentType,
-            cancellationToken);
-        lookupStopwatch.Stop();
-        if (reusedSharedMaterial is not null)
-        {
-            totalStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Debug(
-                    "live",
-                    $"Material '{material.MaterialKey}' phase timings: "
-                    + $"lookup_s={lookupStopwatch.Elapsed.TotalSeconds:F3} "
-                    + $"texture_imports_s=0.000 component_create_s=0.000 total_s={totalStopwatch.Elapsed.TotalSeconds:F3} "
-                    + "reused_existing=true."));
-            return reusedSharedMaterial.Value;
-        }
-
         Stopwatch textureImportStopwatch = Stopwatch.StartNew();
         Task<Uri?> albedoTextureTask = Task.FromResult<Uri?>(null);
         Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
@@ -250,22 +227,6 @@ internal sealed class ResoniteMaterialAssetManager(
             cancellationToken);
         materialContainerSlotId = createdMaterialSlot.SlotId;
 
-        Component? existingMaterialComponent = (wasCreatedInCurrentRun?.Invoke(materialContainerSlotId) ?? false)
-            ? null
-            : await TryGetExistingMaterialComponentAsync(
-                client,
-                materialContainerSlotId,
-                materialComponentType,
-                cancellationToken);
-        if (existingMaterialComponent is not null)
-        {
-            ReportProgress(
-                $"[live] Material '{material.MaterialKey}' reusing existing component '{materialComponentType}'.");
-            return new CreatedComponent(
-                existingMaterialComponent.ID,
-                materialComponentType);
-        }
-
         Stopwatch componentCreateStopwatch = Stopwatch.StartNew();
         if (albedoTextureUri is not null)
         {
@@ -352,64 +313,12 @@ internal sealed class ResoniteMaterialAssetManager(
             PlateauLog.Debug(
                 "live",
                 $"Material '{material.MaterialKey}' phase timings: "
-                + $"lookup_s={lookupStopwatch.Elapsed.TotalSeconds:F3} "
+                + "lookup_s=0.000 "
                 + $"texture_imports_s={textureImportStopwatch.Elapsed.TotalSeconds:F3} "
                 + $"component_create_s={componentCreateStopwatch.Elapsed.TotalSeconds:F3} "
-                + $"total_s={totalStopwatch.Elapsed.TotalSeconds:F3} reused_existing=false."));
+                + $"total_s={totalStopwatch.Elapsed.TotalSeconds:F3}."));
         ReportProgress($"[live] Material '{material.MaterialKey}' ready.");
         return materialComponent;
-    }
-
-    private async Task<CreatedComponent?> TryReuseExistingSharedMaterialComponentAsync(
-        IResoniteLinkClient client,
-        string? materialSlotParentId,
-        string materialSlotName,
-        string materialComponentType,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(materialSlotParentId)
-            || (wasCreatedInCurrentRun?.Invoke(materialSlotParentId) ?? false))
-        {
-            return null;
-        }
-
-        Slot? parentSlot = await getSlotAsync(client, materialSlotParentId, 1, cancellationToken);
-        if (parentSlot?.Children is null)
-        {
-            return null;
-        }
-
-        Slot[] matchingSlots = parentSlot.Children
-            .Where(child => string.Equals(child.Name?.Value, materialSlotName, StringComparison.Ordinal))
-            .ToArray();
-        if (matchingSlots.Length == 0)
-        {
-            return null;
-        }
-
-        if (matchingSlots.Length > 1)
-        {
-            ReportProgress(
-                $"[live][warn] Detected {matchingSlots.Length} existing child slots named '{materialSlotName}' "
-                + $"under '{materialSlotParentId}'. Reusing the preferred existing material slot.");
-        }
-
-        Slot preferredSlot = matchingSlots
-            .OrderByDescending(static slot => slot.Components?.Count ?? 0)
-            .ThenBy(static slot => slot.ID, StringComparer.Ordinal)
-            .First();
-        Component? existingMaterialComponent = preferredSlot.Components?.FirstOrDefault(component =>
-            string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal));
-        if (existingMaterialComponent is null)
-        {
-            return null;
-        }
-
-        ReportProgress(
-            $"[live] Material slot '{materialSlotName}' reusing existing component '{materialComponentType}' without texture import.");
-        return new CreatedComponent(
-            existingMaterialComponent.ID,
-            materialComponentType);
     }
 
     private Task<CreatedComponent> CreateTextureComponentFromImportedUriAsync(
@@ -481,17 +390,6 @@ internal sealed class ResoniteMaterialAssetManager(
 
         textureImport = null!;
         return false;
-    }
-
-    private async Task<Component?> TryGetExistingMaterialComponentAsync(
-        IResoniteLinkClient client,
-        string slotId,
-        string componentType,
-        CancellationToken cancellationToken)
-    {
-        Slot? slot = await getSlotAsync(client, slotId, 1, cancellationToken);
-        return slot?.Components?.FirstOrDefault(component =>
-            string.Equals(component.ComponentType, componentType, StringComparison.Ordinal));
     }
 
     private void ReportProgress(string message)

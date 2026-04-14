@@ -96,7 +96,9 @@ internal sealed class RetryingResoniteLinkClient(
             operations,
             "RunDataModelOperationBatch",
             SlowBatchThreshold,
-            cancellationToken);
+            cancellationToken,
+            static state =>
+                $"batch_ops={state.Count}, est_payload_bytes={EstimateBatchPayloadBytes(state.Count)}");
     }
 
     public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
@@ -216,7 +218,8 @@ internal sealed class RetryingResoniteLinkClient(
         TState state,
         string operationName,
         TimeSpan slowThreshold,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TState, string>? slowDiagnosticProvider = null)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         TResult result = await ExecuteWithoutReconnectAsync(
@@ -232,14 +235,20 @@ internal sealed class RetryingResoniteLinkClient(
                 $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
         if (stopwatch.Elapsed >= slowThreshold)
         {
+            string slowContext = slowDiagnosticProvider is null ? string.Empty : $" {slowDiagnosticProvider(state)}";
             reporter?.Invoke(
                 PlateauLog.Warning(
                     "live",
                     $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
-                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s).{slowContext}"));
         }
 
         return result;
+    }
+
+    private static long EstimateBatchPayloadBytes(int operationCount)
+    {
+        return Math.Max(1L, operationCount) * 1024L;
     }
 
     private async Task<TResult> ExecuteTimedImportAsync<TState, TResult>(

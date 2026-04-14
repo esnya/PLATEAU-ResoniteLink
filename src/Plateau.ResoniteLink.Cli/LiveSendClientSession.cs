@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using Plateau.ResoniteLink.Domain.Importing;
+using Plateau.ResoniteLink.Application.Logging;
 
 namespace Plateau.ResoniteLink.Cli;
 
@@ -35,6 +37,10 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     public void BeginWorkerClientTracking()
     {
         BackgroundClients ??= [];
+        reportProgress?.Invoke(
+            PlateauLog.Info(
+                "live",
+                $"Worker session tracker initialized for {Math.Max(connectionCount - 1, 0)} background lane(s)."));
     }
 
     public async Task EnsureSetupClientConnectedAsync(
@@ -48,16 +54,27 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         {
             if (SetupClient is not null)
             {
+                reportProgress?.Invoke(
+                    PlateauLog.Info("live", "Reusing existing setup ResoniteLink session."));
                 return;
             }
 
+            Stopwatch setupSessionStopwatch = Stopwatch.StartNew();
             IResoniteLinkClient createdClient = createConfiguredClient();
             try
             {
+                reportProgress?.Invoke(
+                    PlateauLog.Info(
+                        "live",
+                        $"Connecting setup ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
                 await createdClient.ConnectAsync(endpoint, cancellationToken);
+                setupSessionStopwatch.Stop();
                 SetupClient = createdClient;
                 reportProgress?.Invoke(
-                    $"[live] Connected setup ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'.");
+                    PlateauLog.Info(
+                        "live",
+                        $"Setup ResoniteLink session connected to {endpoint} in {setupSessionStopwatch.Elapsed.TotalSeconds:F2}s "
+                        + $"for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
             }
             catch
             {
@@ -82,6 +99,12 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         IResoniteLinkClient client = createConfiguredClient();
         try
         {
+            Stopwatch workerSessionStopwatch = Stopwatch.StartNew();
+            reportProgress?.Invoke(
+                PlateauLog.Info(
+                    "live",
+                    $"Connecting worker ResoniteLink session {laneIndex + 1}/{connectionCount} to {endpoint} "
+                    + $"for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
             using CancellationTokenSource connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             Task connectTask = client.ConnectAsync(endpoint, connectCancellation.Token);
             if (!connectTask.IsCompleted)
@@ -104,7 +127,13 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
             }
 
             await connectTask;
+            workerSessionStopwatch.Stop();
             BackgroundClients.Add(client);
+            reportProgress?.Invoke(
+                PlateauLog.Info(
+                    "live",
+                    $"Connected worker ResoniteLink session {laneIndex + 1}/{connectionCount} to {endpoint} in "
+                    + $"{workerSessionStopwatch.Elapsed.TotalSeconds:F2}s."));
             return client;
         }
         catch

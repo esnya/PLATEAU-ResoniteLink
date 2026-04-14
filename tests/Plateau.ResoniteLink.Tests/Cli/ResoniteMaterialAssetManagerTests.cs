@@ -12,20 +12,14 @@ public sealed class ResoniteMaterialAssetManagerTests
     {
         TaskCompletionSource allowComponentCreation = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int createComponentCallCount = 0;
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new CreatedSlot("material-slot-child", "Material")),
-            async (_, _, componentType, _, cancellationToken) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: static (_, _, _, _) => Task.FromResult(new CreatedSlot("material-slot-child", "Material")),
+            createComponentAsync: async (_, _, componentType, _, cancellationToken) =>
             {
                 int currentCall = Interlocked.Increment(ref createComponentCallCount);
                 await allowComponentCreation.Task.WaitAsync(cancellationToken);
-                return new CreatedComponent(
-                    $"srv_component_{currentCall}",
-                    componentType);
-            },
-            static (_, _, _, _) => Task.FromResult<Slot?>(null),
-            static (_, _, _) => throw new NotSupportedException());
+                return new CreatedComponent($"srv_component_{currentCall}", componentType);
+            });
         using CancellationTokenSource cancellationTokenSource = new();
 
         using StubResoniteLinkClient firstClient = new();
@@ -42,8 +36,7 @@ public sealed class ResoniteMaterialAssetManagerTests
 
         await cancellationTokenSource.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await canceledRequest);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await canceledRequest);
 
         allowComponentCreation.TrySetResult();
 
@@ -60,7 +53,6 @@ public sealed class ResoniteMaterialAssetManagerTests
             CancellationToken.None);
 
         Assert.Equal("srv_component_2", component.MaterialComponentId);
-        Assert.DoesNotContain("material-instance", component.MaterialComponentId, StringComparison.Ordinal);
         Assert.Equal(2, createComponentCallCount);
     }
 
@@ -68,11 +60,9 @@ public sealed class ResoniteMaterialAssetManagerTests
     public async Task CreateMaterialComponentAsyncDoesNotLetFaultedCreationPoisonRetry()
     {
         int createComponentCallCount = 0;
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new CreatedSlot("material-slot-child", "Material")),
-            (_, _, componentType, _, _) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: static (_, _, _, _) => Task.FromResult(new CreatedSlot("material-slot-child", "Material")),
+            createComponentAsync: (_, _, componentType, _, _) =>
             {
                 int currentCall = Interlocked.Increment(ref createComponentCallCount);
                 if (currentCall == 1)
@@ -80,28 +70,23 @@ public sealed class ResoniteMaterialAssetManagerTests
                     throw new InvalidOperationException("Simulated component creation failure.");
                 }
 
-                return Task.FromResult(new CreatedComponent(
-                    $"srv_component_{currentCall}",
-                    componentType));
-            },
-            static (_, _, _, _) => Task.FromResult<Slot?>(null),
-            static (_, _, _) => throw new NotSupportedException());
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            async () =>
-            {
-                using StubResoniteLinkClient firstClient = new();
-                await manager.CreateMaterialComponentAsync(
-                    firstClient,
-                    CreateMaterial(),
-                    new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
-                    "material-slot",
-                    null,
-                    "Material",
-                    "renderer-slot",
-                    "texture-slot",
-                    CancellationToken.None);
+                return Task.FromResult(new CreatedComponent($"srv_component_{currentCall}", componentType));
             });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            using StubResoniteLinkClient firstClient = new();
+            await manager.CreateMaterialComponentAsync(
+                firstClient,
+                CreateMaterial(),
+                new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+                "material-slot",
+                null,
+                "Material",
+                "renderer-slot",
+                "texture-slot",
+                CancellationToken.None);
+        });
 
         using StubResoniteLinkClient secondClient = new();
         CreatedMaterialAsset component = await manager.CreateMaterialComponentAsync(
@@ -116,7 +101,6 @@ public sealed class ResoniteMaterialAssetManagerTests
             CancellationToken.None);
 
         Assert.Equal("srv_component_2", component.MaterialComponentId);
-        Assert.DoesNotContain("material-instance", component.MaterialComponentId, StringComparison.Ordinal);
         Assert.Equal(2, createComponentCallCount);
     }
 
@@ -125,21 +109,18 @@ public sealed class ResoniteMaterialAssetManagerTests
     {
         List<string> calls = [];
         TaskCompletionSource<Uri> allowImportCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            (_, _, _, _) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: (_, _, _, _) =>
             {
                 calls.Add("create-shared-slot");
                 return Task.FromResult(new CreatedSlot("shared-slot", "Material"));
             },
-            (_, _, componentType, _, _) =>
+            createComponentAsync: (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
                 return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
-            static (_, _, _, _) => Task.FromResult<Slot?>(null),
-            async (_, _, ct) =>
+            importTextureAsync: async (_, _, ct) =>
             {
                 calls.Add("import-texture");
                 return await allowImportCompletion.Task.WaitAsync(ct);
@@ -150,6 +131,7 @@ public sealed class ResoniteMaterialAssetManagerTests
             [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
                 ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
         };
+
         Task<CreatedMaterialAsset> pending = manager.CreateMaterialComponentAsync(
             client,
             CreateMaterial(
@@ -185,21 +167,18 @@ public sealed class ResoniteMaterialAssetManagerTests
     public async Task CreateMaterialComponentAsyncDoesNotCreateSharedMaterialSlotWhenTextureImportFails()
     {
         List<string> calls = [];
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            (_, _, _, _) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: (_, _, _, _) =>
             {
                 calls.Add("create-shared-slot");
                 return Task.FromResult(new CreatedSlot("shared-slot", "Material"));
             },
-            (_, _, componentType, _, _) =>
+            createComponentAsync: (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
                 return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
-            static (_, _, _, _) => Task.FromResult<Slot?>(null),
-            static (_, _, _) => throw new InvalidOperationException("texture import failed"));
+            importTextureAsync: static (_, _, _) => throw new InvalidOperationException("texture import failed"));
         using StubResoniteLinkClient client = new();
         Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
         {
@@ -225,119 +204,21 @@ public sealed class ResoniteMaterialAssetManagerTests
     }
 
     [Fact]
-    public async Task CreateMaterialComponentAsyncReusesExistingSharedMaterialBeforeTextureImport()
+    public async Task CreateMaterialComponentAsyncCreatesSharedMaterialSlotBeforeMaterialComponentWithoutReadReuse()
     {
         List<string> calls = [];
-        Slot parentSlot = new()
-        {
-            ID = "common-slot",
-            Children =
-            [
-                new Slot
-                {
-                    ID = "existing-material-slot",
-                    Name = new Field_string
-                    {
-                        Value = "Material",
-                    },
-                    Components =
-                    [
-                        new Component
-                        {
-                            ID = "existing-material-component",
-                            ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
-                        },
-                    ],
-                },
-            ],
-        };
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            (_, _, _, _) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: (_, _, _, _) =>
             {
                 calls.Add("create-shared-slot");
                 return Task.FromResult(new CreatedSlot("shared-slot", "Material"));
             },
-            (_, _, componentType, _, _) =>
+            createComponentAsync: (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
                 return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
-            (_, slotId, _, _) =>
-            {
-                calls.Add($"get-slot:{slotId}");
-                return Task.FromResult<Slot?>(parentSlot);
-            },
-            static (_, _, _) => throw new InvalidOperationException("texture import should not run"));
-        using StubResoniteLinkClient client = new();
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextures = new()
-        {
-            [ResoniteMaterialAssetManager.CreateTextureReferenceKey("textures/albedo.png", ResoniteTextureSourceKind.Dataset)] =
-                ResoniteTextureImportFactory.CreateFromFile("/tmp/albedo.png"),
-        };
-
-        CreatedMaterialAsset created = await manager.CreateMaterialComponentAsync(
-            client,
-            CreateMaterial(
-                texturePath: "textures/albedo.png",
-                textureSourceKind: ResoniteTextureSourceKind.Dataset,
-                baseColor: new ResoniteColor(0.8, 0.8, 0.8, 1.0)),
-            preparedTextures,
-            "scope-slot",
-            "common-slot",
-            "Material",
-            "renderer-slot",
-            "texture-slot",
-            CancellationToken.None);
-
-        Assert.Equal("existing-material-component", created.MaterialComponentId);
-        Assert.Equal(["get-slot:common-slot"], calls);
-    }
-
-    [Fact]
-    public async Task CreateMaterialComponentAsyncReusesPreferredExistingSharedMaterialWhenDuplicateNamedSlotsExist()
-    {
-        List<string> progressMessages = [];
-        Slot parentSlot = new()
-        {
-            ID = "common-slot",
-            Children =
-            [
-                new Slot
-                {
-                    ID = "duplicate-material-slot-b",
-                    Name = new Field_string
-                    {
-                        Value = "Material",
-                    },
-                },
-                new Slot
-                {
-                    ID = "duplicate-material-slot-a",
-                    Name = new Field_string
-                    {
-                        Value = "Material",
-                    },
-                    Components =
-                    [
-                        new Component
-                        {
-                            ID = "existing-material-component",
-                            ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
-                        },
-                    ],
-                },
-            ],
-        };
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
-            static (_, _, _, _, _) => throw new InvalidOperationException("component creation should not run"),
-            (_, _, _, _) => Task.FromResult<Slot?>(parentSlot),
-            static (_, _, _) => throw new InvalidOperationException("texture import should not run"),
-            progressReporter: progressMessages.Add);
+            importTextureAsync: static (_, _, _) => throw new InvalidOperationException("texture import should not run"));
         using StubResoniteLinkClient client = new();
 
         CreatedMaterialAsset created = await manager.CreateMaterialComponentAsync(
@@ -351,12 +232,59 @@ public sealed class ResoniteMaterialAssetManagerTests
             "texture-slot",
             CancellationToken.None);
 
-        Assert.Equal("existing-material-component", created.MaterialComponentId);
-        Assert.Contains(
-            progressMessages,
-            message => message.Contains(
-                "Detected 2 existing child slots named 'Material'",
-                StringComparison.Ordinal));
+        Assert.Equal("material-component", created.MaterialComponentId);
+        Assert.Equal(
+            [
+                "create-shared-slot",
+                "create-component:[FrooxEngine]FrooxEngine.PBS_Metallic",
+            ],
+            calls);
+    }
+
+    [Fact]
+    public async Task CreateMaterialComponentAsyncCachesRepeatedRequestsWithoutReadReuse()
+    {
+        int createSlotCallCount = 0;
+        int createComponentCallCount = 0;
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: (_, _, _, _) =>
+            {
+                int currentCall = Interlocked.Increment(ref createSlotCallCount);
+                return Task.FromResult(new CreatedSlot($"shared-slot-{currentCall}", "Material"));
+            },
+            createComponentAsync: (_, _, componentType, _, _) =>
+            {
+                int currentCall = Interlocked.Increment(ref createComponentCallCount);
+                return Task.FromResult(new CreatedComponent($"material-component-{currentCall}", componentType));
+            },
+            importTextureAsync: static (_, _, _) => throw new InvalidOperationException("texture import should not run"));
+        using StubResoniteLinkClient client = new();
+
+        CreatedMaterialAsset first = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+        CreatedMaterialAsset second = await manager.CreateMaterialComponentAsync(
+            client,
+            CreateMaterial(),
+            new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            "scope-slot",
+            "common-slot",
+            "Material",
+            "renderer-slot",
+            "texture-slot",
+            CancellationToken.None);
+
+        Assert.Equal("material-component-1", first.MaterialComponentId);
+        Assert.Equal("material-component-1", second.MaterialComponentId);
+        Assert.Equal(1, createSlotCallCount);
+        Assert.Equal(1, createComponentCallCount);
     }
 
     [Fact]
@@ -364,50 +292,17 @@ public sealed class ResoniteMaterialAssetManagerTests
     {
         List<string> calls = [];
         int createComponentCallCount = 0;
-        Slot parentSlot = new()
-        {
-            ID = "common-slot",
-            Children =
-            [
-                new Slot
-                {
-                    ID = "existing-material-slot",
-                    Name = new Field_string
-                    {
-                        Value = "Material",
-                    },
-                    Components =
-                    [
-                        new Component
-                        {
-                            ID = "existing-material-component",
-                            ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
-                        },
-                    ],
-                },
-            ],
-        };
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
-            (_, _, componentType, _, _) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
+            createComponentAsync: (_, _, componentType, _, _) =>
             {
                 int currentCall = Interlocked.Increment(ref createComponentCallCount);
                 calls.Add($"create-component:{currentCall}:{componentType}");
-                return Task.FromResult(new CreatedComponent(
-                    $"srv_component_{currentCall}",
-                    componentType));
-            },
-            (_, slotId, _, _) =>
-            {
-                calls.Add($"get-slot:{slotId}");
-                return Task.FromResult<Slot?>(string.Equals(slotId, "common-slot", StringComparison.Ordinal) ? parentSlot : null);
-            },
-            static (_, _, _) => throw new NotSupportedException());
+                return Task.FromResult(new CreatedComponent($"srv_component_{currentCall}", componentType));
+            });
         using StubResoniteLinkClient client = new();
 
-        CreatedMaterialAsset firstReuse = await manager.CreateMaterialComponentAsync(
+        CreatedMaterialAsset first = await manager.CreateMaterialComponentAsync(
             client,
             CreateMaterial(),
             new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
@@ -417,8 +312,7 @@ public sealed class ResoniteMaterialAssetManagerTests
             "renderer-slot",
             "texture-slot",
             CancellationToken.None);
-
-        CreatedMaterialAsset secondReuse = await manager.CreateMaterialComponentAsync(
+        CreatedMaterialAsset second = await manager.CreateMaterialComponentAsync(
             client,
             CreateMaterial(materialType: ResoniteMaterialType.Wireframe),
             new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
@@ -429,15 +323,13 @@ public sealed class ResoniteMaterialAssetManagerTests
             "texture-slot",
             CancellationToken.None);
 
-        Assert.Equal("existing-material-component", firstReuse.MaterialComponentId);
-        Assert.Equal("srv_component_1", secondReuse.MaterialComponentId);
-        Assert.Equal(1, createComponentCallCount);
+        Assert.Equal("srv_component_1", first.MaterialComponentId);
+        Assert.Equal("srv_component_2", second.MaterialComponentId);
+        Assert.Equal(2, createComponentCallCount);
         Assert.Equal(
             [
-                "get-slot:common-slot",
-                "get-slot:common-slot",
-                "get-slot:shared-slot",
-                "create-component:1:[FrooxEngine]FrooxEngine.WireframeMaterial",
+                "create-component:1:[FrooxEngine]FrooxEngine.PBS_Metallic",
+                "create-component:2:[FrooxEngine]FrooxEngine.WireframeMaterial",
             ],
             calls);
     }
@@ -446,24 +338,20 @@ public sealed class ResoniteMaterialAssetManagerTests
     public async Task CreateMaterialComponentAsyncImportsBundledAlbedoWithoutPreparedTextureMap()
     {
         List<string> calls = [];
-        ResoniteMaterialAssetManager manager = new(
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _, _) => throw new NotSupportedException(),
-            static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
-            (_, _, componentType, _, _) =>
+        ResoniteMaterialAssetManager manager = CreateManager(
+            createSharedSlotAsync: static (_, _, _, _) => Task.FromResult(new CreatedSlot("shared-slot", "Material")),
+            createComponentAsync: (_, _, componentType, _, _) =>
             {
                 calls.Add($"create-component:{componentType}");
                 return Task.FromResult(new CreatedComponent("material-component", componentType));
             },
-            static (_, _, _, _) => Task.FromResult<Slot?>(null),
-            (_, textureImport, _) =>
+            importTextureAsync: (_, textureImport, _) =>
             {
                 calls.Add(textureImport switch
                 {
                     ResoniteFileTextureImport fileImport => $"import-file:{Path.GetFileName(fileImport.AbsolutePath)}",
                     _ => $"import:{textureImport.GetType().Name}",
                 });
-
                 return Task.FromResult(new Uri("file:///tmp/bundled.png"));
             });
         using StubResoniteLinkClient client = new();
@@ -483,6 +371,19 @@ public sealed class ResoniteMaterialAssetManagerTests
 
         Assert.Contains(calls, static call => call.StartsWith("import-file:Concrete033_2K-JPG_Color", StringComparison.Ordinal));
         Assert.Contains(calls, static call => call == "create-component:[FrooxEngine]FrooxEngine.PBS_Metallic");
+    }
+
+    private static ResoniteMaterialAssetManager CreateManager(
+        Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> createSharedSlotAsync,
+        Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
+        Func<IResoniteLinkClient, ResoniteTextureImport, CancellationToken, Task<Uri>>? importTextureAsync = null)
+    {
+        return new ResoniteMaterialAssetManager(
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            static (_, _, _, _, _) => throw new NotSupportedException(),
+            createSharedSlotAsync,
+            createComponentAsync,
+            importTextureAsync ?? (static (_, _, _) => throw new NotSupportedException()));
     }
 
     private static ResoniteMaterialBinding CreateMaterial(
@@ -515,7 +416,9 @@ public sealed class ResoniteMaterialAssetManagerTests
 
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken) => Task.FromResult("srv_slot");
 
-        public Task<BatchResponse> RunDataModelOperationBatchAsync(IReadOnlyList<DataModelOperation> operations, CancellationToken cancellationToken) =>
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken) =>
             Task.FromResult(new BatchResponse
             {
                 Success = true,

@@ -23,8 +23,6 @@ internal readonly record struct SceneAnchor(
 
 internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 {
-    private const int VisibilityPollDelayMilliseconds = 50;
-    private const int VisibilityPollAttemptLimit = 200;
     private const string RootSlotId = "Root";
 
     public async Task<SceneAnchor> ResolveAsync(
@@ -40,45 +38,31 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 
         await WaitForSlotAvailableAsync(client, datasetRootSlotId, cancellationToken);
         Slot? lastVisibleReferenceMeshRoot = null;
-        int attemptLimit = datasetRootExisted ? VisibilityPollAttemptLimit : 1;
-        for (int attempt = 1; attempt <= attemptLimit; attempt++)
+        ResoniteSceneSlotSnapshot datasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
+            client,
+            datasetRootSlotId,
+            1,
+            cancellationToken);
+        ResoniteSceneChildLookupResult completionRootLookup = datasetRootSnapshot.GetUniqueDescendantLookupResult(
+            datasetRootSlotId,
+            completionMeshCode);
+        if (completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
         {
-            ResoniteSceneSlotSnapshot datasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
-                client,
-                datasetRootSlotId,
-                1,
-                cancellationToken);
-            ResoniteSceneChildLookupResult completionRootLookup = datasetRootSnapshot.GetUniqueDescendantLookupResult(
-                datasetRootSlotId,
-                completionMeshCode);
-            if (completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
-            {
-                string existingCompletionRootId = completionRootLookup.SlotId!;
-                await WaitForSlotAvailableAsync(client, existingCompletionRootId, cancellationToken);
-                Slot? completionSlot = await client.GetSlotAsync(existingCompletionRootId, 0, cancellationToken);
-                return new SceneAnchor(
-                    existingCompletionRootId,
-                    completionMeshCode,
-                    completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
-            }
+            string existingCompletionRootId = completionRootLookup.SlotId!;
+            await WaitForSlotAvailableAsync(client, existingCompletionRootId, cancellationToken);
+            Slot? completionSlot = await client.GetSlotAsync(existingCompletionRootId, 0, cancellationToken);
+            return new SceneAnchor(
+                existingCompletionRootId,
+                completionMeshCode,
+                completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
+        }
 
-            Slot? referenceMeshRoot = completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithoutId
-                ? completionRootLookup.Slot
-                : FindDeterministicReferenceMeshRoot(datasetRootSnapshot);
-            if (referenceMeshRoot is not null)
-            {
-                lastVisibleReferenceMeshRoot = referenceMeshRoot;
-            }
-
-            if (!datasetRootExisted)
-            {
-                break;
-            }
-
-            if (attempt < attemptLimit)
-            {
-                await Task.Delay(VisibilityPollDelayMilliseconds, cancellationToken);
-            }
+        Slot? referenceMeshRoot = completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithoutId
+            ? completionRootLookup.Slot
+            : FindDeterministicReferenceMeshRoot(datasetRootSnapshot);
+        if (referenceMeshRoot is not null)
+        {
+            lastVisibleReferenceMeshRoot = referenceMeshRoot;
         }
 
         ResoniteFloat3 anchorPosition = lastVisibleReferenceMeshRoot is null
@@ -127,21 +111,13 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
             return;
         }
 
-        for (int attempt = 1; attempt <= VisibilityPollAttemptLimit; attempt++)
+        Slot? slot = await client.GetSlotAsync(slotId, 0, cancellationToken);
+        if (slot is not null)
         {
-            Slot? slot = await client.GetSlotAsync(slotId, 0, cancellationToken);
-            if (slot is not null)
-            {
-                return;
-            }
-
-            if (attempt < VisibilityPollAttemptLimit)
-            {
-                await Task.Delay(VisibilityPollDelayMilliseconds, cancellationToken);
-            }
+            return;
         }
 
-        throw new InvalidOperationException($"ResoniteLink did not surface slot '{slotId}'.");
+        throw new InvalidOperationException($"ResoniteLink did not surface slot '{slotId}' on the initial probe.");
     }
 
     private static Slot? FindDeterministicReferenceMeshRoot(ResoniteSceneSlotSnapshot datasetRootSnapshot)

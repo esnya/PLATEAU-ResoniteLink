@@ -43,62 +43,6 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncContinuesPollingWhenMatchingChildExistsWithoutIdUntilIdSurfaces()
-    {
-        const string datasetRootSlotId = "dataset-root";
-        const string completionMeshCode = "53394525";
-        const string anchorSlotId = "anchor-slot";
-        ResoniteFloat3 expectedPosition = new(12.5, 0.0, 34.5);
-        using AnchorResolverFakeClient client = new AnchorResolverFakeClient((slotId, depth, callCount) =>
-        {
-            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 0)
-            {
-                return CreateSlot(datasetRootSlotId, "PLATEAU tokyo23ku");
-            }
-
-            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 1)
-            {
-                return callCount == 1
-                    ? CreateSlot(
-                        datasetRootSlotId,
-                        "PLATEAU tokyo23ku",
-                        children:
-                        [
-                            CreateSlot(id: null, completionMeshCode, datasetRootSlotId, expectedPosition),
-                        ])
-                    : CreateSlot(
-                        datasetRootSlotId,
-                        "PLATEAU tokyo23ku",
-                        children:
-                        [
-                            CreateSlot(anchorSlotId, completionMeshCode, datasetRootSlotId, expectedPosition),
-                        ]);
-            }
-
-            if (string.Equals(slotId, anchorSlotId, StringComparison.Ordinal))
-            {
-                return CreateSlot(anchorSlotId, completionMeshCode, datasetRootSlotId, expectedPosition);
-            }
-
-            return null;
-        });
-
-        ResoniteSceneAnchorResolver resolver = new();
-
-        SceneAnchor anchor = await resolver.ResolveAsync(
-            client,
-            datasetRootSlotId,
-            completionMeshCode,
-            datasetRootExisted: true,
-            CancellationToken.None);
-
-        Assert.Equal(anchorSlotId, anchor.SlotId);
-        Assert.Equal(expectedPosition, anchor.Position);
-        Assert.Empty(client.AddedSlots);
-        Assert.Equal(2, client.GetSlotCallCount(datasetRootSlotId, 1));
-    }
-
-    [Fact]
     public async Task ResolveAsyncDoesNotCreateDuplicateAnchorWhenFinalSnapshotStillLacksChildId()
     {
         const string datasetRootSlotId = "dataset-root";

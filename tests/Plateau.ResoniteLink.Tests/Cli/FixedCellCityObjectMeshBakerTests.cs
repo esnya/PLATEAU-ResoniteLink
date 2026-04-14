@@ -78,6 +78,49 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncEmitsReadyCityObjectWhenCellBatchLimitIsExceeded()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 1,
+            maxVerticesPerBatch: 1000);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateTriangleBuilding("first", x: 10.0, z: 10.0));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateTriangleBuilding("second", x: 11.0, z: 10.0));
+
+        Assert.True(first.Buffered);
+        Assert.Empty(first.ReadyCityObjects);
+        Assert.True(second.Buffered);
+        Assert.NotEmpty(second.ReadyCityObjects);
+
+        IReadOnlyList<ResoniteConstructionCityObject> remainingBatches = await baker.FlushAllAsync();
+        Assert.Empty(remainingBatches);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncReturnsReadyCityObjectWhenSourceUnitChanges()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 10,
+            maxVerticesPerBatch: 1000);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateTriangleBuilding("first", x: 10.0, z: 10.0, sourceUnitKey: "unit-a"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateTriangleBuilding("second", x: 80.0, z: 10.0, sourceUnitKey: "unit-b"));
+
+        Assert.True(first.Buffered);
+        Assert.Empty(first.ReadyCityObjects);
+        Assert.True(second.Buffered);
+        ResoniteConstructionCityObject baked = Assert.Single(second.ReadyCityObjects);
+        Assert.Equal("unit-a", baked.SourceUnitKey);
+        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), baked.Transform.Position);
+    }
+
+    [Fact]
     public void TryBufferSkipsNonTargetCityObjects()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 2, maxVerticesPerBatch: 1000);
@@ -113,11 +156,8 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("second", x: 80.0, z: 10.0, sourceUnitKey: "shared-unit"), out ResoniteConstructionCityObject? secondBaked));
 
         Assert.Null(firstBaked);
-        Assert.Null(secondBaked);
-        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
-        Assert.Equal("53394525", baked.ActualMeshCode);
-        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), baked.Transform.Position);
-        Assert.Equal(6, baked.Mesh.Vertices.Count);
+        Assert.NotNull(secondBaked);
+        Assert.Empty(baker.FlushAll());
     }
 
     [Fact]

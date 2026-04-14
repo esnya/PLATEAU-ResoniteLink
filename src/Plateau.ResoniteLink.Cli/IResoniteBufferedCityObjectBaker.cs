@@ -10,7 +10,7 @@ internal interface IResoniteBufferedCityObjectBaker
 
     int BakedOutputCityObjectCount { get; }
 
-    ValueTask<bool> TryBufferAsync(
+    ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default);
 
@@ -21,3 +21,7 @@ internal interface IResoniteBufferedCityObjectBaker
     Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
         CancellationToken cancellationToken = default);
 }
+
+internal readonly record struct BufferedCityObjectBufferResult(
+    bool Buffered,
+    IReadOnlyList<ResoniteConstructionCityObject> ReadyCityObjects);

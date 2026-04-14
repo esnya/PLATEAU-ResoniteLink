@@ -40,11 +40,6 @@ internal sealed class ResoniteSceneSlotSnapshot
         return new ResoniteSceneSlotSnapshot(await client.GetSlotAsync(slotId, depth, cancellationToken));
     }
 
-    public Slot? TryGetUniqueChildByName(string slotName, string parentId)
-    {
-        return GetUniqueChildLookupResult(slotName, parentId).Slot;
-    }
-
     public ResoniteSceneChildLookupResult GetUniqueChildLookupResult(string slotName, string parentId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(slotName);
