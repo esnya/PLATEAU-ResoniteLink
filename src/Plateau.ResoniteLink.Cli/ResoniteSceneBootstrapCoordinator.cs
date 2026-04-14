@@ -1,7 +1,3 @@
-using GeographicLib;
-
-using System.Globalization;
-
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
@@ -38,7 +34,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         ArgumentNullException.ThrowIfNull(setupClient);
         ArgumentNullException.ThrowIfNull(metadata);
 
-        string completionMeshCode = ResolveCompletionMeshCode(metadata);
+        string completionMeshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(metadata);
         (CreatedSlot datasetRootSlot, bool datasetRootExisted) = await getOrCreateDatasetRootAsync(
             setupClient,
             $"PLATEAU {metadata.Request.Dataset}",
@@ -147,69 +143,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             cancellationToken);
         return new SceneAnchor(anchorSlot.SlotId, completionMeshCode, anchorPosition);
     }
-
-    private static string ResolveCompletionMeshCode(ResoniteConstructionMetadata metadata)
-    {
-        ArgumentNullException.ThrowIfNull(metadata);
-
-        string meshCode = metadata.Request.MeshCode;
-        if (PlateauMeshCode.TryGetCenter(meshCode, out _))
-        {
-            return meshCode;
-        }
-
-        (string MeshCode, double DistanceSquared)[] concreteRequestedMeshCodes = metadata.SourceDataset.RequestedMeshCodes?
-            .Select(candidate => TryResolveConcreteMeshCodeDistance(candidate, metadata.LocalOrigin))
-            .Where(static candidate => candidate.HasValue)
-            .Select(static candidate => candidate!.Value)
-            .OrderBy(static candidate => candidate.DistanceSquared)
-            .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
-            .ToArray()
-            ?? [];
-        if (concreteRequestedMeshCodes.Length > 0)
-        {
-            return concreteRequestedMeshCodes[0].MeshCode;
-        }
-
-        throw new InvalidOperationException(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"Live Offset V2 requires a concrete meshcode anchor, but '{meshCode}' did not resolve to any concrete meshcode."));
-    }
-
-    private static (string MeshCode, double DistanceSquared)? TryResolveConcreteMeshCodeDistance(
-        string meshCode,
-        ResoniteLocalOrigin requestOrigin)
-    {
-        if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin concreteCenter))
-        {
-            return null;
-        }
-
-        ResoniteFloat3 offset = ComputeOriginOffset(requestOrigin, concreteCenter);
-        double distanceSquared = (offset.X * offset.X) + (offset.Z * offset.Z);
-        return (meshCode, distanceSquared);
-    }
-
-    private static ResoniteFloat3 ComputeOriginOffset(
-        ResoniteLocalOrigin referenceCenter,
-        ResoniteLocalOrigin currentCenter)
-    {
-        LocalCartesian cartesian = new(
-            referenceCenter.Latitude,
-            referenceCenter.Longitude,
-            referenceCenter.Altitude,
-            Geocentric.WGS84);
-        (double x, double y, double z) eun = cartesian.Forward(
-            currentCenter.Latitude,
-            currentCenter.Longitude,
-            currentCenter.Altitude);
-        return new ResoniteFloat3(
-            X: eun.x,
-            Y: 0.0,
-            Z: eun.y);
-    }
-
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(
         ResoniteLicenseComponentMetadata license)
     {

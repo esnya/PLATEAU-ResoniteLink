@@ -114,6 +114,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             lodLevel,
             surfaces,
             coordinateReferenceSystem,
+            relativeSourceFile,
             sourceUnitIdentity,
             sourceIdentity,
             SharedAcrossMeshCodes: sharedAcrossMeshCodes);
@@ -1209,7 +1210,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity);
+            SourceUnitKey: cityObject.SourceUnitIdentity,
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
@@ -3027,7 +3029,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 HeightSamples: localHeights),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity);
+            SourceUnitKey: cityObject.SourceUnitIdentity,
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
         return true;
     }
 
@@ -3634,6 +3637,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         int? LodLevel,
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
+        string SourceFileRelativePath,
         string SourceUnitIdentity,
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
@@ -4544,7 +4548,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         private readonly Dictionary<string, ResoniteColor> colorsByPolygonId;
         private readonly Dictionary<string, TextureAssignment> texturesByPolygonId;
 
-        private AppearanceLibrary(
+        internal AppearanceLibrary(
             Dictionary<string, ResoniteColor> colorsByPolygonId,
             Dictionary<string, TextureAssignment> texturesByPolygonId)
         {
@@ -4734,7 +4738,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 A: values.Length >= 4 ? values[3] : 1.0);
         }
 
-        private static void ParseParameterizedTexture(
+        internal static void ParseParameterizedTexture(
             XElement textureElement,
             string sourceFileRelativePath,
             IPlateauDatasetContentSource datasetSource,
@@ -4775,7 +4779,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             }
         }
 
-        private static void ParseX3DMaterial(
+        internal static void ParseX3DMaterial(
             XElement materialElement,
             Dictionary<string, ResoniteColor> colorsByPolygonId)
         {

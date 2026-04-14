@@ -1711,15 +1711,19 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncChoosesConcreteCompletionMeshCodeClosestToRegexOrigin()
+    public async Task BuildAsyncChoosesCompletionMeshCodeFromSourceFilenameBoundsCenter()
     {
         using FakeResoniteLinkClient fakeClient = new();
         IReadOnlyList<string> destinations = await RunBuilderAsync(
             new ResoniteLinkSceneBuilder(new Uri("ws://localhost:12345/"), 1, ResoniteLinkSendDiagnostics.Disabled, () => fakeClient),
             CreateRegexRequestScene(
                 "5339452[56]",
-                new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
-                ["53394526", "53394525"]));
+                new ResoniteLocalOrigin(35.6875, 139.70625, 0.0),
+                ["53394526", "53394525"],
+                [
+                    "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
+                    "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                ]));
 
         Slot datasetSlot = FindSlotByName(fakeClient.SlotsById, "PLATEAU tokyo23ku");
         Slot completionAnchorSlot = FindDirectChildSlotByName(fakeClient.SlotsById, datasetSlot.ID, "53394525");
@@ -1731,7 +1735,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncThrowsWhenRegexSelectorHasNoConcreteRequestedMeshCodes()
+    public async Task BuildAsyncThrowsWhenSourceFilenamesDoNotContainConcreteMeshCodes()
     {
         using FakeResoniteLinkClient fakeClient = new();
         ResoniteLinkSceneBuilder builder = new(
@@ -1746,10 +1750,11 @@ public sealed class ResoniteLinkSceneBuilderTests
                 CreateRegexRequestScene(
                     "5339452[56]",
                     new ResoniteLocalOrigin(35.6875, 139.69375, 0.0),
-                    [])));
+                    [],
+                    ["udx/bldg/regex/plateau_tokyo23ku_bldg_regex.gml"])));
 
         Assert.Contains(
-            "did not resolve to any concrete meshcode",
+            "discovered source filenames",
             exception.Message,
             StringComparison.Ordinal);
     }
@@ -5820,6 +5825,19 @@ public sealed class ResoniteLinkSceneBuilderTests
         ResoniteLocalOrigin localOrigin,
         IReadOnlyList<string> requestedMeshCodes)
     {
+        return CreateRegexRequestScene(
+            meshCode,
+            localOrigin,
+            requestedMeshCodes,
+            ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+    }
+
+    private static CapturedResoniteScene CreateRegexRequestScene(
+        string meshCode,
+        ResoniteLocalOrigin localOrigin,
+        IReadOnlyList<string> requestedMeshCodes,
+        IReadOnlyList<string> sourceFiles)
+    {
         ResoniteConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
             WorldName: $"PLATEAU tokyo23ku {meshCode}",
@@ -5831,7 +5849,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 ServerUri: null),
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: ["bldg", "dem"],
-                SourceFiles: ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
+                SourceFiles: sourceFiles,
                 TerrainTextureOverlays: [],
                 RequestedMeshCodes: requestedMeshCodes),
             Attribution: new ResoniteAttribution(

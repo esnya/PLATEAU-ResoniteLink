@@ -50,6 +50,60 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
+    public async Task ImportMeshAsyncRetiresClientAfterFatalProtocolFailure()
+    {
+        int createdClientCount = 0;
+        List<string> progressMessages = [];
+        using StubReconnectableClient firstClient = new(importMeshExceptionMessage: "ResoniteLink import mesh returned a null response.");
+        using StubReconnectableClient secondClient = new();
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            },
+            progressMessages.Add);
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+
+        await Assert.ThrowsAsync<ResoniteLinkOperationException>(
+            () => client.ImportMeshAsync(
+                new ImportMeshRawData
+                {
+                    RawBinaryPayload = [1, 2, 3],
+                    VertexCount = 3,
+                },
+                CancellationToken.None));
+
+        string createdSlotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference
+                    {
+                        TargetID = "parent-id",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "Recovered",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.True(firstClient.IsDisposed);
+        Assert.Equal(1, firstClient.ImportMeshCallCount);
+        Assert.Equal(2, createdClientCount);
+        Assert.Equal(0, secondClient.ConnectCallCount);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("retired the active client", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task GetSlotAsyncReconnectsAndRetriesAfterFailure()
     {
         int createdClientCount = 0;
@@ -84,7 +138,7 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task MutationOperationsWaitForImportMeshToComplete()
+    public async Task MutationOperationsDoNotWaitForImportMeshToComplete()
     {
         using BlockingReconnectableClient innerClient = new();
         using RetryingResoniteLinkClient client = new(() => innerClient);
@@ -119,17 +173,15 @@ public sealed class RetryingResoniteLinkClientTests
             },
             CancellationToken.None);
 
-        await Task.Delay(100);
-        Assert.False(addSlotTask.IsCompleted);
+        await addSlotTask.WaitAsync(TimeSpan.FromSeconds(5));
 
         innerClient.AllowImportMeshCompletion.SetResult();
 
         await importTask;
-        await addSlotTask;
 
         Assert.Equal(1, innerClient.ImportMeshCallCount);
         Assert.Equal(1, innerClient.AddSlotCallCount);
-        Assert.True(innerClient.AddSlotStartedAfterImportCompleted);
+        Assert.False(innerClient.AddSlotStartedAfterImportCompleted);
     }
 
     [Fact]
@@ -218,7 +270,7 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task GetSlotAsyncWaitsForActiveImportBeforeRetryingReconnect()
+    public async Task GetSlotAsyncReconnectsWhileImportIsInFlightWithoutDisposingTheActiveClient()
     {
         int createdClientCount = 0;
         using CoordinatedReconnectableClient firstClient = new(failGetSlot: true);
@@ -244,66 +296,15 @@ public sealed class RetryingResoniteLinkClientTests
 
         Task<Slot?> getSlotTask = client.GetSlotAsync("slot-id", 0, CancellationToken.None);
 
-        await Task.Delay(100);
-        Assert.False(getSlotTask.IsCompleted);
-
-        firstClient.AllowImportMeshCompletion.TrySetResult();
-        await importTask;
-        Slot? slot = await getSlotTask;
-
+        Slot? slot = await getSlotTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.NotNull(slot);
         Assert.Equal("slot-id", slot!.ID);
-        Assert.Equal(1, firstClient.DisposeCallCount);
-        Assert.Equal(1, secondClient.ConnectCallCount);
-    }
-
-    [Fact]
-    public async Task CancelingQueuedGetSlotDoesNotBlockLaterOperations()
-    {
-        using CoordinatedReconnectableClient firstClient = new();
-        using RetryingResoniteLinkClient client = new(() => firstClient);
-
-        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-
-        Task<Uri> importTask = client.ImportMeshAsync(
-            new ImportMeshRawData
-            {
-                RawBinaryPayload = [1, 2, 3],
-                VertexCount = 3,
-            },
-            CancellationToken.None);
-        await firstClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        using CancellationTokenSource getSlotCancellation = new();
-        Task<Slot?> getSlotTask = client.GetSlotAsync("slot-id", 0, getSlotCancellation.Token);
-
-        await Task.Delay(100);
-        Assert.False(getSlotTask.IsCompleted);
-        await getSlotCancellation.CancelAsync();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => getSlotTask);
+        Assert.Equal(0, firstClient.DisposeCallCount);
 
         firstClient.AllowImportMeshCompletion.TrySetResult();
         await importTask;
-
-        string slotId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    ID = null!,
-                    Parent = new Reference
-                    {
-                        TargetID = "parent-id",
-                    },
-                    Name = new Field_string
-                    {
-                        Value = "Slot",
-                    },
-                },
-            },
-            CancellationToken.None);
-
-        Assert.Equal("srv_slot_1", slotId);
+        Assert.Equal(1, firstClient.DisposeCallCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
     }
 
     [Fact]
@@ -352,7 +353,8 @@ public sealed class RetryingResoniteLinkClientTests
     private sealed class StubReconnectableClient(
         bool failImportMesh = false,
         bool failGetSlot = false,
-        bool failConnect = false) : IResoniteLinkClient
+        bool failConnect = false,
+        string? importMeshExceptionMessage = null) : IResoniteLinkClient
     {
         private int nextComponentId;
         private int nextSlotId;
@@ -431,9 +433,9 @@ public sealed class RetryingResoniteLinkClientTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportMeshCallCount++;
-            if (failImportMesh)
+            if (failImportMesh || importMeshExceptionMessage is not null)
             {
-                throw new InvalidOperationException("Simulated mesh import failure.");
+                throw new InvalidOperationException(importMeshExceptionMessage ?? "Simulated mesh import failure.");
             }
 
             return Task.FromResult(new Uri("resdb:///mesh/ok", UriKind.Absolute));

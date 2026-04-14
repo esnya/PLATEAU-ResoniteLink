@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Xml;
 using System.Xml.Linq;
 
 using Plateau.ResoniteLink.Application.Logging;
@@ -44,6 +45,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
                             requestedMeshAreas,
                             progressReporter,
                             lodFilteringStrategy,
+                            cancellationToken),
+                        streamFactory: cancellationToken => StreamBootstrapParsedCityObjectsCoreAsync(
+                            sourceFile,
+                            datasetSource,
+                            requestedMeshAreas,
+                            lodFilteringStrategy,
                             cancellationToken)))
                 .ToArray());
     }
@@ -60,21 +67,26 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
         List<ParsedCityObject> cityObjects = [];
-        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
+        CoordinateReferenceSystem? coordinateReferenceSystem = null;
+        await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
+        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
+                           stream,
                            sourceFile.ToLegacy(),
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
+                           parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
                            cancellationToken))
         {
             cityObjects.Add(cityObject);
         }
+
         fileStopwatch.Stop();
 
         ParsedCityObject[] cityObjectArray = cityObjects
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
             .ToArray();
-        CoordinateReferenceSystem coordinateReferenceSystem = await ReadDocumentReferenceSystemCoreAsync(
+        coordinateReferenceSystem ??= await ReadDocumentReferenceSystemCoreAsync(
             datasetSource,
             sourceFile.RelativePath,
             cancellationToken);
@@ -97,6 +109,24 @@ public static partial class LocalCityGmlResonitePlanBuilder
             fileStopwatch.Elapsed);
     }
 
+    private static async IAsyncEnumerable<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamBootstrapParsedCityObjectsCoreAsync(
+        global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
+        IPlateauDatasetContentSource datasetSource,
+        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        LodFilteringStrategy? lodFilteringStrategy,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
+                           sourceFile.ToLegacy(),
+                           datasetSource,
+                           requestedMeshAreas,
+                           lodFilteringStrategy,
+                           cancellationToken))
+        {
+            yield return global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject);
+        }
+    }
+
     internal static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsCoreAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
@@ -106,17 +136,15 @@ public static partial class LocalCityGmlResonitePlanBuilder
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
-        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
-        ParsedCityObject[] cityObjects = ParseCityObjects(
-            document,
+        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
+                           stream,
             sourceFile,
             datasetSource,
             requestedMeshAreas,
-            lodFilteringStrategy);
-
-        foreach (ParsedCityObject cityObject in cityObjects)
+            lodFilteringStrategy,
+            parsedReferenceSystem: null,
+            cancellationToken))
         {
-            cancellationToken.ThrowIfCancellationRequested();
             yield return cityObject;
         }
     }
@@ -127,15 +155,155 @@ public static partial class LocalCityGmlResonitePlanBuilder
         CancellationToken cancellationToken)
     {
         await using Stream stream = await datasetSource.OpenReadAsync(relativePath, cancellationToken);
-        XDocument document = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+        XmlReaderSettings settings = CreateStreamingReaderSettings();
+        using XmlReader reader = XmlReader.Create(stream, settings);
+
+        while (await reader.ReadAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reader.NodeType != XmlNodeType.Element
+                || !string.Equals(reader.NamespaceURI, Gml.NamespaceName, StringComparison.Ordinal)
+                || !string.Equals(reader.LocalName, "Envelope", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return CoordinateReferenceSystem.Parse(reader.GetAttribute("srsName"));
+        }
+
         try
         {
-            return CoordinateReferenceSystem.Parse(document);
+            return CoordinateReferenceSystem.Parse((string?)null);
         }
         catch (PlateauImportValidationException)
         {
             throw new PlateauImportValidationException(
                 [$"CityGML file '{NormalizePath(relativePath)}' does not declare a supported coordinate reference system."]);
         }
+    }
+
+    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsFromStreamCoreAsync(
+        Stream stream,
+        SourceFileDescriptor sourceFile,
+        IPlateauDatasetContentSource datasetSource,
+        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        LodFilteringStrategy? lodFilteringStrategy,
+        Action<CoordinateReferenceSystem>? parsedReferenceSystem,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        lodFilteringStrategy ??= new LodFilteringStrategy();
+        Dictionary<string, ResoniteColor> colorsByPolygonId = new(StringComparer.Ordinal);
+        Dictionary<string, TextureAssignment> texturesByPolygonId = new(StringComparer.Ordinal);
+        AppearanceLibrary appearanceLibrary = new(colorsByPolygonId, texturesByPolygonId);
+        CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse((string?)null);
+        bool emittedCityObject = false;
+
+        using XmlReader reader = XmlReader.Create(stream, CreateStreamingReaderSettings());
+        while (await reader.ReadAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reader.NodeType != XmlNodeType.Element)
+            {
+                continue;
+            }
+
+            if (string.Equals(reader.NamespaceURI, Gml.NamespaceName, StringComparison.Ordinal)
+                && string.Equals(reader.LocalName, "Envelope", StringComparison.Ordinal))
+            {
+                coordinateReferenceSystem = CoordinateReferenceSystem.Parse(reader.GetAttribute("srsName"));
+                parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
+                continue;
+            }
+
+            if (!string.Equals(reader.NamespaceURI, App.NamespaceName, StringComparison.Ordinal)
+                && !string.Equals(reader.NamespaceURI, Core.NamespaceName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (string.Equals(reader.NamespaceURI, App.NamespaceName, StringComparison.Ordinal))
+            {
+                ThrowIfAppearanceDeclaredAfterCityObject(sourceFile.RelativePath, emittedCityObject);
+
+                switch (reader.LocalName)
+                {
+                    case "ParameterizedTexture":
+                        using (XmlReader textureSubtreeReader = reader.ReadSubtree())
+                        {
+                            XElement textureElement = await XElement.LoadAsync(textureSubtreeReader, LoadOptions.None, cancellationToken);
+                            AppearanceLibrary.ParseParameterizedTexture(
+                                textureElement,
+                                sourceFile.RelativePath,
+                                datasetSource,
+                                texturesByPolygonId);
+                        }
+
+                        continue;
+                    case "X3DMaterial":
+                        using (XmlReader materialSubtreeReader = reader.ReadSubtree())
+                        {
+                            XElement materialElement = await XElement.LoadAsync(materialSubtreeReader, LoadOptions.None, cancellationToken);
+                            AppearanceLibrary.ParseX3DMaterial(materialElement, colorsByPolygonId);
+                        }
+
+                        continue;
+                }
+            }
+
+            if (!string.Equals(reader.NamespaceURI, Core.NamespaceName, StringComparison.Ordinal)
+                || !string.Equals(reader.LocalName, "cityObjectMember", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            using XmlReader subtreeReader = reader.ReadSubtree();
+            XElement cityObjectMember = await XElement.LoadAsync(subtreeReader, LoadOptions.None, cancellationToken);
+            XElement? cityObjectElement = cityObjectMember.Elements().FirstOrDefault();
+            if (cityObjectElement is null)
+            {
+                continue;
+            }
+
+            ParsedCityObject? cityObject = ParseCityObject(
+                cityObjectElement,
+                sourceFile.PackageName,
+                sourceFile.RelativePath,
+                sourceFile.MatchedMeshCode,
+                sourceFile.RequiresMeshAreaFilter,
+                appearanceLibrary,
+                coordinateReferenceSystem,
+                sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
+                lodFilteringStrategy);
+            if (cityObject is null)
+            {
+                emittedCityObject = true;
+                continue;
+            }
+
+            emittedCityObject = true;
+            yield return cityObject;
+        }
+    }
+
+    private static XmlReaderSettings CreateStreamingReaderSettings()
+    {
+        return new XmlReaderSettings
+        {
+            Async = true,
+            IgnoreComments = true,
+            IgnoreWhitespace = true,
+            DtdProcessing = DtdProcessing.Ignore,
+        };
+    }
+
+    private static void ThrowIfAppearanceDeclaredAfterCityObject(string relativePath, bool emittedCityObject)
+    {
+        if (!emittedCityObject)
+        {
+            return;
+        }
+
+        throw new PlateauImportValidationException(
+            [$"CityGML file '{NormalizePath(relativePath)}' declares appearance members after cityObjectMember, which is not supported by the streaming parser."]);
     }
 }

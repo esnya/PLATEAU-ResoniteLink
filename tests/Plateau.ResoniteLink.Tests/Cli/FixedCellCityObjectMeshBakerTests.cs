@@ -68,11 +68,11 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(thirdBuffered);
         Assert.Null(firstBaked);
         Assert.Null(secondBaked);
-        Assert.Null(flushed);
+        Assert.NotNull(flushed);
+        Assert.Equal("53394525", flushed.ActualMeshCode);
 
         IReadOnlyList<ResoniteConstructionCityObject> remainingBatches = baker.FlushAll();
-        Assert.Equal(3, remainingBatches.Count);
-        Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394525");
+        Assert.Equal(2, remainingBatches.Count);
         Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394526");
         Assert.Contains(remainingBatches, static cityObject => cityObject.ActualMeshCode == "53394527");
     }
@@ -100,7 +100,7 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncReturnsReadyCityObjectWhenSourceUnitChanges()
+    public async Task TryBufferAsyncDoesNotFlushWhenSourceUnitChangesWithoutCapacityPressure()
     {
         FixedCellCityObjectMeshBaker baker = new(
             cellSizeMeters: 64.0,
@@ -115,9 +115,12 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
         Assert.True(second.Buffered);
-        ResoniteConstructionCityObject baked = Assert.Single(second.ReadyCityObjects);
-        Assert.Equal("unit-a", baked.SourceUnitKey);
-        Assert.Equal(new ResoniteFloat3(10.0, 0.0, 10.0), baked.Transform.Position);
+        Assert.Empty(second.ReadyCityObjects);
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+        Assert.Equal(2, baked.Count);
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-a");
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b");
     }
 
     [Fact]
@@ -174,6 +177,62 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b" && cityObject.Transform.Position == new ResoniteFloat3(80.0, 0.0, 10.0));
     }
 
+    [Fact]
+    public async Task FlushAllAsyncKeepsSameScopeMergedAcrossInterleavedDifferentScopes()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 10,
+            maxVerticesPerBatch: 1000,
+            maxBufferedCells: 8);
+
+        await baker.TryBufferAsync(CreateTriangleBuilding("a-one", x: 10.0, z: 10.0, sourceUnitKey: "unit-a") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/a.gml",
+        });
+        await baker.TryBufferAsync(CreateTriangleBuilding("b-one", x: 80.0, z: 10.0, sourceUnitKey: "unit-b") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/b.gml",
+        });
+        await baker.TryBufferAsync(CreateTriangleBuilding("a-two", x: 12.0, z: 10.0, sourceUnitKey: "unit-a") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/a.gml",
+        });
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        ResoniteConstructionCityObject scopeA = Assert.Single(
+            baked,
+            static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/a.gml");
+        Assert.Equal(6, scopeA.Mesh.Vertices.Count);
+        Assert.Equal("unit-a", scopeA.SourceUnitKey);
+        Assert.Contains(
+            baked,
+            static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/b.gml"
+                && cityObject.SourceUnitKey == "unit-b");
+    }
+
+    [Fact]
+    public void FlushAllSeparatesSameSourceUnitAcrossSourceFiles()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("left", x: 10.0, z: 10.0, sourceUnitKey: "shared-unit") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/a.gml",
+        }, out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("right", x: 80.0, z: 10.0, sourceUnitKey: "shared-unit") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/b.gml",
+        }, out _));
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = baker.FlushAll();
+
+        Assert.Equal(2, baked.Count);
+        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/a.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/b.gml");
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,
@@ -213,6 +272,7 @@ public sealed class FixedCellCityObjectMeshBakerTests
                     SubmeshIndices: [0]),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 }

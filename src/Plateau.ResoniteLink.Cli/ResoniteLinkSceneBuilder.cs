@@ -41,6 +41,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 #pragma warning restore CA1859
     private readonly Action<string>? progressReporter;
     private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache = new();
+    private readonly AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> canonicalParentScopeCache = new();
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
 #pragma warning disable CA1859
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
@@ -77,6 +78,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ResoniteTextureImportRegistry? textureImportRegistry;
     private SceneAnchor? sceneAnchor;
     private string? datasetLicenseComponentId;
+    private Dictionary<string, string>? cityGmlSlotNamesByRelativePath;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
         : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
@@ -343,6 +345,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         firstCityObjectStreamingStartedLogged = 0;
         firstCityObjectDequeuedLogged = 0;
         firstCommonMaterialPrepLogged = 0;
+        cityGmlSlotNamesByRelativePath = CreateCityGmlSlotNamesByRelativePath(metadata.SourceDataset.SourceFiles);
         cityObjectBaker = MeshBakeEnabled
             ? new CompositeCityObjectBaker(
                 new Lod2AtlasCityObjectBaker(textureImageLoader, textureImportRegistry),
@@ -383,6 +386,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             return;
         }
+
+        material = NormalizeCommonMaterialBinding(material);
 
         ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
         ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
@@ -558,8 +563,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             ReportProgress(
                 PlateauLog.Info(
                     "live",
-                    $"Connecting worker ResoniteLink session for send lane {laneIndex + 1}/{connectionCount} to {endpoint} "
-                    + $"for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
+                    $"Preparing deferred worker ResoniteLink client for send lane {laneIndex + 1}/{connectionCount} "
+                    + $"to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
         }
 
         IResoniteLinkClient client = await clientSession.CreateLaneClientAsync(
@@ -582,8 +587,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 ReportProgress(
                     PlateauLog.Info(
                         "live",
-                        $"Connected worker ResoniteLink session {laneIndex + 1}/{connectionCount} "
-                        + $"to {endpoint} in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s."));
+                        $"Worker ResoniteLink client ready for send lane {laneIndex + 1}/{connectionCount} "
+                        + $"in {laneClientStopwatch.Elapsed.TotalSeconds:F2}s (connection deferred until first use)."));
             }
             await ProcessQueuedCityObjectsAsync(reader, client, laneIndex, cancellationToken);
         }
@@ -789,6 +794,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             firstProcessingFailureSource = null;
             sceneBuildStopwatch = null;
             sceneAnchor = null;
+            cityGmlSlotNamesByRelativePath = null;
         }
     }
 
@@ -817,6 +823,54 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return Path.Combine(Path.GetFullPath(datasetRoot), "run", Guid.NewGuid().ToString("N"));
     }
 
+    private static Dictionary<string, string> CreateCityGmlSlotNamesByRelativePath(
+        IReadOnlyList<string> relativeSourceFiles)
+    {
+        Dictionary<string, string> slotNamesByPath = new(StringComparer.Ordinal);
+        Dictionary<string, List<string>> pathsByStem = new(StringComparer.Ordinal);
+
+        foreach (string relativeSourceFile in relativeSourceFiles)
+        {
+            if (string.IsNullOrWhiteSpace(relativeSourceFile))
+            {
+                continue;
+            }
+
+            string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
+            if (!pathsByStem.TryGetValue(fileStem, out List<string>? paths))
+            {
+                paths = [];
+                pathsByStem.Add(fileStem, paths);
+            }
+
+            paths.Add(relativeSourceFile);
+        }
+
+        foreach ((string fileStem, List<string> paths) in pathsByStem)
+        {
+            paths.Sort(StringComparer.Ordinal);
+            if (paths.Count == 1)
+            {
+                slotNamesByPath[paths[0]] = fileStem;
+                continue;
+            }
+
+            foreach (string path in paths)
+            {
+                slotNamesByPath[path] = $"{fileStem}_{ComputeShortStableHash(path)}";
+            }
+        }
+
+        return slotNamesByPath;
+    }
+
+    private static string ComputeShortStableHash(string value)
+    {
+        byte[] input = System.Text.Encoding.UTF8.GetBytes(value);
+        byte[] hash = SHA256.HashData(input);
+        return Convert.ToHexStringLower(hash.AsSpan(0, 4));
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Design",
         "CA1031:Do not catch general exception types",
@@ -836,7 +890,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 "preparing",
                 cancellationToken);
             await AwaitWithSlowCityObjectWarningAsync(
-                BuildPreparedCityObjectAsync(client, preparedCityObject, laneIndex, cancellationToken),
+                BuildPreparedCityObjectAsync(client, queuedCityObject, preparedCityObject, laneIndex, cancellationToken),
                 preparedCityObject.CityObject,
                 "building",
                 cancellationToken);
@@ -948,6 +1002,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             estimatedWorksetBytes,
             cancellationToken);
         Task<PreparedCityObject> preparationTask = CreatePreparationTask(cityObject, cancellationToken);
+        Task<ObjectSlotHierarchy> objectHierarchyTask = CreateObjectHierarchyTask(cityObject, cancellationToken);
         ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
         if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
         {
@@ -965,7 +1020,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         try
         {
             await cityObjectChannel.Writer.WriteAsync(
-                new QueuedCityObject(cityObject, preparationTask, cityObjectMemoryLease),
+                new QueuedCityObject(cityObject, preparationTask, objectHierarchyTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
         }
         catch (OperationCanceledException) when (processingCancellationSource?.IsCancellationRequested == true)
@@ -978,6 +1033,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         {
             await cityObjectMemoryLease.DisposeAsync();
             _ = ObserveTaskFailureAsync(preparationTask);
+            _ = ObserveTaskFailureAsync(objectHierarchyTask);
             throw;
         }
 
@@ -1073,6 +1129,31 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             callerCancellationToken,
             processingCancellationToken);
+    }
+
+    private Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken callerCancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
+        CancellationToken processingCancellationToken = processingCancellationSource?.Token ?? CancellationToken.None;
+        return CreateObjectHierarchyWithLinkedCancellationAsync(
+            clientSession.SetupClient,
+            cityObject,
+            callerCancellationToken,
+            processingCancellationToken);
+    }
+
+    private async Task<ObjectSlotHierarchy> CreateObjectHierarchyWithLinkedCancellationAsync(
+        IResoniteLinkClient setupClient,
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken callerCancellationToken,
+        CancellationToken processingCancellationToken)
+    {
+        using CancellationTokenSource linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            callerCancellationToken,
+            processingCancellationToken);
+        return await CreateObjectSlotHierarchyAsync(setupClient, cityObject, linkedCancellation.Token);
     }
 
     private async Task<PreparedCityObject> PrepareCityObjectWithLinkedCancellationAsync(
@@ -1192,28 +1273,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private async Task BuildPreparedCityObjectAsync(
         IResoniteLinkClient importClient,
+        QueuedCityObject queuedCityObject,
         PreparedCityObject preparedCityObject,
         int laneIndex,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(datasetRootSlot is null, this);
-        ObjectDisposedException.ThrowIf(datasetAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
-        ObjectDisposedException.ThrowIf(sceneAnchor is null, this);
 
-        IResoniteLinkClient mutationClient = GetMutationClient();
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportBuildStep(cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
-        ObjectSlotHierarchy objectSlots = await CreateObjectSlotHierarchyAsync(
-            mutationClient,
-            datasetRootSlot.Value,
-            datasetAssetsRootSlot.Value,
+        ObjectSlotHierarchy objectSlots = await AwaitWithSlowCityObjectWarningAsync(
+            queuedCityObject.ObjectHierarchyTask,
             cityObject,
+            "ensuring parent hierarchy",
             cancellationToken);
         slotHierarchyStopwatch.Stop();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -1256,7 +1333,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         await CreateCityObjectBatchAsync(
-            mutationClient,
+            importClient,
             objectSlots,
             cityObject,
             preparedTextureDataByKey,
@@ -1354,91 +1431,112 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private async Task<ObjectSlotHierarchy> CreateObjectSlotHierarchyAsync(
         IResoniteLinkClient client,
-        CreatedSlot datasetRoot,
-        CreatedSlot datasetAssetsRoot,
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(metadata is null, this);
-        ObjectDisposedException.ThrowIf(sceneAnchor is null, this);
-        string rootMeshCode = cityObject.ActualMeshCode;
-        SceneAnchor anchor = sceneAnchor.Value;
-        string fileSlotName = CreateObjectFileSlotName(cityObject);
-        ResoniteFloat3 cityObjectLocalPosition = ResolveCityObjectLocalPosition(
-            metadata.LocalOrigin,
-            rootMeshCode,
-            cityObject.Transform.Position);
-        ResoniteFloat3 rootMeshCodePosition = ResolveMeshCodeRootPosition(rootMeshCode);
-        CreatedSlot meshRootSlot = string.Equals(
-            rootMeshCode,
-            anchor.MeshCode,
-            StringComparison.Ordinal)
-            ? new CreatedSlot(
-                anchor.SlotId,
-                rootMeshCode)
-            : await GetOrCreateSharedChildSlotAsync(
+        ObjectDisposedException.ThrowIf(datasetRootSlot is null, this);
+        ObjectDisposedException.ThrowIf(datasetAssetsRootSlot is null, this);
+
+        string cityGmlScopeKey = ResolveCityGmlScopeKey(cityObject);
+        string cityGmlSlotName = ResolveCityGmlSlotName(cityObject, cityGmlScopeKey);
+        CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
+            new CanonicalParentScopeKey(cityGmlScopeKey, cityObject.LodLevel),
+            ct => CreateCanonicalParentScopeAsync(
                 client,
-                datasetRoot,
-                rootMeshCode,
-                rootMeshCodePosition,
-                null,
-                cancellationToken);
-        sharedSlotCache.Remember((datasetRoot.SlotId, rootMeshCode), meshRootSlot);
-        CreatedSlot assetMeshRootSlot = await GetOrCreateSharedChildSlotAsync(
+                datasetRootSlot.Value,
+                datasetAssetsRootSlot.Value,
+                cityGmlSlotName,
+                cityObject.LodLevel,
+                ct),
+            cancellationToken);
+
+        return new ObjectSlotHierarchy(
+            parentScope.AssetLodSlot,
+            parentScope.LodSlot,
+            CityObjectSlotName: cityObject.DisplayName,
+            CityObjectIdentityTag: CreateCityObjectIdentityTag(cityObject),
+            CityObjectLocalPosition: cityObject.Transform.Position,
+            CityObjectRotation: cityObject.Transform.Rotation);
+    }
+
+    private async Task<CanonicalParentScope> CreateCanonicalParentScopeAsync(
+        IResoniteLinkClient client,
+        CreatedSlot datasetRoot,
+        CreatedSlot datasetAssetsRoot,
+        string cityGmlSlotName,
+        int? lodLevel,
+        CancellationToken cancellationToken)
+    {
+        CreatedSlot cityGmlSlot = await GetOrCreateSharedChildSlotAsync(
+            client,
+            datasetRoot,
+            cityGmlSlotName,
+            null,
+            null,
+            cancellationToken);
+        CreatedSlot assetCityGmlSlot = await GetOrCreateSharedChildSlotAsync(
             client,
             datasetAssetsRoot,
-            rootMeshCode,
+            cityGmlSlotName,
             null,
             null,
             cancellationToken);
-        CreatedSlot assetFileSlot = await GetOrCreateSharedChildSlotAsync(
+        string lodSlotName = FormatLodSlotName(lodLevel);
+        CreatedSlot lodSlot = await GetOrCreateSharedChildSlotAsync(
             client,
-            assetMeshRootSlot,
-            fileSlotName,
-            null,
-            null,
-            cancellationToken);
-        CreatedSlot fileSlot = await GetOrCreateSharedChildSlotAsync(
-            client,
-            meshRootSlot,
-            fileSlotName,
+            cityGmlSlot,
+            lodSlotName,
             null,
             null,
             cancellationToken);
         CreatedSlot assetLodSlot = await GetOrCreateSharedChildSlotAsync(
             client,
-            assetFileSlot,
-            FormatLodSlotName(cityObject.LodLevel),
+            assetCityGmlSlot,
+            lodSlotName,
             null,
             null,
             cancellationToken);
-        CreatedSlot lodSlot = await GetOrCreateSharedChildSlotAsync(
-            client,
-            fileSlot,
-            FormatLodSlotName(cityObject.LodLevel),
-            null,
-            null,
-            cancellationToken);
-        return new ObjectSlotHierarchy(
-            meshRootSlot,
-            assetMeshRootSlot,
-            assetFileSlot,
-            fileSlot,
-            assetLodSlot,
-            lodSlot,
-            MeshAssetSlot: null,
-            HeightMapAssetSlot: null,
-            CityObjectSlotName: cityObject.DisplayName,
-            CityObjectIdentityTag: CreateCityObjectIdentityTag(cityObject),
-            CityObjectLocalPosition: cityObjectLocalPosition,
-            CityObjectRotation: cityObject.Transform.Rotation);
+        return new CanonicalParentScope(cityGmlSlot, assetCityGmlSlot, lodSlot, assetLodSlot);
     }
 
-    private static string CreateObjectFileSlotName(ResoniteConstructionCityObject cityObject)
+    private static string ResolveCityGmlScopeKey(ResoniteConstructionCityObject cityObject)
     {
+        if (!string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath))
+        {
+            return cityObject.SourceFileRelativePath!;
+        }
+
         if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
         {
-            return cityObject.SourceUnitKey;
+            return cityObject.SourceUnitKey!;
+        }
+
+        return cityObject.SlotKey;
+    }
+
+    private string ResolveCityGmlSlotName(
+        ResoniteConstructionCityObject cityObject,
+        string cityGmlScopeKey)
+    {
+        if (cityGmlSlotNamesByRelativePath is not null
+            && cityGmlSlotNamesByRelativePath.TryGetValue(cityGmlScopeKey, out string? slotName)
+            && !string.IsNullOrWhiteSpace(slotName))
+        {
+            return slotName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath))
+        {
+            string fileStem = Path.GetFileNameWithoutExtension(cityObject.SourceFileRelativePath);
+            if (!string.IsNullOrWhiteSpace(fileStem))
+            {
+                return fileStem;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
+        {
+            return cityObject.SourceUnitKey!;
         }
 
         return cityObject.SlotKey;
@@ -1476,9 +1574,14 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
 
         bool useCommonMaterialAssets = material.AssetScope == ResoniteMaterialAssetScope.Common;
+        if (useCommonMaterialAssets)
+        {
+            material = NormalizeCommonMaterialBinding(material);
+        }
+
         string materialScopeId = useCommonMaterialAssets
             ? commonAssetsRootSlot!.Value.SlotId
-            : objectSlots.MeshAssetSlot!.Value.SlotId;
+            : objectSlots.AssetLodSlot.SlotId;
         string? materialSlotParentId = useCommonMaterialAssets ? commonAssetsRootSlot!.Value.SlotId : null;
         string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets);
         return await materialAssetManager.CreateMaterialComponentAsync(
@@ -1489,14 +1592,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             materialSlotParentId,
             materialSlotName,
             objectSlots.AssetLodSlot.SlotId,
-            objectSlots.MeshAssetSlot?.SlotId ?? objectSlots.AssetLodSlot.SlotId,
+            objectSlots.AssetLodSlot.SlotId,
             cancellationToken);
-    }
-
-    private IResoniteLinkClient GetMutationClient()
-    {
-        ObjectDisposedException.ThrowIf(clientSession.SetupClient is null, this);
-        return clientSession.SetupClient;
     }
 
     private async Task<int> WarmupStartupChildSlotsAsync(
@@ -1637,6 +1734,45 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{scaleName}_{offsetName}_{depthName}_{colorName}");
+    }
+
+    private static ResoniteMaterialBinding NormalizeCommonMaterialBinding(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        if (material.AssetScope != ResoniteMaterialAssetScope.Common)
+        {
+            return material;
+        }
+
+        string canonicalTexturePath = material.TexturePath
+            ?? throw new InvalidOperationException("Common materials must provide a bundled texture path.");
+        string canonicalFamily = string.IsNullOrWhiteSpace(material.Family)
+            ? BundledDefaultMaterialFamilies.Other
+            : material.Family!;
+        ResoniteFloat2 canonicalTextureScale = material.TextureScale
+            ?? BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath);
+
+        return material with
+        {
+            MaterialKey = CreateCanonicalCommonMaterialKey(canonicalFamily, canonicalTexturePath, material.Projection),
+            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType = ResoniteMaterialType.Standard,
+            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+            TextureScale = canonicalTextureScale,
+            Family = canonicalFamily,
+            TextureOffset = null,
+            DepthOffset = null,
+        };
+    }
+
+    private static string CreateCanonicalCommonMaterialKey(
+        string family,
+        string texturePath,
+        ResoniteMaterialProjection projection)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"common|{family}|{projection}|{texturePath}");
     }
 
     private static string CreateCompactColorSuffix(ResoniteColor color)
@@ -2818,14 +2954,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
 
     private sealed record ObjectSlotHierarchy(
-        CreatedSlot MeshRootSlot,
-        CreatedSlot AssetMeshRootSlot,
-        CreatedSlot AssetPackageSlot,
-        CreatedSlot PackageSlot,
         CreatedSlot AssetLodSlot,
         CreatedSlot LodSlot,
-        CreatedSlot? MeshAssetSlot,
-        CreatedSlot? HeightMapAssetSlot,
         string CityObjectSlotName,
         string CityObjectIdentityTag,
         ResoniteFloat3 CityObjectLocalPosition,
@@ -2834,7 +2964,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,
         Task<PreparedCityObject> PreparationTask,
+        Task<ObjectSlotHierarchy> ObjectHierarchyTask,
         AsyncWeightedGate.Lease MemoryLease);
+
+    private sealed record CanonicalParentScope(
+        CreatedSlot CityGmlSlot,
+        CreatedSlot AssetCityGmlSlot,
+        CreatedSlot LodSlot,
+        CreatedSlot AssetLodSlot);
+
+    private readonly record struct CanonicalParentScopeKey(
+        string CityGmlScopeKey,
+        int? LodLevel);
 
     private abstract record PreparedConstructionGeometry;
 

@@ -113,6 +113,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             LodLevel: 1,
             Surfaces: [surface],
             ReferenceSystem: LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: "udx/dem/53394525/sample.gml",
             SourceUnitIdentity: "source-unit",
             SourceIdentity: "source",
             SharedAcrossMeshCodes: false);

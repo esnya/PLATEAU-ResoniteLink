@@ -71,7 +71,8 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             return BundledDefaultMaterialFamilies.Roof;
         }
 
-        if (PlateauPackageCatalog.IsRoadPackage(packageName))
+        if (PlateauPackageCatalog.IsRoadPackage(packageName)
+            || PlateauPackageCatalog.IsPathLikePackage(packageName))
         {
             return BundledDefaultMaterialFamilies.Road;
         }

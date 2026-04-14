@@ -19,7 +19,7 @@ bash scripts/verify-ci.sh
 
 - cleanup や send に入る前に、対象 dataset root がローカルに存在することを確認してください。
 - CLI や admin utility の build 産物は事前に無くても構いません。bundled helper script が必要に応じて build します。
-- live send は、experimental な multi-connection mode を明示的に検証したい場合を除き、まず `-Connections 1` の reliable path を使ってください。
+- `-Connections` は検証対象の active-lane cap として扱います。まず `-Connections 1` で baseline run を取り、その後に目的の多接続値と比較して invariant を確認してください。
 - 下記の cleanup は破壊的です。現在の Resonite session から一致する dataset root を削除し、同じ repository から起動した live-send CLI process も停止します。
 - この workflow では、operator 向けの command surface を `skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。root `scripts/` 配下の PowerShell helper は下位の repository utility であり、live run の手順正本ではありません。
 - 破棄可能な listener が必要で、local の Resonite headless install がある場合は、UI で session を手作業で用意するより bundled headless wrapper を優先します。
@@ -158,6 +158,8 @@ mode 差分を見たい場合でも、次は run 間で固定します。
 4. cleanup
 5. `heightmap`
 
+connection count の guardrail では、他の入力を変える前に、同じ mode を `-Connections 1` と比較対象の高い値でそれぞれ実行し、log と world state を比較します。
+
 log 比較に加えて world-state の証拠が必要な場合は、最初の run 前と各観測点の後に Root dump を採取します。
 
 標準の comparison driver が必要なら、次を使います。
@@ -187,6 +189,8 @@ Get-Content <stderr-log> -Tail 40
 
 - deterministic な live payload:
   同じ dataset、mesh code、mode、source path、listener port、connection count で複数回流し、log の並び、dataset root の構造、再利用 asset hierarchy に説明不能な差がないことを確認する。
+- bake-scope の guardrail:
+  LOD1 mesh bake と LOD2 atlas bake が無関係な CityGML file をまたいで merge していないこと、また input city object の到着順を変えても、決定的な batch identity suffix を除く baked material / mesh payload の内容が変わらないことを確認する。
 - 可視な imported content:
   live world に期待した dataset root が現れ、対象 subtree に mesh、material、renderer、collider が揃うことを確認する。
 - CI 相当の検証:

@@ -31,7 +31,7 @@ public sealed class LocalCityGmlBootstrapParityTests
                 "udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
             expectedPackageNames: ["bldg", "dem", "luse", "tran"],
             expectedRequestedMeshCodes: ["53394525"],
-            expectedTerrainSamplerPresent: true);
+            expectedTerrainSamplerPresent: false);
     }
 
     [Fact]
@@ -58,7 +58,7 @@ public sealed class LocalCityGmlBootstrapParityTests
                 "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml"],
             expectedPackageNames: ["bldg", "dem", "luse", "tran"],
             expectedRequestedMeshCodes: ["533945", "53394525"],
-            expectedTerrainSamplerPresent: true);
+            expectedTerrainSamplerPresent: false);
     }
 
     private static void AssertDocumentSetParity(
@@ -76,9 +76,8 @@ public sealed class LocalCityGmlBootstrapParityTests
         Assert.Equal(expected.BootstrapGlobalOriginPoint, actual.BootstrapGlobalOriginPoint);
         Assert.Equal(expected.BootstrapTerrainHeightSampler is null, actual.BootstrapTerrainHeightSampler is null);
 
-        Assert.Equal(
-            expected.BootstrapCachedDemSourceFiles.Select(static descriptor => (descriptor.RelativePath, descriptor.CityObjects.Length)),
-            actual.BootstrapCachedDemSourceFiles.Select(static descriptor => (descriptor.RelativePath, descriptor.CityObjects.Length)));
+        Assert.Empty(expected.BootstrapCachedDemSourceFiles);
+        Assert.Empty(actual.BootstrapCachedDemSourceFiles);
 
         SourceFilePipeline[] expectedPipelines = expected.BootstrapSourceFilePipelines.ToArray();
         SourceFilePipeline[] actualPipelines = actual.BootstrapSourceFilePipelines.ToArray();
@@ -113,6 +112,6 @@ public sealed class LocalCityGmlBootstrapParityTests
         Assert.Equal("http://www.opengis.net/def/crs/EPSG/0/6697", documentSet.BootstrapReferenceSystem.SrsName);
         Assert.True(documentSet.BootstrapReferenceSystem.IsGeographic);
         Assert.Equal(expectedTerrainSamplerPresent, documentSet.BootstrapTerrainHeightSampler is not null);
-        Assert.NotEmpty(documentSet.BootstrapCachedDemSourceFiles);
+        Assert.Empty(documentSet.BootstrapCachedDemSourceFiles);
     }
 }

@@ -11,7 +11,8 @@ public sealed record ResoniteConstructionCityObject(
     IReadOnlyList<ResoniteMaterialBinding> Materials,
     bool CollisionEnabled = true,
     string? SourceObjectKey = null,
-    string? SourceUnitKey = null)
+    string? SourceUnitKey = null,
+    string? SourceFileRelativePath = null)
 {
     public ResoniteConstructionCityObject(
         string SlotKey,
@@ -24,7 +25,8 @@ public sealed record ResoniteConstructionCityObject(
         IReadOnlyList<ResoniteMaterialBinding> Materials,
         bool CollisionEnabled = true,
         string? SourceObjectKey = null,
-        string? SourceUnitKey = null)
+        string? SourceUnitKey = null,
+        string? SourceFileRelativePath = null)
         : this(
             SlotKey,
             DisplayName,
@@ -36,7 +38,8 @@ public sealed record ResoniteConstructionCityObject(
             Materials,
             CollisionEnabled,
             SourceObjectKey,
-            SourceUnitKey)
+            SourceUnitKey,
+            SourceFileRelativePath)
     {
     }
 

@@ -20,7 +20,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     private readonly Dictionary<CellKey, CellBuffer> buffers = [];
     private readonly Dictionary<CellKey, int> flushSequenceByCell = [];
     private readonly Dictionary<CellKey, long> lastTouchedSequenceByCell = [];
-    private CellKey? lastBufferedCellKey;
     private long lastSequence;
 
     public FixedCellCityObjectMeshBaker()
@@ -75,23 +74,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             lastTouchedSequenceByCell.Add(cellKey, 0);
         }
 
-        buffer.CityObjects.Add(cityObject);
-        buffer.VertexCount += cityObject.Mesh.Vertices.Count;
-        long lastTouchedSequence = ++lastSequence;
-        buffer.LastTouchedSequence = lastTouchedSequence;
-        lastTouchedSequenceByCell[cellKey] = lastTouchedSequence;
-        BakedInputCityObjectCount++;
-
-        bakedCityObject = null;
-        if (buffer.CityObjects.Count > maxCityObjectsPerBatch || buffer.VertexCount > maxVerticesPerBatch)
-        {
-            if (buffers.Remove(cellKey, out CellBuffer? flushBuffer))
-            {
-                lastTouchedSequenceByCell.Remove(cellKey);
-                bakedCityObject = BakeCell(cellKey, flushBuffer);
-            }
-        }
-
+        List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer);
+        bakedCityObject = readyCityObjects.Count > 0 ? readyCityObjects[0] : null;
         return true;
     }
 
@@ -101,37 +85,20 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (!TryBuffer(cityObject, out ResoniteConstructionCityObject? bakedCityObject))
+        if (!CanBake(cityObject))
         {
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
-        List<ResoniteConstructionCityObject> readyCityObjects = [];
         CellKey cellKey = CreateCellKey(cityObject);
-        if (lastBufferedCellKey is { } previousCellKey
-            && previousCellKey != cellKey
-            && TryFlushCell(previousCellKey, out ResoniteConstructionCityObject? flushedOnCellTransition))
+        if (!buffers.TryGetValue(cellKey, out CellBuffer? buffer))
         {
-            if (flushedOnCellTransition is not null)
-            {
-                readyCityObjects.Add(flushedOnCellTransition);
-            }
+            buffer = new CellBuffer();
+            buffers.Add(cellKey, buffer);
+            lastTouchedSequenceByCell.Add(cellKey, 0);
         }
 
-        if (bakedCityObject is not null)
-        {
-            readyCityObjects.Add(bakedCityObject);
-        }
-
-        while (buffers.Count > maxBufferedCells && TryFlushOldestBufferExcept(cellKey, out ResoniteConstructionCityObject? flushedCityObject))
-        {
-            if (flushedCityObject is not null)
-            {
-                readyCityObjects.Add(flushedCityObject);
-            }
-        }
-
-        lastBufferedCellKey = buffers.ContainsKey(cellKey) ? cellKey : null;
+        List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer);
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
 
@@ -150,6 +117,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         }
 
         buffers.Clear();
+        lastTouchedSequenceByCell.Clear();
         return bakedCityObjects;
     }
 
@@ -187,6 +155,36 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         }
     }
 
+    private List<ResoniteConstructionCityObject> BufferCore(
+        ResoniteConstructionCityObject cityObject,
+        CellKey cellKey,
+        CellBuffer buffer)
+    {
+        buffer.CityObjects.Add(cityObject);
+        buffer.VertexCount += cityObject.Mesh.Vertices.Count;
+        long lastTouchedSequence = ++lastSequence;
+        buffer.LastTouchedSequence = lastTouchedSequence;
+        lastTouchedSequenceByCell[cellKey] = lastTouchedSequence;
+        BakedInputCityObjectCount++;
+
+        List<ResoniteConstructionCityObject> readyCityObjects = [];
+        if (buffer.CityObjects.Count > maxCityObjectsPerBatch || buffer.VertexCount > maxVerticesPerBatch)
+        {
+            readyCityObjects.Add(FlushCell(cellKey));
+        }
+
+        while (buffers.Count > maxBufferedCells
+               && TryFlushOldestBufferExcept(cellKey, out ResoniteConstructionCityObject? flushedCityObject))
+        {
+            if (flushedCityObject is not null)
+            {
+                readyCityObjects.Add(flushedCityObject);
+            }
+        }
+
+        return readyCityObjects;
+    }
+
     private static bool CanBake(ResoniteConstructionCityObject cityObject)
     {
         return string.Equals(cityObject.PackageName, "bldg", StringComparison.OrdinalIgnoreCase)
@@ -197,12 +195,17 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 
     private static CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
     {
-        string sourceUnitKey = cityObject.SourceUnitKey ?? cityObject.SourceObjectKey ?? cityObject.SlotKey;
+        string scopeIdentity = cityObject.SourceFileRelativePath
+            ?? cityObject.SourceUnitKey
+            ?? cityObject.SourceObjectKey
+            ?? cityObject.SlotKey;
         return new CellKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
-            sourceUnitKey,
+            scopeIdentity,
+            cityObject.SourceUnitKey,
+            cityObject.SourceFileRelativePath,
             CellX: 0,
             CellZ: 0);
     }
@@ -253,24 +256,15 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         return true;
     }
 
-    private bool TryFlushCell(
-        CellKey cellKey,
-        out ResoniteConstructionCityObject? bakedCityObject)
+    private ResoniteConstructionCityObject FlushCell(CellKey cellKey)
     {
-        bakedCityObject = null;
         if (!buffers.Remove(cellKey, out CellBuffer? buffer))
         {
-            return false;
+            throw new InvalidOperationException($"Cannot flush missing bake buffer '{cellKey}'.");
         }
 
         lastTouchedSequenceByCell.Remove(cellKey);
-        bakedCityObject = BakeCell(cellKey, buffer);
-        if (lastBufferedCellKey is { } previousCellKey && previousCellKey == cellKey)
-        {
-            lastBufferedCellKey = null;
-        }
-
-        return true;
+        return BakeCell(cellKey, buffer);
     }
 
     private ResoniteConstructionCityObject BakeCell(CellKey cellKey, CellBuffer buffer)
@@ -350,7 +344,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             Materials: materials,
             CollisionEnabled: buffer.CityObjects.Any(static cityObject => cityObject.CollisionEnabled),
             SourceObjectKey: CreateBatchSourceObjectKey(cellKey, flushSequence),
-            SourceUnitKey: cellKey.SourceUnitKey);
+            SourceUnitKey: cellKey.SourceUnitKey,
+            SourceFileRelativePath: cellKey.SourceFileRelativePath);
     }
 
     private static ResoniteFloat3 ComputeBakeOrigin(CellBuffer buffer)
@@ -381,7 +376,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     private static string CreateBatchSlotKey(CellKey cellKey, int flushSequence)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string sourceUnitToken = CreateSourceUnitToken(cellKey.SourceUnitKey);
+        string sourceUnitToken = CreateSourceUnitToken(cellKey.ScopeIdentity);
         return string.Create(
             CultureInfo.InvariantCulture,
             $"meshbake_{cellKey.PackageName}_{cellKey.ActualMeshCode}_{sourceUnitToken}_{lodToken}_{cellKey.CellX}_{cellKey.CellZ}_{flushSequence:D4}");
@@ -390,7 +385,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     private static string CreateBatchDisplayName(CellKey cellKey, int flushSequence)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string sourceUnitToken = CreateSourceUnitToken(cellKey.SourceUnitKey);
+        string sourceUnitToken = CreateSourceUnitToken(cellKey.ScopeIdentity);
         return string.Create(
             CultureInfo.InvariantCulture,
             $"MeshBake {cellKey.PackageName} LOD{lodToken} {sourceUnitToken} #{flushSequence + 1}");
@@ -399,7 +394,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     private static string CreateBatchSourceObjectKey(CellKey cellKey, int flushSequence)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string sourceUnitToken = CreateSourceUnitToken(cellKey.SourceUnitKey);
+        string sourceUnitToken = CreateSourceUnitToken(cellKey.ScopeIdentity);
         return string.Create(
             CultureInfo.InvariantCulture,
             $"meshbake:{cellKey.ActualMeshCode}:{cellKey.PackageName}:{sourceUnitToken}:{lodToken}:{cellKey.CellX}:{cellKey.CellZ}:{flushSequence:D4}");
@@ -440,7 +435,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
-        string SourceUnitKey,
+        string ScopeIdentity,
+        string? SourceUnitKey,
+        string? SourceFileRelativePath,
         int CellX,
         int CellZ);
 
@@ -513,7 +510,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 return compare;
             }
 
-            compare = string.CompareOrdinal(x.SourceUnitKey, y.SourceUnitKey);
+            compare = string.CompareOrdinal(x.ScopeIdentity, y.ScopeIdentity);
             if (compare != 0)
             {
                 return compare;

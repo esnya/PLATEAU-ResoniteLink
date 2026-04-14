@@ -84,50 +84,10 @@ internal static class LocalCityGmlBootstrapPipeline
         List<LocalCityGmlResonitePlanBuilder.SourceFilePipeline> demPipelines = sourceFilePipelines
             .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
             .ToList();
-        Stopwatch demStopwatch = Stopwatch.StartNew();
-        LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult[] demParsedSourceFiles = demPipelines.Count == 0
-            ? []
-            : await Task.WhenAll(demPipelines.Select(static pipeline => pipeline.GetParseTask()));
-        demStopwatch.Stop();
-
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem? referenceSystem = null;
-        foreach (LocalCityGmlResonitePlanBuilder.SourceFilePipeline pipeline in sourceFilePipelines)
-        {
-            LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult parsedSourceFile = await pipeline.GetParseTask();
-            if (parsedSourceFile.ReferenceSystem is null)
-            {
-                continue;
-            }
-
-            referenceSystem = parsedSourceFile.ReferenceSystem;
-            break;
-        }
-
-        List<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> cachedDemSourceFiles = demParsedSourceFiles
-            .Where(static parsed => parsed.CityObjects.Length > 0)
-            .Select(static parsed => new LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor(parsed.SourceFile, parsed.CityObjects))
-            .ToList();
-        List<LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle> demTerrainTriangles = [];
-
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult demParsedSourceFile in demParsedSourceFiles)
-        {
-            demTerrainTriangles.AddRange(demParsedSourceFile.TerrainTriangles);
-        }
-
-        if (demPipelines.Count > 0)
-        {
-            progressReporter?.Invoke(
-                PlateauLog.Info(
-                    "import",
-                    $"DEM bootstrap parsed {demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length)} city objects "
-                    + $"from {demPipelines.Count} files in {demStopwatch.Elapsed.TotalSeconds:F3}s."));
-        }
-
-        if (referenceSystem is null)
-        {
-            throw new PlateauImportValidationException(
-                [$"No CityGML coordinate reference system was resolved for mesh code '{request.MeshCode}'."]);
-        }
+        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem = await LocalCityGmlResonitePlanBuilder.ReadDocumentReferenceSystemCoreAsync(
+            datasetSource,
+            sourceFiles[0].RelativePath,
+            cancellationToken);
 
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlResonitePlanBuilder.ResolveLocalOrigin(effectiveRequestedMeshArea);
@@ -141,24 +101,31 @@ internal static class LocalCityGmlBootstrapPipeline
             resolvedLocalOrigin.Latitude,
             resolvedLocalOrigin.Longitude,
             0.0);
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? demTerrainBounds = referenceSystem.IsGeographic
-            ? LocalCityGmlResonitePlanBuilder.ResolveDemTerrainBounds(demParsedSourceFiles, effectiveRequestedMeshArea)
-            : null;
-        TerrainTextureOverlay[] terrainTextureOverlays = demTerrainBounds is not null && demPipelines.Count > 0
-            ? LocalCityGmlResonitePlanBuilder.CreateDemTerrainTextureOverlays(demTerrainBounds, discoveryResult.RequestedMeshCodes)
+        Stopwatch demBoundsStopwatch = Stopwatch.StartNew();
+        DemBoundsScanResult demBoundsScanResult = demPipelines.Count == 0 || !referenceSystem.IsGeographic
+            ? new DemBoundsScanResult(effectiveRequestedMeshArea is null ? null : DemTerrainBounds.FromLegacy(effectiveRequestedMeshArea), 0)
+            : await ReadDemTerrainBoundsAsync(
+                demPipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
+                CoordinateReferenceSystem.FromLegacy(referenceSystem),
+                effectiveRequestedMeshArea is null ? null : DemTerrainBounds.FromLegacy(effectiveRequestedMeshArea),
+                cancellationToken);
+        demBoundsStopwatch.Stop();
+        TerrainTextureOverlay[] terrainTextureOverlays = demBoundsScanResult.Bounds is not null && demPipelines.Count > 0
+            ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(demBoundsScanResult.Bounds!, discoveryResult.RequestedMeshCodes)
             : [];
-
-        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler =
-            referenceSystem.IsGeographic && demTerrainTriangles.Count > 0
-                ? LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(
-                    demTerrainTriangles,
-                    globalOriginPoint,
-                    referenceSystem.Geocentric!)
-                : null;
+        if (demPipelines.Count > 0)
+        {
+            progressReporter?.Invoke(
+                PlateauLog.Info(
+                    "import",
+                    $"DEM bootstrap scanned bounds from {demPipelines.Count} files "
+                    + $"(parsed_city_objects={demBoundsScanResult.ParsedCityObjectCount}) "
+                    + $"in {demBoundsStopwatch.Elapsed.TotalSeconds:F3}s."));
+        }
         progressReporter?.Invoke(
-            terrainHeightSampler is null
+            demPipelines.Count == 0 || !referenceSystem.IsGeographic
                 ? PlateauLog.Info("import", "Terrain height sampler disabled for this dataset.")
-                : PlateauLog.Info("import", $"Terrain height sampler indexed {demTerrainTriangles.Count} DEM triangles."));
+                : PlateauLog.Info("import", "Terrain height sampler bootstrap deferred to construction streaming."));
 
         totalStopwatch.Stop();
         progressReporter?.Invoke(
@@ -175,9 +142,93 @@ internal static class LocalCityGmlBootstrapPipeline
             terrainTextureOverlays,
             discoveryResult.RequestedMeshCodes,
             sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
-            cachedDemSourceFiles.Select(CachedSourceFileDescriptor.FromLegacy).ToArray(),
+            [],
             CoordinateReferenceSystem.FromLegacy(referenceSystem),
             GeodeticPoint.FromLegacy(globalOriginPoint),
-            TerrainHeightSampler.FromLegacy(terrainHeightSampler));
+            terrainHeightSampler: null);
     }
+
+    private static async Task<DemBoundsScanResult> ReadDemTerrainBoundsAsync(
+        IReadOnlyList<SourceFilePipeline> demPipelines,
+        CoordinateReferenceSystem referenceSystem,
+        DemTerrainBounds? fallbackBounds,
+        CancellationToken cancellationToken)
+    {
+        (double MinLatitude, double MaxLatitude, double MinLongitude, double MaxLongitude)? bounds = null;
+        int parsedCityObjectCount = 0;
+
+        foreach (SourceFilePipeline pipeline in demPipelines)
+        {
+            await foreach (BootstrapParsedCityObject cityObject in pipeline.StreamParsedCityObjectsAsync(cancellationToken))
+            {
+                parsedCityObjectCount++;
+                ValidateCompatibleReferenceSystem(referenceSystem, cityObject.ReferenceSystem);
+                bounds = MergeBounds(bounds, GetBounds(cityObject));
+            }
+        }
+
+        if (bounds is null)
+        {
+            return new DemBoundsScanResult(fallbackBounds, parsedCityObjectCount);
+        }
+
+        return new DemBoundsScanResult(
+            new DemTerrainBounds(
+                bounds.Value.MinLatitude,
+                bounds.Value.MaxLatitude,
+                bounds.Value.MinLongitude,
+                bounds.Value.MaxLongitude),
+            parsedCityObjectCount);
+    }
+
+    private static (
+        double MinLatitude,
+        double MaxLatitude,
+        double MinLongitude,
+        double MaxLongitude)? MergeBounds(
+        (double MinLatitude, double MaxLatitude, double MinLongitude, double MaxLongitude)? left,
+        (double MinLatitude, double MaxLatitude, double MinLongitude, double MaxLongitude) right)
+    {
+        if (left is null)
+        {
+            return right;
+        }
+
+        return (
+            Math.Min(left.Value.MinLatitude, right.MinLatitude),
+            Math.Max(left.Value.MaxLatitude, right.MaxLatitude),
+            Math.Min(left.Value.MinLongitude, right.MinLongitude),
+            Math.Max(left.Value.MaxLongitude, right.MaxLongitude));
+    }
+
+    private static (double MinLatitude, double MaxLatitude, double MinLongitude, double MaxLongitude) GetBounds(
+        BootstrapParsedCityObject cityObject)
+    {
+        GeodeticPoint[] vertices = cityObject.Surfaces
+            .SelectMany(static surface => surface.Vertices)
+            .ToArray();
+
+        return (
+            vertices.Min(static point => point.Latitude),
+            vertices.Max(static point => point.Latitude),
+            vertices.Min(static point => point.Longitude),
+            vertices.Max(static point => point.Longitude));
+    }
+
+    private static void ValidateCompatibleReferenceSystem(
+        CoordinateReferenceSystem expectedReferenceSystem,
+        CoordinateReferenceSystem actualReferenceSystem)
+    {
+        if (expectedReferenceSystem.IsCompatibleWith(actualReferenceSystem))
+        {
+            return;
+        }
+
+        throw new PlateauImportValidationException(
+            [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
+    }
+
+    private sealed record DemBoundsScanResult(
+        DemTerrainBounds? Bounds,
+        int ParsedCityObjectCount);
 }

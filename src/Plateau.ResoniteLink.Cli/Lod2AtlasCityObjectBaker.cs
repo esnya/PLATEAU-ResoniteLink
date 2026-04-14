@@ -21,14 +21,13 @@ internal sealed class Lod2AtlasCityObjectBaker(
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
 
-    private readonly Dictionary<SourceUnitKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
-    private readonly Dictionary<SourceUnitKey, long> lastTouchedSequenceBySourceUnit = [];
-    private readonly Dictionary<SourceUnitKey, int> nextBatchIndexBySourceUnit = [];
+    private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
+    private readonly Dictionary<SourceUnitBatchKey, long> lastTouchedSequenceBySourceUnit = [];
+    private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
     private readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? Lod2AtlasCityObjectBakePolicies.DefaultPolicies;
     private readonly int maxBufferedSourceUnits = maxBufferedSourceUnits;
     private readonly int maxBufferedCityObjectsPerSourceUnit = maxBufferedCityObjectsPerSourceUnit;
-    private SourceUnitKey? lastBufferedSourceUnitKey;
     private long lastSequence;
 
     public string Name => "LOD2AtlasBake";
@@ -50,14 +49,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return new BufferedCityObjectBufferResult(Buffered: false, []);
         }
 
-        SourceUnitKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
+        SourceUnitBatchKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        if (lastBufferedSourceUnitKey is { } previousSourceUnitKey
-            && previousSourceUnitKey != sourceUnitKey)
-        {
-            await AddReadyCityObjects(previousSourceUnitKey, readyCityObjects, cancellationToken);
-        }
-
         BufferedCityObject bufferedCityObject = new(cityObject, policy);
         if (!bufferedCityObjectsBySourceUnit.TryGetValue(sourceUnitKey, out List<BufferedCityObject>? bufferedCityObjects))
         {
@@ -78,14 +71,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         while (bufferedCityObjectsBySourceUnit.Count > maxBufferedSourceUnits
-            && TryPopOldestSourceUnitExcept(sourceUnitKey, out SourceUnitKey oldestSourceUnitKey))
+            && TryPopOldestSourceUnitExcept(sourceUnitKey, out SourceUnitBatchKey oldestSourceUnitKey))
         {
             await AddReadyCityObjects(oldestSourceUnitKey, readyCityObjects, cancellationToken);
         }
 
-        lastBufferedSourceUnitKey = bufferedCityObjectsBySourceUnit.ContainsKey(sourceUnitKey)
-            ? sourceUnitKey
-            : null;
         return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
     }
 
@@ -113,17 +103,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return;
         }
 
-        SourceUnitKey[] orderedSourceUnitKeys = bufferedCityObjectsBySourceUnit.Keys
+        SourceUnitBatchKey[] orderedSourceUnitKeys = bufferedCityObjectsBySourceUnit.Keys
             .OrderBy(static key => key, SourceUnitKeyComparer.Instance)
             .ToArray();
-        foreach (SourceUnitKey sourceUnitKey in orderedSourceUnitKeys)
+        foreach (SourceUnitBatchKey sourceUnitKey in orderedSourceUnitKeys)
         {
             await EmitSourceUnitAsync(sourceUnitKey, onBakedCityObject, cancellationToken);
         }
     }
 
     private async Task EmitSourceUnitAsync(
-        SourceUnitKey sourceUnitKey,
+        SourceUnitBatchKey sourceUnitKey,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
@@ -149,14 +139,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
         nextBatchIndexBySourceUnit[sourceUnitKey] = batchStartIndex + emittedCount;
         lastTouchedSequenceBySourceUnit.Remove(sourceUnitKey);
         cityObjects.Clear();
-        if (lastBufferedSourceUnitKey is { } previousSourceUnitKey && previousSourceUnitKey == sourceUnitKey)
-        {
-            lastBufferedSourceUnitKey = null;
-        }
     }
 
     private async Task AddReadyCityObjects(
-        SourceUnitKey sourceUnitKey,
+        SourceUnitBatchKey sourceUnitKey,
         List<ResoniteConstructionCityObject> readyCityObjects,
         CancellationToken cancellationToken)
     {
@@ -184,15 +170,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
         lastTouchedSequenceBySourceUnit.Remove(sourceUnitKey);
         cityObjects.Clear();
         bufferedCityObjectsBySourceUnit.Remove(sourceUnitKey);
-        if (lastBufferedSourceUnitKey is { } previousSourceUnitKey && previousSourceUnitKey == sourceUnitKey)
-        {
-            lastBufferedSourceUnitKey = null;
-        }
     }
 
     private bool TryPopOldestSourceUnitExcept(
-        SourceUnitKey protectedSourceUnitKey,
-        out SourceUnitKey oldestSourceUnitKey)
+        SourceUnitBatchKey protectedSourceUnitKey,
+        out SourceUnitBatchKey oldestSourceUnitKey)
     {
         oldestSourceUnitKey = default;
         if (bufferedCityObjectsBySourceUnit.Count <= maxBufferedSourceUnits || bufferedCityObjectsBySourceUnit.Count == 0)
@@ -202,7 +184,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         long oldestSequence = long.MaxValue;
         bool hasOldest = false;
-        foreach (KeyValuePair<SourceUnitKey, long> candidate in lastTouchedSequenceBySourceUnit)
+        foreach (KeyValuePair<SourceUnitBatchKey, long> candidate in lastTouchedSequenceBySourceUnit)
         {
             if (candidate.Key == protectedSourceUnitKey)
             {
@@ -221,7 +203,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
     }
 
     private async Task BakeSourceUnitAsync(
-        SourceUnitKey sourceUnitKey,
+        SourceUnitBatchKey sourceUnitKey,
         IReadOnlyList<BufferedCityObject> cityObjects,
         int batchStartIndex,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
@@ -558,7 +540,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
     }
 
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
-        SourceUnitKey sourceUnitKey,
+        SourceUnitBatchKey sourceUnitKey,
         IReadOnlyList<CityObjectBakeCandidate> candidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -668,7 +650,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
             Materials: materials,
             CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
             SourceObjectKey: sourceObjectKey,
-            SourceUnitKey: sourceUnitKey.SourceUnitIdentity);
+            SourceUnitKey: sourceUnitKey.SourceUnitKey,
+            SourceFileRelativePath: sourceUnitKey.SourceFileRelativePath);
     }
 
     private static void AppendPlacementGeometry(
@@ -882,27 +865,35 @@ internal sealed class Lod2AtlasCityObjectBaker(
             (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
     }
 
-    private static SourceUnitKey CreateSourceUnitKey(
+    private static SourceUnitBatchKey CreateSourceUnitKey(
         ResoniteConstructionCityObject cityObject,
         Lod2AtlasCityObjectBakePolicy policy)
     {
         string context = policy.Name;
+        string cityGmlScopeIdentity = cityObject.SourceFileRelativePath
+            ?? cityObject.SourceUnitKey
+            ?? cityObject.SourceObjectKey
+            ?? cityObject.SlotKey;
         string sourceUnitIdentity;
         if (policy.EnableGridPassThrough && policy.PassThroughGridCellSizeMeters > 0)
         {
-            sourceUnitIdentity = CreateGridCellToken(cityObject, policy.PassThroughGridCellSizeMeters);
+            sourceUnitIdentity = string.Create(
+                CultureInfo.InvariantCulture,
+                $"{cityGmlScopeIdentity}|{CreateGridCellToken(cityObject, policy.PassThroughGridCellSizeMeters)}");
         }
         else
         {
-            sourceUnitIdentity = cityObject.SourceUnitKey ?? cityObject.SourceObjectKey ?? cityObject.SlotKey;
+            sourceUnitIdentity = cityGmlScopeIdentity;
         }
 
-        return new SourceUnitKey(
+        return new SourceUnitBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
             sourceUnitIdentity,
-            context);
+            context,
+            cityObject.SourceUnitKey,
+            cityObject.SourceFileRelativePath);
     }
 
     private static string CreateGridCellToken(
@@ -914,38 +905,38 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return $"{cellX}_{cellZ}";
     }
 
-    private static string CreateBatchSlotKey(SourceUnitKey sourceUnitKey, int batchIndex)
+    private static string CreateBatchSlotKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
         string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         string policyToken = CreatePolicyContextToken(sourceUnitKey.PolicyContext);
-        string sourceToken = CreateSourceUnitToken(sourceUnitKey.SourceUnitIdentity);
+        string sourceToken = CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity);
         return string.Create(
             CultureInfo.InvariantCulture,
             $"atlasbake_{sourceUnitKey.PackageName}_{sourceUnitKey.ActualMeshCode}_{policyToken}_{sourceToken}_{lodToken}_{batchIndex:D4}");
     }
 
-    private static string CreateBatchDisplayName(SourceUnitKey sourceUnitKey, int batchIndex)
+    private static string CreateBatchDisplayName(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
         string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceUnitKey.PackageName} LOD{lodToken} {CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{CreateSourceUnitToken(sourceUnitKey.SourceUnitIdentity)} #{batchIndex + 1}");
+            $"AtlasBake {sourceUnitKey.PackageName} LOD{lodToken} {CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)} #{batchIndex + 1}");
     }
 
-    private static string CreateBatchSourceObjectKey(SourceUnitKey sourceUnitKey, int batchIndex)
+    private static string CreateBatchSourceObjectKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
         string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake:{sourceUnitKey.ActualMeshCode}:{sourceUnitKey.PackageName}:{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}:{CreateSourceUnitToken(sourceUnitKey.SourceUnitIdentity)}:{lodToken}:{batchIndex:D4}");
+            $"atlasbake:{sourceUnitKey.ActualMeshCode}:{sourceUnitKey.PackageName}:{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}:{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}:{lodToken}:{batchIndex:D4}");
     }
 
-    private static string CreateAtlasTexturePath(SourceUnitKey sourceUnitKey, int batchIndex)
+    private static string CreateAtlasTexturePath(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
         string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"generated/lod2-atlas/{sourceUnitKey.ActualMeshCode}/{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}/{sourceUnitKey.PackageName}_{lodToken}_{CreateSourceUnitToken(sourceUnitKey.SourceUnitIdentity)}_{batchIndex:D4}.png");
+            $"generated/lod2-atlas/{sourceUnitKey.ActualMeshCode}/{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}/{sourceUnitKey.PackageName}_{lodToken}_{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}_{batchIndex:D4}.png");
     }
 
     private static string CreatePolicyContextToken(string policyContext)
@@ -1149,7 +1140,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
     }
 
     private async Task EmitAtlasBatchAsync(
-        SourceUnitKey sourceUnitKey,
+        SourceUnitBatchKey sourceUnitKey,
         IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -1263,12 +1254,14 @@ internal sealed class Lod2AtlasCityObjectBaker(
         double Width,
         double Height);
 
-    private readonly record struct SourceUnitKey(
+    private readonly record struct SourceUnitBatchKey(
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
-        string SourceUnitIdentity,
-        string PolicyContext);
+        string BatchScopeIdentity,
+        string PolicyContext,
+        string? SourceUnitKey,
+        string? SourceFileRelativePath);
 
     private readonly record struct PreservedMaterialGroupingKey(
         string MaterialKey,
@@ -1283,11 +1276,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
         ResoniteFloat2? TextureOffset,
         ResoniteMaterialAssetScope AssetScope);
 
-    private sealed class SourceUnitKeyComparer : IComparer<SourceUnitKey>
+    private sealed class SourceUnitKeyComparer : IComparer<SourceUnitBatchKey>
     {
         internal static readonly SourceUnitKeyComparer Instance = new();
 
-        public int Compare(SourceUnitKey x, SourceUnitKey y)
+        public int Compare(SourceUnitBatchKey x, SourceUnitBatchKey y)
         {
             int compare = string.CompareOrdinal(x.ActualMeshCode, y.ActualMeshCode);
             if (compare != 0)
@@ -1313,7 +1306,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 return compare;
             }
 
-            return string.CompareOrdinal(x.SourceUnitIdentity, y.SourceUnitIdentity);
+            return string.CompareOrdinal(x.BatchScopeIdentity, y.BatchScopeIdentity);
         }
     }
 

@@ -649,7 +649,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncReturnsReadyCityObjectsWhenSourceUnitChanges()
+    public async Task TryBufferAsyncDoesNotFlushWhenSourceUnitChangesWithoutCapacityPressure()
     {
         using TemporaryDirectory datasetRoot = new();
         WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
@@ -669,9 +669,12 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
         Assert.True(second.Buffered);
-        ResoniteConstructionCityObject baked = Assert.Single(second.ReadyCityObjects);
-        Assert.Equal("unit-a", baked.SourceUnitKey);
-        Assert.StartsWith("generated/lod2-atlas/", baked.Materials[0].TexturePath!, StringComparison.Ordinal);
+        Assert.Empty(second.ReadyCityObjects);
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+        Assert.Equal(2, baked.Count);
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-a");
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b");
     }
 
     [Fact]
@@ -694,11 +697,82 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
         Assert.True(second.Buffered);
+        ResoniteConstructionCityObject flushedSecond = Assert.Single(second.ReadyCityObjects);
+        Assert.Equal("unit-a", flushedSecond.SourceUnitKey);
         Assert.True(third.Buffered);
-        Assert.Empty(third.ReadyCityObjects);
+        ResoniteConstructionCityObject flushedThird = Assert.Single(third.ReadyCityObjects);
+        Assert.Equal("unit-b", flushedThird.SourceUnitKey);
 
         IReadOnlyList<ResoniteConstructionCityObject> remaining = await baker.FlushAllAsync();
         Assert.Single(remaining);
+        Assert.Equal("unit-c", remaining[0].SourceUnitKey);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsSameScopeMergedAcrossInterleavedDifferentScopes()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetImage(datasetRoot.Path, "textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4);
+        WriteDatasetImage(datasetRoot.Path, "textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4);
+        WriteDatasetImage(datasetRoot.Path, "textures/three.png", new Rgba32(0, 0, 255, 255), 4, 4);
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry(),
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1,
+            maxBufferedSourceUnits: 8);
+
+        await baker.TryBufferAsync(CreateLod2Building("a-one", "textures/one.png", 10.0, "unit-a") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/a.gml",
+        });
+        await baker.TryBufferAsync(CreateLod2Building("b-one", "textures/two.png", 20.0, "unit-b") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/b.gml",
+        });
+        await baker.TryBufferAsync(CreateLod2Building("a-two", "textures/three.png", 30.0, "unit-a") with
+        {
+            SourceFileRelativePath = "udx/bldg/53394525_citygml/a.gml",
+        });
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        ResoniteConstructionCityObject scopeA = Assert.Single(
+            baked,
+            static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/a.gml");
+        Assert.Equal("unit-a", scopeA.SourceUnitKey);
+        Assert.StartsWith("generated/lod2-atlas/", scopeA.Materials[0].TexturePath!, StringComparison.Ordinal);
+        Assert.Contains(
+            baked,
+            static cityObject => cityObject.SourceFileRelativePath == "udx/bldg/53394525_citygml/b.gml"
+                && cityObject.SourceUnitKey == "unit-b");
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncSeparatesGridPassThroughCandidatesAcrossSourceFiles()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        FakeDatasetContentSource datasetContentSource = new(datasetRoot.Path);
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(datasetContentSource),
+            new ResoniteTextureImportRegistry());
+
+        await baker.TryBufferAsync(CreateLod2Vegetation("veg-one", null, 10.0, "shared-unit") with
+        {
+            SourceFileRelativePath = "udx/veg/53394525_citygml/a.gml",
+        });
+        await baker.TryBufferAsync(CreateLod2Vegetation("veg-two", null, 20.0, "shared-unit") with
+        {
+            SourceFileRelativePath = "udx/veg/53394525_citygml/b.gml",
+        });
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/veg/53394525_citygml/a.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "udx/veg/53394525_citygml/b.gml");
     }
 
     private static async Task AssertBufferedAsync(
@@ -747,7 +821,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     Family: Family)
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateLod2Vegetation(
@@ -785,7 +860,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     SubmeshIndices: [0]),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateLod2VegetationVertexColor(
@@ -834,7 +910,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     SubmeshIndices: [0]),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateMultiTextureLod2Building(
@@ -885,7 +962,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     SubmeshIndices: [1]),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateMixedScopeLod2Building(
@@ -934,7 +1012,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     AssetScope: ResoniteMaterialAssetScope.Common),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateUvScaledLod2Building(
@@ -1061,7 +1140,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     AssetScope: ResoniteMaterialAssetScope.Common),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static void WriteDatasetImage(string datasetRoot, string relativePath, Rgba32 color, int width, int height)

@@ -14,6 +14,7 @@ PLATEAU のデータセットを ResoniteLink 経由で Resonite に取り込む
 - 参照先 texture asset が存在する場合、importer は詳細モデルの `ParameterizedTexture` を含む CityGML appearance binding を保持する。
 - ライブ経路では mesh / texture に公式の ResoniteLink asset import message を使う。
 - ライブ経路は、大きい mesh code でも送信前に全件をメモリ保持しないよう、city object を非同期に逐次送信できること。
+- LOD1 mesh bake と LOD2 atlas bake は dependency-only keyed batching を使うこと。bake key には CityGML scope、package、LOD、bake policy context を含め、到着順に依存せず、無関係な source file をまたいで merge しないこと。
 
 ## Non-Goals For Bootstrap
 
@@ -24,6 +25,7 @@ PLATEAU のデータセットを ResoniteLink 経由で Resonite に取り込む
 ## Acceptance Signals
 
 - 同じ入力から同じ live mesh / material payload が得られる。
+- 同一 import 内で city object の到着順を変えても、決定的な batch identity suffix を除く baked payload の内容が変わらない。
 - CLI の入力検証が自動テストで担保されている。
 - live Resonite import により、指定 mesh code の mesh、material、renderer、collider を確認できる。
 - フォーマット、Analyzer、ビルド、テストを CI で一貫して検証できる。

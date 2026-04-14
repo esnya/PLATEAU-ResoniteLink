@@ -14,6 +14,7 @@ Bring PLATEAU datasets into Resonite through ResoniteLink.
 - The importer preserves CityGML appearance bindings, including `ParameterizedTexture` mappings for detailed models when the referenced texture assets exist.
 - The live path must use official ResoniteLink asset import messages for meshes and textures.
 - The live path must be able to stream city objects asynchronously so large mesh-code imports do not require one full in-memory batch before sending.
+- LOD1 mesh bake and LOD2 atlas bake must use dependency-only keyed batching. The bake key must include CityGML scope, package, LOD, and bake-policy context so batching does not depend on arrival order and does not merge across unrelated source files.
 
 ## Non-Goals For Bootstrap
 
@@ -24,6 +25,7 @@ Bring PLATEAU datasets into Resonite through ResoniteLink.
 ## Acceptance Signals
 
 - The same inputs produce the same live mesh/material payloads.
+- Reordering city objects within the same import does not change baked payload contents beyond deterministic batch identity suffixes.
 - CLI input validation is protected by automated tests.
 - A live Resonite import creates visible mesh, material, renderer, and collider data for the requested mesh code.
 - Formatting, analyzers, build, and tests run consistently in CI.

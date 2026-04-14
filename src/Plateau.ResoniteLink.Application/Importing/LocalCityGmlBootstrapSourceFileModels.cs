@@ -52,13 +52,18 @@ internal sealed class SourceFilePipeline
 {
     private readonly object parseTaskGate = new();
     private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
+    private readonly Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>> streamFactory;
     private readonly LocalCityGmlResonitePlanBuilder.SourceFilePipeline? legacy;
     private Task<ParsedSourceFileResult>? parseTask;
 
-    internal SourceFilePipeline(SourceFileDescriptor sourceFile, Func<Task<ParsedSourceFileResult>> parseTaskFactory)
+    internal SourceFilePipeline(
+        SourceFileDescriptor sourceFile,
+        Func<Task<ParsedSourceFileResult>> parseTaskFactory,
+        Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>>? streamFactory = null)
     {
         SourceFile = sourceFile;
         this.parseTaskFactory = parseTaskFactory;
+        this.streamFactory = streamFactory ?? CreateParseTaskBackedStream;
     }
 
     internal SourceFilePipeline(LocalCityGmlResonitePlanBuilder.SourceFilePipeline legacy)
@@ -80,11 +85,28 @@ internal sealed class SourceFilePipeline
         }
     }
 
+    public IAsyncEnumerable<BootstrapParsedCityObject> StreamParsedCityObjectsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return streamFactory(cancellationToken);
+    }
+
     internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline ToLegacy()
     {
         return legacy ?? new LocalCityGmlResonitePlanBuilder.SourceFilePipeline(
             SourceFile.ToLegacy(),
             async () => (await GetParseTask().ConfigureAwait(false)).ToLegacy());
+    }
+
+    private async IAsyncEnumerable<BootstrapParsedCityObject> CreateParseTaskBackedStream(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ParsedSourceFileResult parsedSourceFile = await GetParseTask().WaitAsync(cancellationToken);
+        foreach (BootstrapParsedCityObject cityObject in parsedSourceFile.CityObjects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return cityObject;
+        }
     }
 }
 

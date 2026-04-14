@@ -35,6 +35,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     }
 
     private readonly IResoniteLinkTransport link;
+    private readonly SemaphoreSlim operationGate = new(1, 1);
 
     public ResoniteLinkClient()
         : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()))
@@ -48,12 +49,15 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     public void Dispose()
     {
+        operationGate.Dispose();
         link.Dispose();
     }
 
     public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
     {
-        await link.ConnectAsync(endpoint, cancellationToken);
+        await ExecuteSerializedAsync(
+            ct => link.ConnectAsync(endpoint, ct),
+            cancellationToken);
     }
 
     public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -61,7 +65,9 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
-        NewEntityId response = await link.AddComponentAsync(request);
+        NewEntityId response = await ExecuteSerializedAsync(
+            _ => link.AddComponentAsync(request),
+            cancellationToken);
         EnsureSuccess(
             response,
             CreateMutationOperationName(
@@ -76,7 +82,9 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
-        NewEntityId response = await link.AddSlotAsync(request);
+        NewEntityId response = await ExecuteSerializedAsync(
+            _ => link.AddSlotAsync(request),
+            cancellationToken);
         EnsureSuccess(
             response,
             CreateMutationOperationName(
@@ -101,7 +109,9 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             };
         }
 
-        BatchResponse response = await link.RunDataModelOperationBatchAsync(operations.ToList());
+        BatchResponse response = await ExecuteSerializedAsync(
+            _ => link.RunDataModelOperationBatchAsync(operations.ToList()),
+            cancellationToken);
         if (!response.Success)
         {
             throw new InvalidOperationException(
@@ -116,11 +126,13 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        ComponentData response = await link.GetComponentDataAsync(
-            new GetComponent
-            {
-                ComponentID = componentId,
-            });
+        ComponentData response = await ExecuteSerializedAsync(
+            _ => link.GetComponentDataAsync(
+                new GetComponent
+                {
+                    ComponentID = componentId,
+                }),
+            cancellationToken);
 
         return GetOptionalReadData(
             response.Success,
@@ -132,13 +144,15 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        SlotData response = await link.GetSlotDataAsync(
-            new GetSlot
-            {
-                SlotID = slotId,
-                Depth = depth,
-                IncludeComponentData = false,
-            });
+        SlotData response = await ExecuteSerializedAsync(
+            _ => link.GetSlotDataAsync(
+                new GetSlot
+                {
+                    SlotID = slotId,
+                    Depth = depth,
+                    IncludeComponentData = false,
+                }),
+            cancellationToken);
 
         return GetOptionalReadData(
             response.Success,
@@ -150,7 +164,9 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        AssetData result = await link.ImportMeshAsync(request);
+        AssetData result = await ExecuteSerializedAsync(
+            _ => link.ImportMeshAsync(request),
+            cancellationToken);
         EnsureSuccess(result, "import mesh");
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null mesh asset URL.");
     }
@@ -162,8 +178,8 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         AssetData result = textureImport switch
         {
             ResoniteFileTextureImport fileImport => await ImportRawTextureFromFileAsync(fileImport, cancellationToken),
-            ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport),
-            ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport),
+            ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport, cancellationToken),
+            ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
         };
 
@@ -174,7 +190,9 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     public async Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        Response response = await link.UpdateComponentAsync(request);
+        Response response = await ExecuteSerializedAsync(
+            _ => link.UpdateComponentAsync(request),
+            cancellationToken);
         EnsureSuccess(response, "update component");
     }
 
@@ -185,30 +203,64 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ResoniteRawTextureImport rawImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
             fileImport.AbsolutePath,
             cancellationToken: cancellationToken);
-        return await ImportRawTextureAsync(rawImport);
+        return await ImportRawTextureAsync(rawImport, cancellationToken);
     }
 
-    private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport)
+    private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport, CancellationToken cancellationToken)
     {
-        return link.ImportTextureRawAsync(
-            new ImportTexture2DRawData
-            {
-                Width = rawImport.Width,
-                Height = rawImport.Height,
-                ColorProfile = rawImport.ColorProfile,
-                RawBinaryPayload = rawImport.RawRgba32Bytes,
-            });
+        return ExecuteSerializedAsync(
+            _ => link.ImportTextureRawAsync(
+                new ImportTexture2DRawData
+                {
+                    Width = rawImport.Width,
+                    Height = rawImport.Height,
+                    ColorProfile = rawImport.ColorProfile,
+                    RawBinaryPayload = rawImport.RawRgba32Bytes,
+                }),
+            cancellationToken);
     }
 
-    private Task<AssetData> ImportRawHdrTextureAsync(ResoniteRawHdrTextureImport rawHdrImport)
+    private Task<AssetData> ImportRawHdrTextureAsync(ResoniteRawHdrTextureImport rawHdrImport, CancellationToken cancellationToken)
     {
-        return link.ImportTextureRawHdrAsync(
-            new ImportTexture2DRawDataHDR
-            {
-                Width = rawHdrImport.Width,
-                Height = rawHdrImport.Height,
-                RawBinaryPayload = rawHdrImport.RawRgbaFloatBytes,
-            });
+        return ExecuteSerializedAsync(
+            _ => link.ImportTextureRawHdrAsync(
+                new ImportTexture2DRawDataHDR
+                {
+                    Width = rawHdrImport.Width,
+                    Height = rawHdrImport.Height,
+                    RawBinaryPayload = rawHdrImport.RawRgbaFloatBytes,
+                }),
+            cancellationToken);
+    }
+
+    private async Task<TResult> ExecuteSerializedAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await operationGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await operation(cancellationToken);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
+    private async Task ExecuteSerializedAsync(
+        Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        await operationGate.WaitAsync(cancellationToken);
+        try
+        {
+            await operation(cancellationToken);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
     }
 
     internal static void EnsureSuccess(Response? response, string operationName)

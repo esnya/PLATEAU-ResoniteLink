@@ -19,7 +19,7 @@ bash scripts/verify-ci.sh
 
 - Confirm the target dataset root exists on disk before cleanup or send steps.
 - Build outputs do not need to exist ahead of time; the helper scripts build the CLI or admin utility on demand.
-- For live sends, prefer the reliable path `-Connections 1` unless you are explicitly testing the experimental multi-connection mode.
+- Treat `-Connections` as the active-lane cap under test. Capture at least one baseline run with `-Connections 1`, then compare it with the intended multi-connection value when validating invariant behavior.
 - The cleanup steps below are destructive. They remove matching dataset roots from the current Resonite session and stop matching live-send CLI processes launched from the same repository.
 - For this workflow, use the bundled scripts under `skills/resonite-live-send-debug/scripts/` as the operator-facing command surface. The root `scripts/` PowerShell helpers remain lower-level repository utilities and are not the procedural source for live runs.
 - If you need a disposable listener and have a local Resonite headless installation, prefer the bundled headless wrapper instead of manually preparing a session in the UI.
@@ -158,6 +158,8 @@ Preferred sequence:
 4. cleanup
 5. `heightmap`
 
+For connection-count guardrails, repeat the same mode with `-Connections 1` and the target higher value, then compare the resulting logs and world state before changing any other input.
+
 When you need world-state evidence in addition to log comparison, capture a Root dump before the first run and after each observation point.
 
 If you need the bundled comparison driver, use:
@@ -188,6 +190,8 @@ Map live validation back to `docs/requirements.md` with these checks:
 - Deterministic live payloads:
   Run the same dataset, mesh code, mode, source path, listener port, and connection count more than once.
   Compare the generated log sequence, observed dataset root structure, and any reusable asset hierarchy for unexplained differences.
+- Bake-scope guardrails:
+  Confirm that LOD1 mesh bake and LOD2 atlas bake do not merge across unrelated CityGML files, and that reordering input city objects does not change baked material or mesh payload contents beyond deterministic batch identity suffixes.
 - Visible imported content:
   Confirm the expected dataset root appears in the live world and that the target subtree contains the expected mesh, material, renderer, and collider data.
 - CI-equivalent validation:

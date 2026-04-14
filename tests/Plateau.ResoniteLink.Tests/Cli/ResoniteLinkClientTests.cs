@@ -119,6 +119,53 @@ public sealed class ResoniteLinkClientTests
         Assert.Equal(1, transport.LastRawTextureRequest.Height);
     }
 
+    [Fact]
+    public async Task ImportTextureAsyncSerializesOtherOperationsOnSameLink()
+    {
+        using BlockingResoniteLinkTransport transport = new();
+        using ResoniteLinkClient client = new(transport);
+
+        Task<Uri> importTask = client.ImportTextureAsync(
+            new ResoniteRawTextureImport(
+                Width: 1,
+                Height: 1,
+                RawRgba32Bytes: [255, 0, 0, 255],
+                ColorProfile: ResoniteTextureColorProfiles.Srgb),
+            CancellationToken.None);
+
+        await transport.ImportTextureStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Task<string> addSlotTask = client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference
+                    {
+                        TargetID = "Root",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "Serialized",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        await Task.Delay(100);
+        Assert.False(addSlotTask.IsCompleted);
+        Assert.Equal(0, transport.AddSlotCallCount);
+
+        transport.AllowImportTextureCompletion.TrySetResult();
+
+        await importTask;
+        string slotId = await addSlotTask;
+
+        Assert.Equal("srv_slot_1", slotId);
+        Assert.Equal(1, transport.ImportTextureRawCallCount);
+        Assert.Equal(1, transport.AddSlotCallCount);
+    }
+
     private sealed class FakeResoniteLinkTransport : IResoniteLinkTransport
     {
         public AssetData ImportTextureFileResult { get; set; } = new() { Success = true };
@@ -161,6 +208,63 @@ public sealed class ResoniteLinkClientTests
             ImportTextureRawCallCount++;
             LastRawTextureRequest = request;
             return Task.FromResult(ImportTextureRawResult);
+        }
+
+        public Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request) => throw new NotSupportedException();
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(List<DataModelOperation> operations) => throw new NotSupportedException();
+
+        public Task<Response> UpdateComponentAsync(UpdateComponent request) => throw new NotSupportedException();
+    }
+
+    private sealed class BlockingResoniteLinkTransport : IResoniteLinkTransport
+    {
+        private int nextSlotId;
+
+        public int AddSlotCallCount { get; private set; }
+
+        public int ImportTextureRawCallCount { get; private set; }
+
+        public TaskCompletionSource ImportTextureStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowImportTextureCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+        }
+
+        public Task<NewEntityId> AddComponentAsync(AddComponent request) => throw new NotSupportedException();
+
+        public Task<NewEntityId> AddSlotAsync(AddSlot request)
+        {
+            AddSlotCallCount++;
+            return Task.FromResult(new NewEntityId
+            {
+                Success = true,
+                EntityId = $"srv_slot_{Interlocked.Increment(ref nextSlotId)}",
+            });
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<ComponentData> GetComponentDataAsync(GetComponent request) => throw new NotSupportedException();
+
+        public Task<SlotData> GetSlotDataAsync(GetSlot request) => throw new NotSupportedException();
+
+        public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => throw new NotSupportedException();
+
+        public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request) => throw new NotSupportedException();
+
+        public async Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request)
+        {
+            ImportTextureRawCallCount++;
+            ImportTextureStarted.TrySetResult();
+            await AllowImportTextureCompletion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            return new AssetData
+            {
+                Success = true,
+                AssetURL = new Uri("resdb:///texture/serialized", UriKind.Absolute),
+            };
         }
 
         public Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request) => throw new NotSupportedException();

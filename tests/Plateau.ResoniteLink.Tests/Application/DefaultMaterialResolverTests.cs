@@ -84,4 +84,19 @@ public sealed class DefaultMaterialResolverTests
             material.TextureScale.Y,
             6);
     }
+
+    [Fact]
+    public void ResolveMaterialUsesRoadFamilyForPathLikePackageWithoutTexture()
+    {
+        ResolvedMaterial material = resolver.ResolveMaterial(
+            packageName: "wwy",
+            texturePath: null,
+            preferUvProjection: false,
+            familyOverride: null,
+            variantSelectionKey: "wwy:tri");
+
+        Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
+        Assert.Equal(BundledDefaultMaterialFamilies.Road, material.Family);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+    }
 }

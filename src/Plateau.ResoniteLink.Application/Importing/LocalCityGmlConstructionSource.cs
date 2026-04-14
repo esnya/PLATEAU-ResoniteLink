@@ -11,14 +11,14 @@ namespace Plateau.ResoniteLink.Application.Importing;
 internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSource
 {
     private readonly PlateauImportRequest request;
-    private readonly CachedSourceFileDescriptor[] demSourceFiles;
-    private readonly SourceFilePipeline[] deferredSourceFiles;
+    private readonly SourceFilePipeline[] sourceFiles;
+    private readonly SourceFilePipeline[] demSourceFiles;
     private readonly CoordinateReferenceSystem referenceSystem;
     private readonly GeodeticPoint globalOriginPoint;
-    private readonly TerrainHeightSampler? terrainHeightSampler;
     private readonly TerrainTextureOverlay[] demTerrainTextureOverlays;
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly Action<string>? progressReporter;
+    private readonly Task<TerrainContext> terrainContextTask;
 
     public LocalCityGmlConstructionSource(
         ResoniteConstructionMetadata metadata,
@@ -29,19 +29,19 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     {
         Metadata = metadata;
         this.request = request;
-        demSourceFiles = documentSet.BootstrapCachedDemSourceFiles.ToArray();
-        deferredSourceFiles = documentSet.BootstrapSourceFilePipelines
-            .Where(static pipeline => !string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        sourceFiles = documentSet.BootstrapSourceFilePipelines.ToArray();
+        demSourceFiles = sourceFiles
+            .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
             .ToArray();
         referenceSystem = documentSet.BootstrapReferenceSystem;
         globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
-        terrainHeightSampler = documentSet.BootstrapTerrainHeightSampler;
         this.geometryProjector = geometryProjector;
         this.progressReporter = progressReporter;
         demTerrainTextureOverlays = metadata.SourceDataset.TerrainTextureOverlays
             .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
             .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
             .ToArray();
+        terrainContextTask = CreateTerrainContextTask();
     }
 
     public ResoniteConstructionMetadata Metadata { get; }
@@ -49,94 +49,64 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-            ? new LocalCartesian(
-                globalOriginPoint.Latitude,
-                globalOriginPoint.Longitude,
-                globalOriginPoint.Altitude,
-                referenceSystem.Geocentric)
-            : null;
+        LocalCartesian? globalCartesian = CreateGlobalCartesian();
         HashSet<string> emittedMaterialKeys = new(StringComparer.Ordinal);
 
-        foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
+        foreach (SourceFilePipeline sourceFile in sourceFiles)
         {
-            await foreach (ResoniteMaterialBinding material in StreamCommonMaterialsAsync(
-                               sourceFile,
-                               referenceSystem,
-                               globalOriginPoint,
-                               globalCartesian,
-                               demTerrainTextureOverlays,
-                               terrainHeightSampler,
-                               request,
-                               sourceFile.GetParseTask(),
-                               emittedMaterialKeys,
-                               cancellationToken))
+            await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
             {
-                yield return material;
-            }
-        }
+                ValidateCompatibleReferenceSystem(referenceSystem, parsedCityObject.ReferenceSystem);
+                TerrainContext terrainContext = await ResolveTerrainContextAsync(parsedCityObject, cancellationToken);
 
-        foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
-        {
-            foreach (ResoniteMaterialBinding material in LocalCityGmlResonitePlanBuilder.EnumerateCommonMaterials(
-                         sourceFile.ToLegacy(),
-                         referenceSystem.ToLegacy(),
-                         globalOriginPoint.ToLegacy(),
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         terrainHeightSampler?.ToLegacy(),
-                         request,
-                         emittedMaterialKeys))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return material;
+                foreach (ResoniteMaterialBinding material in LocalCityGmlResonitePlanBuilder.EnumerateCommonMaterials(
+                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]).ToLegacy(),
+                             referenceSystem.ToLegacy(),
+                             globalOriginPoint.ToLegacy(),
+                             globalCartesian,
+                             demTerrainTextureOverlays,
+                             terrainContext.TerrainHeightSampler?.ToLegacy(),
+                             request,
+                             emittedMaterialKeys))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    yield return material;
+                }
             }
         }
     }
 
     public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
     {
-        LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-            ? new LocalCartesian(
-                globalOriginPoint.Latitude,
-                globalOriginPoint.Longitude,
-                globalOriginPoint.Altitude,
-                referenceSystem.Geocentric)
-            : null;
+        LocalCartesian? globalCartesian = CreateGlobalCartesian();
 
-        foreach (SourceFilePipeline sourceFile in deferredSourceFiles)
+        foreach (SourceFilePipeline sourceFile in sourceFiles)
         {
             ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                new CachedSourceFileDescriptor(
-                    sourceFile.SourceFile,
-                    parsedSourceFile.CityObjects),
-                referenceSystem,
-                globalOriginPoint,
-                globalCartesian,
-                demTerrainTextureOverlays,
-                terrainHeightSampler,
-                request))
+            if (parsedSourceFile.ReferenceSystem is not null)
             {
-                yield return cityObject;
+                ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
+            }
+
+            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+            {
+                TerrainHeightSampler? terrainHeightSampler = LocalCityGmlTerrainDependency.IsTerrainDependent(parsedCityObject)
+                    ? terrainContextTask.GetAwaiter().GetResult().TerrainHeightSampler
+                    : null;
+
+                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
+                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
+                             referenceSystem,
+                             globalOriginPoint,
+                             globalCartesian,
+                             demTerrainTextureOverlays,
+                             terrainHeightSampler,
+                             request))
+                {
+                    yield return cityObject;
+                }
             }
         }
-
-        foreach (CachedSourceFileDescriptor sourceFile in demSourceFiles)
-        {
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                sourceFile,
-                referenceSystem,
-                globalOriginPoint,
-                globalCartesian,
-                demTerrainTextureOverlays,
-                terrainHeightSampler,
-                request))
-            {
-                yield return cityObject;
-            }
-        }
-
     }
 
     public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
@@ -146,15 +116,9 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
             PlateauLog.Info(
                 "import",
                 $"City object streaming pipeline starting "
-                + $"(deferred_files={deferredSourceFiles.Length}, dem_files={demSourceFiles.Length})."));
-        LocalCartesian? globalCartesian = referenceSystem.IsGeographic
-            ? new LocalCartesian(
-                globalOriginPoint.Latitude,
-                globalOriginPoint.Longitude,
-                globalOriginPoint.Altitude,
-                referenceSystem.Geocentric)
-            : null;
+                + $"(source_files={sourceFiles.Length}, dem_files={demSourceFiles.Length})."));
 
+        LocalCartesian? globalCartesian = CreateGlobalCartesian();
         Channel<ResoniteConstructionCityObject> channel = Channel.CreateBounded<ResoniteConstructionCityObject>(
             new BoundedChannelOptions(32)
             {
@@ -166,42 +130,19 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         ReportProgress(
             PlateauLog.Info(
                 "import",
-                "City object producers launched: deferred-nonterrain, dem."));
-        Task[] producers =
-        [
-            Task.Run(
-                () => ProduceDeferredCityObjectsAsync(
+                $"City object producers launched: {sourceFiles.Length} file-scoped streams."));
+
+        Task[] producers = sourceFiles
+            .Select((sourceFile, index) => Task.Run(
+                () => ProduceCityObjectsAsync(
                     channel.Writer,
-                    geometryProjector,
-                    deferredSourceFiles,
-                    referenceSystem,
-                    globalOriginPoint,
+                    sourceFile,
+                    index + 1,
+                    sourceFiles.Length,
                     globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    progressReporter,
-                    producerName: "deferred-nonterrain",
-                    predicate: null,
                     cancellationToken),
-                cancellationToken),
-            Task.Run(
-                () => ProduceCachedCityObjectsAsync(
-                    channel.Writer,
-                    geometryProjector,
-                    demSourceFiles,
-                    referenceSystem,
-                    globalOriginPoint,
-                    globalCartesian,
-                    demTerrainTextureOverlays,
-                    terrainHeightSampler,
-                    request,
-                    progressReporter,
-                    producerName: "dem",
-                    predicate: null,
-                    cancellationToken),
-                cancellationToken),
-        ];
+                cancellationToken))
+            .ToArray();
         Task completionTask = CompleteWriterWhenFinishedAsync(channel.Writer, producers);
 
         await foreach (ResoniteConstructionCityObject cityObject in channel.Reader.ReadAllAsync(cancellationToken))
@@ -212,108 +153,62 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         await completionTask;
     }
 
-    private static async Task ProduceDeferredCityObjectsAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
-        ICityGmlGeometryProjector geometryProjector,
-        SourceFilePipeline[] sourceFiles,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Action<string>? progressReporter,
-        string producerName,
-        Func<BootstrapParsedCityObject, bool>? predicate,
-        CancellationToken cancellationToken)
+    private LocalCartesian? CreateGlobalCartesian()
     {
-        for (int index = 0; index < sourceFiles.Length; index++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            SourceFilePipeline sourceFile = sourceFiles[index];
-            progressReporter?.Invoke(
-                PlateauLog.Info(
-                    "import",
-                    $"City object producer '{producerName}' processing deferred source file "
-                    + $"{index + 1}/{sourceFiles.Length}: '{sourceFile.SourceFile.RelativePath}'."));
-            int yieldedCount = 0;
-
-            await foreach (ResoniteConstructionCityObject cityObject in StreamMaterializedCityObjectsAsync(
-                               sourceFile,
-                               geometryProjector,
-                               referenceSystem,
-                               globalOriginPoint,
-                               globalCartesian,
-                               demTerrainTextureOverlays,
-                               terrainHeightSampler,
-                               request,
-                               sourceFile.GetParseTask(),
-                               progressReporter,
-                               producerName,
-                               predicate,
-                               cancellationToken))
-            {
-                yieldedCount++;
-                await writer.WriteAsync(cityObject, cancellationToken);
-            }
-
-            progressReporter?.Invoke(
-                PlateauLog.Info(
-                    "import",
-                    $"City object producer '{producerName}' finished deferred source file "
-                    + $"{index + 1}/{sourceFiles.Length}: '{sourceFile.SourceFile.RelativePath}' "
-                    + $"(yielded={yieldedCount})."));
-        }
+        return referenceSystem.IsGeographic
+            ? new LocalCartesian(
+                globalOriginPoint.Latitude,
+                globalOriginPoint.Longitude,
+                globalOriginPoint.Altitude,
+                referenceSystem.Geocentric)
+            : null;
     }
 
-    private static async Task ProduceCachedCityObjectsAsync(
+    private Task<TerrainContext> CreateTerrainContextTask()
+    {
+        if (demSourceFiles.Length == 0 || !referenceSystem.IsGeographic || referenceSystem.Geocentric is null)
+        {
+            return Task.FromResult(TerrainContext.Empty);
+        }
+
+        return BuildTerrainContextAsync(
+            demSourceFiles,
+            referenceSystem,
+            globalOriginPoint,
+            progressReporter);
+    }
+
+    private async Task ProduceCityObjectsAsync(
         ChannelWriter<ResoniteConstructionCityObject> writer,
-        ICityGmlGeometryProjector geometryProjector,
-        CachedSourceFileDescriptor[] sourceFiles,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
+        SourceFilePipeline sourceFile,
+        int fileIndex,
+        int totalFiles,
         LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Action<string>? progressReporter,
-        string producerName,
-        Func<BootstrapParsedCityObject, bool>? predicate,
         CancellationToken cancellationToken)
     {
-        for (int index = 0; index < sourceFiles.Length; index++)
+        cancellationToken.ThrowIfCancellationRequested();
+        progressReporter?.Invoke(
+            PlateauLog.Info(
+                "import",
+                $"City object producer processing source file "
+                + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}'."));
+
+        int yieldedCount = 0;
+        await foreach (ResoniteConstructionCityObject cityObject in StreamMaterializedCityObjectsAsync(
+                           sourceFile,
+                           globalCartesian,
+                           cancellationToken))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            CachedSourceFileDescriptor sourceFile = sourceFiles[index];
-            progressReporter?.Invoke(
-                PlateauLog.Info(
-                    "import",
-                    $"City object producer '{producerName}' processing cached source file "
-                    + $"{index + 1}/{sourceFiles.Length}: '{sourceFile.SourceFile.RelativePath}'."));
-            int yieldedCount = 0;
-
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
-                         sourceFile,
-                         referenceSystem,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         terrainHeightSampler,
-                         request,
-                         predicate))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yieldedCount++;
-                await writer.WriteAsync(cityObject, cancellationToken);
-            }
-
-            progressReporter?.Invoke(
-                PlateauLog.Info(
-                    "import",
-                    $"City object producer '{producerName}' finished cached source file "
-                    + $"{index + 1}/{sourceFiles.Length}: '{sourceFile.SourceFile.RelativePath}' "
-                    + $"(yielded={yieldedCount})."));
+            yieldedCount++;
+            await writer.WriteAsync(cityObject, cancellationToken);
         }
+
+        progressReporter?.Invoke(
+            PlateauLog.Info(
+                "import",
+                $"City object producer finished source file "
+                + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}' "
+                + $"(yielded={yieldedCount})."));
     }
 
     private static async Task CompleteWriterWhenFinishedAsync(
@@ -340,64 +235,54 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         writer.TryComplete(completionException);
     }
 
-    private static async IAsyncEnumerable<ResoniteConstructionCityObject> StreamMaterializedCityObjectsAsync(
+    private async IAsyncEnumerable<ResoniteConstructionCityObject> StreamMaterializedCityObjectsAsync(
         SourceFilePipeline sourceFile,
-        ICityGmlGeometryProjector geometryProjector,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Task<ParsedSourceFileResult>? parseTask,
-        Action<string>? progressReporter,
-        string producerName,
-        Func<BootstrapParsedCityObject, bool>? predicate,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        Stopwatch parseStopwatch = Stopwatch.StartNew();
-        ParsedSourceFileResult parsedSourceFile = parseTask is null
-            ? await sourceFile.GetParseTask()
-            : await parseTask;
-        parseStopwatch.Stop();
-        progressReporter?.Invoke(
-            PlateauLog.Info(
-                "import",
-                $"City object producer '{producerName}' parsed '{sourceFile.SourceFile.RelativePath}' in "
-                + $"{parseStopwatch.Elapsed.TotalSeconds:F3}s "
-                + $"(parsed_city_objects={parsedSourceFile.CityObjects.Length})."));
+        Stopwatch fileStopwatch = Stopwatch.StartNew();
+        int parsedCount = 0;
+        int yieldedCount = 0;
 
-        ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
-
-        int materializedCount = 0;
-        foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+        await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
         {
-            if (predicate is not null && !predicate(parsedCityObject))
-            {
-                continue;
-            }
+            parsedCount++;
+            ValidateCompatibleReferenceSystem(referenceSystem, parsedCityObject.ReferenceSystem);
+            TerrainContext terrainContext = await ResolveTerrainContextAsync(parsedCityObject, cancellationToken);
 
-            cancellationToken.ThrowIfCancellationRequested();
             foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
                          new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                          referenceSystem,
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
-                         terrainHeightSampler,
+                         terrainContext.TerrainHeightSampler,
                          request))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                materializedCount++;
+                yieldedCount++;
                 yield return cityObject;
             }
         }
 
+        fileStopwatch.Stop();
         progressReporter?.Invoke(
             PlateauLog.Info(
                 "import",
-                $"City object producer '{producerName}' materialized '{sourceFile.SourceFile.RelativePath}' "
-                + $"(yielded={materializedCount})."));
+                $"City object producer materialized '{sourceFile.SourceFile.RelativePath}' "
+                + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
+    }
+
+    private async Task<TerrainContext> ResolveTerrainContextAsync(
+        BootstrapParsedCityObject parsedCityObject,
+        CancellationToken cancellationToken)
+    {
+        if (!LocalCityGmlTerrainDependency.IsTerrainDependent(parsedCityObject))
+        {
+            return TerrainContext.Empty;
+        }
+
+        return await terrainContextTask.WaitAsync(cancellationToken);
     }
 
     private void ReportProgress(string message)
@@ -405,44 +290,52 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         progressReporter?.Invoke(message);
     }
 
-    private static async IAsyncEnumerable<ResoniteMaterialBinding> StreamCommonMaterialsAsync(
-        SourceFilePipeline sourceFile,
+    private static async Task<TerrainContext> BuildTerrainContextAsync(
+        SourceFilePipeline[] demSourceFiles,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        Task<ParsedSourceFileResult>? parseTask,
-        HashSet<string> emittedMaterialKeys,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        Action<string>? progressReporter)
     {
-        ParsedSourceFileResult parsedSourceFile = parseTask is null
-            ? await sourceFile.GetParseTask()
-            : await parseTask;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        List<TerrainHeightTriangle> terrainTriangles = [];
+        int parsedCityObjectCount = 0;
 
-        ValidateCompatibleReferenceSystem(referenceSystem, parsedSourceFile.ReferenceSystem);
-
-        foreach (ResoniteMaterialBinding material in LocalCityGmlResonitePlanBuilder.EnumerateCommonMaterials(
-                     new CachedSourceFileDescriptor(sourceFile.SourceFile, parsedSourceFile.CityObjects).ToLegacy(),
-                     referenceSystem.ToLegacy(),
-                     globalOriginPoint.ToLegacy(),
-                     globalCartesian,
-                     demTerrainTextureOverlays,
-                     terrainHeightSampler?.ToLegacy(),
-                     request,
-                     emittedMaterialKeys))
+        foreach (SourceFilePipeline sourceFile in demSourceFiles)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return material;
+            await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync())
+            {
+                ValidateCompatibleReferenceSystem(referenceSystem, parsedCityObject.ReferenceSystem);
+                parsedCityObjectCount++;
+                terrainTriangles.AddRange(LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles([parsedCityObject]));
+            }
         }
+
+        TerrainHeightSampler? terrainHeightSampler = LocalCityGmlDemBootstrapSupport.CreateTerrainHeightSampler(
+            referenceSystem.IsGeographic,
+            terrainTriangles,
+            globalOriginPoint,
+            referenceSystem.Geocentric);
+
+        stopwatch.Stop();
+        progressReporter?.Invoke(
+            terrainHeightSampler is null
+                ? PlateauLog.Info(
+                    "import",
+                    $"Terrain bootstrap completed without sampler "
+                    + $"(dem_files={demSourceFiles.Length}, parsed_city_objects={parsedCityObjectCount}, elapsed={stopwatch.Elapsed.TotalSeconds:F3}s).")
+                : PlateauLog.Info(
+                    "import",
+                    $"Terrain bootstrap completed "
+                    + $"(dem_files={demSourceFiles.Length}, parsed_city_objects={parsedCityObjectCount}, triangles={terrainTriangles.Count}, elapsed={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+
+        return new TerrainContext(terrainHeightSampler, parsedCityObjectCount, terrainTriangles.Count);
     }
 
     private static void ValidateCompatibleReferenceSystem(
         CoordinateReferenceSystem expectedReferenceSystem,
-        CoordinateReferenceSystem? actualReferenceSystem)
+        CoordinateReferenceSystem actualReferenceSystem)
     {
-        if (actualReferenceSystem is null || expectedReferenceSystem.IsCompatibleWith(actualReferenceSystem))
+        if (expectedReferenceSystem.IsCompatibleWith(actualReferenceSystem))
         {
             return;
         }
