@@ -1,15 +1,17 @@
 ---
 name: resonite-live-send-debug
-description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real Windows ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, DatasetRoot cleanup between runs, alternating `heightmap` and `mesh` comparisons, log capture, and inspection of the generated Resonite world state.
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, DatasetRoot cleanup between runs, alternating `heightmap` and `mesh` comparisons, log capture, and inspection of the generated Resonite world state.
 ---
 
 # Resonite Live Send Debug
 
-Use this skill only for real ResoniteLink runs. Prefer local tests first, then switch to this skill when the failure depends on a live Windows session or on the resulting Resonite world state.
+Use this skill only for real ResoniteLink runs. Prefer local tests first, then switch to this skill when the failure depends on a live session or on the resulting Resonite world state.
 
 Warning: cleanup in this workflow can destroy live world results in the current Resonite session and stop matching live-send CLI processes launched from the same repo. Use it only in an explicitly disposable experiment session, or after the user has clearly approved destroying the current `DatasetRoot` and related results.
 
-Do not use this skill for code-only review or static log reading. Use it only when the user wants a real Windows send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
+Do not use this skill for code-only review or static log reading. Use it only when the user wants a real live send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
+
+Use this file as the Coding Agent execution playbook for live-send runs. The operator-facing procedural source remains [docs/live-testing.md](../../../docs/live-testing.md), which should stay readable and should not be duplicated here.
 
 ## Dataset Defaults
 
@@ -24,6 +26,13 @@ Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actua
 Follow [docs/live-testing.md](../../../docs/live-testing.md) for the repository's live-send procedure. This skill does not redefine cleanup, send, or comparison steps.
 
 Use [references/workflow.md](./references/workflow.md) only for skill-specific defaults, guardrails, and script inventory.
+
+Execution heuristics for sender placement:
+
+- When the target listener is not reachable from WSL via `localhost`, run wrapped helpers from Windows.
+- If sender and listener are same-host and reachable from WSL via `localhost`, a WSL-driven run is valid.
+- If a reverse proxy or bridge rewrites to an acceptable host for the listener, an IP route can be used when observed reachability and session identity are valid.
+- Decide by actual reachability and observed listener behavior; avoid hardcoding Windows-only or WSL-only assumptions.
 
 For disposable headless validation, prefer this operator sequence:
 
@@ -57,7 +66,7 @@ Keep these facts fixed or explicitly updated between comparison runs:
 - Do not treat a redirected stdout gap as a hang until you have ruled out source parsing or other work still advancing in the same process.
 - Do not hard-code a ResoniteLink port into source control or into the skill.
 - Do not present a conclusion from a `-NoWait` run as final until you have either observed process exit or explicitly labeled the conclusion provisional.
-- Do not leave helper processes or dataset roots behind after the experiment ends.
+- Keep successful final `DatasetRoot` artifacts in place by default for visual inspection unless cleanup is explicitly requested.
 - Do not assume root-only cleanup proves the absence of all orphaned descendants; if orphan contamination is plausible, say so explicitly.
 - Do not treat structure-level conclusions after a failed or interrupted run as fully clean; mark them provisional unless you have an orphan audit beyond root removal.
 
@@ -74,11 +83,11 @@ Use to capture a recursive Root snapshot from the tracked or explicitly addresse
 - `scripts/cleanup-session.ps1`
 Use to remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`
-Use to launch one Windows-side live send with explicit logs.
+Use to launch one live send with explicit logs.
 - `scripts/compare-modes.ps1`
 Use to run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
 
-All seven paths above are relative to `skills/resonite-live-send-debug/`.
+All seven paths above are relative to `.agents/skills/resonite-live-send-debug/`.
 
 ## Outputs
 

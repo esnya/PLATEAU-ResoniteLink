@@ -32,7 +32,7 @@ Practical rules that stay local to this skill:
 - If UDP and UI identify different sessions, mark the run invalid.
 - Before each comparison rerun, rediscover the listener and confirm the same session identity again.
 - Do not guess the listener port, process ID, or log path. Use discovery output and wrapper return values.
-- Treat the root `scripts/` live-send helpers as lower-level repository utilities. The operator-facing surface for this skill is the bundled script set under `skills/resonite-live-send-debug/scripts/`.
+- Treat the root `scripts/` live-send helpers as lower-level repository utilities. The operator-facing surface for this skill is the bundled script set under `.agents/skills/resonite-live-send-debug/scripts/`.
 - Warning: cleanup is destructive. It removes dataset roots from the live world, stops matching live-send CLI processes launched from the same repo, and clears local runtime artifacts.
 
 The send wrapper returns a PowerShell object with these properties:

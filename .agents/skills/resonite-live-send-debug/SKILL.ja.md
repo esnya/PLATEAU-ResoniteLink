@@ -1,15 +1,17 @@
 ---
 name: resonite-live-send-debug
-description: 実際の Windows ResoniteLink session に対して PLATEAU-ResoniteLink の live-send 再現と調査を行う skill。simulated test ではなく machine-level の検証が必要なときに使い、listener discovery、run 間の DatasetRoot cleanup、`heightmap` と `mesh` の比較、log 採取、生成された Resonite world state の確認まで扱う。
+description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink の live-send 再現と調査を行う skill。simulated test ではなく machine-level の検証が必要なときに使い、listener discovery、run 間の DatasetRoot cleanup、`heightmap` と `mesh` の比較、log 採取、生成された Resonite world state の確認まで扱う。
 ---
 
 # Resonite Live Send Debug
 
-この skill は実際の ResoniteLink run にだけ使ってください。まず local test を優先し、failure が live な Windows session や生成された Resonite world state に依存するときだけこの skill に切り替えます。
+この skill は実際の ResoniteLink run にだけ使ってください。まず local test を優先し、failure が live な session や生成された Resonite world state に依存するときだけこの skill に切り替えます。
 
 警告: この workflow の cleanup は、現在の Resonite session の live world result を破壊し、この repository から起動した matching な live-send CLI process を停止することがあります。明示的に破棄可能な experiment session でだけ使うか、現在の `DatasetRoot` と関連結果を破壊してよいことを user が明確に承認した後に使ってください。
 
-code-only review や static な log 読みには使わないでください。実際の Windows send、実際の Resonite world inspection、または machine-level execution がないと無効な比較が必要なときにだけ使います。
+code-only review や static な log 読みには使わないでください。実際の live send、実際の Resonite world inspection、または machine-level execution がないと無効な比較が必要なときにだけ使います。
+
+このファイルは live-send を実行する Coding Agent 用 playbook です。実行手順の operator-facing 正本は [docs/live-testing.md](../../../docs/live-testing.md) であり、手順本文はここで重複させず簡潔に運用判断を置きます。
 
 ## Dataset Defaults
 
@@ -21,7 +23,13 @@ task が `frn` または city-furniture content を必要とする場合だけ�
 
 ## Canonical Procedure
 
-repository の live-send 手順は [docs/live-testing.ja.md](../../../docs/live-testing.ja.md) を参照してください。この skill は cleanup、send、comparison の手順を再定義しません。
+repository の live-send 手順は [docs/live-testing.md](../../../docs/live-testing.md) を参照してください。この skill は cleanup、send、comparison の手順を再定義しません。
+
+送信実行の判断は次の原則で行います。
+
+- target listener が WSL から `localhost` で到達できない場合は、Windows 側で helper script を実行します。
+- sender と listener が同一ホストで、WSL 側から `localhost` 到達が確認できるなら WSL 起点の送信も有効です。
+- reverse proxy などで host 判定が listener 目線で許容可能に変換されるなら、IP 経由も有効になる場合があります。OS 固定ではなく、実際の到達経路と session 識別結果で判断します。
 
 [references/workflow.ja.md](./references/workflow.ja.md) は、skill 固有の default、guardrail、script inventory だけに使ってください。
 
@@ -57,7 +65,7 @@ disposable な headless 検証では、次の operator sequence を優先して�
 - redirected stdout が途切れただけで hang と判定しない。source parsing など同一 process 内で進んでいる仕事を除外してから判断する。
 - ResoniteLink port を source control や skill に hard-code しない。
 - `-NoWait` run の結論は、process exit を観測するか provisional と明記するまで final として扱わない。
-- experiment 終了時に helper process や dataset root を残さない。
+- successful validation の最終 `DatasetRoot` は、明示的な cleanup 指示がない限り目視確認用 artifact として残す。
 - root-only cleanup で orphan descendant が存在しないと断定しない。汚染の可能性があるなら明記する。
 - failed / interrupted run 後の構造上の結論は、orphan audit がない限り provisional とする。
 
@@ -74,11 +82,11 @@ tracked 済み、または明示指定した session から再帰的な Root sna
 - `scripts/cleanup-session.ps1`
 live world から dataset root を消し、残存 CLI process を止め、local runtime artifact を消す。
 - `scripts/run-live-send.ps1`
-Windows 側で 1 回の live send を explicit log 付きで起動する。
+1 回の live send を explicit log 付きで起動する。
 - `scripts/compare-modes.ps1`
 cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行する。
 
-上記 7 path はすべて `skills/resonite-live-send-debug/` からの相対 path です。
+上記 7 path はすべて `.agents/skills/resonite-live-send-debug/` からの相対 path です。
 
 ## Outputs
 

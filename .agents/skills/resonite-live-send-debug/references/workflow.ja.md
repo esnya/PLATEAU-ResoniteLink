@@ -32,7 +32,7 @@ root dump や cleanup の helper を使うときは、`ResoniteAdmin` が都度 
 - UDP と UI が異なる session を指すなら、その run は invalid とする。
 - 比較 rerun の前に listener を再発見し、同じ session identity を再確認する。
 - listener port、process ID、log path を推測しないこと。discovery の出力と wrapper の返り値を使ってください。
-- root `scripts/` 配下の live-send helper は下位の repository utility として扱い、この skill の operator-facing surface は `skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。
+- root `scripts/` 配下の live-send helper は下位の repository utility として扱い、この skill の operator-facing surface は `.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。
 - 警告: cleanup は destructive です。live world から dataset root を削除し、同じ repository から起動した matching な live-send CLI process を停止し、local runtime artifact も消します。
 
 send wrapper は次の property を持つ PowerShell object を返します。

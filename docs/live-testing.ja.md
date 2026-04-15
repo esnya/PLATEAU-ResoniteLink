@@ -2,13 +2,17 @@
 
 ## 目的
 
-この手順は、ローカルの PLATEAU dataset を ResoniteLink 経由で実際の Resonite session へ送れるかを、実機レベルで確認したいときの正本です。
+この手順は、ローカルの PLATEAU dataset を ResoniteLink 経由で実際の Resonite session へ送れるかを、実機レベルで確認したいときに使う英語版正本の翻訳補助です。
 
-この文書を repository の canonical な live-send workflow かつ唯一の手順書とします。`skills/resonite-live-send-debug/scripts/` 配下の bundled script を operator 向けの入口とし、root `scripts/` の PowerShell helper は同じ workflow を支える lower-level の repository utility として扱います。
+この文書は repo の英語版 live-send 手順書に対する operator / human 向け参照です。`.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script を operator 向けの入口とし、root `scripts/` の PowerShell helper は同じ workflow を支える lower-level の repository utility として扱います。live-send 手順の正本は英語版 [live-testing.md](live-testing.md) であり、日本語版は翻訳補助です。
+この文書は operator / human 向けの workflow 参照です。Coding Agent 固有の実行判断は `.agents/skills/resonite-live-send-debug/SKILL.md` に置き、この手順書は operator に読みやすい形を保ちます。
 
 ## 事前条件
 
-- live testing は現在、Windows 限定です。bundled helper script は Windows の Resonite session と PowerShell を前提にしています。
+- 現在の bundled helper script は Windows 寄りです。対象 ResoniteLink listener が WSL 側から `localhost` で到達できない場合は、helper script を Windows 側から実行します。
+- listener が WSL 内で起動され、WSL 側から `localhost` で到達確認できるなら、WSL 起点の live run も有効です。この例外は listener の到達性についてのものであり、listener 自体が Windows process であることを要求するものではありません。
+- 素の ResoniteLink は、WebSocket upgrade 時の `Host` ヘッダが `localhost:<port>` と一致しないと基本的に受理しません。sender が WSL、listener が Windows のときは、この既定制約のため reverse proxy 等がない限り sender process を Windows 側に置く必要があります。
+- reverse proxy や同等の bridge が host 判定を吸収し、listener から見て妥当な host を維持できるなら、IP 経由の経路も有効です。Windows 固定や WSL 固定で決め打ちせず、実際の到達経路と listener の観測結果で sender 環境を決めてください。
 - 破壊的な live run に入る前に、repository の verify flow を実行します。
 
 ```bash
@@ -21,12 +25,16 @@ bash scripts/verify-ci.sh
 - CLI や admin utility の build 産物は事前に無くても構いません。bundled helper script が必要に応じて build します。
 - `-Connections` は検証対象の active-lane cap として扱います。まず `-Connections 1` で baseline run を取り、その後に目的の多接続値と比較して invariant を確認してください。
 - 下記の cleanup は破壊的です。現在の Resonite session から一致する dataset root を削除し、同じ repository から起動した live-send CLI process も停止します。
-- この workflow では、operator 向けの command surface を `skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。root `scripts/` 配下の PowerShell helper は下位の repository utility であり、live run の手順正本ではありません。
+- この workflow では、operator 向けの command surface を `.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。root `scripts/` 配下の PowerShell helper は下位の repository utility であり、live run の手順正本ではありません。
 - 破棄可能な listener が必要で、local の Resonite headless install がある場合は、UI で session を手作業で用意するより bundled headless wrapper を優先します。
+
+## Default Fixture
+
+user が別 target を指定しない限り、標準の live test fixture には Matsumoto dataset `plateau-20202-matsumoto-shi-2020` と detailed-building mesh `54372778` / `54372788` を使います。この組は live-send path を十分に通せる一方で、反復的な比較と目視確認をしやすい building 中心の標準規模です。
 
 ## Headless の直接起動
 
-repository 側で disposable な listener を立ち上げたい場合は、Windows から headless session を直接起動します。
+repository 側で disposable な listener を立ち上げたい場合は、現行 helper script では Windows から headless session を直接起動するのを基本とします。listener を WSL 内で起動し `localhost` 経由で到達できる場合は、その経路も有効です。
 
 ```bash
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
@@ -118,9 +126,9 @@ cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\reso
 
 polling window 内に list mode が 0 件を返した場合だけ次へ進みます。
 
-successful validation の終了時に cleanup を既定で自動実行してはいけません。終了時 cleanup は opt-in とし、user が明示した場合、または disposable headless の teardown のように workflow 自体が明示的に破壊的な場合だけ実施します。最終 run が成功した後は、削除理由が明示されていない限り dataset root を残してください。
+successful validation の終了時に cleanup を既定で自動実行してはいけません。終了時 cleanup は opt-in とし、user が明示した場合、または disposable headless の teardown のように workflow 自体が明示的に破壊的な場合だけ実施します。最終 run が成功した後は、削除理由が明示されていない限り dataset root を残してください。残した `DatasetRoot` は final の目視確認に使う既定 artifact です。
 
-その後、bundled wrapper を使って Windows 側から send を起動します。
+その後、bundled wrapper で send を起動します。現行 bundled wrapper を使う場合、listener が WSL 側から `localhost` で到達できないなら Windows 側で実行します。WSL 側から `localhost` 到達確認できる listener については、WSL 起点の send も許容します。
 
 ```bash
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"

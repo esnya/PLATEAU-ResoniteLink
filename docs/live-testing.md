@@ -4,11 +4,15 @@
 
 Use this workflow when you need machine-level confirmation that a local PLATEAU dataset can be streamed into a real Resonite session through ResoniteLink.
 
-This document is the canonical live-send workflow for the repository and the only procedural source for live-send runs. The bundled scripts under `skills/resonite-live-send-debug/scripts/` are the operator-facing entrypoint for this workflow; the root `scripts/` PowerShell helpers are lower-level repository utilities that support the same workflow.
+This document is the canonical live-send workflow for the repository and the only procedural source for live-send runs. The bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` are the operator-facing entrypoint for this workflow; the root `scripts/` PowerShell helpers are lower-level repository utilities that support the same workflow.
+This document is the operator-facing and human-facing workflow reference. Put Coding Agent-specific execution heuristics in `.agents/skills/resonite-live-send-debug/SKILL.md` so the procedural workflow stays readable for operators.
 
 ## Preconditions
 
-- Live testing is currently Windows-only because the bundled helper scripts target a Windows Resonite session and PowerShell.
+- The current bundled helper scripts are Windows-oriented. Use them from Windows when the target ResoniteLink listener is not reachable from WSL via `localhost`.
+- If the listener is running inside WSL and is confirmed reachable on `localhost` there, a WSL-driven live run is valid. That exception is about listener reachability, not about requiring the listener itself to be a Windows process.
+- Bare ResoniteLink accepts WebSocket upgrades only when the `Host` header matches `localhost:<port>`. If the sender runs in WSL while the listener runs on Windows, that default check usually forces the sender process onto Windows unless a reverse proxy or equivalent bridge rewrites the request so the listener still sees an acceptable host.
+- When a reverse proxy or another transport bridge preserves reachability and satisfies the listener's host check, an IP-based route can still be valid. Decide the sender environment from the actual network path and the observed listener behavior instead of assuming Windows-only or WSL-only execution.
 - Run the repository verification flow before any destructive live run:
 
 ```bash
@@ -21,12 +25,16 @@ bash scripts/verify-ci.sh
 - Build outputs do not need to exist ahead of time; the helper scripts build the CLI or admin utility on demand.
 - Treat `-Connections` as the active-lane cap under test. Capture at least one baseline run with `-Connections 1`, then compare it with the intended multi-connection value when validating invariant behavior.
 - The cleanup steps below are destructive. They remove matching dataset roots from the current Resonite session and stop matching live-send CLI processes launched from the same repository.
-- For this workflow, use the bundled scripts under `skills/resonite-live-send-debug/scripts/` as the operator-facing command surface. The root `scripts/` PowerShell helpers remain lower-level repository utilities and are not the procedural source for live runs.
+- For this workflow, use the bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` as the operator-facing command surface. The root `scripts/` PowerShell helpers remain lower-level repository utilities and are not the procedural source for live runs.
 - If you need a disposable listener and have a local Resonite headless installation, prefer the bundled headless wrapper instead of manually preparing a session in the UI.
+
+## Default Fixture
+
+Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with detailed-building meshes `54372778` and `54372788` as the standard live-test fixture. That pair is the default building-focused validation scale because it is large enough to exercise the live-send path while staying practical for repeated visual inspection and comparison runs.
 
 ## Direct Headless Launch
 
-When you want the repository to bring up its own disposable listener, start a headless session directly from Windows:
+When you want the repository to bring up its own disposable listener, prefer starting a headless session directly from Windows with the current helper scripts. If your disposable listener is launched inside WSL and exposed on `localhost`, that path is valid as long as the listener is reachable from the sender environment.
 
 ```bash
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
@@ -118,9 +126,9 @@ cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\reso
 
 Continue only if list mode reports zero matching dataset roots within the polling window.
 
-Do not run cleanup automatically at the end of a successful validation by default. End-of-run cleanup is opt-in and should happen only when the user explicitly requests cleanup or when the workflow itself is explicitly destructive, such as disposable headless teardown. Keep the dataset root in place after the final successful run unless there is a stated reason to remove it.
+Do not run cleanup automatically at the end of a successful validation by default. End-of-run cleanup is opt-in and should happen only when the user explicitly requests cleanup or when the workflow itself is explicitly destructive, such as disposable headless teardown. Keep the dataset root in place after the final successful run unless there is a stated reason to remove it, because the retained `DatasetRoot` is the default artifact for final visual inspection.
 
-Then launch the send from Windows with the bundled wrapper:
+Then launch the send with the bundled wrapper. Use Windows for the current bundled wrapper flow when the listener is not reachable from WSL via `localhost`. A WSL-driven send is acceptable only when the listener is confirmed reachable on `localhost` from WSL:
 
 ```bash
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
