@@ -20,10 +20,13 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 
 ## Quick Start
 
-Before opening or updating a pull request, run the canonical repository verification command:
+Before opening or updating a pull request, run the canonical repository verification command sequence:
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
 For contributor workflow details, environment bootstrap guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).

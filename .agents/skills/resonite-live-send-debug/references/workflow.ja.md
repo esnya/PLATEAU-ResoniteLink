@@ -2,7 +2,7 @@
 
 この reference は `SKILL.md` が発火した後に使ってください。
 
-repository の canonical workflow は [docs/live-testing.ja.md](../../../docs/live-testing.ja.md) です。この file は cleanup、send、comparison の手順を繰り返さないようにしています。
+repository の operator-facing workflow は [docs/live-testing.ja.md](../../../docs/live-testing.ja.md) です。この file は cleanup、send、comparison の手順を繰り返さないようにしています。
 
 既定の document fixture:
 
@@ -10,13 +10,13 @@ repository の canonical workflow は [docs/live-testing.ja.md](../../../docs/li
 - `frn` 検証が必要なときだけ Yokohama mesh `53391530` に切り替える。
 - これら fixture choice は dataset / mesh selector であり、cache path の保証ではない。cleanup や file inspection の前に、actual local source path がローカルに存在することを確認する。
 
-## Required Repo Artifacts
+## Required Skill Artifacts
 
-workspace root 配下には次の file がある前提です。
+この skill 配下に次の file がある前提です。
 
-- `scripts/ResoniteAdmin/ResoniteAdmin.csproj`
+- `tools/ResoniteAdmin/ResoniteAdmin.csproj`
 
-ad hoc な repository script より bundled skill script を優先してください。これらの wrapper は admin utility や CLI binary を必要に応じて build するため、別の手動 build command は canonical procedure には含めません。
+ad hoc な repository command より bundled skill script を優先してください。これらの wrapper は admin utility や CLI binary を必要に応じて build するため、別の手動 build command は canonical procedure には含めません。
 root dump や cleanup の helper を使うときは、`ResoniteAdmin` が都度 rebuild され、実際の dump / cleanup の前に build output が出ること、そして fresh な Windows build output が必須であることを想定してください。Windows の app host がある場合は `ResoniteAdmin.exe` を起動し、なければ freshly built な `.dll` を `dotnet` で起動します。
 
 ## Skill Guardrails
@@ -32,7 +32,7 @@ root dump や cleanup の helper を使うときは、`ResoniteAdmin` が都度 
 - UDP と UI が異なる session を指すなら、その run は invalid とする。
 - 比較 rerun の前に listener を再発見し、同じ session identity を再確認する。
 - listener port、process ID、log path を推測しないこと。discovery の出力と wrapper の返り値を使ってください。
-- root `scripts/` 配下の live-send helper は下位の repository utility として扱い、この skill の operator-facing surface は `.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。
+- `.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script を、この skill の live-test 実行面全体として扱います。
 - 警告: cleanup は destructive です。live world から dataset root を削除し、同じ repository から起動した matching な live-send CLI process を停止し、local runtime artifact も消します。
 
 send wrapper は次の property を持つ PowerShell object を返します。

@@ -11,9 +11,11 @@ Warning: cleanup in this workflow can destroy live world results in the current 
 
 Do not use this skill for code-only review or static log reading. Use it only when the user wants a real live send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
 
-Use this file as the Coding Agent execution playbook for live-send runs. The operator-facing procedural source remains [docs/live-testing.md](../../../docs/live-testing.md), which should stay readable and should not be duplicated here.
+Use this file as the Coding Agent execution playbook for live-send runs. The operator-facing procedural reference remains [docs/live-testing.md](../../../docs/live-testing.md), which should stay readable and should not be duplicated here.
 
 ## Dataset Defaults
+
+Treat the dataset and mesh choices in this section as recommended starting-point parameters, not as procedural requirements.
 
 Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` for document-backed reproductions and comparisons. Those two meshes are the default fixtures because this repo already contains successful live-send evidence for `54372778`, and the current workspace dataset sample includes detailed-building source files for both meshes.
 

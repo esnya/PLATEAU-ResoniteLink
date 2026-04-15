@@ -4,8 +4,8 @@
 
 Use this workflow when you need machine-level confirmation that a local PLATEAU dataset can be streamed into a real Resonite session through ResoniteLink.
 
-This document is the canonical live-send workflow for the repository and the only procedural source for live-send runs. The bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` are the operator-facing entrypoint for this workflow; the root `scripts/` PowerShell helpers are lower-level repository utilities that support the same workflow.
-This document is the operator-facing and human-facing workflow reference. Put Coding Agent-specific execution heuristics in `.agents/skills/resonite-live-send-debug/SKILL.md` so the procedural workflow stays readable for operators.
+This document is the operator-facing and human-facing live-send workflow reference for the repository. The bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` are the command surface for this workflow.
+Put Coding Agent-specific execution heuristics in `.agents/skills/resonite-live-send-debug/SKILL.md` so the procedural workflow stays readable for operators.
 
 ## Preconditions
 
@@ -16,28 +16,31 @@ This document is the operator-facing and human-facing workflow reference. Put Co
 - Run the repository verification flow before any destructive live run:
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-- During beta iteration, use `bash scripts/test-fast.sh` for quick non-slow checks between low-conflict changes, but keep `bash scripts/verify-ci.sh` as the only repository-owned gate before trusting live results, pushing, or updating a pull request.
+- During beta iteration, use `dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"` for quick non-slow checks between low-conflict changes, but keep the full verification command sequence above as the gate before trusting live results, pushing, or updating a pull request.
 
 - Confirm the target dataset root exists on disk before cleanup or send steps.
 - Build outputs do not need to exist ahead of time; the helper scripts build the CLI or admin utility on demand.
 - Treat `-Connections` as the active-lane cap under test. Capture at least one baseline run with `-Connections 1`, then compare it with the intended multi-connection value when validating invariant behavior.
 - The cleanup steps below are destructive. They remove matching dataset roots from the current Resonite session and stop matching live-send CLI processes launched from the same repository.
-- For this workflow, use the bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` as the operator-facing command surface. The root `scripts/` PowerShell helpers remain lower-level repository utilities and are not the procedural source for live runs.
+- For this workflow, use the bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` as the complete command surface.
 - If you need a disposable listener and have a local Resonite headless installation, prefer the bundled headless wrapper instead of manually preparing a session in the UI.
 
-## Default Fixture
+## Recommended Fixture Parameters
 
-Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with detailed-building meshes `54372778` and `54372788` as the standard live-test fixture. That pair is the default building-focused validation scale because it is large enough to exercise the live-send path while staying practical for repeated visual inspection and comparison runs.
+Unless the task requires a different target, start with the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` and adjacent detailed-building meshes `54372778` and `54372788`. These are recommended starting-point parameters for document-backed reproductions and comparisons, not procedural requirements.
 
 ## Direct Headless Launch
 
 When you want the repository to bring up its own disposable listener, prefer starting a headless session directly from Windows with the current helper scripts. If your disposable listener is launched inside WSL and exposed on `localhost`, that path is valid as long as the listener is reachable from the sender environment.
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
 ```
 
 The wrapper generates a temporary headless `Config.json`, launches `Resonite.exe` or `Resonite.dll` with `-HeadlessConfig`, waits for a `World Running` log line, and then verifies that UDP discovery sees the requested `linkPort`.
@@ -59,7 +62,7 @@ Record these values from the wrapper output:
 When the experiment is over, stop the tracked disposable headless process:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\stop-headless-session.ps1 -RepoPath C:\path\to\repo"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\stop-headless-session.ps1 -RepoPath C:\path\to\repo"
 ```
 
 If you need to stop a different tracked state file or an explicit PID, pass `-StatePath` or `-ProcessId`.
@@ -71,7 +74,7 @@ For disposable headless sessions, a full Root dump is usually low-noise enough t
 Capture a full Root dump from the tracked disposable session:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\dump-root-session.ps1 -RepoPath C:\path\to\repo -Label baseline"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\dump-root-session.ps1 -RepoPath C:\path\to\repo -Label baseline"
 ```
 
 The wrapper resolves the endpoint from `runtime/windows/headless/active-session.json` by default. It writes a recursive Root snapshot to `runtime/windows/resonite/root-dumps/` unless you pass `-OutputPath`.
@@ -100,7 +103,7 @@ Recommended disposable-headless validation sequence:
 Use the bundled discovery script to capture ResoniteLink UDP announcements from port `12512`:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\discover-session.ps1 -TimeoutSeconds 20 -MaxAnnouncements 5"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\discover-session.ps1 -TimeoutSeconds 20 -MaxAnnouncements 5"
 ```
 
 Record these values before every comparison run:
@@ -120,8 +123,8 @@ Rules:
 Before each comparison run, remove the dataset root and verify that zero matching roots remain with the bundled cleanup wrapper:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset>"
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset> -ListOnly"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset>"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset> -ListOnly"
 ```
 
 Continue only if list mode reports zero matching dataset roots within the polling window.
@@ -131,7 +134,7 @@ Do not run cleanup automatically at the end of a successful validation by defaul
 Then launch the send with the bundled wrapper. Use Windows for the current bundled wrapper flow when the listener is not reachable from WSL via `localhost`. A WSL-driven send is acceptable only when the listener is confirmed reachable on `localhost` from WSL:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
 ```
 
 The wrapper rebuilds the Windows CLI output before the send unless you explicitly pass `-SkipBuild`. Treat the run as invalid if the wrapper returns an unexpectedly old `CliDllLastWriteTime` or a non-Windows output path.
@@ -173,13 +176,13 @@ When you need world-state evidence in addition to log comparison, capture a Root
 If you need the bundled comparison driver, use:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -ExpectedSessionId <session-id>"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -ExpectedSessionId <session-id>"
 ```
 
 To let the comparison driver bring up and tear down its own disposable headless listener, add `-HeadlessPath`:
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
 ```
 
 Inspect `stderr` first. If it is non-empty, treat that as the primary failure signal. When `stderr` is empty, take at least two timestamped log samples before concluding that a run stalled.
@@ -203,6 +206,6 @@ Map live validation back to `docs/requirements.md` with these checks:
 - Visible imported content:
   Confirm the expected dataset root appears in the live world and that the target subtree contains the expected mesh, material, renderer, and collider data.
 - CI-equivalent validation:
-  Keep `bash scripts/test-fast.sh` green during local iteration and `bash scripts/verify-ci.sh` green before treating any live result as trustworthy.
+  Keep the non-slow `dotnet test ... --filter "Category!=Slow"` command green during local iteration and rerun the full verification command sequence before treating any live result as trustworthy.
 
 When you stop a run early, stop only the specific launched PID, verify that it exited, then run cleanup again and keep the logs. When a run exits on its own, record the exit code before any optional cleanup. Do not treat final cleanup as implicit.

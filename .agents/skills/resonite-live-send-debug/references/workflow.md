@@ -2,7 +2,7 @@
 
 Use this reference after `SKILL.md` triggers.
 
-The canonical repository workflow lives in [docs/live-testing.md](../../../docs/live-testing.md). This file intentionally does not repeat cleanup, send, or comparison procedure steps.
+The operator-facing repository workflow lives in [docs/live-testing.md](../../../docs/live-testing.md). This file intentionally does not repeat cleanup, send, or comparison procedure steps.
 
 Default document fixtures:
 
@@ -10,13 +10,13 @@ Default document fixtures:
 - Switch to Yokohama mesh `53391530` only when the task needs `frn` validation.
 - Treat those fixture choices as dataset and mesh selectors, not as a promise about cache paths. Confirm the actual local source path on disk before you inspect files or launch cleanup.
 
-## Required Repo Artifacts
+## Required Skill Artifacts
 
-Expect these files under the workspace root:
+Expect these bundled files under this skill:
 
-- `scripts/ResoniteAdmin/ResoniteAdmin.csproj`
+- `tools/ResoniteAdmin/ResoniteAdmin.csproj`
 
-Prefer the bundled skill scripts over any ad hoc repo scripts. Those wrappers build the admin utility or CLI binaries on demand, so a separate manual build command is not part of the canonical procedure.
+Prefer the bundled skill scripts over any ad hoc repo commands. Those wrappers build the admin utility or CLI binaries on demand, so a separate manual build command is not part of the canonical procedure.
 When you use the root dump or cleanup helpers, expect them to rebuild `ResoniteAdmin` on demand, emit build output before the actual dump or cleanup step, and require fresh Windows build output. When the Windows app host is present they launch `ResoniteAdmin.exe`; otherwise they fall back to `dotnet` plus the freshly built `.dll`.
 
 ## Skill Guardrails
@@ -32,7 +32,7 @@ Practical rules that stay local to this skill:
 - If UDP and UI identify different sessions, mark the run invalid.
 - Before each comparison rerun, rediscover the listener and confirm the same session identity again.
 - Do not guess the listener port, process ID, or log path. Use discovery output and wrapper return values.
-- Treat the root `scripts/` live-send helpers as lower-level repository utilities. The operator-facing surface for this skill is the bundled script set under `.agents/skills/resonite-live-send-debug/scripts/`.
+- Treat the bundled script set under `.agents/skills/resonite-live-send-debug/scripts/` as the complete live-test execution surface for this skill.
 - Warning: cleanup is destructive. It removes dataset roots from the live world, stops matching live-send CLI processes launched from the same repo, and clears local runtime artifacts.
 
 The send wrapper returns a PowerShell object with these properties:

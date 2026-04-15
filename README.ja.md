@@ -20,10 +20,13 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 
 ## Quick Start
 
-pull request を作成または更新する前に、repository の正本となる検証コマンドを実行します。
+pull request を作成または更新する前に、repository の正本となる検証コマンド列を実行します。
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
 contributor workflow、環境 bootstrap、検証フローの ownership は [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md) を参照してください。

@@ -4,8 +4,8 @@
 
 この手順は、ローカルの PLATEAU dataset を ResoniteLink 経由で実際の Resonite session へ送れるかを、実機レベルで確認したいときに使う英語版正本の翻訳補助です。
 
-この文書は repo の英語版 live-send 手順書に対する operator / human 向け参照です。`.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script を operator 向けの入口とし、root `scripts/` の PowerShell helper は同じ workflow を支える lower-level の repository utility として扱います。live-send 手順の正本は英語版 [live-testing.md](live-testing.md) であり、日本語版は翻訳補助です。
-この文書は operator / human 向けの workflow 参照です。Coding Agent 固有の実行判断は `.agents/skills/resonite-live-send-debug/SKILL.md` に置き、この手順書は operator に読みやすい形を保ちます。
+この文書は repo の英語版 live-send 手順書に対する operator / human 向け参照です。`.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script を、この workflow の command surface として扱います。live-send 手順の正本は英語版 [live-testing.md](live-testing.md) であり、日本語版は翻訳補助です。
+Coding Agent 固有の実行判断は `.agents/skills/resonite-live-send-debug/SKILL.md` に置き、この手順書は operator に読みやすい形を保ちます。
 
 ## 事前条件
 
@@ -16,28 +16,31 @@
 - 破壊的な live run に入る前に、repository の verify flow を実行します。
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-- beta の反復中は、低競合の変更ごとに `bash scripts/test-fast.sh` を使って non-slow 範囲を素早く確認して構いません。ただし、live 結果を信用する前、push 前、PR 更新前の gate は `bash scripts/verify-ci.sh` のみです。
+- beta の反復中は、`dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"` を使って non-slow 範囲を素早く確認して構いません。ただし、live 結果を信用する前、push 前、PR 更新前には上の完全な検証コマンド列を実行します。
 
 - cleanup や send に入る前に、対象 dataset root がローカルに存在することを確認してください。
 - CLI や admin utility の build 産物は事前に無くても構いません。bundled helper script が必要に応じて build します。
 - `-Connections` は検証対象の active-lane cap として扱います。まず `-Connections 1` で baseline run を取り、その後に目的の多接続値と比較して invariant を確認してください。
 - 下記の cleanup は破壊的です。現在の Resonite session から一致する dataset root を削除し、同じ repository から起動した live-send CLI process も停止します。
-- この workflow では、operator 向けの command surface を `.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。root `scripts/` 配下の PowerShell helper は下位の repository utility であり、live run の手順正本ではありません。
+- この workflow では、operator 向けの command surface を `.agents/skills/resonite-live-send-debug/scripts/` 配下の bundled script に固定します。
 - 破棄可能な listener が必要で、local の Resonite headless install がある場合は、UI で session を手作業で用意するより bundled headless wrapper を優先します。
 
-## Default Fixture
+## Recommended Fixture Parameters
 
-user が別 target を指定しない限り、標準の live test fixture には Matsumoto dataset `plateau-20202-matsumoto-shi-2020` と detailed-building mesh `54372778` / `54372788` を使います。この組は live-send path を十分に通せる一方で、反復的な比較と目視確認をしやすい building 中心の標準規模です。
+task が別 target を必要としない限り、まずは Matsumoto dataset `plateau-20202-matsumoto-shi-2020` と隣接する detailed-building mesh `54372778` / `54372788` から始めます。これらは document-backed な再現と比較に使う推奨パラメータであり、手順上の必須条件ではありません。
 
 ## Headless の直接起動
 
 repository 側で disposable な listener を立ち上げたい場合は、現行 helper script では Windows から headless session を直接起動するのを基本とします。listener を WSL 内で起動し `localhost` 経由で到達できる場合は、その経路も有効です。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\start-headless-session.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -SessionName PlateauHeadlessLive -LogPrefix headless-live"
 ```
 
 この wrapper は一時的な headless `Config.json` を生成し、`Resonite.exe` または `Resonite.dll` を `-HeadlessConfig` 付きで起動し、`World Running` log line を待ったうえで、UDP discovery が要求した `linkPort` を観測できることまで確認します。
@@ -59,7 +62,7 @@ wrapper の返り値から次を記録してください。
 experiment 終了時は、追跡中の disposable headless process を止めます。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\stop-headless-session.ps1 -RepoPath C:\path\to\repo"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\stop-headless-session.ps1 -RepoPath C:\path\to\repo"
 ```
 
 別の tracked state file や明示的な PID を止めたい場合は、`-StatePath` または `-ProcessId` を渡してください。
@@ -71,7 +74,7 @@ disposable な headless session であれば、Root の full dump は baseline �
 tracked されている disposable session から Root full dump を採るには、次を使います。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\dump-root-session.ps1 -RepoPath C:\path\to\repo -Label baseline"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\dump-root-session.ps1 -RepoPath C:\path\to\repo -Label baseline"
 ```
 
 この wrapper は既定で `runtime/windows/headless/active-session.json` から endpoint を解決します。`-OutputPath` を渡さない限り、再帰的な Root snapshot を `runtime/windows/resonite/root-dumps/` に書き出します。
@@ -100,7 +103,7 @@ disposable headless 検証の推奨シーケンス:
 ResoniteLink の UDP announcement を取るには、bundled discovery script を使います。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\discover-session.ps1 -TimeoutSeconds 20 -MaxAnnouncements 5"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\discover-session.ps1 -TimeoutSeconds 20 -MaxAnnouncements 5"
 ```
 
 各比較 run の前に、次を記録してください。
@@ -120,8 +123,8 @@ cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\reso
 各比較 run の前に、bundled cleanup wrapper で dataset root を削除し、matching root が 0 件に収束したことを確認します。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset>"
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset> -ListOnly"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset>"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\cleanup-session.ps1 -RepoPath C:\path\to\repo -Endpoint ws://localhost:<port>/ -Dataset <dataset> -ListOnly"
 ```
 
 polling window 内に list mode が 0 件を返した場合だけ次へ進みます。
@@ -131,7 +134,7 @@ successful validation の終了時に cleanup を既定で自動実行しては�
 その後、bundled wrapper で send を起動します。現行 bundled wrapper を使う場合、listener が WSL 側から `localhost` で到達できないなら Windows 側で実行します。WSL 側から `localhost` 到達確認できる listener については、WSL 起点の send も許容します。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\run-live-send.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -LocalSourcePath C:\path\to\dataset-root -Dataset <dataset> -MeshCode <mesh> -DemTerrainMode <heightmap|mesh> -Connections 1 -LogPrefix <name> -NoWait"
 ```
 
 この wrapper は、明示的に `-SkipBuild` を渡さない限り、send 前に Windows 向け CLI build output を rebuild します。返り値の `CliDllLastWriteTime` が不自然に古い場合や、出力 path が Windows build でない場合は、その run を invalid としてください。
@@ -173,13 +176,13 @@ log 比較に加えて world-state の証拠が必要な場合は、最初の ru
 標準の comparison driver が必要なら、次を使います。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -ExpectedSessionId <session-id>"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -ExpectedSessionId <session-id>"
 ```
 
 comparison driver 自身に disposable な headless listener の起動と停止までさせる場合は、`-HeadlessPath` を追加します。
 
 ```bash
-cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
 ```
 
 まず `stderr` を見ます。`stderr` が空でない場合はそれを主な failure signal として扱います。`stderr` が空でも、stall と判断する前に、timestamp 付きの log sample を少なくとも 2 回取ってください。
@@ -202,6 +205,6 @@ Get-Content <stderr-log> -Tail 40
 - 可視な imported content:
   live world に期待した dataset root が現れ、対象 subtree に mesh、material、renderer、collider が揃うことを確認する。
 - CI 相当の検証:
-  反復中は `bash scripts/test-fast.sh` を緑に保ちつつ、live 結果を評価する前には `bash scripts/verify-ci.sh` を成功させる。
+  反復中は non-slow の `dotnet test ... --filter "Category!=Slow"` を緑に保ち、live 結果を評価する前には完全な検証コマンド列を再実行する。
 
 途中で run を止めた場合は、起動した PID だけを止め、終了を確認してから cleanup を再実行し、log は保持します。自然終了した run でも、optional な cleanup の前に exit code を記録してください。最終 cleanup を暗黙動作として扱ってはいけません。

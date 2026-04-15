@@ -11,9 +11,11 @@ description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink �
 
 code-only review や static な log 読みには使わないでください。実際の live send、実際の Resonite world inspection、または machine-level execution がないと無効な比較が必要なときにだけ使います。
 
-このファイルは live-send を実行する Coding Agent 用 playbook です。実行手順の operator-facing 正本は [docs/live-testing.md](../../../docs/live-testing.md) であり、手順本文はここで重複させず簡潔に運用判断を置きます。
+このファイルは live-send を実行する Coding Agent 用 playbook です。operator-facing の手順参照は [docs/live-testing.md](../../../docs/live-testing.md) に残し、手順本文はここで重複させず簡潔に運用判断を置きます。
 
 ## Dataset Defaults
+
+この section の dataset / mesh は、手順上の必須条件ではなく推奨パラメータとして扱ってください。
 
 user が別 target を指定しない限り、document-backed な再現と比較では Matsumoto dataset `plateau-20202-matsumoto-shi-2020` と、隣接する detailed-building mesh `54372778` / `54372788` を使ってください。この 2 mesh を default fixture とする理由は、この repository に `54372778` の成功した live-send 証跡がすでにあり、現在の workspace dataset sample に両方の mesh の detailed-building source file が含まれているためです。
 

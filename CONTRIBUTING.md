@@ -24,15 +24,20 @@ Release labels are optional, but using them keeps generated notes readable:
 
 Unlabeled PRs fall through to the catch-all `Other changes` section in the generated release notes.
 
-The canonical verification command is:
+The canonical verification command sequence is:
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-That script is the repository-owned verification workflow. Keep other documents at the command level and refer back to this script instead of copying or reordering its internal restore/format/build/test sequence.
+For quick non-slow iteration between low-conflict changes, use:
 
-For Codex Cloud / ephemeral agents where PATH does not already provide a compatible .NET 10 SDK, run `./scripts/setup-codex-cloud.sh` first. That helper exists only to bootstrap such environments and then hand off to `bash scripts/verify-ci.sh`.
+```bash
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
+```
 
 If you need to keep a large repository-improvement plan around temporarily, keep it under `.tmp/plans/` and leave it untracked. Do not treat that area as canonical documentation, do not link it from active docs as current operating guidance, and reflect only adopted conclusions in tracked documentation and code review artifacts.
 

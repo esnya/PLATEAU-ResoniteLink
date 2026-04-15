@@ -8,9 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
-$delegatePath = Join-Path $repoRoot 'scripts\stop-resonite-headless.ps1'
-$runtimeRoot = Join-Path $repoRoot 'runtime\windows\headless'
+$runtimeRoot = Join-Path (Resolve-Path -LiteralPath $RepoPath).Path 'runtime\windows\headless'
 
 function Resolve-StatePath {
     param(
@@ -51,7 +49,49 @@ else {
     Resolve-TrackedProcessId -ResolvedStatePath $resolvedStatePath
 }
 
-$result = & $delegatePath -ProcessId $resolvedProcessId
+$result = $null
+$process = Get-Process -Id $resolvedProcessId -ErrorAction SilentlyContinue
+if ($null -eq $process) {
+    $result = [pscustomobject]@{
+        ProcessId  = $resolvedProcessId
+        WasRunning = $false
+        HasExited  = $true
+    }
+}
+else {
+    Stop-Process -Id $resolvedProcessId -ErrorAction SilentlyContinue
+    $deadline = (Get-Date).AddSeconds(20)
+
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Get-Process -Id $resolvedProcessId -ErrorAction SilentlyContinue)) {
+            $result = [pscustomobject]@{
+                ProcessId  = $resolvedProcessId
+                WasRunning = $true
+                HasExited  = $true
+            }
+            break
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+
+    if ($null -eq $result) {
+        Stop-Process -Id $resolvedProcessId -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 1
+
+        if (Get-Process -Id $resolvedProcessId -ErrorAction SilentlyContinue) {
+            throw "Headless process $resolvedProcessId is still running after targeted shutdown."
+        }
+
+        $result = [pscustomobject]@{
+            ProcessId  = $resolvedProcessId
+            WasRunning = $true
+            HasExited  = $true
+            Forced     = $true
+        }
+    }
+}
+
 if ($usedTrackedState -and (Test-Path -LiteralPath $resolvedStatePath -PathType Leaf)) {
     Remove-Item -LiteralPath $resolvedStatePath -Force
 }
