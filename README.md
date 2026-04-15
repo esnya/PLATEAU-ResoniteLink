@@ -66,7 +66,6 @@ When `--work-root` is omitted, the CLI stores dataset-local archives and live te
 ## Further Reading
 
 - Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Product requirements: [docs/requirements.md](docs/requirements.md)
 - Live validation workflow: [docs/live-testing.md](docs/live-testing.md)
 
 ## License And Provenance

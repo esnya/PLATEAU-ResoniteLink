@@ -196,7 +196,7 @@ Get-Content <stderr-log> -Tail 40
 
 ## Acceptance Signals
 
-Map live validation back to `docs/requirements.md` with these checks:
+Use these checks to judge whether a live validation run is acceptable:
 
 - Deterministic live payloads:
   Run the same dataset, mesh code, mode, source path, listener port, and connection count more than once.

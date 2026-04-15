@@ -196,7 +196,7 @@ Get-Content <stderr-log> -Tail 40
 
 ## Acceptance Signals
 
-`docs/requirements.md` の受け入れ条件には、少なくとも次で対応づけます。
+live validation run の受け入れ可否は、少なくとも次の観点で判断します。
 
 - deterministic な live payload:
   同じ dataset、mesh code、mode、source path、listener port、connection count で複数回流し、log の並び、dataset root の構造、再利用 asset hierarchy に説明不能な差がないことを確認する。
