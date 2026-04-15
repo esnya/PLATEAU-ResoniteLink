@@ -18,5 +18,7 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 - Prefer deterministic outputs, explicit command inputs, and reproducible local/CI behavior.
 - Add or update automated tests when behavior changes.
 
+- Keep auxiliary git worktrees under `<repo>/.worktree/`, and avoid sibling directories or `/tmp` worktrees; this keeps ephemeral worktrees consistently ignored and separated from the main checkout.
+
 ## Live Send Workflow
 - Follow the concrete live-send and Resonite UnitySDK `AutoDiscovery` workflow in [docs/live-testing.md](docs/live-testing.md).

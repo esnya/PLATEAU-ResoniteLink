@@ -10,6 +10,7 @@ PR を出す前に、次を確認してください。
 - 明確な理由がない限り、runtime と SDK の前提は .NET 10 のまま保つ。
 - English Markdown を変更した場合は、対応する `.ja.md` も更新する。
 - 挙動が変わる場合は、test を追加または更新する。
+- 補助的な git worktree はリポジトリ直下の `.worktree/` 配下（例: `.../<repo>/.worktree/<name>`）で運用し、隣接ディレクトリや `/tmp` の worktree を作らないこと。
 
 GitHub Releases を changelog の正本とします。release tag は `vX.Y.Z` 形式で作成し、各 tag で framework-dependent の CLI zip asset を公開しつつ、merge 済み pull request から release notes を自動生成します。
 

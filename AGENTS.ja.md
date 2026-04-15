@@ -13,6 +13,7 @@
 - push や pull request 更新の前には、必ず `bash scripts/verify-ci.sh` を実行すること。contributor 向けの検証フロー正本は `CONTRIBUTING.ja.md` であり、script の内部コマンド列を他文書に再定義したり順序を並べ替えたりしないこと。
 - `docs/` には、要件、アーキテクチャ意図、参照メモ、運用制約など、コードやテストだけでは表現しにくい内容だけを書く。
 - 一時的に保持したい大きな改善計画は `.tmp/plans/` 配下に置き、untracked のまま維持すること。`docs/` 配下には置かず、active documentation から現行運用の根拠としてリンクや引用をせず、採用した current outcome だけを tracked な docs / code / tests へ昇格させること。
+- 補助的な git worktree は `<repo>/.worktree/` 配下で管理し、同階層の sibling ディレクトリや `/tmp` に worktree を置かないこと。これにより一時的な worktree が既定の主ワークツリー外に散逸することを防ぐ。
 - データセット、タイル、アダプターの概念を設計するときは、`PLATEAU-SDK-for-UNITY` の用語とインポート意味論に揃える。
 - CLI のオーケストレーション、アプリケーションロジック、ドメインモデルをテスト可能でホスト非依存に保つため、Resonite 固有の I/O は抽象の背後に置く。
 - 決定的な出力、明示的なコマンド入力、再現可能なローカル/CI の挙動を優先する。

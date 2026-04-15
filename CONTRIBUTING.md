@@ -10,6 +10,7 @@ Before opening a PR:
 - Keep runtime and SDK assumptions on .NET 10 unless the change clearly requires otherwise.
 - Update the matching `.ja.md` file when you change an English Markdown document.
 - Add or update tests when behavior changes.
+- Keep auxiliary git worktrees in the repository root `.worktree/` directory (for example `.../<repo>/.worktree/<name>`), and avoid leaving worktrees in sibling directories or `/tmp`.
 
 GitHub Releases are the canonical changelog. Create release tags as `vX.Y.Z`; each tag publishes a framework-dependent CLI zip asset and generates release notes from merged pull requests.
 
