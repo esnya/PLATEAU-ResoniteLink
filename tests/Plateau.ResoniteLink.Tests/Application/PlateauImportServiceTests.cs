@@ -22,12 +22,14 @@ public sealed class PlateauImportServiceTests
     private static PlateauImportService CreateService(
         IResoniteSceneBuilder sceneBuilder,
         IPlateauDatasetSourceResolver? datasetSourceResolver = null,
+        ICityGmlDocumentReader? documentReader = null,
         IResoniteConstructionSourceFactory? constructionSourceFactory = null,
         Action<string>? progressReporter = null)
     {
         return new PlateauImportService(
             sceneBuilder,
             datasetSourceResolver ?? new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
+            documentReader ?? new LocalCityGmlDocumentReader(),
             constructionSourceFactory ?? CreateConstructionSourceFactory(),
             progressReporter);
     }
@@ -38,6 +40,22 @@ public sealed class PlateauImportServiceTests
             new LocalCityGmlDocumentReader(),
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver())));
+    }
+
+    private static ICityGmlDocumentReader CreateRecordingDocumentReader(string sourcePath)
+    {
+        return new RecordingDocumentReader(
+            new LocalCityGmlDocumentSet(
+                new StubDatasetContentSource(sourcePath),
+                ["udx/bldg/53394525/stub.gml"],
+                ["bldg"],
+                [],
+                ["53394525"],
+                [],
+                [],
+                referenceSystem: null,
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                terrainHeightSampler: null));
     }
 
     [Fact]
@@ -97,10 +115,11 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+            CreateRecordingDocumentReader("/resolved/source"),
+            new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
         using TemporaryDirectory workRoot = new();
 
         await service.ExecuteAsync(
@@ -128,10 +147,11 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+            CreateRecordingDocumentReader("/resolved/source"),
+            new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -170,10 +190,11 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: new RecordingConstructionSourceFactory(source));
+            CreateRecordingDocumentReader("/resolved/source"),
+            new RecordingConstructionSourceFactory(source));
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -188,7 +209,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncStartsCityObjectStreamingBeforeCommonMaterialWarmupCompletes()
+    public async Task ExecuteAsyncStartsCityObjectStreamingAfterBeginSetup()
     {
         List<string> executionOrder = [];
         StubResoniteSceneBuilder sceneBuilder = new();
@@ -199,17 +220,13 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
+            CreateRecordingDocumentReader("/resolved/source"),
+            new RecordingConstructionSourceFactory(CreateStubConstructionSource()));
         sceneBuilder.OnBegin = () => executionOrder.Add("begin");
         TaskCompletionSource<int> processStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        sceneBuilder.OnStartCommonMaterialWarmupAsync = (_, _) =>
-        {
-            executionOrder.Add("common-material-warmup-start");
-            return Task.CompletedTask;
-        };
         sceneBuilder.OnProcessCityObject = () =>
         {
             executionOrder.Add("process-city-object");
@@ -231,13 +248,11 @@ public sealed class PlateauImportServiceTests
         Assert.Same(processStarted.Task, completed);
 
         int beginIndex = executionOrder.IndexOf("begin");
-        int warmupStartIndex = executionOrder.IndexOf("common-material-warmup-start");
         int processIndex = executionOrder.IndexOf("process-city-object");
         Assert.True(
-            beginIndex >= 0 && warmupStartIndex >= 0 && processIndex >= 0,
-            $"Expected begin, warmup start, and process events. Order: {string.Join(',', executionOrder)}");
-        Assert.True(beginIndex < warmupStartIndex, "Expected BeginAsync to happen before common-material warmup starts.");
-        Assert.True(warmupStartIndex < processIndex, "Expected common-material warmup to start before first city-object processing.");
+            beginIndex >= 0 && processIndex >= 0,
+            $"Expected begin and process events. Order: {string.Join(',', executionOrder)}");
+        Assert.True(beginIndex < processIndex, "Expected BeginAsync setup to complete before first city-object processing.");
 
         ImportExecutionResult result = await executeTask;
         Assert.Equal("stub://resonite", Assert.Single(result.Destinations));
@@ -245,7 +260,7 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsyncPassesAllCommonMaterialsToWarmup()
+    public async Task ExecuteAsyncDoesNotInvokePostBeginCommonMaterialWarmup()
     {
         StubResoniteSceneBuilder sceneBuilder = new();
         int warmupCallCount = 0;
@@ -264,10 +279,11 @@ public sealed class PlateauImportServiceTests
             warmupCallCount++;
             return Task.CompletedTask;
         };
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: constructionSourceFactory);
+            CreateRecordingDocumentReader("/resolved/source"),
+            constructionSourceFactory);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -280,7 +296,7 @@ public sealed class PlateauImportServiceTests
             cancellationToken: default);
 
         Assert.Equal(16, sceneBuilder.CommonMaterials.Count);
-        Assert.Equal(1, warmupCallCount);
+        Assert.Equal(0, warmupCallCount);
         Assert.All(
             sceneBuilder.CommonMaterials,
             static material => Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope));
@@ -404,7 +420,13 @@ public sealed class PlateauImportServiceTests
             static cityObject => cityObject.DisplayName == "Relief One");
         Assert.Equal("dem", relief.PackageName);
         Assert.NotEmpty(relief.Materials);
-        Assert.NotEmpty(result.Metadata.SourceDataset.TerrainTextureOverlays);
+        Assert.Contains(
+            relief.Materials,
+            static material =>
+                material.TexturePath is not null
+                && material.TexturePath.StartsWith(
+                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                    StringComparison.Ordinal));
         Assert.Single(relief.Mesh.Submeshes);
         Assert.Contains(sceneBuilder.CityObjects, static cityObject => cityObject.PackageName == "bldg");
         Assert.Contains(sceneBuilder.CityObjects, static cityObject => cityObject.PackageName == "dem");
@@ -1086,11 +1108,6 @@ public sealed class PlateauImportServiceTests
             workRoot: "runtime/resonite");
         CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
 
-        TerrainTextureOverlay[] overlays = result.Metadata.SourceDataset.TerrainTextureOverlays
-            .Where(static overlay => string.Equals(overlay.PackageName, "dem", StringComparison.Ordinal))
-            .ToArray();
-        Assert.NotEmpty(overlays);
-
         ResoniteConstructionCityObject[] reliefChunks = scene.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
@@ -1098,6 +1115,13 @@ public sealed class PlateauImportServiceTests
         Assert.All(reliefChunks, static chunk =>
         {
             Assert.NotEmpty(chunk.Materials);
+            Assert.Contains(
+                chunk.Materials,
+                static material =>
+                    material.TexturePath is not null
+                    && material.TexturePath.StartsWith(
+                        LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
+                        StringComparison.Ordinal));
         });
     }
 
@@ -1203,7 +1227,7 @@ public sealed class PlateauImportServiceTests
 
         ResoniteConstructionCityObject chunk = Assert.Single(demChunks);
         ResoniteMaterialBinding material = Assert.Single(chunk.Materials);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, material.TexturePath);
+        Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, material.TexturePath, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2469,7 +2493,7 @@ public sealed class PlateauImportServiceTests
         Assert.Contains(progressMessages, static message => message.Contains(" Scanned ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.Contains(" Parsed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Prepared construction source", StringComparison.Ordinal));
-        Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization.", StringComparison.Ordinal));
+        Assert.Contains(progressMessages, static message => string.Equals(message, "[import][info] Starting live scene initialization (16 setup common materials).", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][info] Streamed ", StringComparison.Ordinal));
         Assert.Contains(progressMessages, static message => message.StartsWith("[import][debug] Scene builder completion finished", StringComparison.Ordinal));
     }
@@ -2486,10 +2510,11 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: constructionSourceFactory);
+            CreateRecordingDocumentReader("/resolved/source"),
+            constructionSourceFactory);
 
         ImportExecutionResult result = await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2528,10 +2553,11 @@ public sealed class PlateauImportServiceTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: constructionSourceFactory);
+            CreateRecordingDocumentReader("/resolved/source"),
+            constructionSourceFactory);
 
         await service.ExecuteAsync(
             new PlateauImportRequest(
@@ -2542,7 +2568,7 @@ public sealed class PlateauImportServiceTests
                 ServerUri: new Uri("https://example.invalid/source.zip", UriKind.Absolute)),
             workRoot: "runtime/resonite");
 
-        Assert.Equal(["connect", "create-source", "begin"], callOrder);
+        Assert.Equal(["connect", "begin", "create-source"], callOrder);
         Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
     }
 
@@ -2558,10 +2584,11 @@ public sealed class PlateauImportServiceTests
                 LocalSourcePath: "/resolved/source",
                 ServerUri: null));
         FailingConstructionSourceFactory constructionSourceFactory = new(new InvalidOperationException("bootstrap failed"));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: constructionSourceFactory);
+            CreateRecordingDocumentReader("/resolved/source"),
+            constructionSourceFactory);
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ExecuteAsync(
@@ -2598,10 +2625,11 @@ public sealed class PlateauImportServiceTests
         RecordingConstructionSourceFactory constructionSourceFactory = new(
             CreateStubConstructionSource(),
             onCreate: () => callOrder.Add("create-source"));
-        PlateauImportService service = new(
+        PlateauImportService service = CreateService(
             sceneBuilder,
             datasetSourceResolver,
-            constructionSourceFactory: constructionSourceFactory);
+            CreateRecordingDocumentReader("/resolved/source"),
+            constructionSourceFactory);
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ExecuteAsync(
@@ -2651,13 +2679,19 @@ public sealed class PlateauImportServiceTests
         }
 
         public Task BeginAsync(
-            ResoniteConstructionMetadata metadata,
+            SceneBootstrapInfo bootstrapInfo,
+            IPlateauDatasetContentSource datasetContentSource,
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
-            ArgumentNullException.ThrowIfNull(metadata);
+            ArgumentNullException.ThrowIfNull(bootstrapInfo);
+            ArgumentNullException.ThrowIfNull(datasetContentSource);
+            ArgumentNullException.ThrowIfNull(commonMaterials);
             ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
             BeginWorkRoots.Add(workRoot);
+            CommonMaterials.Clear();
+            CommonMaterials.AddRange(commonMaterials);
             OnBegin?.Invoke();
             return Task.CompletedTask;
         }
@@ -2727,6 +2761,47 @@ public sealed class PlateauImportServiceTests
                     resolvedRequest.DemTerrainMode,
                     resolvedRequest.DemHeightmapMetersPerVertex,
                     resolvedRequest.DemHeightmapMaxResolution));
+        }
+    }
+
+    private sealed class RecordingDocumentReader(LocalCityGmlDocumentSet documentSet) : ICityGmlDocumentReader
+    {
+        public Task<LocalCityGmlDocumentSet> ReadAsync(
+            PlateauImportRequest request,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(documentSet);
+        }
+    }
+
+    private sealed class StubDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
+    {
+        public string SourcePath { get; } = sourcePath;
+
+        public IReadOnlyList<string> EnumerateFiles()
+        {
+            return [];
+        }
+
+        public bool FileExists(string relativePath)
+        {
+            return false;
+        }
+
+        public ValueTask<Stream> OpenReadAsync(
+            string relativePath,
+            CancellationToken cancellationToken = default)
+        {
+            throw new FileNotFoundException(relativePath);
+        }
+
+        public Task<string> MaterializeFileAsync(
+            string relativePath,
+            string outputRoot,
+            CancellationToken cancellationToken = default)
+        {
+            throw new FileNotFoundException(relativePath);
         }
     }
 

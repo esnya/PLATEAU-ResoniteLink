@@ -57,6 +57,7 @@ public static class CliCompositionRoot
                 options.EnableMeshBake,
                 progressReporter: reporter),
             CreateDatasetSourceResolver(),
+            CreateDocumentReader(),
             CreateConstructionSourceFactory(),
             progressReporter: reporter);
     }
@@ -69,6 +70,11 @@ public static class CliCompositionRoot
     private static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
     {
         return PlateauImportApplicationComposition.CreateConstructionSourceFactory();
+    }
+
+    private static LocalCityGmlDocumentReader CreateDocumentReader()
+    {
+        return new LocalCityGmlDocumentReader();
     }
 
     private static ResoniteLinkSceneBuilderDependencies CreateSceneBuilderDependencies()

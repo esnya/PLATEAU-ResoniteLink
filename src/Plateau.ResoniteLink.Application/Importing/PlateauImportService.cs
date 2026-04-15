@@ -8,6 +8,7 @@ namespace Plateau.ResoniteLink.Application.Importing;
 public sealed class PlateauImportService(
     IResoniteSceneBuilder sceneBuilder,
     IPlateauDatasetSourceResolver datasetSourceResolver,
+    ICityGmlDocumentReader documentReader,
     IResoniteConstructionSourceFactory constructionSourceFactory,
     Action<string>? progressReporter = null)
 {
@@ -15,9 +16,25 @@ public sealed class PlateauImportService(
         sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
+    private readonly ICityGmlDocumentReader documentReader =
+        documentReader ?? throw new ArgumentNullException(nameof(documentReader));
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
         constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
+
+    public PlateauImportService(
+        IResoniteSceneBuilder sceneBuilder,
+        IPlateauDatasetSourceResolver datasetSourceResolver,
+        IResoniteConstructionSourceFactory constructionSourceFactory,
+        Action<string>? progressReporter = null)
+        : this(
+            sceneBuilder,
+            datasetSourceResolver,
+            new LocalCityGmlDocumentReader(),
+            constructionSourceFactory,
+            progressReporter)
+    {
+    }
 
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
@@ -37,43 +54,54 @@ public sealed class PlateauImportService(
 
         try
         {
+            Stopwatch setupStopwatch = Stopwatch.StartNew();
+            LocalCityGmlDocumentSet documentSet = await documentReader.ReadAsync(
+                resolvedRequest,
+                progressReporter,
+                cancellationToken);
+            setupStopwatch.Stop();
+            ReportProgress(
+                PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
+
+            SceneBootstrapInfo bootstrapInfo = CreateBootstrapInfo(resolvedRequest, documentSet);
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(
+                bootstrapInfo.PackageNames);
+            ReportProgress(
+                PlateauLog.Info(
+                    "import",
+                    $"Starting live scene initialization ({commonMaterials.Count} setup common materials)."));
+
             Stopwatch connectStopwatch = Stopwatch.StartNew();
             await sceneBuilder.EnsureConnectedAsync(normalizedRequest, cancellationToken);
             connectStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s."));
 
+            Stopwatch beginStopwatch = Stopwatch.StartNew();
+            await sceneBuilder.BeginAsync(
+                bootstrapInfo,
+                documentSet.DatasetSource,
+                commonMaterials,
+                datasetWorkRoot,
+                cancellationToken);
+            beginStopwatch.Stop();
+            ReportProgress(
+                PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
+
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
+                documentSet,
                 progressReporter,
                 cancellationToken);
             sourceStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
-
-            Stopwatch beginStopwatch = Stopwatch.StartNew();
-            ReportProgress(PlateauLog.Info("import", "Starting live scene initialization."));
-            await sceneBuilder.BeginAsync(source.Metadata, datasetWorkRoot, cancellationToken);
-            beginStopwatch.Stop();
-            ReportProgress(PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
-            IReadOnlyList<ResoniteMaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(
-                source.Metadata.SourceDataset.PackageNames);
-            ReportProgress(
-                PlateauLog.Info(
-                    "import",
-                    $"Starting common material setup ({commonMaterials.Count} materials)."));
-            await sceneBuilder.StartCommonMaterialWarmupAsync(commonMaterials, cancellationToken);
-            ReportProgress(
-                PlateauLog.Info(
-                    "import",
-                    $"Common material warmup kickoff completed ({commonMaterials.Count} materials)."));
             ReportProgress(PlateauLog.Info("import", "Starting city object streaming."));
 
             bool processedAnyCityObject = false;
             int processedCityObjectCount = 0;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-
             await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync(cancellationToken))
             {
                 processedAnyCityObject = true;
@@ -107,6 +135,23 @@ public sealed class PlateauImportService(
         {
             await sceneBuilder.DisposeAsync();
         }
+    }
+
+    private static SceneBootstrapInfo CreateBootstrapInfo(
+        PlateauImportRequest request,
+        LocalCityGmlDocumentSet documentSet)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(documentSet);
+
+        return new SceneBootstrapInfo(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath ?? string.Empty,
+            documentSet.PackageNames,
+            documentSet.RelativeSourceFiles,
+            documentSet.RequestedMeshCodes,
+            PlateauResoniteAttributionFactory.Create(request).DatasetLicense);
     }
 
     private void ReportProgress(string message)

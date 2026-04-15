@@ -76,7 +76,7 @@ public sealed class RetryingResoniteLinkClientTests
                 },
                 CancellationToken.None));
 
-        string createdSlotId = await client.AddSlotAsync(
+        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -155,7 +155,7 @@ public sealed class RetryingResoniteLinkClientTests
 
         await innerClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Task addSlotTask = client.AddSlotAsync(
+        Task addSlotTask = ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -191,7 +191,7 @@ public sealed class RetryingResoniteLinkClientTests
         using RetryingResoniteLinkClient client = new(() => innerClient);
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        string createdSlotId = await client.AddSlotAsync(
+        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -269,7 +269,7 @@ public sealed class RetryingResoniteLinkClientTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => client.GetSlotAsync("slot-id", 0, CancellationToken.None));
 
-        string createdSlotId = await client.AddSlotAsync(
+        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -291,6 +291,136 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.False(firstClient.IsDisposed);
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
+    }
+
+    private sealed class LongHeldReconnectableClient : IResoniteLinkClient
+    {
+        private readonly bool blockAddComponent;
+        private readonly bool blockAddSlot;
+        private readonly bool blockBatch;
+        private readonly bool blockImportMesh;
+        private int nextComponentId;
+        private int nextSlotId;
+
+        public LongHeldReconnectableClient(
+            bool blockImportMesh = false,
+            bool blockAddSlot = false,
+            bool blockAddComponent = false,
+            bool blockBatch = false)
+        {
+            this.blockImportMesh = blockImportMesh;
+            this.blockAddSlot = blockAddSlot;
+            this.blockAddComponent = blockAddComponent;
+            this.blockBatch = blockBatch;
+        }
+
+        public TaskCompletionSource AddComponentStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowAddComponentCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AddSlotStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowAddSlotCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ImportMeshStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowImportMeshCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource RunDataModelOperationBatchStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource AllowRunDataModelOperationBatchCompletion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Dispose()
+        {
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddComponentStarted.TrySetResult();
+            if (blockAddComponent)
+            {
+                await AllowAddComponentCompletion.Task.WaitAsync(cancellationToken);
+            }
+
+            return $"srv_component_{Interlocked.Increment(ref nextComponentId)}";
+        }
+
+        public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddSlotStarted.TrySetResult();
+            if (blockAddSlot)
+            {
+                await AllowAddSlotCompletion.Task.WaitAsync(cancellationToken);
+            }
+
+            return $"srv_slot_{Interlocked.Increment(ref nextSlotId)}";
+        }
+
+        public async Task<BatchResponse> RunDataModelOperationBatchAsync(
+            IReadOnlyList<DataModelOperation> operations,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            RunDataModelOperationBatchStarted.TrySetResult();
+            if (blockBatch)
+            {
+                await AllowRunDataModelOperationBatchCompletion.Task.WaitAsync(cancellationToken);
+            }
+
+            return new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            };
+        }
+
+        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Component?>(null);
+        }
+
+        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<Slot?>(new Slot
+            {
+                ID = slotId,
+            });
+        }
+
+        public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ImportMeshStarted.TrySetResult();
+            if (blockImportMesh)
+            {
+                await AllowImportMeshCompletion.Task.WaitAsync(cancellationToken);
+            }
+
+            return new Uri("resdb:///mesh/serialized", UriKind.Absolute);
+        }
+
+        public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
+        }
+
+        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
     }
 
     private sealed class StubReconnectableClient(
@@ -395,6 +525,43 @@ public sealed class RetryingResoniteLinkClientTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class NeverCompletingReconnectableTransport : IResoniteLinkTransport
+    {
+        public bool IsDisposed { get; private set; }
+
+        public void Dispose()
+        {
+            IsDisposed = true;
+        }
+
+        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<NewEntityId> AddComponentAsync(AddComponent request) => throw new NotSupportedException();
+
+        public Task<NewEntityId> AddSlotAsync(AddSlot request) =>
+            new TaskCompletionSource<NewEntityId>(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+
+        public Task<BatchResponse> RunDataModelOperationBatchAsync(List<DataModelOperation> operations) => throw new NotSupportedException();
+
+        public Task<ComponentData> GetComponentDataAsync(GetComponent request) => throw new NotSupportedException();
+
+        public Task<SlotData> GetSlotDataAsync(GetSlot request) => throw new NotSupportedException();
+
+        public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => throw new NotSupportedException();
+
+        public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request) => throw new NotSupportedException();
+
+        public Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request) => throw new NotSupportedException();
+
+        public Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request) => throw new NotSupportedException();
+
+        public Task<Response> UpdateComponentAsync(UpdateComponent request) => throw new NotSupportedException();
     }
 
     private sealed class BlockingReconnectableClient : IResoniteLinkClient

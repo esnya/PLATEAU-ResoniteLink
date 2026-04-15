@@ -6,7 +6,8 @@ internal interface IResoniteSceneBootstrapCoordinator
 {
     Task<ResoniteSceneBootstrapState> BootstrapAsync(
         IResoniteLinkClient setupClient,
-        ResoniteConstructionMetadata metadata,
+        SceneBootstrapInfo setupInfo,
+        IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken);
 
     Task<string> ApplyDatasetLicenseAsync(

@@ -19,6 +19,7 @@ public sealed class CliApplicationTests
         return new PlateauImportService(
             sceneBuilder,
             new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
+            new LocalCityGmlDocumentReader(),
             new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
@@ -173,10 +174,16 @@ public sealed class CliApplicationTests
         }
 
         public Task BeginAsync(
-            ResoniteConstructionMetadata metadata,
+            SceneBootstrapInfo bootstrapInfo,
+            IPlateauDatasetContentSource datasetContentSource,
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
+            _ = bootstrapInfo;
+            _ = datasetContentSource;
+            _ = commonMaterials;
+            _ = workRoot;
             return Task.CompletedTask;
         }
 

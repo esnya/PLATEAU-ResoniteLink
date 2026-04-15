@@ -123,7 +123,7 @@ public sealed class ResoniteLinkClientTests
     public async Task ImportTextureAsyncSerializesOtherOperationsOnSameLink()
     {
         using BlockingResoniteLinkTransport transport = new();
-        using ResoniteLinkClient client = new(transport);
+        using IResoniteLinkClient client = new ResoniteLinkClient(transport);
 
         Task<Uri> importTask = client.ImportTextureAsync(
             new ResoniteRawTextureImport(
@@ -135,7 +135,7 @@ public sealed class ResoniteLinkClientTests
 
         await transport.ImportTextureStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Task<string> addSlotTask = client.AddSlotAsync(
+        Task<string> addSlotTask = ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
