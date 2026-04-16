@@ -8,6 +8,9 @@ namespace Plateau.ResoniteLink.Cli;
 
 public static class CliCompositionRoot
 {
+    private static readonly HttpClient SharedDatasetResolverHttpClient = new();
+    private static readonly HttpClient SharedTerrainTextureAssetHttpClient = new();
+
     public static CliApplication CreateDefaultApplication()
     {
         return new CliApplication(
@@ -41,14 +44,6 @@ public static class CliCompositionRoot
                     $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
                     + "Use the default value 1 for reliable live sends."));
         }
-        if (options.ResoniteLinkImportMeshTimeoutMilliseconds > 0)
-        {
-            reporter(
-                PlateauLog.Warning(
-                    "live",
-                    $"--resonitelink-import-mesh-timeout-ms={options.ResoniteLinkImportMeshTimeoutMilliseconds} is ignored. "
-                    + "Live imports no longer use a forced timeout."));
-        }
         ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
             ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
             : ResoniteLinkSendDiagnostics.Disabled;
@@ -62,13 +57,14 @@ public static class CliCompositionRoot
                 options.EnableMeshBake,
                 progressReporter: reporter),
             CreateDatasetSourceResolver(),
+            CreateDocumentReader(),
             CreateConstructionSourceFactory(),
             progressReporter: reporter);
     }
 
     private static CkanPlateauDatasetSourceResolver CreateDatasetSourceResolver()
     {
-        return new CkanPlateauDatasetSourceResolver();
+        return new CkanPlateauDatasetSourceResolver(SharedDatasetResolverHttpClient);
     }
 
     private static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
@@ -76,11 +72,16 @@ public static class CliCompositionRoot
         return PlateauImportApplicationComposition.CreateConstructionSourceFactory();
     }
 
+    private static LocalCityGmlDocumentReader CreateDocumentReader()
+    {
+        return new LocalCityGmlDocumentReader();
+    }
+
     private static ResoniteLinkSceneBuilderDependencies CreateSceneBuilderDependencies()
     {
         return new ResoniteLinkSceneBuilderDependencies(
             static () => new ResoniteLinkClient(),
-            new TerrainTextureAssetGenerator());
+            new TerrainTextureAssetGenerator(SharedTerrainTextureAssetHttpClient));
     }
 
     private static void WriteLogLine(

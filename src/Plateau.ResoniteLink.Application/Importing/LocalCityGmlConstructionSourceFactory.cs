@@ -20,10 +20,20 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return CreateCoreAsync(request, progressReporter, cancellationToken);
+        return CreateAsyncFromRequestCoreAsync(request, progressReporter, cancellationToken);
     }
 
-    private async Task<IResoniteConstructionSource> CreateCoreAsync(
+    public Task<IResoniteConstructionSource> CreateAsync(
+        PlateauImportRequest request,
+        LocalCityGmlDocumentSet documentSet,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(documentSet);
+        return CreateCoreAsync(request, documentSet, progressReporter, cancellationToken);
+    }
+
+    private async Task<IResoniteConstructionSource> CreateAsyncFromRequestCoreAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
@@ -32,6 +42,16 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
             request,
             progressReporter,
             cancellationToken);
-        return constructionComposer.Compose(request, documentSet);
+        return constructionComposer.Compose(request, documentSet, progressReporter);
+    }
+
+    private Task<IResoniteConstructionSource> CreateCoreAsync(
+        PlateauImportRequest request,
+        LocalCityGmlDocumentSet documentSet,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return Task.FromResult(constructionComposer.Compose(request, documentSet, progressReporter));
     }
 }

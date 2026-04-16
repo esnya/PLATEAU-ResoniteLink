@@ -6,7 +6,22 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 {
     public ResolvedMaterial ResolveMaterial(
         string packageName,
-        string? texturePath,
+        ResoniteTexturePayload? texturePayload,
+        bool preferUvProjection,
+        string? familyOverride,
+        string variantSelectionKey)
+    {
+        return ResolveMaterialCore(
+            packageName,
+            texturePayload,
+            preferUvProjection,
+            familyOverride,
+            variantSelectionKey);
+    }
+
+    public static ResolvedMaterial ResolveMaterialCore(
+        string packageName,
+        ResoniteTexturePayload? texturePayload,
         bool preferUvProjection,
         string? familyOverride,
         string variantSelectionKey)
@@ -15,7 +30,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         {
             return new ResolvedMaterial(
                 ResoniteMaterialType.Wireframe,
-                TexturePath: null,
+                TexturePayload: null,
                 ResoniteTextureSourceKind.Bundled,
                 ResoniteMaterialProjection.Uv,
                 Family: null,
@@ -23,11 +38,11 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
                 AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
         }
 
-        if (!string.IsNullOrWhiteSpace(texturePath))
+        if (texturePayload is not null)
         {
             return new ResolvedMaterial(
                 ResoniteMaterialType.Standard,
-                texturePath,
+                texturePayload,
                 ResoniteTextureSourceKind.Dataset,
                 ResoniteMaterialProjection.Uv,
                 Family: null,
@@ -37,15 +52,16 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 
         bool useFacadeUvProjection = ShouldUseFacadeUvProjection(packageName, preferUvProjection);
         string family = familyOverride ?? ResolveBundledTextureFamily(packageName, useFacadeUvProjection);
-        string selectedTexturePath = SelectBundledTexturePath(family, variantSelectionKey);
+        int bundledVariantIndex = SelectBundledVariantIndex(family, variantSelectionKey);
         return new ResolvedMaterial(
             ResoniteMaterialType.Standard,
-            selectedTexturePath,
+            TexturePayload: null,
             ResoniteTextureSourceKind.Bundled,
             preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
             family,
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(selectedTexturePath),
-            ResoniteMaterialAssetScope.Common);
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex)),
+            ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: bundledVariantIndex);
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)
@@ -71,7 +87,8 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             return BundledDefaultMaterialFamilies.Roof;
         }
 
-        if (PlateauPackageCatalog.IsRoadPackage(packageName))
+        if (PlateauPackageCatalog.IsRoadPackage(packageName)
+            || PlateauPackageCatalog.IsPathLikePackage(packageName))
         {
             return BundledDefaultMaterialFamilies.Road;
         }
@@ -89,11 +106,10 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         return BundledDefaultMaterialFamilies.Other;
     }
 
-    private static string SelectBundledTexturePath(string family, string variantSelectionKey)
+    private static int SelectBundledVariantIndex(string family, string variantSelectionKey)
     {
         IReadOnlyList<string> variants = BundledDefaultMaterialFamilies.GetVariants(family);
         int hashCode = StringComparer.Ordinal.GetHashCode(variantSelectionKey) & int.MaxValue;
-        int index = hashCode % variants.Count;
-        return variants[index];
+        return hashCode % variants.Count;
     }
 }

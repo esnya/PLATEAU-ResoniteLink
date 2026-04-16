@@ -8,122 +8,131 @@ namespace Plateau.ResoniteLink.Tests.Cli;
 public sealed class LiveSendClientSessionTests
 {
     [Fact]
-    public async Task EnsureSetupClientConnectedAsyncUsesSingleSetupClientAcrossRepeatedCalls()
+    public async Task EnsureConnectedAsyncConnectsAllConfiguredSessionsEagerly()
     {
-        RecordingClientFactory clientFactory = new([true]);
+        RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
-            connectionCount: 2,
-            workerConnectTimeoutMilliseconds: 1000,
+            connectionCount: 3,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
 
-        await session.EnsureSetupClientConnectedAsync(request, CancellationToken.None);
-        await session.EnsureSetupClientConnectedAsync(request, CancellationToken.None);
+        await session.EnsureConnectedAsync(request, CancellationToken.None);
 
-        RecordingResoniteLinkClient client = Assert.Single(clientFactory.CreatedClients);
-        Assert.Same(client, session.SetupClient);
-        Assert.Equal(1, client.ConnectCallCount);
-        Assert.Equal(new Uri("ws://localhost:12345/"), client.LastConnectedEndpoint);
-        Assert.False(client.Disposed);
+        Assert.Equal(3, clientFactory.CreatedClients.Count);
+        Assert.NotNull(session.RoutedClient);
+        Assert.All(
+            clientFactory.CreatedClients,
+            client => Assert.Equal(1, client.ConnectCallCount));
     }
 
     [Fact]
-    public async Task CreateWorkerClientAsyncRequiresWorkerTrackingAfterSetup()
+    public async Task RoutedClientDistributesBatchCallsAcrossConnectedClients()
     {
-        RecordingClientFactory clientFactory = new([true, true]);
+        RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
         using LiveSendClientSession session = new(
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
-            connectionCount: 2,
-            workerConnectTimeoutMilliseconds: 1000,
+            connectionCount: 3,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
 
-        await session.EnsureSetupClientConnectedAsync(request, CancellationToken.None);
+        await session.EnsureConnectedAsync(request, CancellationToken.None);
+        IResoniteLinkClient routedClient = Assert.IsAssignableFrom<IResoniteLinkClient>(session.RoutedClient);
 
-        await Assert.ThrowsAsync<ObjectDisposedException>(
-            () => session.CreateWorkerClientAsync(request, laneIndex: 1, CancellationToken.None));
+        for (int callIndex = 0; callIndex < 6; callIndex++)
+        {
+            await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        }
 
-        session.BeginWorkerClientTracking();
-        IResoniteLinkClient workerClient = await session.CreateWorkerClientAsync(
-            request,
-            laneIndex: 1,
-            CancellationToken.None);
+        Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.BatchCallCount));
+        Assert.All(clientFactory.CreatedClients, client => Assert.True(client.BatchCallCount > 0));
+    }
 
-        RecordingResoniteLinkClient setupClient = clientFactory.CreatedClients[0];
-        RecordingResoniteLinkClient recordedWorkerClient = Assert.IsType<RecordingResoniteLinkClient>(workerClient);
-        Assert.NotSame(setupClient, recordedWorkerClient);
+    [Fact]
+    public async Task RoutedClientPinsAuthoritativeCallsToPrimaryClient()
+    {
+        RecordingClientFactory clientFactory = new([new(true), new(true), new(true)]);
+        using LiveSendClientSession session = new(
+            clientFactory.Create,
+            new Uri("ws://localhost:12345/"),
+            connectionCount: 3,
+            progressReporter: null);
+
+        PlateauImportRequest request = CreateRequest();
+
+        await session.EnsureConnectedAsync(request, CancellationToken.None);
+        IResoniteLinkClient routedClient = Assert.IsAssignableFrom<IResoniteLinkClient>(session.RoutedClient);
+
+        for (int callIndex = 0; callIndex < 6; callIndex++)
+        {
+            await ((IResoniteLinkClient)routedClient).AddSlotAsync(CreateSlotRequest(), CancellationToken.None);
+        }
+
+        Assert.Equal(6, clientFactory.CreatedClients.Sum(static client => client.AddSlotCallCount));
+        Assert.Equal(6, clientFactory.CreatedClients[0].AddSlotCallCount);
+        Assert.All(clientFactory.CreatedClients.Skip(1), client => Assert.Equal(0, client.AddSlotCallCount));
+    }
+
+    [Fact]
+    public async Task RoutedClientConnectAsyncConnectsAllRoutesBeforeBalancedCalls()
+    {
+        RecordingResoniteLinkClient firstClient = new(true, 0);
+        RecordingResoniteLinkClient secondClient = new(true, 0);
+        RecordingResoniteLinkClient thirdClient = new(true, 0);
+        using RoutedResoniteLinkClient routedClient = new([firstClient, secondClient, thirdClient]);
+
+        await routedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+
+        Assert.Equal(1, firstClient.ConnectCallCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Equal(1, thirdClient.ConnectCallCount);
+        Assert.All(new[] { firstClient, secondClient, thirdClient }, client => Assert.True(client.BatchCallCount > 0));
+    }
+
+    [Fact]
+    public async Task EnsureConnectedAsyncDisposesAllClientsOnConnectFailure()
+    {
+        RecordingClientFactory clientFactory = new([new(true), new(false)]);
+        using LiveSendClientSession session = new(
+            clientFactory.Create,
+            new Uri("ws://localhost:12345/"),
+            connectionCount: 2,
+            progressReporter: null);
+
+        PlateauImportRequest request = CreateRequest();
+
+        InvalidOperationException thrown = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => session.EnsureConnectedAsync(request, CancellationToken.None));
+        Assert.Contains("connect failed", thrown.Message);
+
         Assert.Equal(2, clientFactory.CreatedClients.Count);
-        Assert.Equal(1, setupClient.ConnectCallCount);
-        Assert.Equal(1, recordedWorkerClient.ConnectCallCount);
-        Assert.Same(setupClient, session.SetupClient);
-        Assert.False(setupClient.Disposed);
-        Assert.False(recordedWorkerClient.Disposed);
+        Assert.All(clientFactory.CreatedClients, client => Assert.True(client.Disposed));
+        Assert.Null(session.RoutedClient);
     }
 
-    [Fact]
-    public async Task CreateLaneClientAsyncUsesSetupClientForLaneZero()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task EnsureConnectedAsyncRejectsNonPositiveConnectionCount(int connectionCount)
     {
-        RecordingClientFactory clientFactory = new([true, true]);
+        RecordingClientFactory clientFactory = new([]);
         using LiveSendClientSession session = new(
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
-            connectionCount: 2,
-            workerConnectTimeoutMilliseconds: 1000,
+            connectionCount,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
-
-        await session.EnsureSetupClientConnectedAsync(request, CancellationToken.None);
-        session.BeginWorkerClientTracking();
-
-        IResoniteLinkClient laneZeroClient = await session.CreateLaneClientAsync(
-            request,
-            laneIndex: 0,
-            CancellationToken.None);
-        IResoniteLinkClient laneOneClient = await session.CreateLaneClientAsync(
-            request,
-            laneIndex: 1,
-            CancellationToken.None);
-
-        RecordingResoniteLinkClient setupClient = clientFactory.CreatedClients[0];
-        RecordingResoniteLinkClient workerClient = Assert.IsType<RecordingResoniteLinkClient>(laneOneClient);
-        Assert.Same(setupClient, laneZeroClient);
-        Assert.Same(setupClient, session.SetupClient);
-        Assert.NotSame(setupClient, workerClient);
-        Assert.Equal(2, clientFactory.CreatedClients.Count);
-        Assert.False(setupClient.Disposed);
-        Assert.False(workerClient.Disposed);
-    }
-
-    [Fact]
-    public async Task CreateWorkerClientAsyncDisposesFailedWorkerClientWithoutTouchingSetupClient()
-    {
-        RecordingClientFactory clientFactory = new([true, false]);
-        using LiveSendClientSession session = new(
-            clientFactory.Create,
-            new Uri("ws://localhost:12345/"),
-            connectionCount: 2,
-            workerConnectTimeoutMilliseconds: 1000,
-            progressReporter: null);
-
-        PlateauImportRequest request = CreateRequest();
-
-        await session.EnsureSetupClientConnectedAsync(request, CancellationToken.None);
-        session.BeginWorkerClientTracking();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => session.CreateWorkerClientAsync(request, laneIndex: 1, CancellationToken.None));
-
-        RecordingResoniteLinkClient setupClient = clientFactory.CreatedClients[0];
-        Assert.False(setupClient.Disposed);
-        Assert.Same(setupClient, session.SetupClient);
-        Assert.Equal(2, clientFactory.CreatedClients.Count);
-        Assert.True(clientFactory.CreatedClients[1].Disposed);
+            () => session.EnsureConnectedAsync(request, CancellationToken.None));
     }
 
     private static PlateauImportRequest CreateRequest()
@@ -136,7 +145,26 @@ public sealed class LiveSendClientSessionTests
             ServerUri: null);
     }
 
-    private sealed class RecordingClientFactory(IReadOnlyList<bool> connectOutcomes)
+    private static AddSlot CreateSlotRequest()
+    {
+        return new AddSlot
+        {
+            Data = new Slot
+            {
+                ID = null!,
+                Parent = new Reference
+                {
+                    TargetID = "parent-id",
+                },
+                Name = new Field_string
+                {
+                    Value = "Slot",
+                },
+            },
+        };
+    }
+
+    private sealed class RecordingClientFactory(IReadOnlyList<ConnectOutcome> connectOutcomes)
     {
         private int nextConnectOutcomeIndex;
 
@@ -144,32 +172,51 @@ public sealed class LiveSendClientSessionTests
 
         public RecordingResoniteLinkClient Create()
         {
-            bool connectSucceeds = nextConnectOutcomeIndex < connectOutcomes.Count
+            ConnectOutcome outcome = nextConnectOutcomeIndex < connectOutcomes.Count
                 ? connectOutcomes[nextConnectOutcomeIndex]
-                : true;
+                : new ConnectOutcome(true, 0);
             nextConnectOutcomeIndex++;
 
-            RecordingResoniteLinkClient client = new(connectSucceeds);
+            RecordingResoniteLinkClient client = new(outcome.ConnectSucceeds, outcome.ConnectDelayMilliseconds);
             CreatedClients.Add(client);
             return client;
         }
     }
 
-    private sealed class RecordingResoniteLinkClient(bool connectSucceeds) : IResoniteLinkClient
+    private readonly record struct ConnectOutcome(bool ConnectSucceeds = true, int ConnectDelayMilliseconds = 0);
+
+    private sealed class RecordingResoniteLinkClient(bool connectSucceeds, int connectDelayMilliseconds) : IResoniteLinkClient
     {
+        private int nextSlotId;
+
         public int ConnectCallCount { get; private set; }
+
+        public int AddSlotCallCount { get; private set; }
+
+        public int BatchCallCount { get; private set; }
 
         public Uri? LastConnectedEndpoint { get; private set; }
 
         public bool Disposed { get; private set; }
 
-        public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
+        public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
         {
             ConnectCallCount++;
             LastConnectedEndpoint = endpoint;
-            return connectSucceeds
-                ? Task.CompletedTask
-                : Task.FromException(new InvalidOperationException("connect failed"));
+
+            if (connectDelayMilliseconds < 0)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            else if (connectDelayMilliseconds > 0)
+            {
+                await Task.Delay(connectDelayMilliseconds, cancellationToken);
+            }
+
+            if (!connectSucceeds)
+            {
+                throw new InvalidOperationException("connect failed");
+            }
         }
 
         public void Dispose()
@@ -184,14 +231,22 @@ public sealed class LiveSendClientSessionTests
 
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            AddSlotCallCount++;
+            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            BatchCallCount++;
+            return Task.FromResult(new BatchResponse
+            {
+                Success = true,
+                Responses = [],
+            });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)

@@ -28,6 +28,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Same(progressReporter, reader.LastProgressReporter);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(reader.DocumentSet, composer.LastDocumentSet);
+        Assert.Same(progressReporter, composer.LastProgressReporter);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
@@ -67,12 +68,16 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public LocalCityGmlDocumentSet? LastDocumentSet { get; private set; }
 
+        public Action<string>? LastProgressReporter { get; private set; }
+
         public IResoniteConstructionSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlDocumentSet documentSet)
+            LocalCityGmlDocumentSet documentSet,
+            Action<string>? progressReporter = null)
         {
             LastRequest = request;
             LastDocumentSet = documentSet;
+            LastProgressReporter = progressReporter;
             return source;
         }
     }

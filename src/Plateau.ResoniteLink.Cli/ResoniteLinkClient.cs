@@ -8,15 +8,9 @@ internal interface IResoniteLinkClient : IDisposable
 {
     Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken);
 
-    Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
-
-    Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
-
     Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken);
-
-    Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken);
 
     Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken);
 
@@ -35,61 +29,44 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     }
 
     private readonly IResoniteLinkTransport link;
+    private readonly SemaphoreSlim operationGate = new(1, 1);
+    private int disposed;
 
     public ResoniteLinkClient()
         : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()))
     {
     }
 
-    internal ResoniteLinkClient(IResoniteLinkTransport link)
+    internal ResoniteLinkClient(
+        IResoniteLinkTransport link)
     {
         this.link = link ?? throw new ArgumentNullException(nameof(link));
     }
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
+        operationGate.Dispose();
         link.Dispose();
     }
 
     public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
     {
-        await link.ConnectAsync(endpoint, cancellationToken);
-    }
-
-    public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Data);
-        NewEntityId response = await link.AddComponentAsync(request);
-        EnsureSuccess(
-            response,
-            CreateMutationOperationName(
-                "add component",
-                request.Data.ComponentType,
-                request.ContainerSlotId));
-        return ValidateCreatedEntityId(response.EntityId, "component");
-    }
-
-    public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(request.Data);
-        NewEntityId response = await link.AddSlotAsync(request);
-        EnsureSuccess(
-            response,
-            CreateMutationOperationName(
-                "add slot",
-                request.Data.Name?.Value,
-                request.Data.Parent?.TargetID));
-        return ValidateCreatedEntityId(response.EntityId, "slot");
+        ThrowIfUnavailable();
+        await ExecuteSerializedAsync(
+            ct => link.ConnectAsync(endpoint, ct),
+            cancellationToken);
     }
 
     public async Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken)
     {
+        ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(operations);
         if (operations.Count == 0)
@@ -101,7 +78,9 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             };
         }
 
-        BatchResponse response = await link.RunDataModelOperationBatchAsync(operations.ToList());
+        BatchResponse response = await ExecuteSerializedAsync(
+            _ => link.RunDataModelOperationBatchAsync(operations.ToList()),
+            cancellationToken);
         if (!response.Success)
         {
             throw new InvalidOperationException(
@@ -113,32 +92,19 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         return response;
     }
 
-    public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ComponentData response = await link.GetComponentDataAsync(
-            new GetComponent
-            {
-                ComponentID = componentId,
-            });
-
-        return GetOptionalReadData(
-            response.Success,
-            response.ErrorInfo,
-            response.Data,
-            "component");
-    }
-
     public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
     {
+        ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
-        SlotData response = await link.GetSlotDataAsync(
-            new GetSlot
-            {
-                SlotID = slotId,
-                Depth = depth,
-                IncludeComponentData = false,
-            });
+        SlotData response = await ExecuteSerializedAsync(
+            _ => link.GetSlotDataAsync(
+                new GetSlot
+                {
+                    SlotID = slotId,
+                    Depth = depth,
+                    IncludeComponentData = true,
+                }),
+            cancellationToken);
 
         return GetOptionalReadData(
             response.Success,
@@ -149,21 +115,25 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
+        ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
-        AssetData result = await link.ImportMeshAsync(request);
+        AssetData result = await ExecuteSerializedAsync(
+            _ => link.ImportMeshAsync(request),
+            cancellationToken);
         EnsureSuccess(result, "import mesh");
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null mesh asset URL.");
     }
 
     public async Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
+        ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentNullException.ThrowIfNull(textureImport);
         AssetData result = textureImport switch
         {
             ResoniteFileTextureImport fileImport => await ImportRawTextureFromFileAsync(fileImport, cancellationToken),
-            ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport),
-            ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport),
+            ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport, cancellationToken),
+            ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
         };
 
@@ -173,9 +143,65 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
 
     public async Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
     {
+        ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
-        Response response = await link.UpdateComponentAsync(request);
+        Response response = await ExecuteSerializedAsync(
+            _ => link.UpdateComponentAsync(request),
+            cancellationToken);
         EnsureSuccess(response, "update component");
+    }
+
+    public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    {
+        ThrowIfUnavailable();
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Data);
+        string operationName = CreateMutationOperationName(
+            "add component",
+            request.Data.ComponentType,
+            request.ContainerSlotId);
+        NewEntityId response = await ExecuteSerializedAsync(
+            _ => link.AddComponentAsync(request),
+            cancellationToken);
+        EnsureSuccess(response, operationName);
+        return ValidateCreatedEntityId(response.EntityId, "component");
+    }
+
+    public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    {
+        ThrowIfUnavailable();
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Data);
+        string operationName = CreateMutationOperationName(
+            "add slot",
+            request.Data.Name?.Value,
+            request.Data.Parent?.TargetID);
+        NewEntityId response = await ExecuteSerializedAsync(
+            _ => link.AddSlotAsync(request),
+            cancellationToken);
+        EnsureSuccess(response, operationName);
+        return ValidateCreatedEntityId(response.EntityId, "slot");
+    }
+
+    public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+    {
+        ThrowIfUnavailable();
+        cancellationToken.ThrowIfCancellationRequested();
+        ComponentData response = await ExecuteSerializedAsync(
+            _ => link.GetComponentDataAsync(
+                new GetComponent
+                {
+                    ComponentID = componentId,
+                }),
+            cancellationToken);
+
+        return GetOptionalReadData(
+            response.Success,
+            response.ErrorInfo,
+            response.Data,
+            "component");
     }
 
     private async Task<AssetData> ImportRawTextureFromFileAsync(
@@ -185,30 +211,69 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ResoniteRawTextureImport rawImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
             fileImport.AbsolutePath,
             cancellationToken: cancellationToken);
-        return await ImportRawTextureAsync(rawImport);
+        return await ImportRawTextureAsync(rawImport, cancellationToken);
     }
 
-    private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport)
+    private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport, CancellationToken cancellationToken)
     {
-        return link.ImportTextureRawAsync(
-            new ImportTexture2DRawData
-            {
-                Width = rawImport.Width,
-                Height = rawImport.Height,
-                ColorProfile = rawImport.ColorProfile,
-                RawBinaryPayload = rawImport.RawRgba32Bytes,
-            });
+        return ExecuteSerializedAsync(
+            _ => link.ImportTextureRawAsync(
+                new ImportTexture2DRawData
+                {
+                    Width = rawImport.Width,
+                    Height = rawImport.Height,
+                    ColorProfile = rawImport.ColorProfile,
+                    RawBinaryPayload = rawImport.RawRgba32Bytes,
+                }),
+            cancellationToken);
     }
 
-    private Task<AssetData> ImportRawHdrTextureAsync(ResoniteRawHdrTextureImport rawHdrImport)
+    private Task<AssetData> ImportRawHdrTextureAsync(ResoniteRawHdrTextureImport rawHdrImport, CancellationToken cancellationToken)
     {
-        return link.ImportTextureRawHdrAsync(
-            new ImportTexture2DRawDataHDR
-            {
-                Width = rawHdrImport.Width,
-                Height = rawHdrImport.Height,
-                RawBinaryPayload = rawHdrImport.RawRgbaFloatBytes,
-            });
+        return ExecuteSerializedAsync(
+            _ => link.ImportTextureRawHdrAsync(
+                new ImportTexture2DRawDataHDR
+                {
+                    Width = rawHdrImport.Width,
+                    Height = rawHdrImport.Height,
+                    RawBinaryPayload = rawHdrImport.RawRgbaFloatBytes,
+                }),
+            cancellationToken);
+    }
+
+    private async Task<TResult> ExecuteSerializedAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken cancellationToken)
+    {
+        await operationGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await operation(cancellationToken);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
+    private async Task ExecuteSerializedAsync(
+        Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
+    {
+        await operationGate.WaitAsync(cancellationToken);
+        try
+        {
+            await operation(cancellationToken);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
+    private void ThrowIfUnavailable()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
     }
 
     internal static void EnsureSuccess(Response? response, string operationName)

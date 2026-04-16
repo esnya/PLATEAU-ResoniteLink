@@ -12,11 +12,14 @@ namespace Plateau.ResoniteLink.Tests.Cli;
     Justification = "The CLI test hands builder ownership to PlateauImportService.")]
 public sealed class CliApplicationTests
 {
+    private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
+
     private static PlateauImportService CreateImportService(IResoniteSceneBuilder sceneBuilder)
     {
         return new PlateauImportService(
             sceneBuilder,
-            new CkanPlateauDatasetSourceResolver(),
+            new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
+            new LocalCityGmlDocumentReader(),
             new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
@@ -134,35 +137,6 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
-    public async Task RunAsyncPassesImportMeshTimeoutOptionToFactory()
-    {
-        using StringWriter standardOutput = new();
-        using StringWriter standardError = new();
-        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        BuildCommandOptions? capturedOptions = null;
-
-        CliApplication application = new(
-            standardOutput,
-            standardError,
-            options =>
-            {
-                capturedOptions = options;
-                return CreateImportService(new StubSceneBuilder());
-            });
-
-        int exitCode = await application.RunAsync(
-            [
-                ..BuildLiveArgs(fixturePath),
-                "--resonitelink-import-mesh-timeout-ms",
-                "45000",
-            ]);
-
-        Assert.Equal(0, exitCode);
-        Assert.NotNull(capturedOptions);
-        Assert.Equal(45000, capturedOptions!.ResoniteLinkImportMeshTimeoutMilliseconds);
-    }
-
-    [Fact]
     public async Task RunAsyncPropagatesCancellation()
     {
         using StringWriter standardOutput = new();
@@ -200,17 +174,24 @@ public sealed class CliApplicationTests
         }
 
         public Task BeginAsync(
-            ResoniteConstructionMetadata metadata,
+            SceneBootstrapInfo bootstrapInfo,
+            IPlateauDatasetContentSource datasetContentSource,
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
+            _ = bootstrapInfo;
+            _ = datasetContentSource;
+            _ = commonMaterials;
+            _ = workRoot;
             return Task.CompletedTask;
         }
 
-        public Task PrepareCommonMaterialAsync(
-            ResoniteMaterialBinding material,
+        public Task StartCommonMaterialWarmupAsync(
+            IReadOnlyList<ResoniteMaterialBinding> materials,
             CancellationToken cancellationToken = default)
         {
+            _ = materials;
             return Task.CompletedTask;
         }
 

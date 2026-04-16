@@ -1,0 +1,77 @@
+# Workflow
+
+Use this reference after `SKILL.md` triggers.
+
+The operator-facing repository workflow lives in [docs/live-testing.md](../../../docs/live-testing.md). This file intentionally does not repeat cleanup, send, or comparison procedure steps.
+
+Default document fixtures:
+
+- Use `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` unless the task requires a different dataset.
+- Switch to Yokohama mesh `53391530` only when the task needs `frn` validation.
+- Treat those fixture choices as dataset and mesh selectors, not as a promise about cache paths. Confirm the actual local source path on disk before you inspect files or launch cleanup.
+
+## Required Skill Artifacts
+
+Expect these bundled files under this skill:
+
+- `tools/ResoniteAdmin/ResoniteAdmin.csproj`
+
+Prefer the bundled skill scripts over any ad hoc repo commands. Those wrappers build the admin utility or CLI binaries on demand, so a separate manual build command is not part of the canonical procedure.
+When you use the root dump or cleanup helpers, expect them to rebuild `ResoniteAdmin` on demand, emit build output before the actual dump or cleanup step, and require fresh Windows build output. When the Windows app host is present they launch `ResoniteAdmin.exe`; otherwise they fall back to `dotnet` plus the freshly built `.dll`.
+
+## Skill Guardrails
+
+Practical rules that stay local to this skill:
+
+- Wait long enough for UDP `12512` announcements.
+- Capture `sessionName`, `sessionID`, and `linkPort`.
+- Keep the resolved `linkPort` with the run notes.
+- If the listener is absent and a disposable headless install is available, start it with the bundled headless wrapper. Otherwise stop and ask the user to bring Resonite back up.
+- For disposable headless sessions, prefer a baseline Root dump before the send and a post-send Root dump after the send.
+- Prefer UDP discovery when it yields `sessionID`; otherwise require explicit UI confirmation.
+- If UDP and UI identify different sessions, mark the run invalid.
+- Before each comparison rerun, rediscover the listener and confirm the same session identity again.
+- Do not guess the listener port, process ID, or log path. Use discovery output and wrapper return values.
+- Treat the bundled script set under `.agents/skills/resonite-live-send-debug/scripts/` as the complete live-test execution surface for this skill.
+- Warning: cleanup is destructive. It removes dataset roots from the live world, stops matching live-send CLI processes launched from the same repo, and clears local runtime artifacts.
+
+The send wrapper returns a PowerShell object with these properties:
+
+- `ProcessId`
+- `StdoutLog`
+- `StderrLog`
+- `CliDllPath`
+- `CliDllLastWriteTime`
+
+Use those values. Do not guess the log path or process id.
+
+Canonical log reads after a launch:
+
+```powershell
+Get-Content <stdout-log> -Tail 40
+Get-Content <stderr-log> -Tail 40
+```
+
+From WSL:
+
+```bash
+tail -n 40 /mnt/c/path/to/stdout.log
+tail -n 40 /mnt/c/path/to/stderr.log
+```
+
+## Script Inventory
+
+- `scripts/discover-session.ps1`
+  Capture live ResoniteLink announcements from UDP `12512`.
+- `scripts/start-headless-session.ps1`
+  Launch a disposable Windows headless session directly and verify its announced ResoniteLink port.
+- `scripts/stop-headless-session.ps1`
+  Stop the tracked headless PID launched for the experiment, or an explicit PID.
+- `scripts/dump-root-session.ps1`
+  Capture a recursive Root snapshot from the tracked or explicitly addressed session.
+- `scripts/cleanup-session.ps1`
+  Remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
+- `scripts/run-live-send.ps1`
+  Launch one Windows-side live send with explicit logs.
+- `scripts/compare-modes.ps1`
+  Run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.

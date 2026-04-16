@@ -4,7 +4,7 @@ public sealed record ResoniteMaterialBinding(
     string MaterialKey,
     ResoniteColor BaseColor,
     ResoniteMaterialType MaterialType,
-    string? TexturePath,
+    ResoniteTexturePayload? TexturePayload,
     ResoniteTextureSourceKind TextureSourceKind,
     ResoniteMaterialProjection Projection,
     ResoniteMaterialDepthOffset? DepthOffset,
@@ -12,4 +12,6 @@ public sealed record ResoniteMaterialBinding(
     ResoniteFloat2? TextureScale = null,
     string? Family = null,
     ResoniteFloat2? TextureOffset = null,
-    ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped);
+    ResoniteMaterialAssetScope AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+    TerrainTextureOverlay? TerrainOverlay = null,
+    int? BundledVariantIndex = null);

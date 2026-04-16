@@ -26,4 +26,8 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Verify
-        run: bash ./scripts/verify-ci.sh
+        run: |
+          dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+          dotnet format whitespace . --folder --verify-no-changes
+          dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+          dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false

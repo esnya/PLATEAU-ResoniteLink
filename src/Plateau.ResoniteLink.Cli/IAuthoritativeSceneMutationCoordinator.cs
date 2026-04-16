@@ -3,25 +3,26 @@ using Plateau.ResoniteLink.Domain.Importing;
 namespace Plateau.ResoniteLink.Cli;
 
 /// <summary>
-/// Coordinates authoritative live-send mutation ordering.
-/// This is the seam between setup-session ownership, shared-slot visibility checks,
-/// and anchor-root placement.
+/// Coordinates authoritative live-send mutation operations.
 /// </summary>
 internal interface IAuthoritativeSceneMutationCoordinator
 {
+    Task EnsureConnectedAsync(
+        PlateauImportRequest request,
+        CancellationToken cancellationToken);
+
     Task EnsureSetupClientConnectedAsync(
         PlateauImportRequest request,
-        CancellationToken cancellationToken);
-
-    Task<IResoniteLinkClient> CreateLaneClientAsync(
-        PlateauImportRequest request,
-        int laneIndex,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        return EnsureConnectedAsync(request, cancellationToken);
+    }
 
     Task<SceneAnchor> ResolveAnchorAsync(
-        IResoniteLinkClient setupClient,
+        IResoniteLinkClient routedClient,
         string datasetRootSlotId,
         string completionMeshCode,
         bool datasetRootExisted,
         CancellationToken cancellationToken);
 }
+

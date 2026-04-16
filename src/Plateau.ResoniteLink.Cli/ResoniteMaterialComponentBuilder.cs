@@ -147,12 +147,12 @@ internal static class ResoniteMaterialComponentBuilder
         textureSet = null;
         if (material.MaterialType != ResoniteMaterialType.Standard
             || material.TextureSourceKind != ResoniteTextureSourceKind.Bundled
-            || string.IsNullOrWhiteSpace(material.TexturePath))
+            || string.IsNullOrWhiteSpace(material.Family))
         {
             return false;
         }
 
-        string albedoLogicalPath = material.TexturePath;
+        string albedoLogicalPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
         string stem = Path.GetFileNameWithoutExtension(albedoLogicalPath);
         if (!stem.EndsWith("_Color", StringComparison.Ordinal))
         {

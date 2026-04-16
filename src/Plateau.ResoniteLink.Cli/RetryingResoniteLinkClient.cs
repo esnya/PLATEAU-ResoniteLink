@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 using Plateau.ResoniteLink.Application.Logging;
@@ -7,42 +7,60 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Cli;
 
-internal sealed class RetryingResoniteLinkClient(
-    Func<IResoniteLinkClient> clientFactory,
-    Action<string>? reporter = null,
-    int importMeshTimeoutMilliseconds = CliDefaultOptions.ResoniteLinkImportMeshTimeoutMilliseconds) : IResoniteLinkClient
+internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 {
     private const int AttemptLimit = 2;
-    private static readonly TimeSpan SlowBatchThreshold = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan SlowImportThreshold = TimeSpan.FromSeconds(60);
-    private readonly SemaphoreSlim operationGate = new(1, 1);
+
+    private readonly Func<IResoniteLinkClient> clientFactory;
+    private readonly Action<string>? reporter;
     private readonly SemaphoreSlim reconnectGate = new(1, 1);
-    private IResoniteLinkClient inner = clientFactory();
+    private readonly ConcurrentBag<ClientState> knownClients = [];
+    private ClientState currentClient;
     private Uri? endpoint;
-    private int generation;
+    private int disposed;
+
+    public RetryingResoniteLinkClient(
+        Func<IResoniteLinkClient> clientFactory,
+        Action<string>? reporter = null)
+    {
+        this.clientFactory = clientFactory;
+        this.reporter = reporter;
+
+        currentClient = new ClientState(clientFactory());
+        knownClients.Add(currentClient);
+    }
 
     public void Dispose()
     {
-        operationGate.Dispose();
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
         reconnectGate.Dispose();
-        inner.Dispose();
+        foreach (ClientState client in knownClients)
+        {
+            client.MarkRetired();
+        }
     }
 
-    [SuppressMessage(
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Design",
         "CA1031:Do not catch general exception types",
         Justification = "Connect retries intentionally handle arbitrary transport failures before recreating the client.")]
     public async Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         ArgumentNullException.ThrowIfNull(endpoint);
         this.endpoint = endpoint;
-        Exception? lastException = null;
 
+        Exception? lastException = null;
         for (int attempt = 1; attempt <= AttemptLimit; attempt++)
         {
+            ClientState observedClient = Volatile.Read(ref currentClient);
             try
             {
-                await inner.ConnectAsync(endpoint, cancellationToken);
+                await observedClient.Client.ConnectAsync(endpoint, cancellationToken);
                 return;
             }
             catch (OperationCanceledException)
@@ -62,50 +80,53 @@ internal sealed class RetryingResoniteLinkClient(
                         "live",
                         $"ResoniteLink connect failed on attempt {attempt}/{AttemptLimit}. "
                         + $"Creating a fresh client before retry. Reason: {exception.Message}"));
-                ReplaceClientWithoutConnecting();
+                ReplaceClientWithoutConnecting(observedClient);
             }
         }
 
         throw lastException!;
     }
 
+    public Task<BatchResponse> RunDataModelOperationBatchAsync(
+        IReadOnlyList<DataModelOperation> operations,
+        CancellationToken cancellationToken)
+    {
+        return ExecuteMeasuredWithoutReconnectAsync(
+            static (client, state, ct) => client.RunDataModelOperationBatchAsync(state, ct),
+            operations,
+            "RunDataModelOperationBatch",
+            cancellationToken,
+            CreateBatchOperationDescriptor);
+    }
+
     public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
-            static (client, state, ct) => client.AddComponentAsync(state, ct),
+            static (client, state, ct) => ResoniteLinkLegacyCompatibility.AddComponentAsync(client, state, ct),
             request,
             "AddComponent",
-            cancellationToken);
+            cancellationToken,
+            static state => CreateComponentOperationDescriptor(state.Data));
     }
 
     public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
-            static (client, state, ct) => client.AddSlotAsync(state, ct),
+            static (client, state, ct) => ResoniteLinkLegacyCompatibility.AddSlotAsync(client, state, ct),
             request,
             "AddSlot",
-            cancellationToken);
-    }
-
-    public Task<BatchResponse> RunDataModelOperationBatchAsync(
-        IReadOnlyList<DataModelOperation> operations,
-        CancellationToken cancellationToken)
-    {
-        return ExecuteTimedWithoutReconnectAsync(
-            static (client, state, ct) => client.RunDataModelOperationBatchAsync(state, ct),
-            operations,
-            "RunDataModelOperationBatch",
-            SlowBatchThreshold,
-            cancellationToken);
+            cancellationToken,
+            static state => CreateSlotOperationDescriptor(state.Data));
     }
 
     public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
     {
         return ExecuteWithReconnectAsync(
-            static (client, state, ct) => client.GetComponentAsync(state, ct),
+            static (client, state, ct) => ResoniteLinkLegacyCompatibility.GetComponentAsync(client, state, ct),
             componentId,
             "GetComponent",
-            cancellationToken);
+            cancellationToken,
+            static state => $"component '{state}'");
     }
 
     public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
@@ -114,28 +135,28 @@ internal sealed class RetryingResoniteLinkClient(
             static (client, state, ct) => client.GetSlotAsync(state.SlotId, state.Depth, ct),
             (SlotId: slotId, Depth: depth),
             "GetSlot",
-            cancellationToken);
+            cancellationToken,
+            static state => $"slot '{state.SlotId}'");
     }
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
     {
-        _ = importMeshTimeoutMilliseconds;
-        return ExecuteTimedImportAsync(
+        return ExecuteMeasuredWithoutReconnectAsync(
             static (client, state, ct) => client.ImportMeshAsync(state, ct),
             request,
             "ImportMesh",
-            SlowImportThreshold,
-            cancellationToken);
+            cancellationToken,
+            static _ => null);
     }
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return ExecuteTimedImportAsync(
+        return ExecuteMeasuredWithoutReconnectAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
-            SlowImportThreshold,
-            cancellationToken);
+            cancellationToken,
+            static _ => null);
     }
 
     public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
@@ -144,14 +165,16 @@ internal sealed class RetryingResoniteLinkClient(
             static (client, state, ct) => client.UpdateComponentAsync(state, ct),
             request,
             "UpdateComponent",
-            cancellationToken);
+            cancellationToken,
+            static state => CreateComponentOperationDescriptor(state.Data));
     }
 
     private async Task ExecuteWithReconnectAsync<TState>(
         Func<IResoniteLinkClient, TState, CancellationToken, Task> operation,
         TState state,
         string operationName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TState, string?>? occupancyDescriptorProvider = null)
     {
         await ExecuteWithReconnectAsync<TState, object?>(
             async (client, innerState, ct) =>
@@ -161,14 +184,16 @@ internal sealed class RetryingResoniteLinkClient(
             },
             state,
             operationName,
-            cancellationToken);
+            cancellationToken,
+            occupancyDescriptorProvider);
     }
 
     private async Task ExecuteWithoutReconnectAsync<TState>(
         Func<IResoniteLinkClient, TState, CancellationToken, Task> operation,
         TState state,
         string operationName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TState, string?>? occupancyDescriptorProvider = null)
     {
         await ExecuteWithoutReconnectAsync<TState, object?>(
             async (client, innerState, ct) =>
@@ -178,20 +203,23 @@ internal sealed class RetryingResoniteLinkClient(
             },
             state,
             operationName,
-            cancellationToken);
+            cancellationToken,
+            occupancyDescriptorProvider);
     }
 
     private async Task<TResult> ExecuteWithoutReconnectAsync<TState, TResult>(
         Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
         TState state,
         string operationName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TState, string?>? occupancyDescriptorProvider = null)
     {
-        await operationGate.WaitAsync(cancellationToken);
+        ClientState observedClient;
+        using ClientLease lease = AcquireCurrentClient(out observedClient);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return await operation(inner, state, cancellationToken);
+            return await operation(lease.Client, state, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -199,94 +227,82 @@ internal sealed class RetryingResoniteLinkClient(
         }
         catch (Exception exception)
         {
+            if (ShouldRetireClientAfterFailure(exception))
+            {
+                await ReplaceClientAfterFatalFailureAsync(observedClient, operationName, cancellationToken);
+                reporter?.Invoke(
+                    PlateauLog.Warning(
+                        "live",
+                        $"ResoniteLink {operationName} retired the active client after a fatal protocol failure. Reason: {exception.Message}"));
+            }
+
             reporter?.Invoke(
                 PlateauLog.Warning(
                     "live",
                     $"ResoniteLink {operationName} failed without retry. Reason: {exception.Message}"));
             throw ResoniteLinkOperationException.Wrap(operationName, exception);
         }
-        finally
-        {
-            operationGate.Release();
-        }
     }
 
-    private async Task<TResult> ExecuteTimedWithoutReconnectAsync<TState, TResult>(
+    private async Task<TResult> ExecuteMeasuredWithoutReconnectAsync<TState, TResult>(
         Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
         TState state,
         string operationName,
-        TimeSpan slowThreshold,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TState, string?>? occupancyDescriptorProvider = null)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         TResult result = await ExecuteWithoutReconnectAsync(
             operation,
             state,
             operationName,
-            cancellationToken);
+            cancellationToken,
+            occupancyDescriptorProvider);
         stopwatch.Stop();
 
         reporter?.Invoke(
             PlateauLog.Debug(
                 "live",
                 $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
-        if (stopwatch.Elapsed >= slowThreshold)
-        {
-            reporter?.Invoke(
-                PlateauLog.Warning(
-                    "live",
-                    $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
-                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
-        }
 
         return result;
     }
 
-    private async Task<TResult> ExecuteTimedImportAsync<TState, TResult>(
-        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
-        TState state,
-        string operationName,
-        TimeSpan slowThreshold,
-        CancellationToken cancellationToken)
+    private static string? CreateSlotOperationDescriptor(Slot? slot)
     {
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        TResult result = await ExecuteImportAsync(
-            operation,
-            state,
-            operationName,
-            cancellationToken);
-        stopwatch.Stop();
-
-        reporter?.Invoke(
-            PlateauLog.Debug(
-                "live",
-                $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
-        if (stopwatch.Elapsed >= slowThreshold)
+        if (!string.IsNullOrWhiteSpace(slot?.Name?.Value))
         {
-            reporter?.Invoke(
-                PlateauLog.Warning(
-                    "live",
-                    $"ResoniteLink {operationName} exceeded slow threshold {slowThreshold.TotalSeconds:F1}s "
-                    + $"(actual={stopwatch.Elapsed.TotalSeconds:F3}s)."));
+            return $"slot '{slot.Name!.Value}'";
         }
 
-        return result;
+        if (!string.IsNullOrWhiteSpace(slot?.ID))
+        {
+            return $"slot '{slot.ID}'";
+        }
+
+        return null;
     }
 
-    private async Task<TResult> ExecuteImportAsync<TState, TResult>(
-        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
-        TState state,
-        string operationName,
-        CancellationToken cancellationToken)
+    private static string? CreateComponentOperationDescriptor(Component? component)
     {
-        return await ExecuteWithoutReconnectAsync(
-            operation,
-            state,
-            operationName,
-            cancellationToken);
+        return string.IsNullOrWhiteSpace(component?.ComponentType)
+            ? null
+            : $"component '{component.ComponentType}'";
     }
 
-    [SuppressMessage(
+    private static string? CreateBatchOperationDescriptor(IReadOnlyList<DataModelOperation> operations)
+    {
+        ArgumentNullException.ThrowIfNull(operations);
+
+        return operations.Count switch
+        {
+            0 => "empty batch",
+            1 => "batch with 1 operation",
+            _ => $"batch with {operations.Count} operations",
+        };
+    }
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Design",
         "CA1031:Do not catch general exception types",
         Justification = "Reconnect retries intentionally handle arbitrary ResoniteLink failures before replacing the client.")]
@@ -294,57 +310,95 @@ internal sealed class RetryingResoniteLinkClient(
         Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
         TState state,
         string operationName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<TState, string?>? occupancyDescriptorProvider = null)
     {
-        await operationGate.WaitAsync(cancellationToken);
-        try
+        Exception? lastException = null;
+        string? occupancyDescriptor = occupancyDescriptorProvider?.Invoke(state);
+
+        for (int attempt = 1; attempt <= AttemptLimit; attempt++)
         {
-            Exception? lastException = null;
+            cancellationToken.ThrowIfCancellationRequested();
+            using ClientLease lease = AcquireCurrentClient(out ClientState observedClient);
 
-            for (int attempt = 1; attempt <= AttemptLimit; attempt++)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                int observedGeneration = Volatile.Read(ref generation);
-
-                try
+                return await operation(lease.Client, state, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                lastException = exception;
+                if (ShouldRetireClientAfterFailure(exception))
                 {
-                    return await operation(inner, state, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    lastException = exception;
-                    if (attempt >= AttemptLimit)
-                    {
-                        break;
-                    }
-
+                    await ReplaceClientAfterFatalFailureAsync(observedClient, operationName, cancellationToken);
                     reporter?.Invoke(
                         PlateauLog.Warning(
                             "live",
-                            $"ResoniteLink {operationName} failed on attempt {attempt}/{AttemptLimit}. "
-                            + $"Reconnecting before retry. Reason: {exception.Message}"));
-                    await ReconnectAsync(observedGeneration, cancellationToken);
+                            $"ResoniteLink {operationName} retired the active client after a fatal protocol failure. "
+                            + $"Reason: {exception.Message}"));
+                    throw ResoniteLinkOperationException.Wrap(operationName, exception);
                 }
-            }
 
-            throw ResoniteLinkOperationException.Wrap(operationName, lastException!);
+                if (attempt >= AttemptLimit)
+                {
+                    break;
+                }
+
+                reporter?.Invoke(
+                    PlateauLog.Warning(
+                        "live",
+                        $"ResoniteLink {operationName} failed on attempt {attempt}/{AttemptLimit}. "
+                        + $"Reconnecting before retry. Reason: {exception.Message}"));
+                await ReconnectAsync(observedClient, cancellationToken);
+            }
         }
-        finally
+
+        throw ResoniteLinkOperationException.Wrap(operationName, lastException!);
+    }
+
+    private async Task ReplaceClientAfterFatalFailureAsync(
+        ClientState observedClient,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        try
         {
-            operationGate.Release();
+            await ReconnectAsync(observedClient, cancellationToken);
+        }
+        catch (Exception reconnectException) when (reconnectException is not OperationCanceledException)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} could not prepare a connected replacement client after a fatal protocol failure. "
+                    + $"Reason: {reconnectException.Message}"));
         }
     }
 
-    private async Task ReconnectAsync(int observedGeneration, CancellationToken cancellationToken)
+    private ClientLease AcquireCurrentClient(out ClientState observedClient)
+    {
+        while (true)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+
+            observedClient = Volatile.Read(ref currentClient);
+            if (observedClient.TryAcquire())
+            {
+                return new ClientLease(observedClient);
+            }
+        }
+    }
+
+    private async Task ReconnectAsync(ClientState observedClient, CancellationToken cancellationToken)
     {
         await reconnectGate.WaitAsync(cancellationToken);
         try
         {
-            if (observedGeneration != generation)
+            if (!ReferenceEquals(observedClient, Volatile.Read(ref currentClient)))
             {
                 return;
             }
@@ -354,27 +408,27 @@ internal sealed class RetryingResoniteLinkClient(
                 throw new InvalidOperationException("Cannot reconnect before an endpoint has been established.");
             }
 
-            IResoniteLinkClient? replacement = null;
-            IResoniteLinkClient? previous = null;
+            ClientState replacementClient = new(clientFactory());
             try
             {
-                replacement = clientFactory();
+                await replacementClient.Client.ConnectAsync(endpoint, cancellationToken);
+                knownClients.Add(replacementClient);
 
-                await replacement.ConnectAsync(endpoint, cancellationToken);
+                if (!ReferenceEquals(
+                    Interlocked.CompareExchange(ref currentClient, replacementClient, observedClient),
+                    observedClient))
+                {
+                    replacementClient.MarkRetired();
+                    return;
+                }
 
-                previous = inner;
-                inner = replacement;
-                replacement = null;
-                Interlocked.Increment(ref generation);
-
-                previous.Dispose();
-                previous = null;
+                observedClient.MarkRetired();
                 reporter?.Invoke(PlateauLog.Warning("live", $"Reconnected ResoniteLink client to {endpoint}."));
             }
-            finally
+            catch
             {
-                replacement?.Dispose();
-                previous?.Dispose();
+                replacementClient.MarkRetired();
+                throw;
             }
         }
         finally
@@ -383,12 +437,122 @@ internal sealed class RetryingResoniteLinkClient(
         }
     }
 
-    private void ReplaceClientWithoutConnecting()
+    private void ReplaceClientWithoutConnecting(ClientState observedClient)
     {
-        IResoniteLinkClient previous = inner;
-        inner = clientFactory();
-        Interlocked.Increment(ref generation);
-        previous.Dispose();
+        ClientState replacementClient = new(clientFactory());
+        knownClients.Add(replacementClient);
+
+        if (!ReferenceEquals(
+            Interlocked.CompareExchange(ref currentClient, replacementClient, observedClient),
+            observedClient))
+        {
+            replacementClient.MarkRetired();
+            return;
+        }
+
+        observedClient.MarkRetired();
+    }
+
+    private static bool ShouldRetireClientAfterFailure(Exception exception)
+    {
+        Exception current = exception;
+        while (true)
+        {
+            if (current is InvalidOperationException invalidOperationException
+                && IsFatalProtocolFailureMessage(invalidOperationException.Message))
+            {
+                return true;
+            }
+
+            if (current.InnerException is null)
+            {
+                return false;
+            }
+
+            current = current.InnerException;
+        }
+    }
+
+    private static bool IsFatalProtocolFailureMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("returned a null response", StringComparison.Ordinal)
+            || message.Contains("Previous message was binary payload", StringComparison.Ordinal)
+            || message.Contains("binary payload", StringComparison.Ordinal);
+    }
+
+    private sealed class ClientState(IResoniteLinkClient client)
+    {
+        private int activeOperations;
+        private int retired;
+        private int disposed;
+        private int clientDisposed;
+
+        public IResoniteLinkClient Client { get; } = client;
+
+        public bool TryAcquire()
+        {
+            while (true)
+            {
+                if (Volatile.Read(ref disposed) != 0)
+                {
+                    return false;
+                }
+
+                Interlocked.Increment(ref activeOperations);
+                if (Volatile.Read(ref disposed) == 0)
+                {
+                    return true;
+                }
+
+                Release();
+            }
+        }
+
+        public void Release()
+        {
+            if (Interlocked.Decrement(ref activeOperations) == 0)
+            {
+                TryDisposeIfIdle();
+            }
+        }
+
+        public void MarkRetired()
+        {
+            Interlocked.Exchange(ref disposed, 1);
+            Interlocked.Exchange(ref retired, 1);
+            TryDisposeIfIdle();
+        }
+
+        private void TryDisposeIfIdle()
+        {
+            if (Volatile.Read(ref disposed) == 0
+                || Volatile.Read(ref retired) == 0
+                || Volatile.Read(ref activeOperations) != 0)
+            {
+                return;
+            }
+
+            if (Interlocked.Exchange(ref clientDisposed, 1) == 0)
+            {
+                Client.Dispose();
+            }
+        }
+    }
+
+    private readonly struct ClientLease(ClientState client)
+        : IDisposable
+    {
+        public IResoniteLinkClient Client => client.Client;
+
+        public void Dispose()
+        {
+            client.Release();
+        }
     }
 }
 

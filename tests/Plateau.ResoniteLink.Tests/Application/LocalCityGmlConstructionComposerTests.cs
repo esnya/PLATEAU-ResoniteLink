@@ -18,7 +18,6 @@ public sealed class LocalCityGmlConstructionComposerTests
             ServerUri: null);
 
         TerrainTextureOverlay overlay = new(
-            TexturePath: "appearance/overlay.png",
             PackageName: "bldg",
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 14,
@@ -61,7 +60,6 @@ public sealed class LocalCityGmlConstructionComposerTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            TerrainHeightSampler? terrainHeightSampler,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {

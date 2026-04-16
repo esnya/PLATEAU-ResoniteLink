@@ -12,6 +12,14 @@ internal static class LocalCityGmlBootstrapPipeline
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
+        return await ReadDocumentSetCoreAsync(request, progressReporter, cancellationToken);
+    }
+
+    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
+        PlateauImportRequest request,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(request);
 
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
@@ -68,58 +76,9 @@ internal static class LocalCityGmlBootstrapPipeline
                 progressReporter,
                 lodFilteringStrategy,
                 cancellationToken);
-
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-
-        List<LocalCityGmlResonitePlanBuilder.SourceFilePipeline> demPipelines = sourceFilePipelines
-            .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        Stopwatch demStopwatch = Stopwatch.StartNew();
-        LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult[] demParsedSourceFiles = demPipelines.Count == 0
-            ? []
-            : await Task.WhenAll(demPipelines.Select(static pipeline => pipeline.GetParseTask()));
-        demStopwatch.Stop();
-
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem? referenceSystem = null;
-        foreach (LocalCityGmlResonitePlanBuilder.SourceFilePipeline pipeline in sourceFilePipelines)
-        {
-            LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult parsedSourceFile = await pipeline.GetParseTask();
-            if (parsedSourceFile.ReferenceSystem is null)
-            {
-                continue;
-            }
-
-            referenceSystem = parsedSourceFile.ReferenceSystem;
-            break;
-        }
-
-        List<LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor> cachedDemSourceFiles = demParsedSourceFiles
-            .Where(static parsed => parsed.CityObjects.Length > 0)
-            .Select(static parsed => new LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor(parsed.SourceFile, parsed.CityObjects))
-            .ToList();
-        List<LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle> demTerrainTriangles = [];
-
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult demParsedSourceFile in demParsedSourceFiles)
-        {
-            demTerrainTriangles.AddRange(demParsedSourceFile.TerrainTriangles);
-        }
-
-        if (demPipelines.Count > 0)
-        {
-            progressReporter?.Invoke(
-                PlateauLog.Info(
-                    "import",
-                    $"DEM bootstrap parsed {demParsedSourceFiles.Sum(static parsed => parsed.CityObjects.Length)} city objects "
-                    + $"from {demPipelines.Count} files in {demStopwatch.Elapsed.TotalSeconds:F3}s."));
-        }
-
-        if (referenceSystem is null)
-        {
-            throw new PlateauImportValidationException(
-                [$"No CityGML coordinate reference system was resolved for mesh code '{request.MeshCode}'."]);
-        }
 
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlResonitePlanBuilder.ResolveLocalOrigin(effectiveRequestedMeshArea);
@@ -133,24 +92,6 @@ internal static class LocalCityGmlBootstrapPipeline
             resolvedLocalOrigin.Latitude,
             resolvedLocalOrigin.Longitude,
             0.0);
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? demTerrainBounds = referenceSystem.IsGeographic
-            ? LocalCityGmlResonitePlanBuilder.ResolveDemTerrainBounds(demParsedSourceFiles, effectiveRequestedMeshArea)
-            : null;
-        TerrainTextureOverlay[] terrainTextureOverlays = demTerrainBounds is not null && demPipelines.Count > 0
-            ? LocalCityGmlResonitePlanBuilder.CreateDemTerrainTextureOverlays(demTerrainBounds)
-            : [];
-
-        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler =
-            referenceSystem.IsGeographic && demTerrainTriangles.Count > 0
-                ? LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(
-                    demTerrainTriangles,
-                    globalOriginPoint,
-                    referenceSystem.Geocentric!)
-                : null;
-        progressReporter?.Invoke(
-            terrainHeightSampler is null
-                ? PlateauLog.Info("import", "Terrain height sampler disabled for this dataset.")
-                : PlateauLog.Info("import", $"Terrain height sampler indexed {demTerrainTriangles.Count} DEM triangles."));
 
         totalStopwatch.Stop();
         progressReporter?.Invoke(
@@ -164,12 +105,26 @@ internal static class LocalCityGmlBootstrapPipeline
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
-            terrainTextureOverlays,
+            [],
             discoveryResult.RequestedMeshCodes,
             sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
-            cachedDemSourceFiles.Select(CachedSourceFileDescriptor.FromLegacy).ToArray(),
-            CoordinateReferenceSystem.FromLegacy(referenceSystem),
+            [],
+            referenceSystem: null,
             GeodeticPoint.FromLegacy(globalOriginPoint),
-            TerrainHeightSampler.FromLegacy(terrainHeightSampler));
+            terrainHeightSampler: null);
     }
+
+    private static void ValidateCompatibleReferenceSystem(
+        CoordinateReferenceSystem expectedReferenceSystem,
+        CoordinateReferenceSystem actualReferenceSystem)
+    {
+        if (expectedReferenceSystem.IsCompatibleWith(actualReferenceSystem))
+        {
+            return;
+        }
+
+        throw new PlateauImportValidationException(
+            [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
+    }
+
 }

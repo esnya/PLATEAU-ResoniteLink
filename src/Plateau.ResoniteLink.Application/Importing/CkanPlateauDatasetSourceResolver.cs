@@ -2,8 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
-using Plateau.ResoniteLink.Domain.Importing;
-
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
@@ -11,25 +9,9 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
 
-    public CkanPlateauDatasetSourceResolver()
-        : this(new HttpClient())
-    {
-    }
-
     public CkanPlateauDatasetSourceResolver(HttpClient httpClient)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
-    }
-
-    public async Task<PlateauImportRequest> ResolveAsync(
-        PlateauImportRequest request,
-        string workRoot,
-        CancellationToken cancellationToken = default)
-    {
-        ValidatedPlateauImportRequest validatedRequest =
-            PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
-
-        return (await ResolveAsync(validatedRequest, workRoot, cancellationToken)).ToImportRequest();
     }
 
     public async Task<ValidatedPlateauImportRequest> ResolveAsync(

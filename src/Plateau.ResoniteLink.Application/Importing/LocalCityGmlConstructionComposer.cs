@@ -8,7 +8,8 @@ internal sealed class LocalCityGmlConstructionComposer(ICityGmlGeometryProjector
 
     public IResoniteConstructionSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet)
+        LocalCityGmlDocumentSet documentSet,
+        Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(documentSet);
@@ -33,6 +34,7 @@ internal sealed class LocalCityGmlConstructionComposer(ICityGmlGeometryProjector
             metadata,
             request,
             documentSet,
-            geometryProjector);
+            geometryProjector,
+            progressReporter);
     }
 }

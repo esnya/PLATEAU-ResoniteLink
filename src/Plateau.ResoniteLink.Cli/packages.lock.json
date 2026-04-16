@@ -25,8 +25,10 @@
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
+          "NetTopologySuite": "[2.6.0, )",
           "Plateau.ResoniteLink.Domain": "[1.0.0, )",
-          "SharpCompress": "[0.47.4, )"
+          "SharpCompress": "[0.47.4, )",
+          "SixLabors.ImageSharp": "[3.1.12, )"
         }
       },
       "plateau.resonitelink.domain": {
@@ -43,6 +45,12 @@
         "requested": "[1.1.15, )",
         "resolved": "1.1.15",
         "contentHash": "KuA7N3Nv/lIeawJdQBQJR6oqWD9KETHLbWzBqapwFs+Tby+R5I4crkKujKMm5bXcSuFZ8LNtflFQVadsWCbBjg=="
+      },
+      "NetTopologySuite": {
+        "type": "CentralTransitive",
+        "requested": "[2.6.0, )",
+        "resolved": "2.6.0",
+        "contentHash": "1B1OTacTd4QtFyBeuIOcThwSSLUdRZU3bSFIwM8vk36XiZlBMi3K36u74e4OqwwHRHUuJC1PhbDx4hyI266X1Q=="
       },
       "SharpCompress": {
         "type": "CentralTransitive",

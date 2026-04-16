@@ -10,19 +10,22 @@ public sealed class DefaultMaterialResolverTests
     [Fact]
     public void ResolveMaterialUsesDatasetTextureWhenPresent()
     {
+        ResoniteTexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
+
         ResolvedMaterial material = resolver.ResolveMaterial(
             packageName: "bldg",
-            texturePath: "udx/bldg/53394525/appearance/roof.png",
+            texturePayload: payload,
             preferUvProjection: true,
             familyOverride: null,
             variantSelectionKey: "bldg:uv");
 
         Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
-        Assert.Equal("udx/bldg/53394525/appearance/roof.png", material.TexturePath);
+        Assert.Same(payload, material.TexturePayload);
         Assert.Equal(ResoniteTextureSourceKind.Dataset, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
         Assert.Null(material.Family);
         Assert.Null(material.TextureScale);
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope);
     }
 
     [Fact]
@@ -30,17 +33,18 @@ public sealed class DefaultMaterialResolverTests
     {
         ResolvedMaterial material = resolver.ResolveMaterial(
             packageName: "bldg",
-            texturePath: null,
+            texturePayload: null,
             preferUvProjection: true,
             familyOverride: null,
             variantSelectionKey: "bldg:uv");
 
         Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
-        Assert.Contains(material.TexturePath, BundledDefaultMaterialFamilies.FacadeVariants);
+        Assert.Null(material.TexturePayload);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
         Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
         Assert.NotNull(material.TextureScale);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
     }
 
     [Fact]
@@ -48,40 +52,53 @@ public sealed class DefaultMaterialResolverTests
     {
         ResolvedMaterial material = resolver.ResolveMaterial(
             packageName: "luse",
-            texturePath: null,
+            texturePayload: null,
             preferUvProjection: false,
             familyOverride: null,
             variantSelectionKey: "luse:tri");
 
         Assert.Equal(ResoniteMaterialType.Wireframe, material.MaterialType);
-        Assert.Null(material.TexturePath);
+        Assert.Null(material.TexturePayload);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
+        Assert.Null(material.Family);
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope);
     }
 
     [Fact]
-    public void ResolveMaterialUsesPlaster002FallbackForCityFurniture()
+    public void ResolveMaterialUsesCityFurnitureFallbackFamily()
     {
         ResolvedMaterial material = resolver.ResolveMaterial(
             packageName: "frn",
-            texturePath: null,
+            texturePayload: null,
             preferUvProjection: false,
             familyOverride: null,
             variantSelectionKey: "frn:tri");
 
         Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
-        Assert.Equal("default-materials/city-furniture/Plaster002_2K-JPG_Color.jpg", material.TexturePath);
+        Assert.Null(material.TexturePayload);
         Assert.Equal(ResoniteTextureSourceKind.Bundled, material.TextureSourceKind);
         Assert.Equal(ResoniteMaterialProjection.Triplanar, material.Projection);
         Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
         Assert.NotNull(material.TextureScale);
         Assert.Equal(
-            BundledDefaultMaterialProfiles.Plaster002TilesPerMeter.X,
-            material.TextureScale!.X,
-            6);
-        Assert.Equal(
-            BundledDefaultMaterialProfiles.Plaster002TilesPerMeter.Y,
-            material.TextureScale.Y,
-            6);
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariants(BundledDefaultMaterialFamilies.CityFurniture)[0]),
+            material.TextureScale);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+    }
+
+    [Fact]
+    public void ResolveMaterialUsesRoadFamilyForPathLikePackageWithoutTexture()
+    {
+        ResolvedMaterial material = resolver.ResolveMaterial(
+            packageName: "wwy",
+            texturePayload: null,
+            preferUvProjection: false,
+            familyOverride: null,
+            variantSelectionKey: "wwy:tri");
+
+        Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
+        Assert.Equal(BundledDefaultMaterialFamilies.Road, material.Family);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
     }
 }

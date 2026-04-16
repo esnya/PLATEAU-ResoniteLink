@@ -41,7 +41,8 @@ internal sealed record BootstrapParsedSurface(
     BootstrapParsedRing ExteriorRing,
     BootstrapParsedRing[] InteriorRings,
     ResoniteColor BaseColor,
-    string? TexturePath)
+    ResoniteTexturePayload? TexturePayload,
+    bool UsesGeneratedDemTexture = false)
 {
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
@@ -54,7 +55,8 @@ internal sealed record BootstrapParsedSurface(
             ExteriorRing.ToLegacy(),
             InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
             BaseColor,
-            TexturePath);
+            TexturePayload,
+            UsesGeneratedDemTexture);
     }
 
     internal static BootstrapParsedSurface FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
@@ -65,7 +67,8 @@ internal sealed record BootstrapParsedSurface(
             BootstrapParsedRing.FromLegacy(surface.ExteriorRing),
             surface.InteriorRings.Select(BootstrapParsedRing.FromLegacy).ToArray(),
             surface.BaseColor,
-            surface.TexturePath);
+            surface.TexturePayload,
+            surface.UsesGeneratedDemTexture);
     }
 }
 
@@ -77,6 +80,7 @@ internal sealed record BootstrapParsedCityObject(
     int? LodLevel,
     BootstrapParsedSurface[] Surfaces,
     CoordinateReferenceSystem ReferenceSystem,
+    string SourceFileRelativePath,
     string SourceUnitIdentity,
     string SourceIdentity,
     bool SharedAcrossMeshCodes,
@@ -93,6 +97,7 @@ internal sealed record BootstrapParsedCityObject(
             LodLevel,
             Surfaces.Select(static surface => surface.ToLegacy()).ToArray(),
             ReferenceSystem.ToLegacy(),
+            SourceFileRelativePath,
             SourceUnitIdentity,
             SourceIdentity,
             SharedAcrossMeshCodes,
@@ -110,6 +115,7 @@ internal sealed record BootstrapParsedCityObject(
             cityObject.LodLevel,
             cityObject.Surfaces.Select(BootstrapParsedSurface.FromLegacy).ToArray(),
             CoordinateReferenceSystem.FromLegacy(cityObject.ReferenceSystem),
+            cityObject.SourceFileRelativePath,
             cityObject.SourceUnitIdentity,
             cityObject.SourceIdentity,
             cityObject.SharedAcrossMeshCodes,

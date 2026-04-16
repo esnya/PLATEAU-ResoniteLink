@@ -14,12 +14,14 @@ public interface IResoniteSceneBuilder : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     Task BeginAsync(
-        ResoniteConstructionMetadata metadata,
+        SceneBootstrapInfo bootstrapInfo,
+        IPlateauDatasetContentSource datasetContentSource,
+        IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         string workRoot,
         CancellationToken cancellationToken = default);
 
-    Task PrepareCommonMaterialAsync(
-        ResoniteMaterialBinding material,
+    Task StartCommonMaterialWarmupAsync(
+        IReadOnlyList<ResoniteMaterialBinding> materials,
         CancellationToken cancellationToken = default);
 
     Task ProcessCityObjectAsync(

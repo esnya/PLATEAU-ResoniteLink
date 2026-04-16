@@ -12,7 +12,6 @@ internal interface ICityGmlGeometryProjector
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null);
 }

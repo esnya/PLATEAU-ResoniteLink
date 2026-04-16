@@ -10,6 +10,7 @@ PR を出す前に、次を確認してください。
 - 明確な理由がない限り、runtime と SDK の前提は .NET 10 のまま保つ。
 - English Markdown を変更した場合は、対応する `.ja.md` も更新する。
 - 挙動が変わる場合は、test を追加または更新する。
+- 補助的な git worktree はリポジトリ直下の `.worktree/` 配下（例: `.../<repo>/.worktree/<name>`）で運用し、隣接ディレクトリや `/tmp` の worktree を作らないこと。
 
 GitHub Releases を changelog の正本とします。release tag は `vX.Y.Z` 形式で作成し、各 tag で framework-dependent の CLI zip asset を公開しつつ、merge 済み pull request から release notes を自動生成します。
 
@@ -23,15 +24,20 @@ release label は必須ではありませんが、付けておくと生成ノー
 
 label がない PR は、生成される release notes の catch-all である `Other changes` section に入ります。
 
-正本となる検証コマンドは次です。
+正本となる検証コマンド列は次です。
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-この script が repository 所有の検証フローです。ほかの文書では内部の restore / format / build / test 手順を複写したり順序を並べ替えたりせず、この script を参照してください。
+低競合の変更の間で non-slow だけを素早く回したいときは、次を使います。
 
-Codex Cloud / 一時環境で、PATH 上に互換な .NET 10 SDK が無い場合は、先に `./scripts/setup-codex-cloud.sh` を実行してください。この helper はそのような環境を bootstrap したうえで `bash scripts/verify-ci.sh` へ処理を渡すためのものです。
+```bash
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
+```
 
 大きな repository-improvement plan を一時的に保持したい場合は、`.tmp/plans/` 配下に置き、untracked のまま維持してください。その領域を canonical documentation として扱わず、active docs から現行運用の案内としてリンクせず、採用した結論だけを tracked documentation と review 成果物へ反映してください。
 

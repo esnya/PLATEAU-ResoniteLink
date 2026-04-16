@@ -1,5 +1,6 @@
-using System.Collections.Concurrent;
+using System.Diagnostics;
 
+using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Cli;
@@ -9,7 +10,6 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     private readonly Func<IResoniteLinkClient> createConfiguredClient;
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly int workerConnectTimeoutMilliseconds;
     private readonly Action<string>? reportProgress;
     private readonly SemaphoreSlim initializationGate = new(1, 1);
     private int disposed;
@@ -18,112 +18,109 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         Func<IResoniteLinkClient> createConfiguredClient,
         Uri endpoint,
         int connectionCount,
-        int workerConnectTimeoutMilliseconds,
         Action<string>? progressReporter)
     {
         this.createConfiguredClient = createConfiguredClient;
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
-        this.workerConnectTimeoutMilliseconds = workerConnectTimeoutMilliseconds;
         reportProgress = progressReporter;
     }
 
-    public IResoniteLinkClient? SetupClient { get; private set; }
+    public IResoniteLinkClient? RoutedClient { get; private set; }
 
-    private ConcurrentBag<IResoniteLinkClient>? BackgroundClients { get; set; }
+    private IResoniteLinkClient[]? ConnectedClients { get; set; }
 
     public void BeginWorkerClientTracking()
     {
-        BackgroundClients ??= [];
+        reportProgress?.Invoke(
+            PlateauLog.Info(
+                "live",
+                "Live-send routes are connected eagerly during setup; BeginWorkerClientTracking is non-blocking."));
     }
 
-    public async Task EnsureSetupClientConnectedAsync(
+    public async Task EnsureConnectedAsync(
         PlateauImportRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
 
         await initializationGate.WaitAsync(cancellationToken);
         try
         {
-            if (SetupClient is not null)
+            if (RoutedClient is not null)
             {
+                reportProgress?.Invoke(
+                    PlateauLog.Info("live", "Reusing existing routed ResoniteLink session."));
                 return;
             }
 
-            IResoniteLinkClient createdClient = createConfiguredClient();
+            if (connectionCount <= 0)
+            {
+                throw new InvalidOperationException("connectionCount must be greater than zero.");
+            }
+
+            IResoniteLinkClient[] newClients = new IResoniteLinkClient[connectionCount];
+            List<IResoniteLinkClient> connectedClientList = [];
             try
             {
-                await createdClient.ConnectAsync(endpoint, cancellationToken);
-                SetupClient = createdClient;
+                Stopwatch setupSessionStopwatch = Stopwatch.StartNew();
+                for (int routeIndex = 0; routeIndex < connectionCount; routeIndex++)
+                {
+                    IResoniteLinkClient client = createConfiguredClient();
+                    connectedClientList.Add(client);
+                    await ConnectClientAsync(
+                        client,
+                        request,
+                        routeIndex,
+                        cancellationToken);
+                    newClients[routeIndex] = client;
+                }
+
+                IResoniteLinkClient newRoutedClient = new RoutedResoniteLinkClient(
+                    newClients,
+                    reportProgress);
+
+                ConnectedClients = newClients;
+                RoutedClient = newRoutedClient;
+
+                setupSessionStopwatch.Stop();
                 reportProgress?.Invoke(
-                    $"[live] Connected setup ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'.");
+                    PlateauLog.Info(
+                        "live",
+                        $"All {connectionCount} live-send sessions connected for dataset '{request.Dataset}' "
+                        + $"and mesh '{request.MeshCode}' in {setupSessionStopwatch.Elapsed.TotalSeconds:F2}s."));
             }
             catch
             {
-                createdClient.Dispose();
+                foreach (IResoniteLinkClient client in connectedClientList)
+                {
+                    client.Dispose();
+                }
+
+                ConnectedClients = null;
+                RoutedClient = null;
                 throw;
             }
         }
         finally
         {
-            initializationGate.Release();
-        }
-    }
-
-    public async Task<IResoniteLinkClient> CreateWorkerClientAsync(
-        PlateauImportRequest request,
-        int laneIndex,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ObjectDisposedException.ThrowIf(BackgroundClients is null, this);
-
-        IResoniteLinkClient client = createConfiguredClient();
-        try
-        {
-            using CancellationTokenSource connectCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            Task connectTask = client.ConnectAsync(endpoint, connectCancellation.Token);
-            if (!connectTask.IsCompleted)
+            try
             {
-                Task completedTask = await Task.WhenAny(
-                    connectTask,
-                    Task.Delay(workerConnectTimeoutMilliseconds, cancellationToken));
-                if (completedTask != connectTask)
-                {
-                    await connectCancellation.CancelAsync();
-                    _ = connectTask.ContinueWith(
-                        static completedConnectTask => _ = completedConnectTask.Exception,
-                        CancellationToken.None,
-                        TaskContinuationOptions.ExecuteSynchronously,
-                        TaskScheduler.Default);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    throw new TimeoutException(
-                        $"ResoniteLink worker session {laneIndex + 1}/{connectionCount} did not connect within {workerConnectTimeoutMilliseconds}ms.");
-                }
+                initializationGate.Release();
             }
-
-            await connectTask;
-            BackgroundClients.Add(client);
-            return client;
-        }
-        catch
-        {
-            client.Dispose();
-            throw;
+            catch (ObjectDisposedException)
+            {
+                // Session disposed while setup was in progress.
+            }
         }
     }
 
-    public Task<IResoniteLinkClient> CreateLaneClientAsync(
+    public Task EnsureSetupClientConnectedAsync(
         PlateauImportRequest request,
-        int laneIndex,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-
-        return laneIndex == 0
-            ? Task.FromResult(SetupClient ?? throw new InvalidOperationException("Setup client is not connected."))
-            : CreateWorkerClientAsync(request, laneIndex, cancellationToken);
+        return EnsureConnectedAsync(request, cancellationToken);
     }
 
     public void DisposeClients()
@@ -138,18 +135,38 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
             return;
         }
 
-        SetupClient?.Dispose();
-
-        if (BackgroundClients is not null)
+        RoutedClient?.Dispose();
+        RoutedClient = null;
+        if (ConnectedClients is not null)
         {
-            foreach (IResoniteLinkClient client in BackgroundClients)
+            foreach (IResoniteLinkClient client in ConnectedClients)
             {
                 client.Dispose();
             }
         }
 
-        SetupClient = null;
-        BackgroundClients = null;
+        ConnectedClients = null;
         initializationGate.Dispose();
+    }
+
+    private async Task ConnectClientAsync(
+        IResoniteLinkClient client,
+        PlateauImportRequest request,
+        int routeIndex,
+        CancellationToken cancellationToken)
+    {
+        Stopwatch connectionStopwatch = Stopwatch.StartNew();
+        string routeDescription = $"route {routeIndex + 1}/{connectionCount}";
+        reportProgress?.Invoke(
+            PlateauLog.Info(
+                "live",
+                $"Connecting {routeDescription} ResoniteLink session to {endpoint} for dataset '{request.Dataset}' mesh '{request.MeshCode}'."));
+        await client.ConnectAsync(endpoint, cancellationToken).ConfigureAwait(false);
+        connectionStopwatch.Stop();
+        reportProgress?.Invoke(
+            PlateauLog.Info(
+                "live",
+                $"Connected {routeDescription} ResoniteLink session to {endpoint} in "
+                + $"{connectionStopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 }

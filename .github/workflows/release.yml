@@ -25,7 +25,11 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Verify
-        run: bash ./scripts/verify-ci.sh
+        run: |
+          dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+          dotnet format whitespace . --folder --verify-no-changes
+          dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+          dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 
       - name: Compute release metadata
         id: metadata
@@ -67,7 +71,39 @@ jobs:
         env:
           CURRENT_TAG: ${{ github.ref_name }}
           PREVIOUS_TAG: ${{ steps.metadata.outputs.previous_tag }}
-        run: bash ./scripts/prepare-release-notes.sh "${CURRENT_TAG}" "${PREVIOUS_TAG}" artifacts/release/notes.md
+        run: |
+          set -euo pipefail
+          output_path="artifacts/release/notes.md"
+          mkdir -p "$(dirname "${output_path}")"
+
+          cat > "${output_path}" <<EOF
+          ## Summary
+
+          - Automated release for ${CURRENT_TAG}.
+          - GitHub Releases are the canonical changelog for Plateau.ResoniteLink.
+          - \`Plateau.ResoniteLink-cli-${CURRENT_TAG}.zip\` is a framework-dependent asset and requires .NET 10.
+
+          EOF
+
+          if [[ -z "${PREVIOUS_TAG}" ]]; then
+            cat >> "${output_path}" <<'EOF'
+          ## Initial release context
+
+          This tag starts the formal GitHub Releases-based changelog for Plateau.ResoniteLink.
+
+          Highlights before this first tagged release:
+          - Added the live CLI pipeline for streaming PLATEAU CityGML datasets into Resonite through ResoniteLink.
+          - Hardened direct archive imports with explicit remote archive validation, cache reuse, and pre-validation of import requests.
+          - Added DEM heightmap terrain generation, placement fixes, and live asset reuse improvements.
+          - Expanded automated coverage around CLI parsing, import validation, dataset discovery, DEM layout, and live send behavior.
+
+          EOF
+          else
+            cat >> "${output_path}" <<EOF
+          _Changes below were generated automatically from merged pull requests and commits since \`${PREVIOUS_TAG}\`._
+
+          EOF
+          fi
 
       - name: Create GitHub release
         env:

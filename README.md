@@ -9,6 +9,7 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
+- Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
 
 ## Runtime And Prerequisites
 
@@ -19,10 +20,13 @@ Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.g
 
 ## Quick Start
 
-Before opening or updating a pull request, run the canonical repository verification command:
+Before opening or updating a pull request, run the canonical repository verification command sequence:
 
 ```bash
-bash scripts/verify-ci.sh
+dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet format whitespace . --folder --verify-no-changes
+dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
 For contributor workflow details, environment bootstrap guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -62,7 +66,6 @@ When `--work-root` is omitted, the CLI stores dataset-local archives and live te
 ## Further Reading
 
 - Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Product requirements: [docs/requirements.md](docs/requirements.md)
 - Live validation workflow: [docs/live-testing.md](docs/live-testing.md)
 
 ## License And Provenance
