@@ -36,6 +36,13 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     {
         ResoniteConstructionMetadata metadata = CreateMetadata(
             ["udx/bldg/unknown/plateau_tokyo23ku_bldg_regex.gml"]);
+        metadata = metadata with
+        {
+            SourceDataset = metadata.SourceDataset with
+            {
+                RequestedMeshCodes = [],
+            },
+        };
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
             () => ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(metadata));

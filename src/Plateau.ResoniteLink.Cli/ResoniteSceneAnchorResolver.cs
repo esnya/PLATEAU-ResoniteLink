@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 using GeographicLib;
 
 using Plateau.ResoniteLink.Domain.Importing;
@@ -57,9 +59,7 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
         }
 
-        Slot? referenceMeshRoot = completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithoutId
-            ? completionRootLookup.Slot
-            : FindDeterministicReferenceMeshRoot(datasetRootSnapshot);
+        Slot? referenceMeshRoot = FindDeterministicReferenceMeshRoot(datasetRootSnapshot);
         if (referenceMeshRoot is not null)
         {
             lastVisibleReferenceMeshRoot = referenceMeshRoot;
@@ -85,20 +85,26 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
             return new SceneAnchor(existingAnchorSlotId, completionMeshCode, anchorPosition);
         }
 
-        if (finalCompletionRootLookup.State == ResoniteSceneChildLookupState.FoundWithoutId)
-        {
-            throw new InvalidOperationException(
-                $"Anchor slot '{completionMeshCode}' under dataset root '{datasetRootSlotId}' matched by name but did not surface an ID.");
-        }
-
-        string createdAnchorId = await client.AddSlotAsync(
-            CreateAddSlotOperation(
-                datasetRootSlotId,
-                completionMeshCode,
-                anchorPosition,
-                null),
+        string batchScopeToken = CreateBatchScopeToken();
+        PendingBatchSlot pendingAnchorSlot = new(
+            $"anchor_slot_local_{batchScopeToken}",
+            $"anchor_slot_message_{batchScopeToken}",
+            completionMeshCode);
+        BatchResponse response = await client.RunDataModelOperationBatchAsync(
+            [
+                CreateAddSlotOperation(
+                    datasetRootSlotId,
+                    completionMeshCode,
+                    anchorPosition,
+                    null,
+                    pendingAnchorSlot.LocalId,
+                    pendingAnchorSlot.MessageId),
+            ],
             cancellationToken);
-        return new SceneAnchor(createdAnchorId, completionMeshCode, anchorPosition);
+        return new SceneAnchor(
+            ResolveCreatedSlotId(response, pendingAnchorSlot),
+            completionMeshCode,
+            anchorPosition);
     }
 
     private static async Task WaitForSlotAvailableAsync(
@@ -190,12 +196,16 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         string parentId,
         string slotName,
         ResoniteFloat3? position,
-        ResoniteFloatQ? rotation)
+        ResoniteFloatQ? rotation,
+        string requestedSlotId,
+        string messageId)
     {
         return new AddSlot
         {
+            MessageID = messageId,
             Data = new Slot
             {
+                ID = requestedSlotId,
                 Parent = new Reference
                 {
                     TargetID = parentId,
@@ -208,6 +218,19 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 Rotation = rotation is null ? null : CreateFloatQ(rotation),
             },
         };
+    }
+
+    private static string ResolveCreatedSlotId(BatchResponse response, PendingBatchSlot pendingSlot)
+    {
+        IReadOnlyList<Response> responses = response.Responses
+            ?? throw new InvalidOperationException("ResoniteLink batch response did not include per-operation responses.");
+        Response operationResponse = responses.SingleOrDefault(
+            candidate => string.Equals(candidate.SourceMessageID, pendingSlot.MessageId, StringComparison.Ordinal))
+            ?? throw new InvalidOperationException($"ResoniteLink batch response did not include '{pendingSlot.MessageId}'.");
+        ResoniteLinkClient.EnsureSuccess(operationResponse, $"resolve anchor slot '{pendingSlot.SlotName}'");
+        return operationResponse is NewEntityId createdEntity && !string.IsNullOrWhiteSpace(createdEntity.EntityId)
+            ? createdEntity.EntityId
+            : throw new InvalidOperationException($"ResoniteLink batch response did not include an entity ID for '{pendingSlot.SlotName}'.");
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)
@@ -235,5 +258,15 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 w = (float)value.W,
             },
         };
+    }
+
+    private readonly record struct PendingBatchSlot(
+        string LocalId,
+        string MessageId,
+        string SlotName);
+
+    private static string CreateBatchScopeToken()
+    {
+        return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
     }
 }

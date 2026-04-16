@@ -54,4 +54,9 @@ internal sealed class AsyncCompletedResultCache<TKey, TValue>
     {
         completedValues[key] = value;
     }
+
+    public void Remove(TKey key)
+    {
+        completedValues.TryRemove(key, out _);
+    }
 }

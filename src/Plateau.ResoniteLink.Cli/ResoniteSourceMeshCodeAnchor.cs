@@ -10,19 +10,19 @@ internal static partial class ResoniteSourceMeshCodeAnchor
     [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex MeshCodeRegex();
 
-    public static string ResolveCompletionMeshCode(ResoniteConstructionMetadata metadata)
+    public static string ResolveCompletionMeshCode(SceneBootstrapInfo setupInfo)
     {
-        ArgumentNullException.ThrowIfNull(metadata);
+        ArgumentNullException.ThrowIfNull(setupInfo);
 
         string[] concreteSourceMeshCodes = EnumerateSourceFileMeshCodes(
-            metadata.SourceDataset.SourceFiles,
+            setupInfo.SourceFiles,
             includeDemPackages: false)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         if (concreteSourceMeshCodes.Length == 0)
         {
             concreteSourceMeshCodes = EnumerateSourceFileMeshCodes(
-                metadata.SourceDataset.SourceFiles,
+                setupInfo.SourceFiles,
                 includeDemPackages: true)
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
@@ -30,18 +30,29 @@ internal static partial class ResoniteSourceMeshCodeAnchor
 
         if (concreteSourceMeshCodes.Length == 0)
         {
-            if (PlateauMeshCode.TryGetCenter(metadata.Request.MeshCode, out _))
-            {
-                return metadata.Request.MeshCode;
-            }
+            concreteSourceMeshCodes = setupInfo.RequestedMeshCodes
+                .Where(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
 
+        if (concreteSourceMeshCodes.Length == 0)
+        {
             throw new InvalidOperationException(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Live Offset V2 requires at least one concrete meshcode from discovered source filenames, and request mesh '{metadata.Request.MeshCode}' was not concrete."));
+                    $"Live Offset V2 requires at least one concrete meshcode from discovered source filenames, and request mesh '{setupInfo.MeshCode}' was not concrete."));
         }
 
         return ResolveMeshCodeClosestToBoundsCenter(concreteSourceMeshCodes);
+    }
+
+    public static string ResolveCompletionMeshCode(ResoniteConstructionMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        return ResolveCompletionMeshCode(
+            SceneBootstrapInfo.CreateFromMetadata(metadata));
     }
 
     private static IEnumerable<string> EnumerateSourceFileMeshCodes(

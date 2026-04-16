@@ -43,7 +43,7 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncDoesNotCreateDuplicateAnchorWhenFinalSnapshotStillLacksChildId()
+    public async Task ResolveAsyncTreatsIncompleteAnchorAsMissingAndCreatesReplacement()
     {
         const string datasetRootSlotId = "dataset-root";
         const string completionMeshCode = "53394525";
@@ -70,15 +70,16 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         ResoniteSceneAnchorResolver resolver = new();
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => resolver.ResolveAsync(
+        SceneAnchor anchor = await resolver.ResolveAsync(
             client,
             datasetRootSlotId,
             completionMeshCode,
             datasetRootExisted: false,
-            CancellationToken.None));
+            CancellationToken.None);
 
-        Assert.Contains("did not surface an ID", exception.Message, StringComparison.Ordinal);
-        Assert.Empty(client.AddedSlots);
+        Assert.Equal(completionMeshCode, anchor.MeshCode);
+        AddSlot createdAnchor = Assert.Single(client.AddedSlots);
+        Assert.Equal(completionMeshCode, createdAnchor.Data.Name?.Value);
     }
 
     [Fact]
@@ -279,7 +280,36 @@ public sealed class ResoniteSceneAnchorResolverTests
             IReadOnlyList<DataModelOperation> operations,
             CancellationToken cancellationToken)
         {
-            throw new NotSupportedException();
+            cancellationToken.ThrowIfCancellationRequested();
+            List<Response> responses = [];
+            foreach (DataModelOperation operation in operations)
+            {
+                switch (operation)
+                {
+                    case AddSlot addSlot:
+                        string slotId = string.IsNullOrWhiteSpace(addSlot.Data.ID)
+                            ? $"created-slot-{Interlocked.Increment(ref nextSlotId)}"
+                            : addSlot.Data.ID;
+                        addSlot.Data.ID = slotId;
+                        AddedSlots.Add(addSlot);
+                        responses.Add(new NewEntityId
+                        {
+                            Success = true,
+                            EntityId = slotId,
+                            SourceMessageID = addSlot.MessageID,
+                        });
+                        break;
+                    default:
+                        throw new NotSupportedException();
+                }
+            }
+
+            return Task.FromResult(
+                new BatchResponse
+                {
+                    Success = true,
+                    Responses = responses,
+                });
         }
 
         public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)

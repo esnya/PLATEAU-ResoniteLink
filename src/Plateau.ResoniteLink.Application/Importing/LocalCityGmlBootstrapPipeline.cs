@@ -76,18 +76,9 @@ internal static class LocalCityGmlBootstrapPipeline
                 progressReporter,
                 lodFilteringStrategy,
                 cancellationToken);
-        global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult[] parsedSourceFiles = await Task.WhenAll(
-            sourceFilePipelines.Select(async pipeline => global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy(
-                await pipeline.GetParseTask().ConfigureAwait(false))));
-
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem = await LocalCityGmlResonitePlanBuilder.ReadDocumentReferenceSystemCoreAsync(
-            datasetSource,
-            sourceFiles[0].RelativePath,
-            cancellationToken);
 
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlResonitePlanBuilder.ResolveLocalOrigin(effectiveRequestedMeshArea);
@@ -101,11 +92,6 @@ internal static class LocalCityGmlBootstrapPipeline
             resolvedLocalOrigin.Latitude,
             resolvedLocalOrigin.Longitude,
             0.0);
-        TerrainTextureOverlay[] terrainTextureOverlays = CreateSharedDemTerrainTextureOverlays(
-            parsedSourceFiles,
-            effectiveRequestedMeshArea);
-        progressReporter?.Invoke(
-            PlateauLog.Info("import", "Terrain height sampler disabled for this dataset in bootstrap path."));
 
         totalStopwatch.Stop();
         progressReporter?.Invoke(
@@ -119,11 +105,11 @@ internal static class LocalCityGmlBootstrapPipeline
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
-            terrainTextureOverlays,
+            [],
             discoveryResult.RequestedMeshCodes,
             sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
             [],
-            CoordinateReferenceSystem.FromLegacy(referenceSystem),
+            referenceSystem: null,
             GeodeticPoint.FromLegacy(globalOriginPoint),
             terrainHeightSampler: null);
     }
@@ -141,43 +127,4 @@ internal static class LocalCityGmlBootstrapPipeline
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
     }
 
-    private static TerrainTextureOverlay[] CreateSharedDemTerrainTextureOverlays(
-        IReadOnlyList<ParsedSourceFileResult> parsedSourceFiles,
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? fallbackRequestedMeshArea)
-    {
-        ArgumentNullException.ThrowIfNull(parsedSourceFiles);
-
-        ParsedSourceFileResult[] demParsedSourceFiles = parsedSourceFiles
-            .Where(static sourceFile => string.Equals(sourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        if (demParsedSourceFiles.Length == 0)
-        {
-            return [];
-        }
-
-        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles,
-            fallbackRequestedMeshArea is null ? null : DemTerrainBounds.FromLegacy(fallbackRequestedMeshArea));
-        if (demBounds is null)
-        {
-            return [];
-        }
-
-        return
-        [
-            new TerrainTextureOverlay(
-                TexturePath: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-                PackageName: "dem",
-                UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
-                FallbackUrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate,
-                ZoomLevel: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel,
-                GeographicBounds: new GeographicRectangle(
-                    demBounds.SouthLatitude,
-                    demBounds.NorthLatitude,
-                    demBounds.WestLongitude,
-                    demBounds.EastLongitude),
-                MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
-                LicenseMode: TerrainTextureLicenseMode.Unknown),
-        ];
-    }
 }

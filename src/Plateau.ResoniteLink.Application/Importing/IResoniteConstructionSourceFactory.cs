@@ -8,4 +8,13 @@ public interface IResoniteConstructionSourceFactory
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default);
+
+    Task<IResoniteConstructionSource> CreateAsync(
+        PlateauImportRequest request,
+        LocalCityGmlDocumentSet documentSet,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return CreateAsync(request, progressReporter, cancellationToken);
+    }
 }

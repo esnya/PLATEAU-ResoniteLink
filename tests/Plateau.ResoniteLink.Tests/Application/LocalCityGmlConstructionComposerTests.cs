@@ -18,7 +18,6 @@ public sealed class LocalCityGmlConstructionComposerTests
             ServerUri: null);
 
         TerrainTextureOverlay overlay = new(
-            TexturePath: "appearance/overlay.png",
             PackageName: "bldg",
             UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
             ZoomLevel: 14,

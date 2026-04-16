@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Channels;
 
 using GeographicLib;
@@ -54,7 +55,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private ResoniteMaterialAssetManager? materialAssetManager;
     private string? runRoot;
     private AsyncCompletedResultCache<TextureImportCacheKey, Uri>? importedTextureUriCache;
-    private ResoniteTextureImportResolver? textureImportResolver;
     private Channel<QueuedCityObject>? cityObjectChannel;
     private Task[]? processingTasks;
     private CancellationTokenSource? processingCancellationSource;
@@ -73,7 +73,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private int firstCityObjectStreamingStartedLogged;
     private int firstCityObjectDequeuedLogged;
     private IPlateauDatasetContentSource? datasetContentSource;
-    private ResoniteTextureImportRegistry? textureImportRegistry;
     private SceneAnchor? sceneAnchor;
     private string? datasetLicenseComponentId;
     private Dictionary<string, string>? cityGmlSlotNamesByRelativePath;
@@ -338,13 +337,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     "live",
                     "Reusing dataset content source provided by caller."));
         }
-        textureImportRegistry = new ResoniteTextureImportRegistry();
-        textureImportResolver = new ResoniteTextureImportResolver(
-            datasetContentSource,
-            terrainTextureAssetGenerator);
-        ResoniteTextureImageLoader textureImageLoader = new(datasetContentSource!);
+        ResoniteTextureImageLoader textureImageLoader = new();
         ReportProgress(
-            PlateauLog.Info("live", "Setting up mutable helpers (texture registry, resolver, baker)."));
+            PlateauLog.Info("live", "Setting up mutable helpers (baker)."));
         ReportProgress(
             PlateauLog.Info(
                 "live",
@@ -429,7 +424,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         cityGmlSlotNamesByRelativePath = CreateCityGmlSlotNamesByRelativePath(bootstrapInfo.SourceFiles);
         cityObjectBaker = MeshBakeEnabled
             ? new CompositeCityObjectBaker(
-                new Lod2AtlasCityObjectBaker(textureImageLoader, textureImportRegistry),
+                new Lod2AtlasCityObjectBaker(textureImageLoader),
                 new FixedCellCityObjectMeshBaker())
             : null;
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
@@ -487,8 +482,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
             string materialKey = CreateCanonicalCommonMaterialKey(
                 normalizedMaterial.Family!,
-                normalizedMaterial.TexturePath!,
-                normalizedMaterial.Projection);
+                normalizedMaterial.BundledVariantIndex ?? 0,
+                normalizedMaterial.Projection,
+                normalizedMaterial.TextureScale);
             canonicalMaterialsByKey.TryAdd(materialKey, normalizedMaterial);
         }
 
@@ -523,8 +519,9 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             {
                 string canonicalKey = CreateCanonicalCommonMaterialKey(
                     material.Family ?? BundledDefaultMaterialFamilies.Other,
-                    material.TexturePath!,
-                    material.Projection);
+                    material.BundledVariantIndex ?? 0,
+                    material.Projection,
+                    material.TextureScale);
                 Task<CreatedMaterialAsset> materialTask = CreateOrStartCommonMaterialWarmupTask(
                     routedClient,
                     commonAssetsSlotId,
@@ -574,7 +571,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CreatedMaterialAsset asset = await materialAssetManager.CreateMaterialComponentAsync(
             setupClient,
             material,
-            preparedTexturePathsByKey: new Dictionary<TextureReferenceKey, ResoniteTextureImport>(),
+            preparedTextureImportsByIdentity: new Dictionary<string, ResoniteTextureImport>(StringComparer.Ordinal),
+            preparedTerrainTextureImportsByOverlay: new Dictionary<TerrainTextureOverlay, ResoniteTextureImport>(),
             materialSlotId: commonAssetsSlotId,
             materialSlotParentId: commonAssetsSlotId,
             materialSlotName: CreateMaterialSlotName(material, useCommonMaterialAssets: true),
@@ -930,8 +928,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             sharedSlotIndex.Clear();
             observedSlotSnapshotsById.Clear();
             importedTextureUriCache = null;
-            textureImportResolver = null;
-            textureImportRegistry = null;
             cityObjectMemoryGate = null;
             cityObjectChannel = null;
             processingTasks = null;
@@ -1187,8 +1183,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
 
         int distinctTextureCount = cityObject.Materials
-            .Where(static material => !string.IsNullOrWhiteSpace(material.TexturePath))
-            .Select(static material => (material.TexturePath!, material.TextureSourceKind))
+            .Where(static material => material.TexturePayload is not null)
+            .Select(static material => material.TexturePayload!.Identity)
             .Distinct()
             .Count();
         long materialWeightBytes = checked((cityObject.Materials.Count * materialBindingWeightBytes) + (distinctTextureCount * textureReferenceWeightBytes));
@@ -1281,63 +1277,22 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(bootstrapInfo is null, this);
-        ObjectDisposedException.ThrowIf(textureImportResolver is null, this);
+        ObjectDisposedException.ThrowIf(datasetContentSource is null, this);
 
-        Dictionary<string, TerrainTextureOverlay> terrainTextureOverlaysByTexturePath = cityObject.TerrainTextureOverlays
-            ?.ToDictionary(
-                static overlay => overlay.TexturePath,
-                StringComparer.Ordinal)
-            ?? [];
-
-        Dictionary<string, Task<ResoniteTextureImport>> terrainTextureImportTasks = [];
-        foreach (ResoniteMaterialBinding material in cityObject.Materials)
-        {
-            if (material.TexturePath is null || !terrainTextureOverlaysByTexturePath.ContainsKey(material.TexturePath))
-            {
-                continue;
-            }
-
-            terrainTextureImportTasks.TryAdd(
-                material.TexturePath,
-                terrainTextureAssetGenerator.EnsureTextureAsync(
-                    terrainTextureOverlaysByTexturePath[material.TexturePath],
-                    cancellationToken));
-        }
-
-        Task<PreparedTextureReference>[] terrainOverlayTexturePreparationTasks = terrainTextureImportTasks
-            .Select(async terrainTextureImportTask =>
-            {
-                ResoniteTextureImport terrainTextureImport = await terrainTextureImportTask.Value;
-                return new PreparedTextureReference(
-                    terrainTextureImportTask.Key,
-                    ResoniteTextureSourceKind.Dataset,
-                    terrainTextureImport);
-            })
-            .ToArray();
-
-        (string TexturePath, ResoniteTextureSourceKind TextureSourceKind)[] distinctTextures = cityObject.Materials
-            .Where(static material => !string.IsNullOrWhiteSpace(material.TexturePath))
-            .Where(material => !terrainTextureOverlaysByTexturePath.ContainsKey(material.TexturePath!))
-            .Select(static material => (TexturePath: material.TexturePath!, TextureSourceKind: material.TextureSourceKind))
+        TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
+            .Where(static material => material.TerrainOverlay is not null)
+            .Select(static material => material.TerrainOverlay!)
             .Distinct()
-            .OrderBy(static texture => texture.TextureSourceKind)
-            .ThenBy(static texture => texture.TexturePath, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(static overlay => overlay.PackageName, StringComparer.Ordinal)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
             .ToArray();
 
-        Task<PreparedTextureReference>[] texturePreparationTasks = distinctTextures
-            .Select(async texture =>
-            {
-                ResoniteTextureImport textureImport = await textureImportResolver.ResolveAsync(
-                    texture.TexturePath,
-                    texture.TextureSourceKind,
-                    cancellationToken);
-
-                return new PreparedTextureReference(
-                    texture.TexturePath,
-                    texture.TextureSourceKind,
-                    textureImport);
-            })
+        Task<PreparedTextureReference>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
+            .Select(terrainTextureOverlay => PrepareTerrainOverlayTextureReferenceAsync(terrainTextureOverlay, cancellationToken))
             .ToArray();
+        Task<PreparedTextureReference>[] texturePreparationTasks = [];
+
         Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
         {
             ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
@@ -1350,7 +1305,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         };
         Stopwatch stopwatch = Stopwatch.StartNew();
         PreparedTextureReference[] preparedTextures = await Task.WhenAll(
-            texturePreparationTasks.Concat(terrainOverlayTexturePreparationTasks));
+            texturePreparationTasks
+                .Concat(terrainOverlayTexturePreparationTasks)
+                .Concat(cityObject.Materials
+                    .Where(static material => material.TexturePayload is not null)
+                    .Select(PrepareDirectMaterialTextureReferenceAsync)
+                    .ToArray()));
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
         stopwatch.Stop();
         diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
@@ -1370,6 +1330,35 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cityObject,
             preparedGeometry,
             preparedTextures);
+    }
+
+    private async Task<PreparedTextureReference> PrepareTerrainOverlayTextureReferenceAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        CancellationToken cancellationToken)
+    {
+        ResoniteTextureImport terrainTextureImport = await terrainTextureAssetGenerator.EnsureTextureAsync(
+            terrainTextureOverlay,
+            cancellationToken);
+
+        return new PreparedTextureReference(
+            TextureIdentity: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            TextureImport: terrainTextureImport,
+            TerrainOverlay: terrainTextureOverlay);
+    }
+
+    private Task<PreparedTextureReference> PrepareDirectMaterialTextureReferenceAsync(
+        ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(material.TexturePayload);
+
+        return Task.FromResult(
+            new PreparedTextureReference(
+                TextureIdentity: material.TexturePayload.Identity,
+                TextureSourceKind: material.TextureSourceKind,
+                TextureImport: ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
+                TerrainOverlay: null));
     }
 
     private async Task BuildPreparedCityObjectAsync(
@@ -1392,13 +1381,15 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             cancellationToken);
         slotHierarchyStopwatch.Stop();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey = CreatePreparedTextureDataByKey(preparedCityObject);
+        Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity = CreatePreparedTextureDataByIdentity(preparedCityObject);
+        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         Stopwatch geometryStopwatch = new();
         (IReadOnlyList<MaterialReferenceTarget> materialTargets, IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> dedicatedMaterialPreparationTasks) = await PrepareMaterialTargetsAsync(
             routedClient,
             cityObject,
-            preparedTextureDataByKey,
+            preparedTextureDataByIdentity,
+            preparedTerrainTextureDataByOverlay,
             objectSlots,
             buildStepCancellation.Token);
         PreparedDedicatedMaterialAssets[] preparedDedicatedMaterialAssets;
@@ -1434,7 +1425,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             routedClient,
             objectSlots,
             cityObject,
-            preparedTextureDataByKey,
+            preparedTextureDataByIdentity,
             preparedGeometryBatch,
             materialTargets,
             preparedDedicatedMaterialAssets,
@@ -1461,14 +1452,25 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         }
     }
 
-    private static Dictionary<TextureReferenceKey, ResoniteTextureImport> CreatePreparedTextureDataByKey(
+    private static Dictionary<string, ResoniteTextureImport> CreatePreparedTextureDataByIdentity(
         PreparedCityObject preparedCityObject)
     {
-        return preparedCityObject.Textures.ToDictionary(
-            static texture => ResoniteMaterialAssetManager.CreateTextureReferenceKey(
-                texture.TexturePath,
-                texture.TextureSourceKind),
-            static texture => texture.TextureImport);
+        return preparedCityObject.Textures
+            .Where(static texture => !string.IsNullOrWhiteSpace(texture.TextureIdentity))
+            .ToDictionary(
+                static texture => texture.TextureIdentity!,
+                static texture => texture.TextureImport,
+                StringComparer.Ordinal);
+    }
+
+    private static Dictionary<TerrainTextureOverlay, ResoniteTextureImport> CreatePreparedTerrainTextureDataByOverlay(
+        PreparedCityObject preparedCityObject)
+    {
+        return preparedCityObject.Textures
+            .Where(static texture => texture.TerrainOverlay is not null)
+            .ToDictionary(
+                static texture => texture.TerrainOverlay!,
+                static texture => texture.TextureImport);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -1715,18 +1717,20 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private async Task<CreatedMaterialAsset> CreateMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
+        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
         ObjectSlotHierarchy objectSlots,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(bootstrapInfo is null, this);
         ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
 
-        bool useCommonMaterialAssets = material.AssetScope == ResoniteMaterialAssetScope.Common;
-        if (useCommonMaterialAssets)
+        if (material.AssetScope == ResoniteMaterialAssetScope.Common)
         {
             material = NormalizeCommonMaterialBinding(material);
         }
+
+        bool useCommonMaterialAssets = material.AssetScope == ResoniteMaterialAssetScope.Common;
 
         string materialScopeId = useCommonMaterialAssets
             ? commonAssetsRootSlot!.Value.SlotId
@@ -1736,7 +1740,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return await materialAssetManager.CreateMaterialComponentAsync(
             client,
             material,
-            preparedTextureDataByKey,
+            preparedTextureDataByIdentity,
+            preparedTerrainTextureDataByOverlay,
             materialScopeId,
             materialSlotParentId,
             materialSlotName,
@@ -1748,7 +1753,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private async Task<(IReadOnlyList<MaterialReferenceTarget> MaterialTargets, IReadOnlyList<Task<PreparedDedicatedMaterialAssets>> DedicatedMaterialPreparationTasks)> PrepareMaterialTargetsAsync(
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
+        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
         ObjectSlotHierarchy objectSlots,
         CancellationToken cancellationToken)
     {
@@ -1763,33 +1769,38 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             if (material.AssetScope == ResoniteMaterialAssetScope.Common)
             {
                 material = NormalizeCommonMaterialBinding(material);
-                if (material.AssetScope == ResoniteMaterialAssetScope.Common)
+                if (material.AssetScope != ResoniteMaterialAssetScope.Common)
                 {
-                    string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
-                    if (commonMaterialFamilyWarmupTasks.TryGetValue(family, out Task? familyWarmupTask))
-                    {
-                        await familyWarmupTask.WaitAsync(cancellationToken);
-                    }
-
-                    string materialKey = CreateCanonicalCommonMaterialKey(
-                        material.Family ?? BundledDefaultMaterialFamilies.Other,
-                        material.TexturePath!,
-                        material.Projection);
-                    if (commonMaterialCreationTasks.TryGetValue(materialKey, out Task<CreatedMaterialAsset>? materialCreationTask))
-                    {
-                        CreatedMaterialAsset existingMaterialAsset = await materialCreationTask.WaitAsync(cancellationToken);
-                        materialTargets.Add(MaterialReferenceTarget.FromCanonical(existingMaterialAsset.MaterialComponentId));
-                        continue;
-                    }
+                    materialTargets.Add(MaterialReferenceTarget.FromDedicatedMaterial(material));
+                    dedicatedMaterialPreparationTasks.Add(
+                        PrepareDedicatedMaterialAssetsAsync(
+                            importClient,
+                            material,
+                            preparedTextureDataByIdentity,
+                            preparedTerrainTextureDataByOverlay,
+                            cancellationToken));
+                    continue;
                 }
 
-                CreatedMaterialAsset materialAsset = await CreateMaterialComponentAsync(
-                    importClient,
-                    material,
-                    preparedTextureDataByKey,
-                    objectSlots,
-                    cancellationToken);
-                materialTargets.Add(MaterialReferenceTarget.FromCanonical(materialAsset.MaterialComponentId));
+                string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
+                if (commonMaterialFamilyWarmupTasks.TryGetValue(family, out Task? familyWarmupTask))
+                {
+                    await familyWarmupTask.WaitAsync(cancellationToken);
+                }
+
+                string materialKey = CreateCanonicalCommonMaterialKey(
+                    family,
+                    material.BundledVariantIndex ?? 0,
+                    material.Projection,
+                    material.TextureScale);
+                if (!commonMaterialCreationTasks.TryGetValue(materialKey, out Task<CreatedMaterialAsset>? materialCreationTask))
+                {
+                    throw new InvalidOperationException(
+                        $"Bootstrap did not produce common material '{materialKey}'.");
+                }
+
+                CreatedMaterialAsset existingMaterialAsset = await materialCreationTask.WaitAsync(cancellationToken);
+                materialTargets.Add(MaterialReferenceTarget.FromCanonical(existingMaterialAsset.MaterialComponentId));
             }
             else
             {
@@ -1798,7 +1809,8 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                     PrepareDedicatedMaterialAssetsAsync(
                         importClient,
                         material,
-                        preparedTextureDataByKey,
+                        preparedTextureDataByIdentity,
+                        preparedTerrainTextureDataByOverlay,
                         cancellationToken));
             }
         }
@@ -1830,10 +1842,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             _ => material.Projection.ToString().ToLowerInvariant(),
         };
 
-        string sourceName = material.TexturePath is not null
-            ? IsGeneratedDemTexturePath(material.TexturePath)
-                ? "dem-overlay"
-                : CreateTextureSourceToken(material.TexturePath)
+        string sourceName = material.TerrainOverlay is not null
+            ? CreateTerrainOverlayToken(material.TerrainOverlay)
+            : material.TexturePayload is not null
+                ? $"payload-{ComputeShortStableHash(material.MaterialKey)}"
+            : material.AssetScope == ResoniteMaterialAssetScope.Common
+                ? $"bundled-v{material.BundledVariantIndex ?? 0}"
             : material.MaterialType.ToString();
 
         string familyName = string.IsNullOrWhiteSpace(material.Family)
@@ -1874,17 +1888,29 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             return material with { AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped };
         }
 
-        string canonicalTexturePath = material.TexturePath
-            ?? throw new InvalidOperationException("Common materials must provide a bundled texture path.");
         string canonicalFamily = string.IsNullOrWhiteSpace(material.Family)
             ? BundledDefaultMaterialFamilies.Other
             : material.Family!;
+        int canonicalVariantIndex = material.BundledVariantIndex ?? 0;
+        ResoniteFloat2 defaultTextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(
+            BundledDefaultMaterialFamilies.GetVariant(canonicalFamily, canonicalVariantIndex));
+        if (material.TextureScale is not null
+            && (Math.Abs(material.TextureScale.X - defaultTextureScale.X) > 1e-9
+                || Math.Abs(material.TextureScale.Y - defaultTextureScale.Y) > 1e-9))
+        {
+            return material with { AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped };
+        }
+
         ResoniteFloat2 canonicalTextureScale = material.TextureScale
-            ?? BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath);
+            ?? defaultTextureScale;
 
         return material with
         {
-            MaterialKey = CreateCanonicalCommonMaterialKey(canonicalFamily, canonicalTexturePath, material.Projection),
+            MaterialKey = CreateCanonicalCommonMaterialKey(
+                canonicalFamily,
+                canonicalVariantIndex,
+                material.Projection,
+                canonicalTextureScale),
             BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType = ResoniteMaterialType.Standard,
             TextureSourceKind = ResoniteTextureSourceKind.Bundled,
@@ -1892,24 +1918,32 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             Family = canonicalFamily,
             TextureOffset = null,
             DepthOffset = null,
+            BundledVariantIndex = canonicalVariantIndex,
         };
     }
 
     private static bool IsBundledCommonMaterialCandidate(ResoniteMaterialBinding material)
     {
-        return material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && !string.IsNullOrWhiteSpace(material.TexturePath)
-            && material.TexturePath.StartsWith("default-materials/", StringComparison.Ordinal);
+        return material.TerrainOverlay is null
+            && material.TexturePayload is null
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && !string.IsNullOrWhiteSpace(material.Family);
     }
 
     internal static string CreateCanonicalCommonMaterialKey(
         string family,
-        string texturePath,
-        ResoniteMaterialProjection projection)
+        int bundledVariantIndex,
+        ResoniteMaterialProjection projection,
+        ResoniteFloat2? textureScale)
     {
+        string scaleToken = textureScale is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"common|{family}|{projection}|{texturePath}");
+            $"common|{family}|variant:{bundledVariantIndex}|{projection}|scale:{scaleToken}");
     }
 
     private static string CreateCompactColorSuffix(ResoniteColor color)
@@ -1934,17 +1968,23 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return normalizedStemPath.Replace('/', '_');
     }
 
+    private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainTextureOverlay)
+    {
+        ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
+
+        string source = string.Create(
+            CultureInfo.InvariantCulture,
+            $"{terrainTextureOverlay.PackageName}|{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######}|{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######}");
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"terrain-overlay-{Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant()}");
+    }
+
     private static bool IsDemPackage(string packageName)
     {
         return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
     }
-
-    private static bool IsGeneratedDemTexturePath(string? texturePath)
-    {
-        return !string.IsNullOrWhiteSpace(texturePath)
-            && texturePath.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, StringComparison.Ordinal);
-    }
-
 
     private async Task<PreparedGeometryAssetBatch> PrepareGeometryBatchAsync(
         IResoniteLinkClient importClient,
@@ -2008,7 +2048,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         IResoniteLinkClient client,
         ObjectSlotHierarchy objectSlots,
         ResoniteConstructionCityObject cityObject,
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
         PreparedGeometryAssetBatch preparedGeometryBatch,
         IReadOnlyList<MaterialReferenceTarget> materialTargets,
         IReadOnlyList<PreparedDedicatedMaterialAssets> preparedDedicatedMaterialAssets,
@@ -2288,14 +2328,21 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private async Task<PreparedDedicatedMaterialAssets> PrepareDedicatedMaterialAssetsAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
-        Dictionary<TextureReferenceKey, ResoniteTextureImport> preparedTextureDataByKey,
+        Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
+        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
-        Task<Uri?> albedoTextureTask = material.TexturePath is not null
-            && preparedTextureDataByKey.TryGetValue(
-                ResoniteMaterialAssetManager.CreateTextureReferenceKey(material.TexturePath, material.TextureSourceKind),
-                out ResoniteTextureImport? albedoTextureImport)
-            ? ImportOptionalTextureAsync(importClient, albedoTextureImport, cancellationToken)
+        Task<Uri?> albedoTextureTask = material.TexturePayload is not null
+            && !string.IsNullOrWhiteSpace(material.TexturePayload.Identity)
+            && preparedTextureDataByIdentity.TryGetValue(
+                material.TexturePayload.Identity,
+                out ResoniteTextureImport? directTextureImport)
+            ? ImportOptionalTextureAsync(importClient, directTextureImport, cancellationToken)
+            : material.TerrainOverlay is not null
+            && preparedTerrainTextureDataByOverlay.TryGetValue(
+                material.TerrainOverlay,
+                out ResoniteTextureImport? terrainOverlayTextureImport)
+            ? ImportOptionalTextureAsync(importClient, terrainOverlayTextureImport, cancellationToken)
             : Task.FromResult<Uri?>(null);
 
         Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
@@ -3193,25 +3240,13 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private sealed record PreparedCityObject(
         ResoniteConstructionCityObject CityObject,
         PreparedConstructionGeometry Geometry,
-        IReadOnlyList<PreparedTextureReference> Textures)
-    {
-        public bool TryGetTextureImport(
-            string texturePath,
-            ResoniteTextureSourceKind textureSourceKind,
-            out ResoniteTextureImport? textureImport)
-        {
-            PreparedTextureReference? preparedTexture = Textures.FirstOrDefault(texture =>
-                string.Equals(texture.TexturePath, texturePath, StringComparison.Ordinal)
-                && texture.TextureSourceKind == textureSourceKind);
-            textureImport = preparedTexture?.TextureImport;
-            return preparedTexture is not null;
-        }
-    }
+        IReadOnlyList<PreparedTextureReference> Textures);
 
     private sealed record PreparedTextureReference(
-        string TexturePath,
+        string? TextureIdentity,
         ResoniteTextureSourceKind TextureSourceKind,
-        ResoniteTextureImport TextureImport);
+        ResoniteTextureImport TextureImport,
+        TerrainTextureOverlay? TerrainOverlay = null);
 
     private sealed record PreparedDedicatedMaterialAssets(
         Uri? AlbedoTextureUri,

@@ -70,9 +70,9 @@ public sealed class LocalCityGmlBootstrapParityTests
         Assert.Equal(expected.PackageNames, actual.PackageNames);
         Assert.Equal(expected.TerrainTextureOverlays, actual.TerrainTextureOverlays);
         Assert.Equal(expected.RequestedMeshCodes, actual.RequestedMeshCodes);
-        Assert.Equal(expected.BootstrapReferenceSystem.SrsName, actual.BootstrapReferenceSystem.SrsName);
-        Assert.Equal(expected.BootstrapReferenceSystem.CompatibilityKey, actual.BootstrapReferenceSystem.CompatibilityKey);
-        Assert.Equal(expected.BootstrapReferenceSystem.IsGeographic, actual.BootstrapReferenceSystem.IsGeographic);
+        Assert.Equal(expected.BootstrapReferenceSystem?.SrsName, actual.BootstrapReferenceSystem?.SrsName);
+        Assert.Equal(expected.BootstrapReferenceSystem?.CompatibilityKey, actual.BootstrapReferenceSystem?.CompatibilityKey);
+        Assert.Equal(expected.BootstrapReferenceSystem?.IsGeographic, actual.BootstrapReferenceSystem?.IsGeographic);
         Assert.Equal(expected.BootstrapGlobalOriginPoint, actual.BootstrapGlobalOriginPoint);
         Assert.Equal(expected.BootstrapTerrainHeightSampler is null, actual.BootstrapTerrainHeightSampler is null);
 
@@ -109,24 +109,9 @@ public sealed class LocalCityGmlBootstrapParityTests
         Assert.Equal(expectedRelativeSourceFiles, documentSet.RelativeSourceFiles);
         Assert.Equal(expectedPackageNames, documentSet.PackageNames);
         Assert.Equal(expectedRequestedMeshCodes, documentSet.RequestedMeshCodes);
-        Assert.Equal("http://www.opengis.net/def/crs/EPSG/0/6697", documentSet.BootstrapReferenceSystem.SrsName);
-        Assert.True(documentSet.BootstrapReferenceSystem.IsGeographic);
+        Assert.Null(documentSet.BootstrapReferenceSystem);
         Assert.Equal(expectedTerrainSamplerPresent, documentSet.BootstrapTerrainHeightSampler is not null);
-        if (expectedPackageNames.Contains("dem", StringComparer.Ordinal))
-        {
-            Assert.NotEmpty(documentSet.TerrainTextureOverlays);
-            Assert.All(
-                documentSet.TerrainTextureOverlays,
-                static overlay => Assert.StartsWith(
-                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-                    overlay.TexturePath,
-                    StringComparison.Ordinal));
-        }
-        else
-        {
-            Assert.Empty(documentSet.TerrainTextureOverlays);
-        }
-
+        Assert.Empty(documentSet.TerrainTextureOverlays);
         Assert.Empty(documentSet.BootstrapCachedDemSourceFiles);
     }
 }

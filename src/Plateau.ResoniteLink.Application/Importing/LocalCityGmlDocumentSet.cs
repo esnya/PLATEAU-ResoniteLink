@@ -12,7 +12,7 @@ public sealed class LocalCityGmlDocumentSet
         IReadOnlyList<string> requestedMeshCodes,
         IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
         IReadOnlyList<CachedSourceFileDescriptor> cachedDemSourceFiles,
-        CoordinateReferenceSystem referenceSystem,
+        CoordinateReferenceSystem? referenceSystem,
         GeodeticPoint globalOriginPoint,
         TerrainHeightSampler? terrainHeightSampler)
     {
@@ -42,7 +42,7 @@ public sealed class LocalCityGmlDocumentSet
 
     internal IReadOnlyList<CachedSourceFileDescriptor> BootstrapCachedDemSourceFiles { get; }
 
-    internal CoordinateReferenceSystem BootstrapReferenceSystem { get; }
+    internal CoordinateReferenceSystem? BootstrapReferenceSystem { get; }
 
     internal GeodeticPoint BootstrapGlobalOriginPoint { get; }
 
