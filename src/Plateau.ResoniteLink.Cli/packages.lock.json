@@ -8,31 +8,16 @@
         "resolved": "7.0.0",
         "contentHash": "2lMTCQl5bGP4iv0JNkockPnyllC6eHLz+CoK2ICvalvHod+exXSxueu9hq+zNkU7bZBJf8wMfeRC/Edn8AGmEg=="
       },
-      "SixLabors.ImageSharp": {
-        "type": "Direct",
-        "requested": "[3.1.12, )",
-        "resolved": "3.1.12",
-        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
-      },
-      "YellowDogMan.ResoniteLink": {
-        "type": "Direct",
-        "requested": "[0.13.1, )",
-        "resolved": "0.13.1",
-        "contentHash": "t7H5pS9B2wIJq9FlXeufIrImp9v63fVFBsVht80/VaGayG6uTwtKyfFByPDhOrAhumMTOW/sTiEXrFQ4B8OyEA=="
-      },
-      "plateau.resonitelink.application": {
+      "plateau.resonitelink": {
         "type": "Project",
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
           "NetTopologySuite": "[2.6.0, )",
-          "Plateau.ResoniteLink.Domain": "[1.0.0, )",
           "SharpCompress": "[0.47.4, )",
-          "SixLabors.ImageSharp": "[3.1.12, )"
+          "SixLabors.ImageSharp": "[3.1.12, )",
+          "YellowDogMan.ResoniteLink": "[0.13.1, )"
         }
-      },
-      "plateau.resonitelink.domain": {
-        "type": "Project"
       },
       "GeographicLib.NET": {
         "type": "CentralTransitive",
@@ -57,6 +42,18 @@
         "requested": "[0.47.4, )",
         "resolved": "0.47.4",
         "contentHash": "0s2rmGFLFQED6ERPUtJiT/KoDsrBzsc+qDoVX1XT4HfAiLZCtV6Z9mHfArBgHVpDErl4Pt9M5VTMVQLPUJw5Kg=="
+      },
+      "SixLabors.ImageSharp": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.12, )",
+        "resolved": "3.1.12",
+        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
+      },
+      "YellowDogMan.ResoniteLink": {
+        "type": "CentralTransitive",
+        "requested": "[0.13.1, )",
+        "resolved": "0.13.1",
+        "contentHash": "t7H5pS9B2wIJq9FlXeufIrImp9v63fVFBsVht80/VaGayG6uTwtKyfFByPDhOrAhumMTOW/sTiEXrFQ4B8OyEA=="
       }
     }
   }

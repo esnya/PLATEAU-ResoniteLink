@@ -4,12 +4,24 @@
 
 Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `Plateau.ResoniteLink-cli-vX.Y.Z.zip` を公開します。
 
+この README は、`beta` を `main` に取り込んだ後の mainline release における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / experimental / pending / intentionally regressed はここ と tests に揃えます。
+
 ## Scope
 
+Shipped:
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - LOD1 mesh bake と LOD2 atlas bake は CityGML scope、package、LOD、bake policy をキーにまとめ、emit される bake payload が cityObject の到着順に依存しないように保つ。
+
+Experimental:
+- `--resonitelink-connections > 1` は引き続き experimental な live-send mode であり、信頼できる既定経路としては扱わない。
+
+Pending:
+- target-agnostic IR の抽出と、`Targets.Resonite` / `Transport.ResoniteLink` の深い責務分離は、この release では完了済み保証に含めない内部 follow-up です。
+
+Intentionally regressed:
+- tracked な `docs/live-testing*.md` と standalone の requirements 文書は、release-truth surface としては維持しません。正本は `README.md`、tests、`.agents/skills/` 配下の live-send skill workflow に置きます。
 
 ## Runtime And Prerequisites
 
@@ -66,8 +78,7 @@ CLI は既定でマイルストーン級の進捗だけを表示し、file ご�
 ## 参考資料
 
 - contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)
-- product requirements: [docs/requirements.ja.md](docs/requirements.ja.md)
-- live validation workflow: [docs/live-testing.ja.md](docs/live-testing.ja.md)
+- Coding Agent 向け live workflow: [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md)
 
 ## License And Provenance
 
@@ -76,6 +87,6 @@ CLI は既定でマイルストーン級の進捗だけを表示し、file ご�
 - [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) は portal-level の既定条件であり、dataset 固有条件を上書きしません。
 - [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) では、dataset ごとに PDL 1.0、CC BY 4.0、ODC BY、ODbL など異なる条件がありうると案内されています。
 - PLATEAU SDK for Unity は別 upstream の MIT licensed project で、license 控えは `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt` にあります。
-- `src/Plateau.ResoniteLink.Cli/Assets/DefaultMaterials/` 配下の bundled default material texture は AmbientCG 由来で、追跡メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` にあります。
+- `src/Plateau.ResoniteLink/Assets/DefaultMaterials/` 配下の bundled default material texture は AmbientCG 由来で、追跡メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` にあります。
 - 既定の DEM terrain imagery overlay は bundled asset ではありません。GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg` から生成し、repository 内の追跡メモは `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` にあります。
 - NuGet package やその他の runtime dependency には upstream license が適用されます。binary や vendored asset を再配布する前に、実際に出荷する version を確認してください。

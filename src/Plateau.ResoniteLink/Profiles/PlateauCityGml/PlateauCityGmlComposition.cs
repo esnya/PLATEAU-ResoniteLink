@@ -1,6 +1,8 @@
-namespace Plateau.ResoniteLink.Application.Importing;
+using Plateau.ResoniteLink.Application.Importing;
 
-public static class PlateauImportApplicationComposition
+namespace Plateau.ResoniteLink.Profiles.PlateauCityGml;
+
+public static class PlateauCityGmlComposition
 {
     public static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
     {

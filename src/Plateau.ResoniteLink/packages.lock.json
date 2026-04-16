@@ -38,8 +38,11 @@
         "resolved": "3.1.12",
         "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
       },
-      "plateau.resonitelink.domain": {
-        "type": "Project"
+      "YellowDogMan.ResoniteLink": {
+        "type": "Direct",
+        "requested": "[0.13.1, )",
+        "resolved": "0.13.1",
+        "contentHash": "t7H5pS9B2wIJq9FlXeufIrImp9v63fVFBsVht80/VaGayG6uTwtKyfFByPDhOrAhumMTOW/sTiEXrFQ4B8OyEA=="
       }
     }
   }

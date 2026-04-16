@@ -1,4 +1,5 @@
 using Plateau.ResoniteLink.Domain.Importing;
+using Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
@@ -9,7 +10,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return PlateauImportApplicationComposition.CreateConstructionSourceFactory().CreateAsync(
+        return PlateauCityGmlComposition.CreateConstructionSourceFactory().CreateAsync(
             request,
             progressReporter,
             cancellationToken);

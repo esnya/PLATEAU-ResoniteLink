@@ -11,7 +11,7 @@ description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink �
 
 code-only review や static な log 読みには使わないでください。実際の live send、実際の Resonite world inspection、または machine-level execution がないと無効な比較が必要なときにだけ使います。
 
-このファイルは live-send を実行する Coding Agent 用 playbook です。operator-facing の手順参照は [docs/live-testing.md](../../../docs/live-testing.md) に残し、手順本文はここで重複させず簡潔に運用判断を置きます。
+このファイルは live-send を実行する Coding Agent 用 playbook です。live-send workflow の正本はこの skill package 内に閉じ、ここでは実行判断と guardrail を扱い、operator-facing の標準手順は [references/workflow.md](./references/workflow.md) を参照します。
 
 ## Dataset Defaults
 
@@ -25,7 +25,7 @@ task が `frn` または city-furniture content を必要とする場合だけ�
 
 ## Canonical Procedure
 
-repository の live-send 手順は [docs/live-testing.md](../../../docs/live-testing.md) を参照してください。この skill は cleanup、send、comparison の手順を再定義しません。
+canonical な live-send 手順は [references/workflow.md](./references/workflow.md) を参照してください。このファイルは Coding Agent 向けの guardrail、default、run worksheet を保持し、実行手順と command surface は reference 側に寄せます。
 
 送信実行の判断は次の原則で行います。
 
@@ -33,7 +33,7 @@ repository の live-send 手順は [docs/live-testing.md](../../../docs/live-tes
 - sender と listener が同一ホストで、WSL 側から `localhost` 到達が確認できるなら WSL 起点の送信も有効です。
 - reverse proxy などで host 判定が listener 目線で許容可能に変換されるなら、IP 経由も有効になる場合があります。OS 固定ではなく、実際の到達経路と session 識別結果で判断します。
 
-[references/workflow.ja.md](./references/workflow.ja.md) は、skill 固有の default、guardrail、script inventory だけに使ってください。
+[references/workflow.ja.md](./references/workflow.ja.md) は、operator-facing の標準手順と command surface を保持するために使ってください。
 
 disposable な headless 検証では、次の operator sequence を優先してください。
 
