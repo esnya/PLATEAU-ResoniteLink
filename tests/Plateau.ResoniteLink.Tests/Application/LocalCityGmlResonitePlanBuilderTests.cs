@@ -3,6 +3,9 @@ using System.Diagnostics.CodeAnalysis;
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class LocalCityGmlResonitePlanBuilderTests
@@ -44,9 +47,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         Assert.Same(request, syncSource.Metadata.Request);
         Assert.Equal(asyncSource.Metadata.SourceDataset.PackageNames, syncSource.Metadata.SourceDataset.PackageNames);
         Assert.Equal(asyncSource.Metadata.SourceDataset.SourceFiles, syncSource.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(
-            asyncSource.Metadata.SourceDataset.TerrainTextureOverlays,
-            syncSource.Metadata.SourceDataset.TerrainTextureOverlays);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.TerrainTextureOverlays, syncSource.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Equal(asyncSource.Metadata.SourceDataset.RequestedMeshCodes, syncSource.Metadata.SourceDataset.RequestedMeshCodes);
         Assert.Equal(asyncSource.Metadata.LocalOrigin, syncSource.Metadata.LocalOrigin);
     }
@@ -60,7 +61,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         await using StubSceneBuilder sceneBuilder = new();
         PlateauImportService service = CreateService(sceneBuilder);
 
-        ImportExecutionResult result = await service.ExecuteAsync(
+        await service.ExecuteAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -70,56 +71,36 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        PlateauImportServiceTests.CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
-
-        ResoniteConstructionCityObject[] demCityObjects = scene.CityObjects
+        ResoniteConstructionCityObject[] demCityObjects = sceneBuilder.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
 
         Assert.Equal(2, demCityObjects.Length);
 
-        const string explicitTexturePath = "udx/dem/53394525/appearance/mixed_surface.png";
+        ResoniteConstructionCityObject generatedChunk = Assert.Single(
+            demCityObjects,
+            static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
+        ResoniteConstructionCityObject explicitChunk = Assert.Single(
+            demCityObjects,
+            static cityObject => cityObject.Materials.Any(static material => material.TexturePayload is not null));
 
-        int generatedChunkCount = demCityObjects
-            .Count(static cityObject => cityObject.Materials.Any(
-                static material =>
-                    material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
-                    && material.TexturePath is not null
-                    && material.TexturePath.StartsWith(
-                        LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-                        StringComparison.Ordinal)));
-        Assert.Equal(1, generatedChunkCount);
-        IEnumerable<ResoniteMaterialBinding> generatedMaterials = demCityObjects.SelectMany(
-            static cityObject => cityObject.Materials,
-            static (cityObject, material) => material)
-            .Where(static material =>
-                material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
-                && material.TexturePath is not null
-                && material.TexturePath.StartsWith(
-                    LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
-                    StringComparison.Ordinal));
-        Assert.All(
-            generatedMaterials,
-            static material =>
-            {
-                Assert.Equal(ResoniteTextureSourceKind.Dataset, material.TextureSourceKind);
-                Assert.False(
-                    material.TexturePath!.StartsWith(
-                        "default-materials/",
-                        StringComparison.Ordinal),
-                    "DEM overlay should not resolve through bundled material roots.");
-            });
+        ResoniteMaterialBinding generatedMaterial = Assert.Single(generatedChunk.Materials);
+        Assert.Equal(ResoniteTextureSourceKind.Dataset, generatedMaterial.TextureSourceKind);
+        Assert.NotNull(generatedMaterial.TerrainOverlay);
+        Assert.Null(generatedMaterial.TexturePayload);
+        Assert.Single(generatedChunk.Mesh.Submeshes);
+        Assert.InRange(generatedChunk.Mesh.Vertices.Count, 3, 9);
 
-        int explicitChunkCount = demCityObjects
-            .Count(cityObject => cityObject.Materials.Any(material => string.Equals(
-                material.TexturePath,
-                explicitTexturePath,
-                StringComparison.Ordinal)));
-        Assert.Equal(1, explicitChunkCount);
+        ResoniteMaterialBinding explicitMaterial = Assert.Single(explicitChunk.Materials);
+        Assert.NotNull(explicitMaterial.TexturePayload);
+        Assert.Contains(
+            "udx/dem/53394525/appearance/mixed_surface.png",
+            explicitMaterial.TexturePayload!.Identity,
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task DemMeshModeNormalizesGeneratedUvPerChunkAndUsesMaterialTextureTransform()
+    public async Task DemMeshModeNormalizesGeneratedUvPerChunkWithoutRelyingOnMaterialTextureTransform()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -127,7 +108,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         await using StubSceneBuilder sceneBuilder = new();
         PlateauImportService service = CreateService(sceneBuilder);
 
-        ImportExecutionResult result = await service.ExecuteAsync(
+        await service.ExecuteAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -137,18 +118,13 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        PlateauImportServiceTests.CapturedResoniteScene scene = result.Metadata.ToScene(sceneBuilder.CityObjects);
         ResoniteConstructionCityObject demCityObject = Assert.Single(
-            scene.CityObjects,
+            sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem");
 
         ResoniteMaterialBinding material = Assert.Single(demCityObject.Materials);
-        Assert.NotNull(material.TextureScale);
-        Assert.NotNull(material.TextureOffset);
-        Assert.InRange(material.TextureScale!.X, 0.5, 1.0);
-        Assert.InRange(material.TextureScale!.Y, 0.5, 1.0);
-        Assert.InRange(material.TextureOffset!.X, 0.0, 1.0);
-        Assert.InRange(material.TextureOffset!.Y, 0.0, 1.0);
+        Assert.NotNull(material.TerrainOverlay);
+        Assert.Null(material.TexturePayload);
 
         double minU = demCityObject.Mesh.Vertices.Min(static vertex => vertex.UV0.X);
         double maxU = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.X);
@@ -156,6 +132,12 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         double maxV = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
         Assert.True(maxU - minU > 0.9);
         Assert.True(maxV - minV > 0.9);
+        Assert.InRange(minU, 0.0, 0.1);
+        Assert.InRange(minV, 0.0, 0.1);
+        Assert.InRange(maxU, 0.9, 1.0);
+        Assert.InRange(maxV, 0.9, 1.0);
+        Assert.Single(demCityObject.Mesh.Submeshes);
+        Assert.InRange(demCityObject.Mesh.Vertices.Count, 4, 6);
     }
 
     private static void CreateRuntimeMixedSurfaceDemFixture(string datasetRoot)
@@ -229,7 +211,8 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_mixed.gml"), xml);
 
         Directory.CreateDirectory(Path.Combine(packageDirectory, "appearance"));
-        File.WriteAllText(Path.Combine(packageDirectory, "appearance", "mixed_surface.png"), "");
+        using Image<Rgba32> image = new(1, 1, new Rgba32(255, 255, 255, 255));
+        image.SaveAsPng(Path.Combine(packageDirectory, "appearance", "mixed_surface.png"));
     }
 
     private static void CreateRuntimeDemChunkFixture(string datasetRoot)
@@ -294,11 +277,17 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         }
 
         public Task BeginAsync(
-            ResoniteConstructionMetadata metadata,
+            SceneBootstrapInfo bootstrapInfo,
+            IPlateauDatasetContentSource datasetContentSource,
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
             string workRoot,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _ = bootstrapInfo;
+            _ = datasetContentSource;
+            _ = commonMaterials;
+            _ = workRoot;
             return Task.CompletedTask;
         }
 

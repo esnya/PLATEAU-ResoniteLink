@@ -22,7 +22,8 @@ internal sealed class ResoniteMaterialAssetManager(
     public async Task<CreatedMaterialAsset> CreateMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureImportsByIdentity,
+        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureImportsByOverlay,
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
@@ -32,7 +33,7 @@ internal sealed class ResoniteMaterialAssetManager(
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(material);
-        ArgumentNullException.ThrowIfNull(preparedTexturePathsByKey);
+        ArgumentNullException.ThrowIfNull(preparedTextureImportsByIdentity);
         ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotId);
         ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
         ArgumentException.ThrowIfNullOrWhiteSpace(rendererSlotId);
@@ -43,7 +44,8 @@ internal sealed class ResoniteMaterialAssetManager(
         CreatedComponent materialComponent = await GetOrCreateMaterialComponentAsync(
             client,
             material,
-            preparedTexturePathsByKey,
+            preparedTextureImportsByIdentity,
+            preparedTerrainTextureImportsByOverlay,
             materialSlotId,
             materialSlotParentId,
             materialSlotName,
@@ -55,7 +57,8 @@ internal sealed class ResoniteMaterialAssetManager(
     private async Task<CreatedComponent> GetOrCreateMaterialComponentAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureImportsByIdentity,
+        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureImportsByOverlay,
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
@@ -72,7 +75,8 @@ internal sealed class ResoniteMaterialAssetManager(
             ct => CreateMaterialComponentCoreAsync(
                 client,
                 material,
-                preparedTexturePathsByKey,
+                preparedTextureImportsByIdentity,
+                preparedTerrainTextureImportsByOverlay,
                 materialSlotId,
                 materialSlotParentId,
                 materialSlotName,
@@ -85,7 +89,8 @@ internal sealed class ResoniteMaterialAssetManager(
     private async Task<CreatedComponent> CreateMaterialComponentCoreAsync(
         IResoniteLinkClient client,
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureImportsByIdentity,
+        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureImportsByOverlay,
         string materialSlotId,
         string? materialSlotParentId,
         string materialSlotName,
@@ -120,7 +125,7 @@ internal sealed class ResoniteMaterialAssetManager(
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
         ReportProgress(
             $"[live] Material '{material.MaterialKey}' resolving as '{materialComponentType}' "
-            + $"(projection={material.Projection}, texture={material.TexturePath ?? "none"}).");
+            + $"(projection={material.Projection}, texture={(material.TerrainOverlay is not null ? "projected" : material.TexturePayload is null ? "none" : material.TexturePayload.Identity ?? "payload")}).");
 
         Stopwatch textureImportStopwatch = Stopwatch.StartNew();
         Task<Uri?> albedoTextureTask = Task.FromResult<Uri?>(null);
@@ -130,14 +135,28 @@ internal sealed class ResoniteMaterialAssetManager(
         Task<Uri?> emissionTextureTask = Task.FromResult<Uri?>(null);
 
         if (!suppressAlbedoTexture
-            && material.TexturePath is not null
             && TryResolveAlbedoTextureImport(
                 material,
-                preparedTexturePathsByKey,
+                preparedTextureImportsByIdentity,
+                preparedTerrainTextureImportsByOverlay,
                 out ResoniteTextureImport? textureAsset))
         {
             ReportProgress($"[live] Material '{material.MaterialKey}' importing albedo texture.");
             albedoTextureTask = ImportOptionalTextureAsync(client, textureAsset, cancellationToken);
+        }
+        else if (!suppressAlbedoTexture
+            && material.AssetScope == ResoniteMaterialAssetScope.Common
+            && !string.IsNullOrWhiteSpace(material.Family))
+        {
+            string albedoPath = BundledDefaultMaterialAssetStore.GetAbsolutePath(
+                BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
+            albedoTextureTask = ImportOptionalTextureAsync(
+                client,
+                await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+                    albedoPath,
+                    ResoniteTextureColorProfiles.Srgb,
+                    cancellationToken),
+                cancellationToken);
         }
 
         if (ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
@@ -357,34 +376,30 @@ internal sealed class ResoniteMaterialAssetManager(
         return await importTextureAsync(client, textureImport, cancellationToken);
     }
 
-    internal static TextureReferenceKey CreateTextureReferenceKey(string texturePath, ResoniteTextureSourceKind textureSourceKind)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
-        return new TextureReferenceKey(textureSourceKind, texturePath);
-    }
-
     private static bool TryResolveAlbedoTextureImport(
         ResoniteMaterialBinding material,
-        IReadOnlyDictionary<TextureReferenceKey, ResoniteTextureImport> preparedTexturePathsByKey,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureImportsByIdentity,
+        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureImportsByOverlay,
         out ResoniteTextureImport textureImport)
     {
         ArgumentNullException.ThrowIfNull(material);
-        ArgumentNullException.ThrowIfNull(preparedTexturePathsByKey);
+        ArgumentNullException.ThrowIfNull(preparedTextureImportsByIdentity);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTextureImportsByOverlay);
 
-        if (material.TexturePath is not null
-            && preparedTexturePathsByKey.TryGetValue(
-                CreateTextureReferenceKey(material.TexturePath, material.TextureSourceKind),
-                out ResoniteTextureImport? preparedTextureImport))
+        if (material.TexturePayload is not null
+            && !string.IsNullOrWhiteSpace(material.TexturePayload.Identity)
+            && preparedTextureImportsByIdentity.TryGetValue(material.TexturePayload.Identity, out ResoniteTextureImport? preparedPayloadImport))
         {
-            textureImport = preparedTextureImport;
+            textureImport = preparedPayloadImport;
             return true;
         }
 
-        if (material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && material.TexturePath is not null)
+        if (material.TerrainOverlay is not null
+            && preparedTerrainTextureImportsByOverlay.TryGetValue(
+                material.TerrainOverlay,
+                out ResoniteTextureImport? preparedTerrainTextureImport))
         {
-            textureImport = ResoniteTextureImportFactory.CreateFromFile(
-                BundledDefaultMaterialAssetStore.GetAbsolutePath(material.TexturePath));
+            textureImport = preparedTerrainTextureImport;
             return true;
         }
 
@@ -396,6 +411,7 @@ internal sealed class ResoniteMaterialAssetManager(
     {
         progressReporter?.Invoke(message);
     }
+
 }
 
 internal sealed record CreatedMaterialAsset(

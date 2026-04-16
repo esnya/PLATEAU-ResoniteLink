@@ -1,35 +1,30 @@
-using Plateau.ResoniteLink.Application.Importing;
-using Plateau.ResoniteLink.Domain.Importing;
-
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace Plateau.ResoniteLink.Cli;
 
-internal sealed class ResoniteTextureImageLoader(IPlateauDatasetContentSource datasetContentSource)
+internal sealed class ResoniteTextureImageLoader
 {
-    public async Task<Image<Rgba32>> LoadAsync(
-        string texturePath,
-        ResoniteTextureSourceKind textureSourceKind,
+#pragma warning disable CA1822
+    public Task<Image<Rgba32>> LoadAsync(
+        ResoniteTextureImport textureImport,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(texturePath);
+        ArgumentNullException.ThrowIfNull(textureImport);
 
-        return textureSourceKind switch
+        return textureImport switch
         {
-            ResoniteTextureSourceKind.Dataset => await LoadDatasetAsync(texturePath, cancellationToken),
-            ResoniteTextureSourceKind.Bundled => await Image.LoadAsync<Rgba32>(
-                BundledDefaultMaterialAssetStore.GetAbsolutePath(texturePath),
+            ResoniteRawTextureImport rawTextureImport => Task.FromResult(
+                Image.LoadPixelData<Rgba32>(
+                    rawTextureImport.RawRgba32Bytes,
+                    rawTextureImport.Width,
+                    rawTextureImport.Height)),
+            ResoniteFileTextureImport fileTextureImport => Image.LoadAsync<Rgba32>(
+                fileTextureImport.AbsolutePath,
                 cancellationToken),
-            _ => throw new InvalidOperationException($"Unsupported texture source kind '{textureSourceKind}'."),
+            _ => throw new InvalidOperationException(
+                $"Unsupported texture import type '{textureImport.GetType().Name}'."),
         };
     }
-
-    private async Task<Image<Rgba32>> LoadDatasetAsync(
-        string texturePath,
-        CancellationToken cancellationToken)
-    {
-        await using Stream textureStream = await datasetContentSource.OpenReadAsync(texturePath, cancellationToken);
-        return await Image.LoadAsync<Rgba32>(textureStream, cancellationToken);
-    }
+#pragma warning restore CA1822
 }

@@ -103,7 +103,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             layoutPlan.CropHeight)));
 
         using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
-        return CreateRawTextureImport(outputImage, terrainTextureOverlay.TexturePath);
+        return CreateRawTextureImport(outputImage, CreateOverlayIdentity(terrainTextureOverlay));
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
@@ -153,7 +153,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         if (string.IsNullOrWhiteSpace(terrainTextureOverlay.FallbackUrlTemplate))
         {
             throw new HttpRequestException(
-                $"Terrain texture tile download failed for '{terrainTextureOverlay.TexturePath}' at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
+                $"Terrain texture tile download failed for '{CreateOverlayIdentity(terrainTextureOverlay)}' at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
         }
 
         Image<Rgba32>? image = await TryDownloadTileAsync(
@@ -171,6 +171,17 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         _ = Interlocked.Increment(ref usedTerrainTileCount);
         _ = Interlocked.Increment(ref fallbackTileUseCount);
         return image;
+    }
+
+    private static string CreateOverlayIdentity(TerrainTextureOverlay terrainTextureOverlay)
+    {
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"terrain-overlay/{terrainTextureOverlay.PackageName}/{terrainTextureOverlay.ZoomLevel}/"
+            + $"{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######},"
+            + $"{terrainTextureOverlay.GeographicBounds.MaxLatitude:0.######},"
+            + $"{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######},"
+            + $"{terrainTextureOverlay.GeographicBounds.MaxLongitude:0.######}");
     }
 
     private async Task<Image<Rgba32>?> TryDownloadTileAsync(

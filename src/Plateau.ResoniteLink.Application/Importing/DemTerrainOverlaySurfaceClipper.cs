@@ -41,7 +41,7 @@ internal static class DemTerrainOverlaySurfaceClipper
                             $"{surface.ExteriorRing.RingId}_{suffix}",
                             vertices,
                             UVs: null),
-                        TexturePath = overlay.TexturePath,
+                        UsesGeneratedDemTexture = surface.UsesGeneratedDemTexture,
                     },
                     overlay));
                 polygonIndex++;

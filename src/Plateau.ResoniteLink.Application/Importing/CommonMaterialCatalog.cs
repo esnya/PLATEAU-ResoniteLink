@@ -2,7 +2,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal static class CommonMaterialCatalog
+public static class CommonMaterialCatalog
 {
     private static readonly ResoniteColor CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
@@ -48,10 +48,10 @@ internal static class CommonMaterialCatalog
         List<ResoniteMaterialBinding> materials = [];
         foreach (string family in families)
         {
-            foreach (string texturePath in BundledDefaultMaterialFamilies.GetVariants(family).OrderBy(static path => path, StringComparer.Ordinal))
+            for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.GetVariants(family).Count; variantIndex++)
             {
-                materials.Add(CreateBinding(family, texturePath, ResoniteMaterialProjection.Uv));
-                materials.Add(CreateBinding(family, texturePath, ResoniteMaterialProjection.Triplanar));
+                materials.Add(CreateBinding(family, variantIndex, ResoniteMaterialProjection.Uv));
+                materials.Add(CreateBinding(family, variantIndex, ResoniteMaterialProjection.Triplanar));
             }
         }
 
@@ -60,14 +60,15 @@ internal static class CommonMaterialCatalog
 
     private static ResoniteMaterialBinding CreateBinding(
         string family,
-        string texturePath,
+        int variantIndex,
         ResoniteMaterialProjection projection)
     {
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
         return new ResoniteMaterialBinding(
-            MaterialKey: CreateMaterialKey(family, texturePath, projection),
+            MaterialKey: CreateMaterialKey(family, variantIndex, projection),
             BaseColor: CanonicalBaseColor,
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: texturePath,
+            TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: projection,
             DepthOffset: null,
@@ -75,16 +76,17 @@ internal static class CommonMaterialCatalog
             TextureScale: BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath),
             Family: family,
             TextureOffset: null,
-            AssetScope: ResoniteMaterialAssetScope.Common);
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: variantIndex);
     }
 
     private static string CreateMaterialKey(
         string family,
-        string texturePath,
+        int variantIndex,
         ResoniteMaterialProjection projection)
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"common|{family}|{projection}|{texturePath}");
+            $"common|{family}|variant:{variantIndex}|{projection}");
     }
 }

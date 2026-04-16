@@ -5,6 +5,7 @@
     <PackageReference Include="LibTessDotNet" />
     <PackageReference Include="NetTopologySuite" />
     <PackageReference Include="SharpCompress" />
+    <PackageReference Include="SixLabors.ImageSharp" />
     <ProjectReference Include="..\Plateau.ResoniteLink.Domain\Plateau.ResoniteLink.Domain.csproj" />
   </ItemGroup>
 

@@ -19,7 +19,7 @@ internal static class TerrainTextureLayoutPlanner
         if (rightPixel - leftPixel <= PixelEpsilon || bottomPixel - topPixel <= PixelEpsilon)
         {
             throw new InvalidOperationException(
-                $"Terrain texture overlay '{terrainTextureOverlay.TexturePath}' has degenerate geographic bounds.");
+                "Terrain texture overlay has degenerate geographic bounds.");
         }
 
         int minTileX = (int)Math.Floor(leftPixel / WebMercatorTileMath.TileSizePixels);

@@ -11,7 +11,6 @@ namespace Plateau.ResoniteLink.Cli;
 
 internal sealed class Lod2AtlasCityObjectBaker(
     ResoniteTextureImageLoader textureImageLoader,
-    ResoniteTextureImportRegistry textureImportRegistry,
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
     IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
@@ -298,14 +297,13 @@ internal sealed class Lod2AtlasCityObjectBaker(
         UvBounds uvBounds,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(material.TexturePath))
+        if (material.TexturePayload is null)
         {
             return CreateSolidColorTile(material.BaseColor);
         }
 
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
-            material.TexturePath,
-            material.TextureSourceKind,
+            ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
 
         int maxTileWidth = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
@@ -315,7 +313,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         using Image<Rgba32> bakedImage = BakeUsedUvRegion(sourceImage, uvBounds, targetWidth, targetHeight);
 
         ApplyBaseColor(bakedImage, material.BaseColor);
-        return new MaterialAtlasTile(material.TexturePath!, bakedImage.Clone());
+        return new MaterialAtlasTile(material.TexturePayload.Identity ?? material.MaterialKey, bakedImage.Clone());
     }
 
     private static MaterialAtlasTile CreateSolidColorTile(ResoniteColor color)
@@ -394,7 +392,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         return material.MaterialType == ResoniteMaterialType.Standard
-            && !string.IsNullOrWhiteSpace(material.TexturePath)
+            && material.TexturePayload is not null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset;
     }
 
@@ -416,7 +414,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return Lod2AtlasMaterialBakeCategory.AtlasCandidate;
         }
 
-        if (string.IsNullOrWhiteSpace(material.TexturePath))
+        if (material.TexturePayload is null)
         {
             return Lod2AtlasMaterialBakeCategory.PreservedTextureless;
         }
@@ -508,12 +506,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         if (layout is not null)
         {
-            string texturePath = CreateAtlasTexturePath(sourceUnitKey, batchIndex);
-            textureImportRegistry.Register(
-                texturePath,
-                ResoniteTextureSourceKind.Dataset,
-                ResoniteTextureImportFactory.CreateRawFromImage(atlasImage!, identity: texturePath));
-
+            string textureIdentity = CreateAtlasTextureIdentity(sourceUnitKey, batchIndex);
             List<int> atlasTriangleIndices = [];
             foreach (AtlasPlacement placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
             {
@@ -528,11 +521,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
                     MaterialKey: atlasMaterialKey,
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
-                    TexturePath: texturePath,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
-                    SubmeshIndices: [0]));
+                    SubmeshIndices: [0],
+                    TexturePayload: ResoniteTextureImportFactory.CreatePayloadFromImage(atlasImage!, identity: textureIdentity)));
         }
 
         foreach (IGrouping<PreservedMaterialGroupingKey, PreservedSubmeshEntry> preservedGroup in candidates
@@ -834,12 +827,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
             $"atlasbake:{sourceUnitKey.ActualMeshCode}:{sourceUnitKey.PackageName}:{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}:{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}:{lodToken}:{batchIndex:D4}");
     }
 
-    private static string CreateAtlasTexturePath(SourceUnitBatchKey sourceUnitKey, int batchIndex)
+    private static string CreateAtlasTextureIdentity(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
         string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"generated/lod2-atlas/{sourceUnitKey.ActualMeshCode}/{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}/{sourceUnitKey.PackageName}_{lodToken}_{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}_{batchIndex:D4}.png");
+            $"atlas-batch-{sourceUnitKey.ActualMeshCode}-{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{sourceUnitKey.PackageName}-{lodToken}-{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}-{batchIndex:D4}");
     }
 
     private static string CreatePolicyContextToken(string policyContext)
@@ -993,8 +986,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
             normalizedMaterial.MaterialKey,
             normalizedMaterial.BaseColor,
             normalizedMaterial.MaterialType,
-            normalizedMaterial.TexturePath,
+            normalizedMaterial.TexturePayload?.Identity,
             normalizedMaterial.TextureSourceKind,
+            normalizedMaterial.TerrainOverlay,
             normalizedMaterial.Projection,
             normalizedMaterial.DepthOffset,
             normalizedMaterial.TextureScale,
@@ -1014,7 +1008,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
-            && string.IsNullOrWhiteSpace(material.TexturePath)
+            && material.TexturePayload is null
             && material.AssetScope != ResoniteMaterialAssetScope.Common
             && string.IsNullOrWhiteSpace(material.Family))
         {
@@ -1031,14 +1025,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return material;
         }
 
-        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariants(material.Family)[0];
+        int bundledVariantIndex = material.BundledVariantIndex ?? 0;
+        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family, bundledVariantIndex);
         return material with
         {
-            MaterialKey = $"common-{material.Family}",
-            TexturePath = canonicalTexturePath,
+            MaterialKey = $"common-{material.Family}-variant:{bundledVariantIndex}",
             TextureSourceKind = ResoniteTextureSourceKind.Bundled,
             TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
             TextureOffset = null,
+            BundledVariantIndex = bundledVariantIndex,
         };
     }
 
@@ -1170,8 +1165,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
         string MaterialKey,
         ResoniteColor BaseColor,
         ResoniteMaterialType MaterialType,
-        string? TexturePath,
+        string? TextureIdentity,
         ResoniteTextureSourceKind TextureSourceKind,
+        TerrainTextureOverlay? TerrainOverlay,
         ResoniteMaterialProjection Projection,
         ResoniteMaterialDepthOffset? DepthOffset,
         ResoniteFloat2? TextureScale,
@@ -1222,8 +1218,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return string.Equals(x.MaterialKey, y.MaterialKey, StringComparison.Ordinal)
                 && x.BaseColor == y.BaseColor
                 && x.MaterialType == y.MaterialType
-                && string.Equals(x.TexturePath, y.TexturePath, StringComparison.Ordinal)
+                && string.Equals(x.TextureIdentity, y.TextureIdentity, StringComparison.Ordinal)
                 && x.TextureSourceKind == y.TextureSourceKind
+                && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                 && x.Projection == y.Projection
                 && EqualityComparer<ResoniteMaterialDepthOffset?>.Default.Equals(x.DepthOffset, y.DepthOffset)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
@@ -1238,8 +1235,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
             hash.Add(obj.MaterialKey, StringComparer.Ordinal);
             hash.Add(obj.BaseColor);
             hash.Add(obj.MaterialType);
-            hash.Add(obj.TexturePath, StringComparer.Ordinal);
+            hash.Add(obj.TextureIdentity, StringComparer.Ordinal);
             hash.Add(obj.TextureSourceKind);
+            hash.Add(obj.TerrainOverlay);
             hash.Add(obj.Projection);
             hash.Add(obj.DepthOffset);
             hash.Add(obj.TextureScale);

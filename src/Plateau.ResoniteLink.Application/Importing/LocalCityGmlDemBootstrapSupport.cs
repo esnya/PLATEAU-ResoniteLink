@@ -106,7 +106,10 @@ internal static class LocalCityGmlDemBootstrapSupport
         if (overlays.Count > 0)
         {
             return overlays
-                .OrderBy(static overlay => overlay.TexturePath, StringComparer.Ordinal)
+                .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
                 .ToArray();
         }
 
@@ -140,7 +143,6 @@ internal static class LocalCityGmlDemBootstrapSupport
         (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
     {
         return new TerrainTextureOverlay(
-            TexturePath: CreateDemTerrainTexturePath(meshCode),
             PackageName: "dem",
             UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
             FallbackUrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate,
@@ -152,13 +154,6 @@ internal static class LocalCityGmlDemBootstrapSupport
                 MaxLongitude: bounds.EastLongitude),
             MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
             LicenseMode: TerrainTextureLicenseMode.Unknown);
-    }
-
-    private static string CreateDemTerrainTexturePath(string meshCode)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath}/{meshCode}");
     }
 
     private static IEnumerable<string> ExpandToThirdMeshCodes(IEnumerable<string> requestedMeshCodes)

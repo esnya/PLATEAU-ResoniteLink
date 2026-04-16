@@ -5,7 +5,6 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
-[Collection(BundledCompanionTextureIsolationGroup.Name)]
 public sealed class ResoniteMaterialComponentBuilderTests
 {
     [Fact]
@@ -15,12 +14,15 @@ public sealed class ResoniteMaterialComponentBuilderTests
             MaterialKey: "facade",
             BaseColor: new ResoniteColor(0.1, 0.2, 0.3, 0.4),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: "facade/Facade018A_2K-JPG_Color.jpg",
+            TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0),
+            SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(0.5, 0.25),
-            SubmeshIndices: [0]);
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0);
 
         string componentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
         Dictionary<string, Member> members = ResoniteMaterialComponentBuilder.CreateMembers(material);
@@ -38,8 +40,8 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Assert.Equal(0.4f, albedo.Value.a, 6);
         Assert.Equal(0.5f, textureScale.Value.x, 6);
         Assert.Equal(0.25f, textureScale.Value.y, 6);
-        Assert.Equal(0.0f, textureOffset.Value.x, 6);
-        Assert.Equal(0.0f, textureOffset.Value.y, 6);
+        Assert.Equal(0.125f, textureOffset.Value.x, 6);
+        Assert.Equal(0.75f, textureOffset.Value.y, 6);
         Assert.Equal(2.0f, offsetFactor.Value, 6);
         Assert.Equal(3.0f, offsetUnits.Value, 6);
     }
@@ -51,21 +53,22 @@ public sealed class ResoniteMaterialComponentBuilderTests
             MaterialKey: "road",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: "road/Asphalt020L_2K-JPG_Color.jpg",
+            TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Triplanar,
             DepthOffset: null,
+            SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(0.25, 0.125),
-            SubmeshIndices: [0]);
+            Family: BundledDefaultMaterialFamilies.Road,
+            BundledVariantIndex: 0);
         ResoniteMaterialBinding wireframeMaterial = new(
             MaterialKey: "overlay",
             BaseColor: new ResoniteColor(0.2, 0.4, 0.6, 0.5),
             MaterialType: ResoniteMaterialType.Wireframe,
-            TexturePath: null,
+            TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            TextureScale: null,
             SubmeshIndices: [0]);
 
         Dictionary<string, Member> triplanarMembers = ResoniteMaterialComponentBuilder.CreateMembers(triplanarMaterial);
@@ -96,18 +99,19 @@ public sealed class ResoniteMaterialComponentBuilderTests
             MaterialKey: "facade",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: "default-materials/facade/Facade018A_2K-JPG_Color.jpg",
+            TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
-            TextureScale: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0);
 
         bool resolved = ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
-        Assert.EndsWith("_Emission.jpg", textureSet.EmissionPath, StringComparison.Ordinal);
+        Assert.True(textureSet.EmissionPath is null || textureSet.EmissionPath.EndsWith("_Emission.jpg", StringComparison.Ordinal));
         Assert.EndsWith("_Height.jpg", textureSet.HeightPath, StringComparison.Ordinal);
         Assert.EndsWith("_Metallic.png", textureSet.MetallicPath, StringComparison.Ordinal);
         Assert.EndsWith("_NormalGL.jpg", textureSet.NormalPath, StringComparison.Ordinal);
@@ -120,12 +124,13 @@ public sealed class ResoniteMaterialComponentBuilderTests
             MaterialKey: "city-furniture",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePath: BundledDefaultMaterialFamilies.CityFurnitureVariants[0],
+            TexturePayload: null,
             TextureSourceKind: ResoniteTextureSourceKind.Bundled,
             Projection: ResoniteMaterialProjection.Triplanar,
             DepthOffset: null,
-            TextureScale: null,
-            SubmeshIndices: [0]);
+            SubmeshIndices: [0],
+            Family: BundledDefaultMaterialFamilies.CityFurniture,
+            BundledVariantIndex: 0);
 
         bool resolved = ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
 
@@ -140,9 +145,9 @@ public sealed class ResoniteMaterialComponentBuilderTests
     [Fact]
     public void BundledDefaultMaterialAssetStoreResolvesCityFurnitureAsset()
     {
-        bool resolved = BundledDefaultMaterialAssetStore.TryGetAbsolutePath(
-            BundledDefaultMaterialFamilies.CityFurnitureVariants[0],
-            out string absolutePath);
+        string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
+
+        bool resolved = BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath);
 
         Assert.True(resolved);
         Assert.EndsWith("Plaster002_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);

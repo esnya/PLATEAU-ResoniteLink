@@ -2,7 +2,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
+public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
     public async Task<LocalCityGmlDocumentSet> ReadAsync(
         PlateauImportRequest request,

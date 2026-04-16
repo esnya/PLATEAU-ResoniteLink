@@ -157,7 +157,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         BakedInputCityObjectCount++;
 
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        if (buffer.CityObjects.Count > maxCityObjectsPerBatch || buffer.VertexCount > maxVerticesPerBatch)
+        bool exceededCityObjectBudget = cityObject.SourceFileRelativePath is null
+            && buffer.CityObjects.Count > maxCityObjectsPerBatch;
+        if (exceededCityObjectBudget || buffer.VertexCount > maxVerticesPerBatch)
         {
             readyCityObjects.Add(FlushCell(cellKey));
         }
@@ -416,8 +418,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         string MaterialKey,
         ResoniteColor BaseColor,
         ResoniteMaterialType MaterialType,
-        string? TexturePath,
+        string? TextureIdentity,
         ResoniteTextureSourceKind TextureSourceKind,
+        TerrainTextureOverlay? TerrainOverlay,
         ResoniteMaterialProjection Projection,
         ResoniteMaterialDepthOffset? DepthOffset,
         ResoniteFloat2? TextureScale,
@@ -431,8 +434,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 material.MaterialKey,
                 material.BaseColor,
                 material.MaterialType,
-                material.TexturePath,
+                material.TexturePayload?.Identity,
                 material.TextureSourceKind,
+                material.TerrainOverlay,
                 material.Projection,
                 material.DepthOffset,
                 material.TextureScale,
@@ -530,13 +534,21 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 return compare;
             }
 
-            compare = string.CompareOrdinal(x.TexturePath, y.TexturePath);
+            compare = string.CompareOrdinal(x.TextureIdentity, y.TextureIdentity);
             if (compare != 0)
             {
                 return compare;
             }
 
             compare = x.TextureSourceKind.CompareTo(y.TextureSourceKind);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = string.CompareOrdinal(
+                CreateTerrainOverlaySortKey(x.TerrainOverlay),
+                CreateTerrainOverlaySortKey(y.TerrainOverlay));
             if (compare != 0)
             {
                 return compare;
@@ -639,6 +651,15 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 
             compare = x.B.CompareTo(y.B);
             return compare != 0 ? compare : x.A.CompareTo(y.A);
+        }
+
+        private static string? CreateTerrainOverlaySortKey(TerrainTextureOverlay? overlay)
+        {
+            return overlay is null
+                ? null
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{overlay.PackageName}|{overlay.GeographicBounds.MinLatitude:R}|{overlay.GeographicBounds.MinLongitude:R}|{overlay.GeographicBounds.MaxLatitude:R}|{overlay.GeographicBounds.MaxLongitude:R}|{overlay.ZoomLevel}|{overlay.MaxTextureSize}");
         }
     }
 }

@@ -68,14 +68,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Stopwatch fileStopwatch = Stopwatch.StartNew();
         List<ParsedCityObject> cityObjects = [];
         CoordinateReferenceSystem? coordinateReferenceSystem = null;
-        await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
-        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
-                           stream,
+        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
                            sourceFile.ToLegacy(),
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
-                           parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
+                           parsedReferenceSystem: parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
                            cancellationToken))
         {
             cityObjects.Add(cityObject);
@@ -121,6 +119,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
+                           parsedReferenceSystem: null,
                            cancellationToken))
         {
             yield return global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject);
@@ -132,9 +131,27 @@ public static partial class LocalCityGmlResonitePlanBuilder
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeArea> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
+        Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
+        if (await FileMayContainAppearanceMembersAsync(datasetSource, sourceFile.RelativePath, cancellationToken)
+            && await HasLateAppearanceMembersAfterCityObjectAsync(datasetSource, sourceFile.RelativePath, cancellationToken))
+        {
+            await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromDocumentCoreAsync(
+                               sourceFile,
+                               datasetSource,
+                               requestedMeshAreas,
+                               lodFilteringStrategy,
+                               parsedReferenceSystem,
+                               cancellationToken))
+            {
+                yield return cityObject;
+            }
+
+            yield break;
+        }
+
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
         await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
                            stream,
@@ -142,11 +159,30 @@ public static partial class LocalCityGmlResonitePlanBuilder
             datasetSource,
             requestedMeshAreas,
             lodFilteringStrategy,
-            parsedReferenceSystem: null,
+            parsedReferenceSystem,
             cancellationToken))
         {
             yield return cityObject;
         }
+    }
+
+    private static async Task<bool> FileMayContainAppearanceMembersAsync(
+        IPlateauDatasetContentSource datasetSource,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        const int ProbeByteCount = 4096;
+
+        await using Stream stream = await datasetSource.OpenReadAsync(relativePath, cancellationToken);
+        byte[] buffer = new byte[ProbeByteCount];
+        int bytesRead = await stream.ReadAsync(buffer.AsMemory(0, ProbeByteCount), cancellationToken);
+        if (bytesRead <= 0)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> probe = buffer.AsSpan(0, bytesRead);
+        return probe.IndexOf("xmlns:app="u8) >= 0 || probe.IndexOf("<app:"u8) >= 0;
     }
 
     internal static async Task<CoordinateReferenceSystem> ReadDocumentReferenceSystemCoreAsync(
@@ -194,9 +230,8 @@ public static partial class LocalCityGmlResonitePlanBuilder
         lodFilteringStrategy ??= new LodFilteringStrategy();
         Dictionary<string, ResoniteColor> colorsByPolygonId = new(StringComparer.Ordinal);
         Dictionary<string, TextureAssignment> texturesByPolygonId = new(StringComparer.Ordinal);
-        AppearanceLibrary appearanceLibrary = new(colorsByPolygonId, texturesByPolygonId);
+        AppearanceLibrary appearanceLibrary = new(colorsByPolygonId, datasetSource, texturesByPolygonId);
         CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse((string?)null);
-        bool emittedCityObject = false;
 
         using XmlReader reader = XmlReader.Create(stream, CreateStreamingReaderSettings());
         while (await reader.ReadAsync())
@@ -223,8 +258,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
             if (string.Equals(reader.NamespaceURI, App.NamespaceName, StringComparison.Ordinal))
             {
-                ThrowIfAppearanceDeclaredAfterCityObject(sourceFile.RelativePath, emittedCityObject);
-
                 switch (reader.LocalName)
                 {
                     case "ParameterizedTexture":
@@ -276,13 +309,97 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 lodFilteringStrategy);
             if (cityObject is null)
             {
-                emittedCityObject = true;
                 continue;
             }
 
-            emittedCityObject = true;
             yield return cityObject;
         }
+    }
+
+    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
+        SourceFileDescriptor sourceFile,
+        IPlateauDatasetContentSource datasetSource,
+        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        LodFilteringStrategy? lodFilteringStrategy,
+        Action<CoordinateReferenceSystem>? parsedReferenceSystem,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        lodFilteringStrategy ??= new LodFilteringStrategy();
+        await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
+        XDocument cityModel = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
+        CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse(cityModel);
+        parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
+        AppearanceLibrary appearanceLibrary = AppearanceLibrary.Parse(
+            cityModel,
+            sourceFile.RelativePath,
+            datasetSource);
+
+        if (cityModel.Root is null)
+        {
+            yield break;
+        }
+
+        foreach (XElement cityObjectMember in cityModel.Root.Elements(Core + "cityObjectMember"))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            XElement? cityObjectElement = cityObjectMember.Elements().FirstOrDefault();
+            if (cityObjectElement is null)
+            {
+                continue;
+            }
+
+            ParsedCityObject? cityObject = ParseCityObject(
+                cityObjectElement,
+                sourceFile.PackageName,
+                sourceFile.RelativePath,
+                sourceFile.MatchedMeshCode,
+                sourceFile.RequiresMeshAreaFilter,
+                appearanceLibrary,
+                coordinateReferenceSystem,
+                sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
+                lodFilteringStrategy);
+            if (cityObject is null)
+            {
+                continue;
+            }
+
+            yield return cityObject;
+        }
+    }
+
+    private static async Task<bool> HasLateAppearanceMembersAfterCityObjectAsync(
+        IPlateauDatasetContentSource datasetSource,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        await using Stream stream = await datasetSource.OpenReadAsync(relativePath, cancellationToken);
+        using XmlReader reader = XmlReader.Create(stream, CreateStreamingReaderSettings());
+
+        bool hasCityObject = false;
+        while (await reader.ReadAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reader.NodeType != XmlNodeType.Element)
+            {
+                continue;
+            }
+
+            if (string.Equals(reader.NamespaceURI, Core.NamespaceName, StringComparison.Ordinal)
+                && string.Equals(reader.LocalName, "cityObjectMember", StringComparison.Ordinal))
+            {
+                hasCityObject = true;
+                continue;
+            }
+
+            if (!hasCityObject || !string.Equals(reader.NamespaceURI, App.NamespaceName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     private static XmlReaderSettings CreateStreamingReaderSettings()
@@ -294,16 +411,5 @@ public static partial class LocalCityGmlResonitePlanBuilder
             IgnoreWhitespace = true,
             DtdProcessing = DtdProcessing.Ignore,
         };
-    }
-
-    private static void ThrowIfAppearanceDeclaredAfterCityObject(string relativePath, bool emittedCityObject)
-    {
-        if (!emittedCityObject)
-        {
-            return;
-        }
-
-        throw new PlateauImportValidationException(
-            [$"CityGML file '{NormalizePath(relativePath)}' declares appearance members after cityObjectMember, which is not supported by the streaming parser."]);
     }
 }

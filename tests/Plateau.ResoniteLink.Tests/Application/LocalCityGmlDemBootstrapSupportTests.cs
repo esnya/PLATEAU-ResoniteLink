@@ -63,9 +63,12 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             demBounds,
             ["53394525"]);
 
-        Assert.Single(result);
-        Assert.Equal("dem", result[0].PackageName);
-        Assert.StartsWith(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath, result[0].TexturePath);
+        TerrainTextureOverlay overlay = Assert.Single(result);
+        Assert.Equal("dem", overlay.PackageName);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate, overlay.FallbackUrlTemplate);
+        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
+        Assert.Equal(TerrainTextureLicenseMode.Unknown, overlay.LicenseMode);
     }
 
     [Fact]
@@ -83,12 +86,8 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
 
         Assert.Equal(4, result.Length);
         Assert.Equal(
-            1,
-            result.Count(static overlay =>
-                string.Equals(
-                    overlay.TexturePath,
-                    $"{LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath}/54372778",
-                    StringComparison.Ordinal)));
+            result.Length,
+            result.Select(static overlay => overlay.GeographicBounds).Distinct().Count());
     }
 
     private static BootstrapParsedCityObject CreateCityObject()
@@ -115,7 +114,8 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
                     ExteriorRing: new BootstrapParsedRing("ring", vertices, null),
                     InteriorRings: [],
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                    TexturePath: null),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: false),
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",

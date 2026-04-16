@@ -75,6 +75,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             datasetSource,
             requestedMeshAreas,
             lodFilteringStrategy,
+            parsedReferenceSystem: null,
             cancellationToken);
     }
 

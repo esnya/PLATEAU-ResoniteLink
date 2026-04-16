@@ -61,4 +61,15 @@ public static class BundledDefaultMaterialFamilies
             _ => throw new InvalidOperationException($"Unknown bundled material family '{family}'."),
         };
     }
+
+    public static string GetVariant(string family, int variantIndex)
+    {
+        IReadOnlyList<string> variants = GetVariants(family);
+        if ((uint)variantIndex >= (uint)variants.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(variantIndex), variantIndex, $"Family '{family}' has {variants.Count} variants.");
+        }
+
+        return variants[variantIndex];
+    }
 }

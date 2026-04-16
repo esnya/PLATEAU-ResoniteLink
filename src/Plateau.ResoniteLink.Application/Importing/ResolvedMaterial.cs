@@ -4,9 +4,11 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed record ResolvedMaterial(
     ResoniteMaterialType MaterialType,
-    string? TexturePath,
+    ResoniteTexturePayload? TexturePayload,
     ResoniteTextureSourceKind TextureSourceKind,
     ResoniteMaterialProjection Projection,
     string? Family,
     ResoniteFloat2? TextureScale,
-    ResoniteMaterialAssetScope AssetScope);
+    ResoniteMaterialAssetScope AssetScope,
+    TerrainTextureOverlay? TerrainOverlay = null,
+    int? BundledVariantIndex = null);

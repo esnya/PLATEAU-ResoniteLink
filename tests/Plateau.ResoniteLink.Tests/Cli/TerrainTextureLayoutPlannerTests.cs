@@ -1,4 +1,3 @@
-using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -10,7 +9,6 @@ public sealed class TerrainTextureLayoutPlannerTests
     public void CreateReturnsTileAndCropLayoutForWorldScaleOverlay()
     {
         TerrainTextureOverlay overlay = new(
-            TexturePath: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
             PackageName: "dem",
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 1,
@@ -39,7 +37,6 @@ public sealed class TerrainTextureLayoutPlannerTests
     public void CreateRejectsDegenerateOverlayBounds()
     {
         TerrainTextureOverlay overlay = new(
-            TexturePath: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTexturePath,
             PackageName: "dem",
             UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
             ZoomLevel: 1,
