@@ -78,6 +78,25 @@ public sealed class LiveSendClientSessionTests
     }
 
     [Fact]
+    public async Task RoutedClientConnectAsyncConnectsAllRoutesBeforeBalancedCalls()
+    {
+        RecordingResoniteLinkClient firstClient = new(true, 0);
+        RecordingResoniteLinkClient secondClient = new(true, 0);
+        RecordingResoniteLinkClient thirdClient = new(true, 0);
+        using RoutedResoniteLinkClient routedClient = new([firstClient, secondClient, thirdClient]);
+
+        await routedClient.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+        await routedClient.RunDataModelOperationBatchAsync([], CancellationToken.None);
+
+        Assert.Equal(1, firstClient.ConnectCallCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Equal(1, thirdClient.ConnectCallCount);
+        Assert.All(new[] { firstClient, secondClient, thirdClient }, client => Assert.True(client.BatchCallCount > 0));
+    }
+
+    [Fact]
     public async Task EnsureConnectedAsyncDisposesAllClientsOnConnectFailure()
     {
         RecordingClientFactory clientFactory = new([new(true), new(false)]);

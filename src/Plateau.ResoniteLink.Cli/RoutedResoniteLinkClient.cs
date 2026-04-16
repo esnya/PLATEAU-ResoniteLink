@@ -36,7 +36,7 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
 
     public Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken)
     {
-        return RouteForAuthoritative("connect").ConnectAsync(endpoint, cancellationToken);
+        return ConnectAllRoutesAsync(endpoint, cancellationToken);
     }
 
     public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
@@ -117,5 +117,17 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
             PlateauLog.Debug(
                 "live",
                 $"Routing '{operationName}' RPC to connection route {routeIndex + 1}/{routeCount}."));
+    }
+
+    private async Task ConnectAllRoutesAsync(Uri endpoint, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+
+        for (int routeIndex = 0; routeIndex < routeCount; routeIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ReportRoute("connect", routeIndex);
+            await routedClients[routeIndex].ConnectAsync(endpoint, cancellationToken);
+        }
     }
 }
