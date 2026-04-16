@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Threading.Channels;
+using System.Collections.Concurrent;
 
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -10,6 +11,8 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSource
 {
+    internal const int MaxConcurrentCityObjectProducers = 8;
+
     private readonly PlateauImportRequest request;
     private readonly SourceFilePipeline[] sourceFiles;
     private readonly GeodeticPoint globalOriginPoint;
@@ -105,18 +108,20 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                 SingleWriter = false,
                 FullMode = BoundedChannelFullMode.Wait,
             });
+        int producerConcurrency = Math.Min(sourceFiles.Length, MaxConcurrentCityObjectProducers);
+        ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles = new(
+            sourceFiles.Select((sourceFile, index) => (sourceFile, index + 1)));
 
         ReportProgress(
             PlateauLog.Info(
                 "import",
-                $"City object producers launched: {sourceFiles.Length} file-scoped streams."));
+                $"City object producers launched: {producerConcurrency} worker(s) for {sourceFiles.Length} file-scoped streams."));
 
-        Task[] producers = sourceFiles
-            .Select((sourceFile, index) => Task.Run(
-                () => ProduceCityObjectsAsync(
+        Task[] producers = Enumerable.Range(0, producerConcurrency)
+            .Select(_ => Task.Run(
+                () => ProduceCityObjectsUntilDrainedAsync(
                     channel.Writer,
-                    sourceFile,
-                    index + 1,
+                    pendingSourceFiles,
                     sourceFiles.Length,
                     cancellationToken),
                 cancellationToken))
@@ -171,6 +176,23 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                 $"City object producer finished source file "
                 + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}' "
                 + $"(yielded={yieldedCount})."));
+    }
+
+    private async Task ProduceCityObjectsUntilDrainedAsync(
+        ChannelWriter<ResoniteConstructionCityObject> writer,
+        ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles,
+        int totalFiles,
+        CancellationToken cancellationToken)
+    {
+        while (pendingSourceFiles.TryDequeue(out (SourceFilePipeline SourceFile, int Index) nextSourceFile))
+        {
+            await ProduceCityObjectsAsync(
+                writer,
+                nextSourceFile.SourceFile,
+                nextSourceFile.Index,
+                totalFiles,
+                cancellationToken);
+        }
     }
 
     private static async Task CompleteWriterWhenFinishedAsync(
