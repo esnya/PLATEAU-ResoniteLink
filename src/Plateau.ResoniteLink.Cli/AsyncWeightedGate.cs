@@ -43,7 +43,6 @@ internal sealed class AsyncWeightedGate(long capacity)
 
     private void Release(long weight)
     {
-        List<Waiter> readyWaiters = [];
         lock (syncRoot)
         {
             inUse = Math.Max(0L, inUse - weight);
@@ -62,14 +61,13 @@ internal sealed class AsyncWeightedGate(long capacity)
                 }
 
                 waiters.Dequeue();
-                inUse += waiter.Weight;
-                readyWaiters.Add(waiter);
-            }
-        }
+                if (!waiter.TrySetResult(new Lease(this, waiter.Weight)))
+                {
+                    continue;
+                }
 
-        foreach (Waiter waiter in readyWaiters)
-        {
-            waiter.TrySetResult(new Lease(this, waiter.Weight));
+                inUse += waiter.Weight;
+            }
         }
     }
 
@@ -121,10 +119,10 @@ internal sealed class AsyncWeightedGate(long capacity)
             }, this);
         }
 
-        public void TrySetResult(Lease lease)
+        public bool TrySetResult(Lease lease)
         {
             cancellationRegistration.Dispose();
-            completionSource.TrySetResult(lease);
+            return completionSource.TrySetResult(lease);
         }
 
         private void Cancel()

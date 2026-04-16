@@ -88,6 +88,43 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         Assert.InRange(clippedArea / sourceArea, 0.999995, 1.000005);
     }
 
+    [Fact]
+    public void ClipGeneratedSurfaceToOverlaysPreservesClockwiseSourceWinding()
+    {
+        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = new(
+            PolygonId: "dem-surface-clockwise",
+            Semantic: LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlResonitePlanBuilder.ParsedRing(
+                "ring-clockwise",
+                [
+                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200, 30.0),
+                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 20.0),
+                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 10.0),
+                ],
+                UVs: null),
+            InteriorRings: [],
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 35.0000,
+                MaxLatitude: 35.0100,
+                MinLongitude: 139.0040,
+                MaxLongitude: 139.0120),
+            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
+
+        (LocalCityGmlResonitePlanBuilder.ParsedSurface clippedSurface, _) = Assert.Single(
+            DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
+
+        Assert.Equal(
+            Math.Sign(ComputeSignedArea(surface.ExteriorRing.Vertices)),
+            Math.Sign(ComputeSignedArea(clippedSurface.ExteriorRing.Vertices)));
+    }
+
     private static double ComputeSignedArea(LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
     {
         double signedArea = 0.0;

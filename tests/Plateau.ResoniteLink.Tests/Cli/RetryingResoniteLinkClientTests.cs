@@ -50,7 +50,7 @@ public sealed class RetryingResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task ImportMeshAsyncRetiresClientAfterFatalProtocolFailure()
+    public async Task ImportMeshAsyncRetiresClientAfterFatalProtocolFailureAndReconnectsReplacement()
     {
         int createdClientCount = 0;
         List<string> progressMessages = [];
@@ -97,7 +97,7 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.True(firstClient.IsDisposed);
         Assert.Equal(1, firstClient.ImportMeshCallCount);
         Assert.Equal(2, createdClientCount);
-        Assert.Equal(0, secondClient.ConnectCallCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
         Assert.Contains(
             progressMessages,
             static message => message.Contains("retired the active client", StringComparison.Ordinal));
@@ -291,6 +291,54 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.False(firstClient.IsDisposed);
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
+    }
+
+    [Fact]
+    public async Task FatalImportMeshReconnectFailureDoesNotPublishDisconnectedReplacementClient()
+    {
+        int createdClientCount = 0;
+        using StubReconnectableClient firstClient = new(importMeshExceptionMessage: "ResoniteLink import mesh returned a null response.");
+        using StubReconnectableClient secondClient = new(failConnect: true);
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            });
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+
+        await Assert.ThrowsAsync<ResoniteLinkOperationException>(
+            () => client.ImportMeshAsync(
+                new ImportMeshRawData
+                {
+                    RawBinaryPayload = [1, 2, 3],
+                    VertexCount = 3,
+                },
+                CancellationToken.None));
+
+        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference
+                    {
+                        TargetID = "parent-id",
+                    },
+                    Name = new Field_string
+                    {
+                        Value = "Recovered",
+                    },
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.Equal(2, createdClientCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Equal(1, firstClient.ConnectCallCount);
     }
 
     private sealed class LongHeldReconnectableClient : IResoniteLinkClient

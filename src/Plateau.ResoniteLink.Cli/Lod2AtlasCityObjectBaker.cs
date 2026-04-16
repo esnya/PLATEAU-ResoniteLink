@@ -787,9 +787,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
         Lod2AtlasCityObjectBakePolicy policy)
     {
         string context = policy.Name;
+        string sourceUnitKey = cityObject.SourceUnitKey ?? string.Empty;
+        string sourceFileRelativePath = cityObject.SourceFileRelativePath ?? string.Empty;
         string sourceUnitIdentity = string.Create(
             CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}");
+            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceUnitKey}|{sourceFileRelativePath}");
 
         return new SourceUnitBatchKey(
             cityObject.ActualMeshCode,
@@ -797,8 +799,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
             cityObject.LodLevel,
             sourceUnitIdentity,
             context,
-            SourceUnitKey: null,
-            SourceFileRelativePath: null);
+            SourceUnitKey: cityObject.SourceUnitKey,
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
     private static string CreateBatchSlotKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)

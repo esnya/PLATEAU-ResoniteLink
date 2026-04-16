@@ -20,7 +20,7 @@ internal interface ITerrainTextureAssetGenerator
 internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
-    private readonly AsyncCompletedResultCache<TerrainTextureOverlay, ResoniteRawTextureImport> cachedTextures = new();
+    private readonly AsyncCompletedResultCache<TerrainTextureOverlay, CachedTerrainTexture> cachedTextures = new();
     private int usedTerrainTileCount;
     private int fallbackTileUseCount;
 
@@ -30,10 +30,13 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
-        return await cachedTextures.GetOrCreateAsync(
+        CachedTerrainTexture cachedTexture = await cachedTextures.GetOrCreateAsync(
             terrainTextureOverlay,
             ct => CreateTextureAsync(terrainTextureOverlay, ct),
             cancellationToken);
+        _ = Interlocked.Add(ref usedTerrainTileCount, cachedTexture.UsedTerrainTileCount);
+        _ = Interlocked.Add(ref fallbackTileUseCount, cachedTexture.FallbackTileUseCount);
+        return cachedTexture.TextureImport;
     }
 
     public void ResetUsageTracking()
@@ -72,11 +75,13 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         };
     }
 
-    private async Task<ResoniteRawTextureImport> CreateTextureAsync(
+    private async Task<CachedTerrainTexture> CreateTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
         TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(terrainTextureOverlay);
+        int usedTerrainTiles = 0;
+        int fallbackTerrainTiles = 0;
 
         using Image<Rgba32> stitchedImage = new(
             layoutPlan.StitchedWidth,
@@ -86,7 +91,10 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         {
             for (int tileX = layoutPlan.MinTileX; tileX <= layoutPlan.MaxTileX; tileX++)
             {
-                using Image<Rgba32> tileImage = await DownloadTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
+                DownloadedTerrainTile tile = await DownloadTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
+                usedTerrainTiles += tile.UsedTerrainTileCount;
+                fallbackTerrainTiles += tile.FallbackTileUseCount;
+                using Image<Rgba32> tileImage = tile.Image;
                 stitchedImage.Mutate(context => context.DrawImage(
                     tileImage,
                     new Point(
@@ -103,7 +111,10 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             layoutPlan.CropHeight)));
 
         using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
-        return CreateRawTextureImport(outputImage, CreateOverlayIdentity(terrainTextureOverlay));
+        return new CachedTerrainTexture(
+            CreateRawTextureImport(outputImage, CreateOverlayIdentity(terrainTextureOverlay)),
+            usedTerrainTiles,
+            fallbackTerrainTiles);
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
@@ -123,7 +134,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         }));
     }
 
-    private async Task<Image<Rgba32>> DownloadTileAsync(
+    private async Task<DownloadedTerrainTile> DownloadTileAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         int tileX,
         int tileY,
@@ -137,14 +148,13 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             cancellationToken);
         if (primaryImage is not null)
         {
-            _ = Interlocked.Increment(ref usedTerrainTileCount);
-            return primaryImage;
+            return new DownloadedTerrainTile(primaryImage, UsedTerrainTileCount: 1, FallbackTileUseCount: 0);
         }
 
         return await DownloadFallbackTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
     }
 
-    private async Task<Image<Rgba32>> DownloadFallbackTileAsync(
+    private async Task<DownloadedTerrainTile> DownloadFallbackTileAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         int tileX,
         int tileY,
@@ -168,9 +178,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
                 $"Terrain texture tile download failed for both primary and fallback sources at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
         }
 
-        _ = Interlocked.Increment(ref usedTerrainTileCount);
-        _ = Interlocked.Increment(ref fallbackTileUseCount);
-        return image;
+        return new DownloadedTerrainTile(image, UsedTerrainTileCount: 1, FallbackTileUseCount: 1);
     }
 
     private static string CreateOverlayIdentity(TerrainTextureOverlay terrainTextureOverlay)
@@ -224,4 +232,14 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             rawBytes,
             identity);
     }
+
+    private sealed record CachedTerrainTexture(
+        ResoniteRawTextureImport TextureImport,
+        int UsedTerrainTileCount,
+        int FallbackTileUseCount);
+
+    private sealed record DownloadedTerrainTile(
+        Image<Rgba32> Image,
+        int UsedTerrainTileCount,
+        int FallbackTileUseCount);
 }

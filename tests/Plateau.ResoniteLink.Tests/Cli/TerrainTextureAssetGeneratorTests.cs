@@ -175,6 +175,26 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Equal(baseLicense, secondResolved);
     }
 
+    [Fact]
+    public async Task ResolveDatasetLicensePreservesDemAttributionWhenCachedTextureIsReusedAcrossImports()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
+
+        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        _ = generator.ResolveDatasetLicense(baseLicense);
+
+        generator.ResetUsageTracking();
+        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
+
+        Assert.Contains("Project PLATEAU Ortho xyz tiles.", resolved.CreditText, StringComparison.Ordinal);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
     private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)
     {
         return new TerrainTextureOverlay(

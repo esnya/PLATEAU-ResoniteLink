@@ -229,7 +229,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         {
             if (ShouldRetireClientAfterFailure(exception))
             {
-                ReplaceClientWithoutConnecting(observedClient);
+                await ReplaceClientAfterFatalFailureAsync(observedClient, operationName, cancellationToken);
                 reporter?.Invoke(
                     PlateauLog.Warning(
                         "live",
@@ -334,7 +334,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                 lastException = exception;
                 if (ShouldRetireClientAfterFailure(exception))
                 {
-                    ReplaceClientWithoutConnecting(observedClient);
+                    await ReplaceClientAfterFatalFailureAsync(observedClient, operationName, cancellationToken);
                     reporter?.Invoke(
                         PlateauLog.Warning(
                             "live",
@@ -358,6 +358,25 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         }
 
         throw ResoniteLinkOperationException.Wrap(operationName, lastException!);
+    }
+
+    private async Task ReplaceClientAfterFatalFailureAsync(
+        ClientState observedClient,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await ReconnectAsync(observedClient, cancellationToken);
+        }
+        catch (Exception reconnectException) when (reconnectException is not OperationCanceledException)
+        {
+            reporter?.Invoke(
+                PlateauLog.Warning(
+                    "live",
+                    $"ResoniteLink {operationName} could not prepare a connected replacement client after a fatal protocol failure. "
+                    + $"Reason: {reconnectException.Message}"));
+        }
     }
 
     private ClientLease AcquireCurrentClient(out ClientState observedClient)
