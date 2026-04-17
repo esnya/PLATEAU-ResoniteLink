@@ -145,6 +145,50 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         Assert.InRange(demCityObject.Mesh.Vertices.Count, 4, 6);
     }
 
+    [Fact]
+    public async Task DemHeightMapModeExtendsBoundaryConnectedMissingSamplesWithoutSeaLevelDrop()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemChunkFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject demCityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.PackageName == "dem");
+        HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
+
+        double[] topEdge = Enumerable.Range(0, geometry.Width)
+            .Select(index => geometry.HeightSamples[index])
+            .ToArray();
+        double[] bottomEdge = Enumerable.Range(0, geometry.Width)
+            .Select(index => geometry.HeightSamples[((geometry.Height - 1) * geometry.Width) + index])
+            .ToArray();
+        double[] leftEdge = Enumerable.Range(0, geometry.Height)
+            .Select(index => geometry.HeightSamples[index * geometry.Width])
+            .ToArray();
+        double[] rightEdge = Enumerable.Range(0, geometry.Height)
+            .Select(index => geometry.HeightSamples[(index * geometry.Width) + (geometry.Width - 1)])
+            .ToArray();
+
+        Assert.True(bottomEdge.Min() > -1.0, $"Bottom edge dropped to sea-level fallback: min={bottomEdge.Min():F6}");
+        Assert.True(leftEdge.Min() > -1.0, $"Left edge dropped to sea-level fallback: min={leftEdge.Min():F6}");
+        Assert.True(rightEdge.Min() > -1.0, $"Right edge dropped to sea-level fallback: min={rightEdge.Min():F6}");
+        Assert.True(topEdge.Min() > -1.0, $"Top edge dropped to sea-level fallback: min={topEdge.Min():F6}");
+    }
+
     private static void CreateRuntimeMixedSurfaceDemFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");

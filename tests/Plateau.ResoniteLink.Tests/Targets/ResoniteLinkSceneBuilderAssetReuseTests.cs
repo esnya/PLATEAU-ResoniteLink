@@ -13,6 +13,8 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     private const string SecondaryMeshCode = "53394526";
     private const string PrimarySourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
     private const string SecondarySourceFile = $"udx/bldg/{SecondaryMeshCode}/plateau_{DatasetName}_bldg_{SecondaryMeshCode}.gml";
+    private const string PrimaryDemSourceFile = $"udx/dem/{MeshCode}/plateau_{DatasetName}_dem_{MeshCode}.gml";
+    private const string SecondaryDemSourceFile = $"udx/dem/{SecondaryMeshCode}/plateau_{DatasetName}_dem_{SecondaryMeshCode}.gml";
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
@@ -233,6 +235,83 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncAssignsSourceFileRootPositionForHeightMapDemAndPreservesWorldPosition()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
+        using SceneBuilderRecordingClient client = new();
+        ResoniteFloat3 worldPosition = new(123.0, 15.5, 456.0);
+
+        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreateHeightMapDemCityObject(
+                    "dem-heightmap-run-one",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: SecondaryDemSourceFile,
+                    worldPosition: worldPosition),
+            ],
+            client);
+
+        Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondaryDemSourceFile)}");
+        ResoniteFloat3 expectedRootPosition = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
+
+        Assert.Equal(expectedRootPosition.X, GetSlotPosition(sourceFileRoot).X, 3);
+        Assert.Equal(expectedRootPosition.Z, GetSlotPosition(sourceFileRoot).Z, 3);
+
+        Slot objectSlot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM HeightMap dem-heightmap-run-one");
+        ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
+        Assert.Equal(worldPosition.X, accumulatedPosition.X, 3);
+        Assert.Equal(worldPosition.Y, accumulatedPosition.Y, 3);
+        Assert.Equal(worldPosition.Z, accumulatedPosition.Z, 3);
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesPositionedSourceFileRootAcrossRunsForHeightMapDem()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
+        using SceneBuilderRecordingClient client = new();
+        ResoniteFloat3 secondRunWorldPosition = new(200.0, 25.0, 300.0);
+
+        await ResoniteLinkSceneBuilderTestSupport.BuildSceneTwiceAsync(
+            metadata,
+            [
+                CreateHeightMapDemCityObject(
+                    "dem-heightmap-run-one",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: SecondaryDemSourceFile,
+                    worldPosition: new ResoniteFloat3(123.0, 15.5, 456.0)),
+            ],
+            [
+                CreateHeightMapDemCityObject(
+                    "dem-heightmap-run-two",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: SecondaryDemSourceFile,
+                    worldPosition: secondRunWorldPosition),
+            ],
+            client);
+
+        string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondaryDemSourceFile);
+        Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{sourceFileRootName}");
+
+        Assert.Equal(
+            1,
+            client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, sourceFileRootName, StringComparison.Ordinal)
+                && string.Equals(slot.Parent?.TargetID, sourceFileRoot.Parent?.TargetID, StringComparison.Ordinal)));
+
+        Slot objectSlot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM HeightMap dem-heightmap-run-two");
+        ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
+        Assert.Equal(secondRunWorldPosition.X, accumulatedPosition.X, 3);
+        Assert.Equal(secondRunWorldPosition.Y, accumulatedPosition.Y, 3);
+        Assert.Equal(secondRunWorldPosition.Z, accumulatedPosition.Z, 3);
+    }
+
+    [Fact]
     public async Task CompleteAsyncReturnsLocationAnchoredToResolvedSourceFileRoot()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -268,6 +347,17 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             LocalOrigin,
             packageNames: ["bldg"],
             sourceFiles: sourceFiles ?? [PrimarySourceFile]);
+    }
+
+    private static ResoniteConstructionMetadata CreateDemMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
+    {
+        return ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetRoot,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles: sourceFiles ?? [PrimaryDemSourceFile]);
     }
 
     private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
@@ -331,6 +421,42 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
                     SubmeshIndices: [0],
                     Family: BundledDefaultMaterialFamilies.Facade,
                     AssetScope: ResoniteMaterialAssetScope.Common),
+            ],
+            SourceObjectKey: objectIdentity,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateHeightMapDemCityObject(
+        string objectIdentity,
+        string actualMeshCode = MeshCode,
+        string sourceFileRelativePath = PrimaryDemSourceFile,
+        ResoniteFloat3? worldPosition = null)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"DEM HeightMap {objectIdentity}",
+            PackageName: "dem",
+            ActualMeshCode: actualMeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(worldPosition ?? new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: 2,
+                Height: 2,
+                Size: new ResoniteFloat2(10.0, 10.0),
+                MinHeight: 0.0,
+                MaxHeight: 3.0,
+                HeightSamples: [0.0, 1.0, 2.0, 3.0]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "dem-heightmap-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Wireframe,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
             ],
             SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);

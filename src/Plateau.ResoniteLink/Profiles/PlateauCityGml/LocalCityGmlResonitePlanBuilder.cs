@@ -3331,254 +3331,69 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return;
         }
 
-        bool[] rowHasSampled = new bool[height];
-        bool[] columnHasSampled = new bool[width];
-        bool hasEntirelyMissingRow = false;
-        bool hasEntirelyMissingColumn = false;
+        Queue<(int Row, int Column)> frontier = new();
 
         for (int row = 0; row < height; row++)
         {
             for (int column = 0; column < width; column++)
             {
-                if (!sampledInsideTriangles[(row * width) + column])
-                {
-                    continue;
-                }
-
-                rowHasSampled[row] = true;
-                columnHasSampled[column] = true;
-            }
-
-            hasEntirelyMissingRow |= !rowHasSampled[row];
-        }
-
-        for (int column = 0; column < width; column++)
-        {
-            hasEntirelyMissingColumn |= !columnHasSampled[column];
-        }
-
-        if (hasEntirelyMissingRow)
-        {
-            SeedBoundaryColumn(0, searchStep: 1);
-            SeedBoundaryColumn(width - 1, searchStep: -1);
-            PropagateBoundaryColumn(0, searchStep: 1);
-            PropagateBoundaryColumn(width - 1, searchStep: -1);
-        }
-
-        if (hasEntirelyMissingColumn)
-        {
-            SeedBoundaryRow(0, searchStep: 1);
-            SeedBoundaryRow(height - 1, searchStep: -1);
-            PropagateBoundaryRow(0, searchStep: 1);
-            PropagateBoundaryRow(height - 1, searchStep: -1);
-        }
-
-        void SeedBoundaryColumn(int boundaryColumn, int searchStep)
-        {
-            for (int row = 0; row < height; row++)
-            {
-                int boundaryIndex = (row * width) + boundaryColumn;
-                if (!boundaryConnectedMissing[boundaryIndex] || !rowHasSampled[row])
-                {
-                    continue;
-                }
-
-                int adjacentSampleColumn = FindAdjacentSampleColumn(row, boundaryColumn, searchStep);
-                if (adjacentSampleColumn < 0)
-                {
-                    continue;
-                }
-
-                CopySampleIntoBoundary(row, boundaryColumn, row, adjacentSampleColumn);
-            }
-        }
-
-        void SeedBoundaryRow(int boundaryRow, int searchStep)
-        {
-            for (int column = 0; column < width; column++)
-            {
-                int boundaryIndex = (boundaryRow * width) + column;
-                if (!boundaryConnectedMissing[boundaryIndex] || !columnHasSampled[column])
-                {
-                    continue;
-                }
-
-                int adjacentSampleRow = FindAdjacentSampleRow(column, boundaryRow, searchStep);
-                if (adjacentSampleRow < 0)
-                {
-                    continue;
-                }
-
-                CopySampleIntoBoundary(boundaryRow, column, adjacentSampleRow, column);
-            }
-        }
-
-        void PropagateBoundaryColumn(int boundaryColumn, int searchStep)
-        {
-            double? carryHeight = null;
-            for (int row = 0; row < height; row++)
-            {
-                int boundaryIndex = (row * width) + boundaryColumn;
-                if (!boundaryConnectedMissing[boundaryIndex])
-                {
-                    carryHeight = null;
-                    continue;
-                }
-
-                if (sampledInsideTriangles[boundaryIndex])
-                {
-                    carryHeight = localHeights[boundaryIndex];
-                    continue;
-                }
-
-                if (carryHeight is null)
-                {
-                    continue;
-                }
-
-                int adjacentSampleColumn = FindAdjacentSampleColumn(row, boundaryColumn, searchStep);
-                if (adjacentSampleColumn >= 0)
-                {
-                    CopySampleIntoBoundary(row, boundaryColumn, row, adjacentSampleColumn);
-                    carryHeight = localHeights[boundaryIndex];
-                    continue;
-                }
-
-                localHeights[boundaryIndex] = carryHeight.Value;
-                sampledInsideTriangles[boundaryIndex] = true;
-            }
-
-            carryHeight = null;
-            for (int row = height - 1; row >= 0; row--)
-            {
-                int boundaryIndex = (row * width) + boundaryColumn;
-                if (!boundaryConnectedMissing[boundaryIndex])
-                {
-                    carryHeight = null;
-                    continue;
-                }
-
-                if (sampledInsideTriangles[boundaryIndex])
-                {
-                    carryHeight = localHeights[boundaryIndex];
-                    continue;
-                }
-
-                if (carryHeight is null)
-                {
-                    continue;
-                }
-
-                localHeights[boundaryIndex] = carryHeight.Value;
-                sampledInsideTriangles[boundaryIndex] = true;
-            }
-        }
-
-        void PropagateBoundaryRow(int boundaryRow, int searchStep)
-        {
-            double? carryHeight = null;
-            for (int column = 0; column < width; column++)
-            {
-                int boundaryIndex = (boundaryRow * width) + column;
-                if (!boundaryConnectedMissing[boundaryIndex])
-                {
-                    carryHeight = null;
-                    continue;
-                }
-
-                if (sampledInsideTriangles[boundaryIndex])
-                {
-                    carryHeight = localHeights[boundaryIndex];
-                    continue;
-                }
-
-                if (carryHeight is null)
-                {
-                    continue;
-                }
-
-                int adjacentSampleRow = FindAdjacentSampleRow(column, boundaryRow, searchStep);
-                if (adjacentSampleRow >= 0)
-                {
-                    CopySampleIntoBoundary(boundaryRow, column, adjacentSampleRow, column);
-                    carryHeight = localHeights[boundaryIndex];
-                    continue;
-                }
-
-                localHeights[boundaryIndex] = carryHeight.Value;
-                sampledInsideTriangles[boundaryIndex] = true;
-            }
-
-            carryHeight = null;
-            for (int column = width - 1; column >= 0; column--)
-            {
-                int boundaryIndex = (boundaryRow * width) + column;
-                if (!boundaryConnectedMissing[boundaryIndex])
-                {
-                    carryHeight = null;
-                    continue;
-                }
-
-                if (sampledInsideTriangles[boundaryIndex])
-                {
-                    carryHeight = localHeights[boundaryIndex];
-                    continue;
-                }
-
-                if (carryHeight is null)
-                {
-                    continue;
-                }
-
-                localHeights[boundaryIndex] = carryHeight.Value;
-                sampledInsideTriangles[boundaryIndex] = true;
-            }
-        }
-
-        int FindAdjacentSampleColumn(int row, int boundaryColumn, int searchStep)
-        {
-            for (int column = boundaryColumn; (uint)column < (uint)width; column += searchStep)
-            {
                 int sampleIndex = (row * width) + column;
-                if (sampledInsideTriangles[sampleIndex])
+                if (!sampledInsideTriangles[sampleIndex])
                 {
-                    return column;
+                    continue;
                 }
 
-                if (!boundaryConnectedMissing[sampleIndex])
+                if (TouchesBoundaryConnectedMissing(row, column))
                 {
-                    break;
+                    frontier.Enqueue((row, column));
                 }
             }
-
-            return -1;
         }
 
-        int FindAdjacentSampleRow(int column, int boundaryRow, int searchStep)
+        while (frontier.Count > 0)
         {
-            for (int row = boundaryRow; (uint)row < (uint)height; row += searchStep)
+            (int row, int column) = frontier.Dequeue();
+            int sourceIndex = (row * width) + column;
+            TryPropagate(row - 1, column, localHeights[sourceIndex]);
+            TryPropagate(row + 1, column, localHeights[sourceIndex]);
+            TryPropagate(row, column - 1, localHeights[sourceIndex]);
+            TryPropagate(row, column + 1, localHeights[sourceIndex]);
+        }
+
+        bool TouchesBoundaryConnectedMissing(int row, int column)
+        {
+            return IsBoundaryConnectedMissing(row - 1, column)
+                || IsBoundaryConnectedMissing(row + 1, column)
+                || IsBoundaryConnectedMissing(row, column - 1)
+                || IsBoundaryConnectedMissing(row, column + 1);
+        }
+
+        bool IsBoundaryConnectedMissing(int row, int column)
+        {
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
             {
-                int sampleIndex = (row * width) + column;
-                if (sampledInsideTriangles[sampleIndex])
-                {
-                    return row;
-                }
-
-                if (!boundaryConnectedMissing[sampleIndex])
-                {
-                    break;
-                }
+                return false;
             }
 
-            return -1;
+            return boundaryConnectedMissing[(row * width) + column];
         }
 
-        void CopySampleIntoBoundary(int targetRow, int targetColumn, int sourceRow, int sourceColumn)
+        void TryPropagate(int row, int column, double heightValue)
         {
-            int targetIndex = (targetRow * width) + targetColumn;
-            int sourceIndex = (sourceRow * width) + sourceColumn;
-            localHeights[targetIndex] = localHeights[sourceIndex];
+            if ((uint)row >= (uint)height || (uint)column >= (uint)width)
+            {
+                return;
+            }
+
+            int targetIndex = (row * width) + column;
+            if (!boundaryConnectedMissing[targetIndex] || sampledInsideTriangles[targetIndex])
+            {
+                return;
+            }
+
+            localHeights[targetIndex] = heightValue;
             sampledInsideTriangles[targetIndex] = true;
+            frontier.Enqueue((row, column));
         }
     }
 
