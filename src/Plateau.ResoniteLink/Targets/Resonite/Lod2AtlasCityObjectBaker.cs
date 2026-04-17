@@ -1027,17 +1027,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return material;
         }
 
-        // Atlas-baked building batches intentionally collapse preserved common materials to one
-        // deterministic bundled variant per family so batch-local common material fan-out stays bounded.
-        int bundledVariantIndex = 0;
-        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family, bundledVariantIndex);
         return material with
         {
-            MaterialKey = $"common-{material.Family}-variant:{bundledVariantIndex}",
+            MaterialKey = ResoniteLinkSceneBuilder.CreateCanonicalCommonMaterialKey(
+                material.Family,
+                material.BundledVariantIndex ?? 0,
+                material.Projection,
+                material.TextureScale),
             TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-            TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
-            TextureOffset = null,
-            BundledVariantIndex = bundledVariantIndex,
+            BundledVariantIndex = material.BundledVariantIndex ?? 0,
         };
     }
 

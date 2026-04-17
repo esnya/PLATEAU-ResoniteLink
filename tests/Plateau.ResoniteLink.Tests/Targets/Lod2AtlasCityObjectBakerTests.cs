@@ -88,7 +88,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncUnifiesPreservedCommonMaterialVariantsByFamily()
+    public async Task FlushAllAsyncPreservesDistinctCommonMaterialVariants()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
@@ -100,14 +100,19 @@ public sealed class Lod2AtlasCityObjectBakerTests
                 "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteMaterialBinding commonMaterial = Assert.Single(
-            cityObject.Materials,
-            static material => material.AssetScope == ResoniteMaterialAssetScope.Common);
+        ResoniteMaterialBinding[] commonMaterials = cityObject.Materials
+            .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)
+            .OrderBy(static material => material.BundledVariantIndex)
+            .ToArray();
 
-        Assert.Equal(2, cityObject.Materials.Count);
-        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, commonMaterial.Family);
-        Assert.Equal(0, commonMaterial.BundledVariantIndex);
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(2, commonMaterials.Length);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, commonMaterials[0].Family);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, commonMaterials[1].Family);
+        Assert.Equal(0, commonMaterials[0].BundledVariantIndex);
+        Assert.Equal(1, commonMaterials[1].BundledVariantIndex);
+        Assert.NotEqual(commonMaterials[0].MaterialKey, commonMaterials[1].MaterialKey);
     }
 
     [Fact]
