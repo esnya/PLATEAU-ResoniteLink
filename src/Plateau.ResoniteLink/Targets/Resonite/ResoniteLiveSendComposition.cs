@@ -1,10 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+
 using Plateau.ResoniteLink.Application.Importing;
-using Plateau.ResoniteLink.Cli;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
 public static class ResoniteLiveSendComposition
 {
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "ResoniteLinkSceneBuilder owns the client session lifetime.")]
     public static IResoniteSceneBuilder CreateSceneBuilder(
         Uri endpoint,
         int connectionCount,
@@ -25,7 +27,11 @@ public static class ResoniteLiveSendComposition
             connectionCount,
             diagnostics,
             new ResoniteLinkSceneBuilderDependencies(
-                static () => new ResoniteLinkClient(),
+                ResoniteLinkTransportSessionFactory.Create(
+                    endpoint,
+                    connectionCount,
+                    diagnostics,
+                    progressReporter),
                 new TerrainTextureAssetGenerator(terrainTextureAssetHttpClient)),
             enableMeshBake,
             progressReporter);

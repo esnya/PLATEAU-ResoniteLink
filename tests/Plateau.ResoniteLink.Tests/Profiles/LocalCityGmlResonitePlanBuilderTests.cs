@@ -277,26 +277,11 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         }
 
         public Task BeginAsync(
-            SceneBootstrapInfo bootstrapInfo,
-            IPlateauDatasetContentSource datasetContentSource,
-            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
-            string workRoot,
+            SceneBuildRequest request,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _ = bootstrapInfo;
-            _ = datasetContentSource;
-            _ = commonMaterials;
-            _ = workRoot;
-            return Task.CompletedTask;
-        }
-
-        public Task StartCommonMaterialWarmupAsync(
-            IReadOnlyList<ResoniteMaterialBinding> materials,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            _ = materials;
+            _ = request;
             return Task.CompletedTask;
         }
 

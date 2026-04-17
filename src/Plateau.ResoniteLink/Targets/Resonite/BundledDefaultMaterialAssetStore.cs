@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal static class BundledDefaultMaterialAssetStore
 {

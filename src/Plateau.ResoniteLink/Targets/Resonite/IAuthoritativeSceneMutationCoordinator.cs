@@ -1,6 +1,6 @@
 using Plateau.ResoniteLink.Domain.Importing;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 /// <summary>
 /// Coordinates authoritative live-send mutation operations.
@@ -25,4 +25,3 @@ internal interface IAuthoritativeSceneMutationCoordinator
         bool datasetRootExisted,
         CancellationToken cancellationToken);
 }
-

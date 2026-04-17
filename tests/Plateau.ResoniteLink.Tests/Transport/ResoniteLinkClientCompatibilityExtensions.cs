@@ -2,7 +2,7 @@ using System.Reflection;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Tests.Transport;
 
 internal static class ResoniteLinkClientCompatibilityExtensions
 {

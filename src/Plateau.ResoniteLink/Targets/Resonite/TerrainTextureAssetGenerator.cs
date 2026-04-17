@@ -4,7 +4,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal interface ITerrainTextureAssetGenerator
 {

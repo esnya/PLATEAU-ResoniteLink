@@ -1,6 +1,5 @@
-using Plateau.ResoniteLink.Cli;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Transport;
 
 public sealed class ResoniteLinkSendDiagnosticsTests
 {

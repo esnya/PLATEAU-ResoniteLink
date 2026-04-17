@@ -1,7 +1,7 @@
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal sealed record ResoniteLinkSceneBuilderDependencies(
-    Func<IResoniteLinkClient> ClientFactory,
+    ILiveSendClientSession ClientSession,
     ITerrainTextureAssetGenerator TerrainTextureAssetGenerator)
 {
 }

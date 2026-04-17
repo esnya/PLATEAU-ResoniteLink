@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Transport.ResoniteLink;
 
 internal interface IResoniteLinkClient : IDisposable
 {

@@ -174,24 +174,10 @@ public sealed class CliApplicationTests
         }
 
         public Task BeginAsync(
-            SceneBootstrapInfo bootstrapInfo,
-            IPlateauDatasetContentSource datasetContentSource,
-            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
-            string workRoot,
+            SceneBuildRequest request,
             CancellationToken cancellationToken = default)
         {
-            _ = bootstrapInfo;
-            _ = datasetContentSource;
-            _ = commonMaterials;
-            _ = workRoot;
-            return Task.CompletedTask;
-        }
-
-        public Task StartCommonMaterialWarmupAsync(
-            IReadOnlyList<ResoniteMaterialBinding> materials,
-            CancellationToken cancellationToken = default)
-        {
-            _ = materials;
+            _ = request;
             return Task.CompletedTask;
         }
 

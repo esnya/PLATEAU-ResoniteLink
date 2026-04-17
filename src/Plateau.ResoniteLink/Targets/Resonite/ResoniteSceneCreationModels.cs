@@ -1,4 +1,4 @@
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal readonly record struct CreatedSlot(
     string SlotId,

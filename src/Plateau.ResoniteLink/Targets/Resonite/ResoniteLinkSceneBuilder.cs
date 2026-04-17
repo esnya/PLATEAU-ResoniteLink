@@ -7,13 +7,13 @@ using System.Threading.Channels;
 
 using GeographicLib;
 
+using ResoniteLink;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
-using ResoniteLink;
-
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 {
@@ -27,7 +27,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
     private const string CityGmlSlotDuplicateSuffixFormat = "{0:D4}";
-    private readonly Func<IResoniteLinkClient> clientFactory;
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly ResoniteLinkSendDiagnostics diagnostics;
@@ -78,45 +77,32 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private Dictionary<string, string>? cityGmlSlotNamesByRelativePath;
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
-        : this(endpoint, 4, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
+        : this(
+            endpoint,
+            4,
+            ResoniteLinkSendDiagnostics.Disabled,
+            CreateDefaultDependencies(
+                endpoint,
+                4,
+                ResoniteLinkSendDiagnostics.Disabled,
+                new TerrainTextureAssetGenerator(),
+                progressReporter),
+            enableMeshBake: true,
+            progressReporter)
     {
     }
 
     public ResoniteLinkSceneBuilder(Uri endpoint, int connectionCount, Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, ResoniteLinkSendDiagnostics.Disabled, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
-    {
-    }
-
-    internal ResoniteLinkSceneBuilder(
-        Uri endpoint,
-        int connectionCount,
-        ResoniteLinkSendDiagnostics diagnostics,
-        Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake: true, progressReporter: progressReporter)
-    {
-    }
-
-    internal ResoniteLinkSceneBuilder(
-        Uri endpoint,
-        int connectionCount,
-        ResoniteLinkSendDiagnostics diagnostics,
-        bool enableMeshBake,
-        Action<string>? progressReporter = null)
-        : this(endpoint, connectionCount, diagnostics, static () => new ResoniteLinkClient(), new TerrainTextureAssetGenerator(), enableMeshBake, progressReporter: progressReporter)
-    {
-    }
-
-    internal ResoniteLinkSceneBuilder(
-        Uri endpoint,
-        int connectionCount,
-        ResoniteLinkSendDiagnostics diagnostics,
-        Func<IResoniteLinkClient> clientFactory,
-        Action<string>? progressReporter = null)
         : this(
             endpoint,
             connectionCount,
-            diagnostics,
-            new ResoniteLinkSceneBuilderDependencies(clientFactory, new TerrainTextureAssetGenerator()),
+            ResoniteLinkSendDiagnostics.Disabled,
+            CreateDefaultDependencies(
+                endpoint,
+                connectionCount,
+                ResoniteLinkSendDiagnostics.Disabled,
+                new TerrainTextureAssetGenerator(),
+                progressReporter),
             enableMeshBake: true,
             progressReporter)
     {
@@ -126,15 +112,38 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Uri endpoint,
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
-        Func<IResoniteLinkClient> clientFactory,
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
-        bool enableMeshBake = true,
         Action<string>? progressReporter = null)
         : this(
             endpoint,
             connectionCount,
             diagnostics,
-            new ResoniteLinkSceneBuilderDependencies(clientFactory, terrainTextureAssetGenerator),
+            CreateDefaultDependencies(
+                endpoint,
+                connectionCount,
+                diagnostics,
+                new TerrainTextureAssetGenerator(),
+                progressReporter),
+            enableMeshBake: true,
+            progressReporter)
+    {
+    }
+
+    internal ResoniteLinkSceneBuilder(
+        Uri endpoint,
+        int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
+        bool enableMeshBake,
+        Action<string>? progressReporter = null)
+        : this(
+            endpoint,
+            connectionCount,
+            diagnostics,
+            CreateDefaultDependencies(
+                endpoint,
+                connectionCount,
+                diagnostics,
+                new TerrainTextureAssetGenerator(),
+                progressReporter),
             enableMeshBake,
             progressReporter)
     {
@@ -149,13 +158,12 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
-        ArgumentNullException.ThrowIfNull(dependencies.ClientFactory);
+        ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.TerrainTextureAssetGenerator);
 
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
         this.diagnostics = diagnostics;
-        this.clientFactory = dependencies.ClientFactory;
         this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
         MeshBakeEnabled = enableMeshBake;
         this.progressReporter = progressReporter;
@@ -163,11 +171,27 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             TryGetDatasetRootAsync,
             UpdateComponentAsync);
         geometryAssetAssembler = new ResoniteGeometryAssetAssembler(ReportProgress);
-        clientSession = new LiveSendClientSession(
-            CreateConfiguredClient,
-            endpoint,
-            connectionCount,
-            ReportProgress);
+        clientSession = dependencies.ClientSession;
+    }
+
+    internal static ResoniteLinkSceneBuilderDependencies CreateDefaultDependencies(
+        Uri endpoint,
+        int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
+        ITerrainTextureAssetGenerator terrainTextureAssetGenerator,
+        Action<string>? progressReporter = null,
+        Func<IResoniteLinkClient>? baseClientFactory = null)
+    {
+        ArgumentNullException.ThrowIfNull(terrainTextureAssetGenerator);
+
+        return new ResoniteLinkSceneBuilderDependencies(
+            ResoniteLinkTransportSessionFactory.Create(
+                endpoint,
+                connectionCount,
+                diagnostics,
+                progressReporter,
+                baseClientFactory),
+            terrainTextureAssetGenerator);
     }
 
     internal bool MeshBakeEnabled { get; }
@@ -182,30 +206,16 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     }
 
     public async Task BeginAsync(
-        SceneBootstrapInfo bootstrapInfo,
-        string workRoot,
+        SceneBuildRequest request,
         CancellationToken cancellationToken = default)
     {
-        await this.BeginAsync(
-            bootstrapInfo,
-            workRoot,
-            datasetContentSource: null,
-            CommonMaterialCatalog.CreateForPackages(bootstrapInfo.PackageNames),
-            cancellationToken);
-    }
+        ArgumentNullException.ThrowIfNull(request);
 
-    public async Task BeginAsync(
-        SceneBootstrapInfo bootstrapInfo,
-        IPlateauDatasetContentSource datasetContentSource,
-        IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
-        string workRoot,
-        CancellationToken cancellationToken = default)
-    {
-        await this.BeginAsync(
-            bootstrapInfo,
-            workRoot,
-            datasetContentSource,
-            commonMaterials,
+        await BeginCoreAsync(
+            CreateBootstrapInfo(request),
+            request.WorkRoot,
+            request.DatasetContentSource,
+            request.CommonMaterials,
             cancellationToken);
     }
 
@@ -452,102 +462,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
                 $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
     }
 
-    public Task StartCommonMaterialWarmupAsync(
-        IReadOnlyList<ResoniteMaterialBinding> materials,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(materials);
-
-        if (materials.Count == 0)
-        {
-            return Task.CompletedTask;
-        }
-
-        ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
-        ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
-
-        Dictionary<string, ResoniteMaterialBinding> canonicalMaterialsByKey = [];
-        foreach (ResoniteMaterialBinding material in materials)
-        {
-            if (material.AssetScope != ResoniteMaterialAssetScope.Common)
-            {
-                continue;
-            }
-
-            ResoniteMaterialBinding normalizedMaterial = NormalizeCommonMaterialBinding(material);
-            if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
-            {
-                continue;
-            }
-
-            string materialKey = CreateCanonicalCommonMaterialKey(
-                normalizedMaterial.Family!,
-                normalizedMaterial.BundledVariantIndex ?? 0,
-                normalizedMaterial.Projection,
-                normalizedMaterial.TextureScale);
-            canonicalMaterialsByKey.TryAdd(materialKey, normalizedMaterial);
-        }
-
-        if (canonicalMaterialsByKey.Count == 0)
-        {
-            return Task.CompletedTask;
-        }
-
-        IResoniteLinkClient routedClient = GetRoutedClient();
-        string commonAssetsSlotId = commonAssetsRootSlot.Value.SlotId;
-        int commonMaterialProgress = firstCommonMaterialPrepLogged;
-        if (commonMaterialProgress == 0)
-        {
-            ReportProgress($"[live] Common material warmup started for '{commonAssetsRootSlot.Value.SlotName}'.");
-        }
-
-        Dictionary<string, IReadOnlyList<ResoniteMaterialBinding>> materialsByFamily = canonicalMaterialsByKey
-            .Values
-            .GroupBy(
-                static material => material.Family ?? BundledDefaultMaterialFamilies.Other,
-                StringComparer.Ordinal)
-            .ToDictionary(
-                static group => group.Key,
-                static group => (IReadOnlyList<ResoniteMaterialBinding>)[.. group.OrderBy(static material => material.MaterialKey)],
-                StringComparer.Ordinal);
-
-        foreach ((string family, IReadOnlyList<ResoniteMaterialBinding> sortedFamilyMaterials) in materialsByFamily
-            .OrderBy(static entry => entry.Key, StringComparer.Ordinal))
-        {
-            Task priorFamilyTask = Task.CompletedTask;
-            foreach (ResoniteMaterialBinding material in sortedFamilyMaterials)
-            {
-                string canonicalKey = CreateCanonicalCommonMaterialKey(
-                    material.Family ?? BundledDefaultMaterialFamilies.Other,
-                    material.BundledVariantIndex ?? 0,
-                    material.Projection,
-                    material.TextureScale);
-                Task<CreatedMaterialAsset> materialTask = CreateOrStartCommonMaterialWarmupTask(
-                    routedClient,
-                    commonAssetsSlotId,
-                    material,
-                    priorFamilyTask,
-                    cancellationToken);
-                Task<CreatedMaterialAsset> existingMaterialTask = commonMaterialCreationTasks.GetOrAdd(canonicalKey, materialTask);
-                if (existingMaterialTask != materialTask)
-                {
-                    materialTask = existingMaterialTask;
-                }
-
-                Interlocked.Increment(ref commonMaterialProgress);
-                if (commonMaterialProgress % 25 == 1)
-                {
-                    ReportProgress($"[live] Common material '{CreateMaterialSlotName(material, useCommonMaterialAssets: true)}' prep started (count={commonMaterialProgress}).");
-                }
-
-                priorFamilyTask = materialTask;
-            }
-            _ = commonMaterialFamilyWarmupTasks.GetOrAdd(family, _ => priorFamilyTask);
-        }
-
-        return Task.CompletedTask;
-    }
-
     private Task<CreatedMaterialAsset> CreateOrStartCommonMaterialWarmupTask(
         IResoniteLinkClient setupClient,
         string commonAssetsSlotId,
@@ -613,14 +527,6 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
         return lookup.State == ResoniteSceneChildLookupState.FoundWithId
             ? new CreatedSlot(lookup.SlotId!, slotName)
             : null;
-    }
-
-    private IResoniteLinkClient CreateConfiguredClient()
-    {
-        IResoniteLinkClient client = new RetryingResoniteLinkClient(
-            clientFactory,
-            ReportProgress);
-        return diagnostics.Enabled ? new MetricsResoniteLinkClient(client, diagnostics) : client;
     }
 
     private Task[] CreateProcessingTasks(
@@ -3042,6 +2948,18 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     private static string CreateHeightMapAssetSlotName(ResoniteConstructionCityObject cityObject)
     {
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
+    }
+
+    private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
+    {
+        return new SceneBootstrapInfo(
+            request.Request.Dataset,
+            request.Request.MeshCode,
+            request.Request.LocalSourcePath ?? request.DatasetContentSource.SourcePath,
+            request.PackageNames,
+            request.SourceFiles,
+            request.RequestedMeshCodes,
+            request.DatasetLicense);
     }
 
     private readonly record struct PendingBatchSlot(

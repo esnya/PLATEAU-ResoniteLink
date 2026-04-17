@@ -5,7 +5,7 @@ using Plateau.ResoniteLink.Application.Logging;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Transport.ResoniteLink;
 
 internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 {

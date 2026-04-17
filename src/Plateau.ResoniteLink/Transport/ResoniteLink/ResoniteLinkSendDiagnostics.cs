@@ -4,7 +4,7 @@ using System.Diagnostics.Metrics;
 
 using Plateau.ResoniteLink.Application.Logging;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Transport.ResoniteLink;
 
 internal sealed class ResoniteLinkSendDiagnostics
 {

@@ -3,7 +3,7 @@ using System.Diagnostics;
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Transport.ResoniteLink;
 
 internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposable
 {

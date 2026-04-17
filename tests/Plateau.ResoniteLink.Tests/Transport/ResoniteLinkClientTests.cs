@@ -1,11 +1,10 @@
-using Plateau.ResoniteLink.Cli;
 
 using ResoniteLink;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Transport;
 
 public sealed class ResoniteLinkClientTests
 {

@@ -1,11 +1,10 @@
 using GeographicLib;
 
-using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Targets;
 
 public sealed class ResoniteSceneAnchorResolverTests
 {

@@ -63,13 +63,11 @@ public sealed class PlateauImportService(
             ReportProgress(
                 PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-            SceneBootstrapInfo bootstrapInfo = CreateBootstrapInfo(resolvedRequest, documentSet);
-            IReadOnlyList<ResoniteMaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(
-                bootstrapInfo.PackageNames);
+            SceneBuildRequest sceneBuildRequest = CreateSceneBuildRequest(resolvedRequest, documentSet, datasetWorkRoot);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
-                    $"Starting live scene initialization ({commonMaterials.Count} setup common materials)."));
+                    $"Starting live scene initialization ({sceneBuildRequest.CommonMaterials.Count} setup common materials)."));
 
             Stopwatch connectStopwatch = Stopwatch.StartNew();
             await sceneBuilder.EnsureConnectedAsync(normalizedRequest, cancellationToken);
@@ -78,12 +76,7 @@ public sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             Stopwatch beginStopwatch = Stopwatch.StartNew();
-            await sceneBuilder.BeginAsync(
-                bootstrapInfo,
-                documentSet.DatasetSource,
-                commonMaterials,
-                datasetWorkRoot,
-                cancellationToken);
+            await sceneBuilder.BeginAsync(sceneBuildRequest, cancellationToken);
             beginStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
@@ -137,17 +130,20 @@ public sealed class PlateauImportService(
         }
     }
 
-    private static SceneBootstrapInfo CreateBootstrapInfo(
+    private static SceneBuildRequest CreateSceneBuildRequest(
         PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet)
+        LocalCityGmlDocumentSet documentSet,
+        string workRoot)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(documentSet);
+        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        return new SceneBootstrapInfo(
-            request.Dataset,
-            request.MeshCode,
-            request.LocalSourcePath ?? string.Empty,
+        return new SceneBuildRequest(
+            request,
+            documentSet.DatasetSource,
+            CommonMaterialCatalog.CreateForPackages(documentSet.PackageNames),
+            workRoot,
             documentSet.PackageNames,
             documentSet.RelativeSourceFiles,
             documentSet.RequestedMeshCodes,

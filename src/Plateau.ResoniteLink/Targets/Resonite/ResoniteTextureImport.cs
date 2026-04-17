@@ -3,7 +3,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal abstract record ResoniteTextureImport;
 

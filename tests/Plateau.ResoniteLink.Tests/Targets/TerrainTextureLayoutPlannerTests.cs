@@ -1,7 +1,6 @@
-using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Targets;
 
 public sealed class TerrainTextureLayoutPlannerTests
 {

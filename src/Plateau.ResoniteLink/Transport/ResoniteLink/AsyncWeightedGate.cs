@@ -1,4 +1,4 @@
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Transport.ResoniteLink;
 
 internal sealed class AsyncWeightedGate(long capacity)
 {

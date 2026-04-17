@@ -6,7 +6,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstrapCoordinator
 {

@@ -5,7 +5,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteMaterialAssetManager(
     Func<IResoniteLinkClient, string, string, Func<CancellationToken, Task<Uri>>, CancellationToken, Task<CreatedComponent>> createSharedAssetComponentAsync,

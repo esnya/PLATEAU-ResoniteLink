@@ -1,8 +1,7 @@
-using Plateau.ResoniteLink.Cli;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Transport;
 
 public sealed class RetryingResoniteLinkClientTests
 {

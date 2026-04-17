@@ -1,6 +1,6 @@
 using Plateau.ResoniteLink.Domain.Importing;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal interface IResoniteBufferedCityObjectBaker
 {

@@ -1,6 +1,6 @@
 using Plateau.ResoniteLink.Domain.Importing;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Transport.ResoniteLink;
 
 internal interface ILiveSendClientSession
 {
@@ -21,4 +21,3 @@ internal interface ILiveSendClientSession
 
     void DisposeClients();
 }
-

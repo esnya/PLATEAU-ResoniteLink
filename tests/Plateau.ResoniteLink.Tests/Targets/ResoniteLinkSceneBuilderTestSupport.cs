@@ -1,11 +1,10 @@
 using System.Globalization;
 
-using Plateau.ResoniteLink.Cli;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Targets;
 
 internal static class ResoniteLinkSceneBuilderTestSupport
 {
@@ -16,21 +15,10 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true)
     {
-        await using ResoniteLinkSceneBuilder builder = terrainTextureAssetGenerator is null
-            ? new ResoniteLinkSceneBuilder(
-                new Uri("ws://localhost:12345/"),
-                1,
-                ResoniteLinkSendDiagnostics.Disabled,
-                () => client,
-                progressReporter: null)
-            : new ResoniteLinkSceneBuilder(
-                new Uri("ws://localhost:12345/"),
-                1,
-                ResoniteLinkSendDiagnostics.Disabled,
-                () => client,
-                terrainTextureAssetGenerator,
-                enableMeshBake,
-                progressReporter: null);
+        await using ResoniteLinkSceneBuilder builder = CreateBuilder(
+            client,
+            terrainTextureAssetGenerator,
+            enableMeshBake);
 
         using TemporaryDirectory workDirectory = new();
         await builder.BeginAsync(metadata, workDirectory.Path);
@@ -118,12 +106,7 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         SceneBuilderRecordingClient client)
     {
         using TemporaryDirectory firstWorkDirectory = new();
-        await using (ResoniteLinkSceneBuilder builder = new(
-                         new Uri("ws://localhost:12345/"),
-                         1,
-                         ResoniteLinkSendDiagnostics.Disabled,
-                         () => client,
-                         progressReporter: null))
+        await using (ResoniteLinkSceneBuilder builder = CreateBuilder(client))
         {
             await builder.BeginAsync(metadata, firstWorkDirectory.Path);
             foreach (ResoniteConstructionCityObject cityObject in firstRunCityObjects)
@@ -135,12 +118,7 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
-        await using (ResoniteLinkSceneBuilder builder = new(
-                         new Uri("ws://localhost:12345/"),
-                         1,
-                         ResoniteLinkSendDiagnostics.Disabled,
-                         () => client,
-                         progressReporter: null))
+        await using (ResoniteLinkSceneBuilder builder = CreateBuilder(client))
         {
             await builder.BeginAsync(metadata, secondWorkDirectory.Path);
             foreach (ResoniteConstructionCityObject cityObject in secondRunCityObjects)
@@ -185,6 +163,23 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         }
 
         return false;
+    }
+
+    public static ResoniteLinkSceneBuilder CreateBuilder(
+        IResoniteLinkClient routedClient,
+        ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
+        bool enableMeshBake = true,
+        DelegatingClientSession? session = null)
+    {
+        return new ResoniteLinkSceneBuilder(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            new ResoniteLinkSceneBuilderDependencies(
+                session ?? new DelegatingClientSession(routedClient),
+                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
+            enableMeshBake,
+            progressReporter: null);
     }
 }
 
@@ -571,6 +566,42 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
     public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
     {
         return resolvedLicense ?? baseLicense;
+    }
+}
+
+internal sealed class DelegatingClientSession(
+    IResoniteLinkClient? routedClient = null,
+    Func<PlateauImportRequest, CancellationToken, Task>? ensureConnectedAsync = null) : ILiveSendClientSession
+{
+    public IResoniteLinkClient? RoutedClient { get; set; } = routedClient;
+
+    public int BeginWorkerClientTrackingCallCount { get; private set; }
+
+    public int EnsureConnectedCallCount { get; private set; }
+
+    public int DisposeClientsCallCount { get; private set; }
+
+    public List<PlateauImportRequest> EnsureConnectedRequests { get; } = [];
+
+    public void BeginWorkerClientTracking()
+    {
+        BeginWorkerClientTrackingCallCount++;
+    }
+
+    public Task EnsureConnectedAsync(
+        PlateauImportRequest request,
+        CancellationToken cancellationToken)
+    {
+        EnsureConnectedCallCount++;
+        EnsureConnectedRequests.Add(request);
+        return ensureConnectedAsync is null
+            ? Task.CompletedTask
+            : ensureConnectedAsync(request, cancellationToken);
+    }
+
+    public void DisposeClients()
+    {
+        DisposeClientsCallCount++;
     }
 }
 

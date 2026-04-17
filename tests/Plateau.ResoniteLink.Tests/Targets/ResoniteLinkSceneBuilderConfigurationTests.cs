@@ -1,6 +1,5 @@
-using Plateau.ResoniteLink.Cli;
 
-namespace Plateau.ResoniteLink.Tests.Cli;
+namespace Plateau.ResoniteLink.Tests.Targets;
 
 public sealed class ResoniteLinkSceneBuilderConfigurationTests
 {
@@ -26,8 +25,9 @@ public sealed class ResoniteLinkSceneBuilderConfigurationTests
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            static () => throw new InvalidOperationException("unused"),
-            new TerrainTextureAssetGenerator(),
+            new ResoniteLinkSceneBuilderDependencies(
+                new DelegatingClientSession(),
+                new TerrainTextureAssetGenerator()),
             enableMeshBake,
             progressReporter: null);
     }

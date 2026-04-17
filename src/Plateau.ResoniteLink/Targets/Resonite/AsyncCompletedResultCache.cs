@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Plateau.ResoniteLink.Cli;
+namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal sealed class AsyncCompletedResultCache<TKey, TValue>
     where TKey : notnull
