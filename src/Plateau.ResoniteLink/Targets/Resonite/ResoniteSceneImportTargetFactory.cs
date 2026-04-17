@@ -4,10 +4,10 @@ using Plateau.ResoniteLink.Application.Importing;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
-public static class ResoniteLiveSendComposition
+public static class ResoniteSceneImportTargetFactory
 {
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "ResoniteLinkSceneBuilder owns the client session lifetime.")]
-    public static ISceneImportTarget CreateSceneBuilder(
+    public static ISceneImportTarget Create(
         Uri endpoint,
         int connectionCount,
         bool enableSendMetrics,
@@ -27,7 +27,7 @@ public static class ResoniteLiveSendComposition
             connectionCount,
             diagnostics,
             new ResoniteLinkSceneBuilderDependencies(
-                ResoniteLinkTransportSessionFactory.Create(
+                Transport.ResoniteLink.ResoniteLinkTransportSessionFactory.Create(
                     endpoint,
                     connectionCount,
                     diagnostics,

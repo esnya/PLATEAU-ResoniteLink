@@ -22,20 +22,6 @@ public sealed class PlateauImportService(
     private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
         constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
 
-    public PlateauImportService(
-        ISceneImportTarget sceneBuilder,
-        IPlateauDatasetSourceResolver datasetSourceResolver,
-        IResoniteConstructionSourceFactory constructionSourceFactory,
-        Action<string>? progressReporter = null)
-        : this(
-            sceneBuilder,
-            datasetSourceResolver,
-            new LocalCityGmlDocumentReader(),
-            constructionSourceFactory,
-            progressReporter)
-    {
-    }
-
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
         string workRoot,

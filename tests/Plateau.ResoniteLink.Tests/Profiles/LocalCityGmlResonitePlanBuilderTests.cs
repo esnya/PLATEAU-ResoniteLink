@@ -17,6 +17,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         return new PlateauImportService(
             sceneBuilder,
             new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
+            new LocalCityGmlDocumentReader(),
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
