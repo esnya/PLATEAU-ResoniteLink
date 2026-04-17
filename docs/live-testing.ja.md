@@ -185,6 +185,18 @@ comparison driver 自身に disposable な headless listener の起動と停止�
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
 ```
 
+`19001` 固定の Matsumoto base/append 検証には専用 wrapper を使ってください。`54372778` を先に送り、その後 `54372788` を append し、どちらも `heightmap` mode で送りつつ、baseline / after-base / after-append の Root dump を採ります。
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\check-matsumoto-base-append-heightmap-19001.ps1 -RepoPath C:\path\to\repo"
+```
+
+その wrapper 自身に `19001` の disposable headless listener を管理させる場合は、`-HeadlessPath` を追加してください。
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\check-matsumoto-base-append-heightmap-19001.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite"
+```
+
 まず `stderr` を見ます。`stderr` が空でない場合はそれを主な failure signal として扱います。`stderr` が空でも、stall と判断する前に、timestamp 付きの log sample を少なくとも 2 回取ってください。
 
 標準的な log 読み出し:

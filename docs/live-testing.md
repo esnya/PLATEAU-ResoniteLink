@@ -185,6 +185,18 @@ To let the comparison driver bring up and tear down its own disposable headless 
 cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\compare-modes.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite -ResoniteLinkPort <port> -Dataset <dataset> -MeshCode <mesh> -LocalSourcePath C:\path\to\dataset-root -ObserveSeconds 30 -HeadlessSessionName PlateauHeadlessLive"
 ```
 
+For the fixed Matsumoto base/append validation on port `19001`, use the dedicated wrapper. It sends `54372778` first, then appends `54372788`, both in `heightmap` mode, and captures baseline / after-base / after-append Root dumps:
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\check-matsumoto-base-append-heightmap-19001.ps1 -RepoPath C:\path\to\repo"
+```
+
+To let that wrapper manage its own disposable headless listener on `19001`, add `-HeadlessPath`:
+
+```bash
+cmd.exe /c "powershell -ExecutionPolicy Bypass -File C:\path\to\repo\.agents\skills\resonite-live-send-debug\scripts\check-matsumoto-base-append-heightmap-19001.ps1 -RepoPath C:\path\to\repo -HeadlessPath C:\path\to\Resonite"
+```
+
 Inspect `stderr` first. If it is non-empty, treat that as the primary failure signal. When `stderr` is empty, take at least two timestamped log samples before concluding that a run stalled.
 
 Canonical log reads:

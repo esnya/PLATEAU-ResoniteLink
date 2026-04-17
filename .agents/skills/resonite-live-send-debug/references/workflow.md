@@ -75,3 +75,5 @@ tail -n 40 /mnt/c/path/to/stderr.log
   Launch one Windows-side live send with explicit logs.
 - `scripts/compare-modes.ps1`
   Run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
+- `scripts/check-matsumoto-base-append-heightmap-19001.ps1`
+  Run the fixed Matsumoto base/append validation for `54372778 -> 54372788` on port `19001` in `heightmap` mode, with root dumps before the base send, after the base send, and after the append send.

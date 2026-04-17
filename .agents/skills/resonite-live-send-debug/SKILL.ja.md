@@ -87,8 +87,10 @@ live world から dataset root を消し、残存 CLI process を止め、local 
 1 回の live send を explicit log 付きで起動する。
 - `scripts/compare-modes.ps1`
 cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行する。
+- `scripts/check-matsumoto-base-append-heightmap-19001.ps1`
+`19001` で Matsumoto `54372778 -> 54372788` の base/append 検証を `heightmap` mode で固定実行し、baseline / after-base / after-append の root dump を採る。
 
-上記 7 path はすべて `.agents/skills/resonite-live-send-debug/` からの相対 path です。
+上記 8 path はすべて `.agents/skills/resonite-live-send-debug/` からの相対 path です。
 
 ## Outputs
 

@@ -88,8 +88,10 @@ Use to remove dataset roots from the live world, stop leftover CLI processes, an
 Use to launch one live send with explicit logs.
 - `scripts/compare-modes.ps1`
 Use to run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
+- `scripts/check-matsumoto-base-append-heightmap-19001.ps1`
+Use to run the fixed Matsumoto `54372778 -> 54372788` base/append validation on port `19001` in `heightmap` mode, with baseline / after-base / after-append root dumps.
 
-All seven paths above are relative to `.agents/skills/resonite-live-send-debug/`.
+All eight paths above are relative to `.agents/skills/resonite-live-send-debug/`.
 
 ## Outputs
 

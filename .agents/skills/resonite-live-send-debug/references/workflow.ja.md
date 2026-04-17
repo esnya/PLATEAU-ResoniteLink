@@ -75,3 +75,5 @@ tail -n 40 /mnt/c/path/to/stderr.log
   Windows 側で 1 回の live send を explicit log 付きで起動する。
 - `scripts/compare-modes.ps1`
   cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行する。
+- `scripts/check-matsumoto-base-append-heightmap-19001.ps1`
+  `19001` で Matsumoto `54372778 -> 54372788` の base/append 検証を `heightmap` mode で固定実行し、base 送信前 / base 送信後 / append 送信後の root dump を採る。
