@@ -356,7 +356,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                "Starting setup slot bootstrap: dataset root, assets root, common assets root, and anchor slot."));
+                "Starting setup slot bootstrap: dataset root, assets root, common assets root, location slot, and source-file root reference."));
         Stopwatch bootstrapStopwatch = Stopwatch.StartNew();
         ResoniteSceneBootstrapState bootstrapState = await sceneBootstrapCoordinator.BootstrapAsync(
             routedClient,
