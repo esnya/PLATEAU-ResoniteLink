@@ -20,6 +20,20 @@ This file stays agent-facing on purpose. Use it as supplemental notes after `SKI
 - Keep the final `DatasetRoot` in place after a successful validation unless the user explicitly requests cleanup.
 - Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
 
+## Component Type Discovery
+
+- When a live inspection needs an exact component type name, prefer ResoniteLink reflection over guesswork.
+- Primary path: connect with the local ResoniteLink library or official REPL helper and query `GetComponentTypeList` first, then `GetComponentDefinition` for candidates.
+- Use category queries when possible. Reserve `GetComponentTypeList("*")` for cases where narrower categories are unknown, and record when the session returns an empty list.
+- If reflection is unavailable or returns no useful data, inspect existing `componentType` values in root dumps as a fallback evidence source.
+- Distinguish UI labels from runtime type strings. A picker label like `Texture2D Metadata` is not sufficient proof of the exact `AddComponent` type name.
+
+## RawOutput Readback Limits
+
+- In the currently observed combination of `Resonite 2026.4.16.1327` and `ResoniteLink 0.13.1.0`, `RawOutput` members on metadata components did not produce readable values through Link even when the target asset reference was set correctly and the component was polled again later.
+- The confirmed examples were `[FrooxEngine]FrooxEngine.Texture2DAssetMetadata` and `[FrooxEngine]FrooxEngine.BitmapAssetMetadata` attached to a `StaticTexture2D`.
+- Treat this as version-specific evidence, not a timeless rule. If either Resonite or ResoniteLink changes, re-verify before relying on the limitation.
+
 ## Required Artifacts
 
 Expect these bundled files under this skill:

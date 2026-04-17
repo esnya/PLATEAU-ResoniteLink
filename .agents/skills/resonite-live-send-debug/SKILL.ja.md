@@ -79,6 +79,9 @@ disposable な headless 検証では、次の operator sequence を優先して�
 - successful validation の最終 `DatasetRoot` は、明示的な cleanup 指示がない限り目視確認用 artifact として残す。
 - root-only cleanup で orphan descendant が存在しないと断定しない。汚染の可能性があるなら明記する。
 - failed / interrupted run 後の構造上の結論は、orphan audit がない限り provisional とする。
+- Resonite component を名前で追加・調査する task では、正確な型解決を必須 step として扱う。`AddComponent` に渡す型文字列を推測する前に、ResoniteLink の reflection API である `GetComponentTypeList` と `GetComponentDefinition` を使う。
+- Resonite UI の component picker 表示名と `AddComponent` に渡す型文字列が一致しない場合は、UI label と解決できた runtime type を両方 run note に残す。
+- `GetComponentTypeList("*")` や category を絞った query が current session で有用な結果を返さない場合は、その事実を明示し、root dump 内の `componentType` など既存 world data の証拠へ fallback する。型名を黙って捏造しない。
 
 ## Bundled Scripts
 

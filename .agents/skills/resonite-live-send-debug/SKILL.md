@@ -78,6 +78,9 @@ Keep these facts fixed or explicitly updated between comparison runs:
 - Keep successful final `DatasetRoot` artifacts in place by default for visual inspection unless cleanup is explicitly requested.
 - Do not assume root-only cleanup proves the absence of all orphaned descendants; if orphan contamination is plausible, say so explicitly.
 - Do not treat structure-level conclusions after a failed or interrupted run as fully clean; mark them provisional unless you have an orphan audit beyond root removal.
+- When a task requires adding or inspecting a Resonite component by name, treat exact type resolution as a required step. Use ResoniteLink reflection APIs such as `GetComponentTypeList` and `GetComponentDefinition` before guessing a type string for `AddComponent`.
+- If a component picker label in Resonite UI does not match an `AddComponent` type string, record both the UI label and the resolved runtime type in the run notes.
+- If `GetComponentTypeList("*")` or narrower category queries return no useful entries in the current session, say that explicitly and fall back to evidence from existing world data such as `componentType` values in root dumps. Do not silently invent a type name.
 
 ## Bundled Scripts
 

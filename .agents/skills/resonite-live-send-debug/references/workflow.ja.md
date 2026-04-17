@@ -20,6 +20,20 @@
 - successful validation 後の final `DatasetRoot` は、user が明示しない限り残す。
 - `stdout` を解釈する前に `stderr` を見る。`stderr` が空でも stalled 判定前に timestamp 付き log 読みを最低 2 回取る。
 
+## Component Type Discovery
+
+- live inspection で正確な component type 名が必要な場合、推測ではなく ResoniteLink reflection を優先する。
+- 第一経路は、local の ResoniteLink library か official REPL helper で接続し、まず `GetComponentTypeList`、次に候補へ `GetComponentDefinition` を使うこと。
+- 可能なら category を絞って query する。`GetComponentTypeList("*")` は narrower category が不明な場合に限り使い、session が空 list を返した事実も記録する。
+- reflection が使えない、または有用な結果を返さない場合は、fallback として root dump 内の既存 `componentType` 値を証拠に使う。
+- `Texture2D Metadata` のような UI label と runtime type string は別物として扱う。picker 表示名だけで `AddComponent` の型名を確定しない。
+
+## RawOutput Readback Limits
+
+- 現時点で観測した `Resonite 2026.4.16.1327` と `ResoniteLink 0.13.1.0` の組み合わせでは、metadata component 上の `RawOutput` member は、target asset reference を正しく設定して再pollしても Link 経由では読める値にならなかった。
+- 確認した対象は、`StaticTexture2D` に付けた `[FrooxEngine]FrooxEngine.Texture2DAssetMetadata` と `[FrooxEngine]FrooxEngine.BitmapAssetMetadata`。
+- これはバージョン依存の観測事実として扱い、永続的な一般則とはみなさない。Resonite または ResoniteLink が変わったら再検証すること。
+
 ## Required Artifacts
 
 この skill 配下に次の file がある前提です。
