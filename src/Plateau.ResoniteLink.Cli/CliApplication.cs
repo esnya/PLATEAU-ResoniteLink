@@ -48,15 +48,6 @@ public sealed class CliApplication
         {
             BuildCommandOptions options = parseResult.Options!;
             Action<string> reporter = CreateReporter(options.VerboseLogging);
-            if (options.ResoniteLinkConnectionCount > 1)
-            {
-                reporter(
-                    PlateauLog.Warning(
-                        "live",
-                        $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
-                        + "Use the default value 1 for reliable live sends."));
-            }
-
             PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);
 
             ImportExecutionResult result = await effectiveImportService.ExecuteAsync(

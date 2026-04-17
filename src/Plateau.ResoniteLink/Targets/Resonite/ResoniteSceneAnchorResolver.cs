@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-
 using GeographicLib;
 
 using Plateau.ResoniteLink.Domain.Importing;
@@ -19,9 +17,10 @@ internal interface IResoniteSceneAnchorResolver
 }
 
 internal readonly record struct SceneAnchor(
-    string SlotId,
+    string LocationSlotId,
     string MeshCode,
-    ResoniteFloat3 Position);
+    ResoniteFloat3 Position,
+    string? ReferenceSourceFileRootId);
 
 internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 {
@@ -39,72 +38,50 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         ArgumentException.ThrowIfNullOrWhiteSpace(completionMeshCode);
 
         await WaitForSlotAvailableAsync(client, datasetRootSlotId, cancellationToken);
-        Slot? lastVisibleReferenceMeshRoot = null;
         ResoniteSceneSlotSnapshot datasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
             client,
             datasetRootSlotId,
             1,
             cancellationToken);
-        ResoniteSceneChildLookupResult completionRootLookup = datasetRootSnapshot.GetUniqueChildLookupResult(
-            completionMeshCode,
-            datasetRootSlotId);
-        if (completionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
+        Slot[] sourceFileRoots = datasetRootSnapshot.Root?.Children?
+            .Where(static child => !string.Equals(child.Name?.Value, "Assets", StringComparison.Ordinal))
+            .Where(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out _))
+            .ToArray()
+            ?? [];
+        Slot? completionSourceFileRoot = sourceFileRoots.FirstOrDefault(
+            child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
+                && string.Equals(meshCode, completionMeshCode, StringComparison.Ordinal));
+        if (completionSourceFileRoot is not null)
         {
-            string existingCompletionRootId = completionRootLookup.SlotId!;
-            await WaitForSlotAvailableAsync(client, existingCompletionRootId, cancellationToken);
-            Slot? completionSlot = await client.GetSlotAsync(existingCompletionRootId, 0, cancellationToken);
             return new SceneAnchor(
-                existingCompletionRootId,
+                completionSourceFileRoot.ID ?? datasetRootSlotId,
                 completionMeshCode,
-                completionSlot is null ? new ResoniteFloat3(0.0, 0.0, 0.0) : GetSlotPosition(completionSlot));
+                GetSlotPositionOrDefault(completionSourceFileRoot),
+                completionSourceFileRoot.ID);
         }
 
-        Slot? referenceMeshRoot = FindDeterministicReferenceMeshRoot(datasetRootSnapshot);
-        if (referenceMeshRoot is not null)
+        (Slot Slot, string MeshCode)? referenceSourceFileRoot = sourceFileRoots
+            .Select(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
+                ? (Slot: child, MeshCode: meshCode)
+                : ((Slot Slot, string MeshCode)?)null)
+            .Where(static candidate => candidate.HasValue)
+            .Select(static candidate => candidate!.Value)
+            .OrderBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
+            .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (referenceSourceFileRoot is not null)
         {
-            lastVisibleReferenceMeshRoot = referenceMeshRoot;
+            return new SceneAnchor(
+                referenceSourceFileRoot.Value.Slot.ID ?? datasetRootSlotId,
+                completionMeshCode,
+                Add(
+                    GetSlotPositionOrDefault(referenceSourceFileRoot.Value.Slot),
+                    ComputeMeshCodeOffset(referenceSourceFileRoot.Value.MeshCode, completionMeshCode)),
+                referenceSourceFileRoot.Value.Slot.ID);
         }
 
-        ResoniteFloat3 anchorPosition = lastVisibleReferenceMeshRoot is null
-            ? new ResoniteFloat3(0.0, 0.0, 0.0)
-            : Add(
-                GetSlotPosition(lastVisibleReferenceMeshRoot),
-                ComputeMeshCodeOffset(lastVisibleReferenceMeshRoot.Name!.Value, completionMeshCode));
-
-        ResoniteSceneSlotSnapshot finalDatasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
-            client,
-            datasetRootSlotId,
-            1,
-            cancellationToken);
-        ResoniteSceneChildLookupResult finalCompletionRootLookup = finalDatasetRootSnapshot.GetUniqueChildLookupResult(
-            completionMeshCode,
-            datasetRootSlotId);
-        if (finalCompletionRootLookup.State == ResoniteSceneChildLookupState.FoundWithId)
-        {
-            string existingAnchorSlotId = finalCompletionRootLookup.SlotId!;
-            return new SceneAnchor(existingAnchorSlotId, completionMeshCode, anchorPosition);
-        }
-
-        string batchScopeToken = CreateBatchScopeToken();
-        PendingBatchSlot pendingAnchorSlot = new(
-            $"anchor_slot_local_{batchScopeToken}",
-            $"anchor_slot_message_{batchScopeToken}",
-            completionMeshCode);
-        BatchResponse response = await client.RunDataModelOperationBatchAsync(
-            [
-                CreateAddSlotOperation(
-                    datasetRootSlotId,
-                    completionMeshCode,
-                    anchorPosition,
-                    null,
-                    pendingAnchorSlot.LocalId,
-                    pendingAnchorSlot.MessageId),
-            ],
-            cancellationToken);
-        return new SceneAnchor(
-            ResolveCreatedSlotId(response, pendingAnchorSlot),
-            completionMeshCode,
-            anchorPosition);
+        throw new InvalidOperationException(
+            $"Existing dataset root '{datasetRootSlotId}' does not contain a positioned source-file root that can resolve completion mesh '{completionMeshCode}'.");
     }
 
     private static async Task WaitForSlotAvailableAsync(
@@ -126,28 +103,7 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         throw new InvalidOperationException($"ResoniteLink did not surface slot '{slotId}' on the initial probe.");
     }
 
-    private static Slot? FindDeterministicReferenceMeshRoot(ResoniteSceneSlotSnapshot datasetRootSnapshot)
-    {
-        return datasetRootSnapshot.Root?.Children?
-            .Select(static child => TryGetMeshCodeName(child, out string meshCode)
-                ? (Slot: child, MeshCode: meshCode)
-                : ((Slot Slot, string MeshCode)?)null)
-            .Where(static candidate => candidate.HasValue)
-            .Select(static candidate => candidate!.Value)
-            .OrderByDescending(static candidate => candidate.MeshCode.Length)
-            .ThenBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
-            .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
-            .Select(static candidate => candidate.Slot)
-            .FirstOrDefault();
-    }
-
-    private static bool TryGetMeshCodeName(Slot slot, out string meshCode)
-    {
-        meshCode = slot.Name?.Value ?? string.Empty;
-        return PlateauMeshCode.TryGetCenter(meshCode, out _);
-    }
-
-    private static ResoniteFloat3 GetSlotPosition(Slot slot)
+    private static ResoniteFloat3 GetSlotPositionOrDefault(Slot slot)
     {
         if (slot.Position is Field_float3 position)
         {
@@ -192,81 +148,4 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
     }
 
-    private static AddSlot CreateAddSlotOperation(
-        string parentId,
-        string slotName,
-        ResoniteFloat3? position,
-        ResoniteFloatQ? rotation,
-        string requestedSlotId,
-        string messageId)
-    {
-        return new AddSlot
-        {
-            MessageID = messageId,
-            Data = new Slot
-            {
-                ID = requestedSlotId,
-                Parent = new Reference
-                {
-                    TargetID = parentId,
-                },
-                Name = new Field_string
-                {
-                    Value = slotName,
-                },
-                Position = position is null ? null : CreateFloat3(position),
-                Rotation = rotation is null ? null : CreateFloatQ(rotation),
-            },
-        };
-    }
-
-    private static string ResolveCreatedSlotId(BatchResponse response, PendingBatchSlot pendingSlot)
-    {
-        IReadOnlyList<Response> responses = response.Responses
-            ?? throw new InvalidOperationException("ResoniteLink batch response did not include per-operation responses.");
-        Response operationResponse = responses.SingleOrDefault(
-            candidate => string.Equals(candidate.SourceMessageID, pendingSlot.MessageId, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"ResoniteLink batch response did not include '{pendingSlot.MessageId}'.");
-        ResoniteLinkClient.EnsureSuccess(operationResponse, $"resolve anchor slot '{pendingSlot.SlotName}'");
-        return operationResponse is NewEntityId createdEntity && !string.IsNullOrWhiteSpace(createdEntity.EntityId)
-            ? createdEntity.EntityId
-            : throw new InvalidOperationException($"ResoniteLink batch response did not include an entity ID for '{pendingSlot.SlotName}'.");
-    }
-
-    private static Field_float3 CreateFloat3(ResoniteFloat3 value)
-    {
-        return new Field_float3
-        {
-            Value = new float3
-            {
-                x = (float)value.X,
-                y = (float)value.Y,
-                z = (float)value.Z,
-            },
-        };
-    }
-
-    private static Field_floatQ CreateFloatQ(ResoniteFloatQ value)
-    {
-        return new Field_floatQ
-        {
-            Value = new floatQ
-            {
-                x = (float)value.X,
-                y = (float)value.Y,
-                z = (float)value.Z,
-                w = (float)value.W,
-            },
-        };
-    }
-
-    private readonly record struct PendingBatchSlot(
-        string LocalId,
-        string MessageId,
-        string SlotName);
-
-    private static string CreateBatchScopeToken()
-    {
-        return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
-    }
 }

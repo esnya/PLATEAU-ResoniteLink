@@ -195,8 +195,6 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 
     public List<ImportMeshRawData> ImportedMeshes { get; } = [];
 
-    public List<string> ImportedTexturePaths { get; } = [];
-
     public List<ResoniteRawTextureImport> ImportedRawTextures { get; } = [];
 
     public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
@@ -368,16 +366,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         {
             switch (textureImport)
             {
-                case ResoniteFileTextureImport fileImport:
-                    ImportedTexturePaths.Add(fileImport.AbsolutePath);
-                    break;
                 case ResoniteRawTextureImport rawImport:
                     ImportedRawTextures.Add(rawImport);
-                    if (rawImport.Identity is not null)
-                    {
-                        ImportedTexturePaths.Add(rawImport.Identity);
-                    }
-
                     break;
                 case ResoniteRawHdrTextureImport rawHdrImport:
                     ImportedRawHdrTextures.Add(rawHdrImport);
@@ -385,8 +375,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
                 default:
                     throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'.");
             }
-
-            return Task.FromResult(new Uri($"resdb:///texture/{ImportedTexturePaths.Count + ImportedRawTextures.Count + ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
+            return Task.FromResult(new Uri($"resdb:///texture/{ImportedRawTextures.Count + ImportedRawHdrTextures.Count - 1}", UriKind.Absolute));
         }
     }
 

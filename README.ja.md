@@ -14,9 +14,6 @@ Shipped:
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - LOD1 mesh bake と LOD2 atlas bake は CityGML scope、package、LOD、bake policy をキーにまとめ、emit される bake payload が cityObject の到着順に依存しないように保つ。
 
-Experimental:
-- `--resonitelink-connections > 1` は引き続き experimental な live-send mode であり、信頼できる既定経路としては扱わない。
-
 Pending:
 - target-agnostic IR の抽出と、`Targets.Resonite` / `Transport.ResoniteLink` の深い責務分離は、この release では完了済み保証に含めない内部 follow-up です。
 
@@ -27,7 +24,7 @@ Intentionally regressed:
 
 - 対象 runtime は .NET SDK 10。release asset の実行にも .NET 10 が必要。
 - `--resonitelink-port` または `--resonitelink-url` で到達できる ResoniteLink listener が必要。
-- live adapter の asset import は mesh に `ImportMesh(ImportMeshRawData)` を使います。texture は bundled common material のような元から画像ファイルとして持つ asset ではまず file import を試しますが、listener が送信側ローカルの file path を解決できない場合は自動で `ImportTexture` の raw payload にフォールバックします。dataset 由来または生成された texture は raw payload を使います。
+- live adapter の asset import は mesh に `ImportMesh(ImportMeshRawData)` を使い、texture は bundled common material、dataset 由来、生成物を含めて `ImportTexture` の raw payload を使います。
 - ResoniteLink の entity ID は session-scoped な opaque value として扱います。create が成功した場合、その session 内で正規 ID として扱うのは resolve 済み `Response` の ID です。requested ID は cityObject 単位の DataModel batch 内で使う参照ヒントに限定し、別 session へ永続化・再利用してはいけません。既存 entity の reuse 探索は、新規 create の確認とは別の仕組みとして扱います。
 
 ## Quick Start

@@ -1,7 +1,5 @@
 using System.Security.Cryptography;
 
-using GeographicLib;
-
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
@@ -17,13 +15,16 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
 
     private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync;
     private readonly Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync;
+    private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 
     internal ResoniteSceneBootstrapCoordinator(
         Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync,
-        Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync)
+        Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync,
+        IResoniteSceneAnchorResolver? sceneAnchorResolver = null)
     {
         this.tryGetDatasetRootAsync = tryGetDatasetRootAsync;
         this.updateComponentAsync = updateComponentAsync;
+        this.sceneAnchorResolver = sceneAnchorResolver ?? new ResoniteSceneAnchorResolver();
     }
 
     public async Task<ResoniteSceneBootstrapState> BootstrapAsync(
@@ -102,7 +103,12 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             ?? pendingCommon?.LocalId
             ?? throw new InvalidOperationException("Bootstrap could not determine the Common parent slot.");
 
-        ResoniteFloat3 anchorPosition = ResolveAnchorPosition(datasetRootSnapshot, completionMeshCode);
+        SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
+            setupClient,
+            existingDatasetRoot.Value.SlotId,
+            completionMeshCode,
+            datasetRootExisted: true,
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(existingLicenseComponentId))
         {
@@ -166,7 +172,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             new CreatedSlot(assetsSlot.ID!, assetsSlot.Name?.Value ?? "Assets"),
             new CreatedSlot(commonSlot.ID!, commonSlot.Name?.Value ?? "Common"),
             DatasetRootExisted: true,
-            new SceneAnchor(existingDatasetRoot.Value.SlotId, completionMeshCode, anchorPosition),
+            sceneAnchor,
             datasetRootSnapshot,
             existingLicenseComponentId,
             datasetLicenseComponentId,
@@ -277,7 +283,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             datasetAssetsRootSlot,
             commonAssetsRootSlot,
             DatasetRootExisted: false,
-            new SceneAnchor(datasetRootSlot.SlotId, completionMeshCode, anchorPosition),
+            new SceneAnchor(datasetRootSlot.SlotId, completionMeshCode, anchorPosition, ReferenceSourceFileRootId: null),
             DatasetRootSnapshot: null,
             ExistingLicenseComponentId: null,
             DatasetLicenseComponentId: licenseComponent.ComponentId,
@@ -674,24 +680,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         };
     }
 
-    private static ResoniteFloat3 ResolveAnchorPosition(Slot datasetRootSlot, string completionMeshCode)
-    {
-        Slot? referenceMeshRoot = datasetRootSlot.Children?
-            .Where(static child => !string.Equals(child.Name?.Value, "Assets", StringComparison.Ordinal))
-            .Where(static child => !string.IsNullOrWhiteSpace(child.Name?.Value))
-            .Where(static child => PlateauMeshCode.TryGetCenter(child.Name!.Value, out _))
-            .OrderBy(static child => child.Name!.Value, StringComparer.Ordinal)
-            .FirstOrDefault();
-        if (referenceMeshRoot is null)
-        {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
-        }
-
-        return Add(
-            GetSlotPosition(referenceMeshRoot),
-            ComputeMeshCodeOffset(referenceMeshRoot.Name!.Value, completionMeshCode));
-    }
-
     private static Slot CreateSlot(CreatedSlot createdSlot, ResoniteFloat3? position = null)
     {
         return new Slot
@@ -703,51 +691,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             },
             Position = position is null ? null : CreateFloat3(position),
         };
-    }
-
-    private static ResoniteFloat3 GetSlotPosition(Slot slot)
-    {
-        if (slot.Position is Field_float3 position)
-        {
-            return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
-        }
-
-        return new ResoniteFloat3(0.0, 0.0, 0.0);
-    }
-
-    private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
-    {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
-            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
-        {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
-        }
-
-        return ComputeOriginOffset(referenceCenter, currentCenter);
-    }
-
-    private static ResoniteFloat3 ComputeOriginOffset(
-        ResoniteLocalOrigin referenceCenter,
-        ResoniteLocalOrigin currentCenter)
-    {
-        LocalCartesian cartesian = new(
-            referenceCenter.Latitude,
-            referenceCenter.Longitude,
-            referenceCenter.Altitude,
-            Geocentric.WGS84);
-        (double x, double y, double z) eun = cartesian.Forward(
-            currentCenter.Latitude,
-            currentCenter.Longitude,
-            currentCenter.Altitude);
-        return new ResoniteFloat3(
-            X: eun.x,
-            Y: 0.0,
-            Z: eun.y);
-    }
-
-    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)

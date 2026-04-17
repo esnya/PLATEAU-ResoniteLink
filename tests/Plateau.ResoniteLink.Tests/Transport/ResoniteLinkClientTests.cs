@@ -37,15 +37,8 @@ public sealed class ResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task ImportTextureAsyncUsesRawPayloadForFileImports()
+    public async Task ImportTextureAsyncUsesRawPayloadImport()
     {
-        using TemporaryDirectory temporaryDirectory = new();
-        string texturePath = Path.Combine(temporaryDirectory.Path, "albedo.png");
-        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 0, 0, 255)))
-        {
-            await image.SaveAsPngAsync(texturePath);
-        }
-
         using FakeResoniteLinkTransport transport = new()
         {
             ImportTextureRawResult = new AssetData
@@ -57,11 +50,14 @@ public sealed class ResoniteLinkClientTests
 
         using ResoniteLinkClient client = new(transport);
         Uri importedTexture = await client.ImportTextureAsync(
-            ResoniteTextureImportFactory.CreateFromFile(texturePath),
+            new ResoniteRawTextureImport(
+                Width: 1,
+                Height: 1,
+                ColorProfile: ResoniteTextureColorProfiles.Srgb,
+                RawRgba32Bytes: [255, 0, 0, 255]),
             CancellationToken.None);
 
         Assert.Equal(new Uri("file:///tmp/albedo.png"), importedTexture);
-        Assert.Equal(0, transport.ImportTextureFileCallCount);
         Assert.Equal(1, transport.ImportTextureRawCallCount);
         Assert.NotNull(transport.LastRawTextureRequest);
         Assert.Equal(1, transport.LastRawTextureRequest!.Width);
@@ -69,24 +65,17 @@ public sealed class ResoniteLinkClientTests
     }
 
     [Fact]
-    public async Task ImportTextureAsyncThrowsWhenLocalFileIsMissing()
+    public async Task CreateRawFromFileAsyncThrowsWhenLocalFileIsMissing()
     {
         string texturePath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.png");
-        using FakeResoniteLinkTransport transport = new();
-
-        using ResoniteLinkClient client = new(transport);
         FileNotFoundException exception = await Assert.ThrowsAsync<FileNotFoundException>(
-            async () => await client.ImportTextureAsync(
-                ResoniteTextureImportFactory.CreateFromFile(texturePath),
-                CancellationToken.None));
+            async () => await ResoniteTextureImportFactory.CreateRawFromFileAsync(texturePath, cancellationToken: CancellationToken.None));
 
         Assert.Contains(Path.GetFileName(texturePath), exception.Message, StringComparison.Ordinal);
-        Assert.Equal(0, transport.ImportTextureFileCallCount);
-        Assert.Equal(0, transport.ImportTextureRawCallCount);
     }
 
     [Fact]
-    public async Task ImportTextureAsyncUsesRawPayloadForFileImportsWhenRunningUnderWsl()
+    public async Task CreateRawFromFileAsyncLoadsImageWhenRunningUnderWsl()
     {
         using EnvironmentVariableScope scope = new("WSL_DISTRO_NAME", "Ubuntu-24.04");
         using TemporaryDirectory temporaryDirectory = new();
@@ -96,26 +85,14 @@ public sealed class ResoniteLinkClientTests
             await image.SaveAsPngAsync(texturePath);
         }
 
-        using FakeResoniteLinkTransport transport = new()
-        {
-            ImportTextureRawResult = new AssetData
-            {
-                Success = true,
-                AssetURL = new Uri("file:///tmp/albedo.png"),
-            },
-        };
+        ResoniteRawTextureImport importedTexture = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
+            texturePath,
+            cancellationToken: CancellationToken.None);
 
-        using ResoniteLinkClient client = new(transport);
-        Uri importedTexture = await client.ImportTextureAsync(
-            ResoniteTextureImportFactory.CreateFromFile(texturePath),
-            CancellationToken.None);
-
-        Assert.Equal(new Uri("file:///tmp/albedo.png"), importedTexture);
-        Assert.Equal(0, transport.ImportTextureFileCallCount);
-        Assert.Equal(1, transport.ImportTextureRawCallCount);
-        Assert.NotNull(transport.LastRawTextureRequest);
-        Assert.Equal(1, transport.LastRawTextureRequest!.Width);
-        Assert.Equal(1, transport.LastRawTextureRequest.Height);
+        Assert.Equal(1, importedTexture.Width);
+        Assert.Equal(1, importedTexture.Height);
+        Assert.Equal(ResoniteTextureColorProfiles.Srgb, importedTexture.ColorProfile);
+        Assert.Equal([255, 0, 0, 255], importedTexture.RawRgba32Bytes);
     }
 
     [Fact]
@@ -167,17 +144,11 @@ public sealed class ResoniteLinkClientTests
 
     private sealed class FakeResoniteLinkTransport : IResoniteLinkTransport
     {
-        public AssetData ImportTextureFileResult { get; set; } = new() { Success = true };
-
         public AssetData ImportTextureRawResult { get; set; } = new() { Success = true };
-
-        public int ImportTextureFileCallCount { get; private set; }
 
         public int ImportTextureRawCallCount { get; private set; }
 
         public ImportTexture2DRawData? LastRawTextureRequest { get; private set; }
-
-        public ImportTexture2DFile? LastFileTextureRequest { get; private set; }
 
         public void Dispose()
         {
@@ -194,13 +165,6 @@ public sealed class ResoniteLinkClientTests
         public Task<SlotData> GetSlotDataAsync(GetSlot request) => throw new NotSupportedException();
 
         public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => throw new NotSupportedException();
-
-        public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request)
-        {
-            ImportTextureFileCallCount++;
-            LastFileTextureRequest = request;
-            return Task.FromResult(ImportTextureFileResult);
-        }
 
         public Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request)
         {
@@ -251,8 +215,6 @@ public sealed class ResoniteLinkClientTests
         public Task<SlotData> GetSlotDataAsync(GetSlot request) => throw new NotSupportedException();
 
         public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => throw new NotSupportedException();
-
-        public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request) => throw new NotSupportedException();
 
         public async Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request)
         {

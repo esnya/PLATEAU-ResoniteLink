@@ -40,7 +40,7 @@ public static class CliArgumentsParser
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
-                                                             Optional. Experimental parallel ResoniteLink connection count for live sends. Default: 1.
+                                                             Optional. Parallel ResoniteLink connection count for live sends. Default: 1.
           --no-mesh-bake       Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.

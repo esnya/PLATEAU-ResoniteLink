@@ -132,6 +132,31 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
+    public async Task RunAsyncDoesNotWarnWhenMultipleConnectionsAreConfigured()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            importServiceFactory);
+
+        int exitCode = await application.RunAsync(
+            [
+                ..BuildLiveArgs(fixturePath),
+                "--resonitelink-connections",
+                "4",
+            ]);
+
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("is experimental", standardOutput.ToString(), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, standardError.ToString());
+    }
+
+    [Fact]
     public async Task RunAsyncPropagatesCancellation()
     {
         using StringWriter standardOutput = new();

@@ -42,7 +42,7 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
-    public async Task ResolveAsyncTreatsIncompleteAnchorAsMissingAndCreatesReplacement()
+    public async Task ResolveAsyncUsesCompletionSourceFileRootPositionWhenPresent()
     {
         const string datasetRootSlotId = "dataset-root";
         const string completionMeshCode = "53394525";
@@ -60,7 +60,7 @@ public sealed class ResoniteSceneAnchorResolverTests
                     "PLATEAU tokyo23ku",
                     children:
                     [
-                        CreateSlot(id: null, completionMeshCode, datasetRootSlotId, new ResoniteFloat3(1.0, 0.0, 2.0)),
+                        CreateSlot("source-root", "plateau_tokyo23ku_bldg_53394525", datasetRootSlotId, new ResoniteFloat3(1.0, 0.0, 2.0)),
                     ]);
             }
 
@@ -76,13 +76,16 @@ public sealed class ResoniteSceneAnchorResolverTests
             datasetRootExisted: false,
             CancellationToken.None);
 
+        Assert.Equal("source-root", anchor.LocationSlotId);
         Assert.Equal(completionMeshCode, anchor.MeshCode);
-        AddSlot createdAnchor = Assert.Single(client.AddedSlots);
-        Assert.Equal(completionMeshCode, createdAnchor.Data.Name?.Value);
+        Assert.Equal("source-root", anchor.ReferenceSourceFileRootId);
+        Assert.Equal(1.0, anchor.Position.X, 4);
+        Assert.Equal(0.0, anchor.Position.Y, 4);
+        Assert.Equal(2.0, anchor.Position.Z, 4);
     }
 
     [Fact]
-    public async Task ResolveAsyncUsesDeterministicReferenceMeshRootForFallbackAnchorPosition()
+    public async Task ResolveAsyncUsesPositionedReferenceSourceFileRootForFallbackAnchorPosition()
     {
         const string datasetRootSlotId = "dataset-root";
         const string completionMeshCode = "53394527";
@@ -102,8 +105,8 @@ public sealed class ResoniteSceneAnchorResolverTests
                     "PLATEAU tokyo23ku",
                     children:
                     [
-                        CreateSlot("mesh-b", "53394526", datasetRootSlotId, largerMeshPosition),
-                        CreateSlot("mesh-a", "53394525", datasetRootSlotId, smallerMeshPosition),
+                        CreateSlot("source-root-b", "plateau_tokyo23ku_bldg_53394526", datasetRootSlotId, largerMeshPosition),
+                        CreateSlot("source-root-a", "plateau_tokyo23ku_bldg_53394525", datasetRootSlotId, smallerMeshPosition),
                     ]);
             }
 
@@ -126,11 +129,50 @@ public sealed class ResoniteSceneAnchorResolverTests
         Assert.Equal(expectedPosition.X, anchor.Position.X, 4);
         Assert.Equal(expectedPosition.Y, anchor.Position.Y, 4);
         Assert.Equal(expectedPosition.Z, anchor.Position.Z, 4);
-        AddSlot createdAnchor = Assert.Single(client.AddedSlots);
-        Field_float3 position = Assert.IsType<Field_float3>(createdAnchor.Data.Position);
-        Assert.Equal(expectedPosition.X, position.Value.x, 3);
-        Assert.Equal(expectedPosition.Y, position.Value.y, 3);
-        Assert.Equal(expectedPosition.Z, position.Value.z, 3);
+        Assert.Equal("source-root-a", anchor.LocationSlotId);
+        Assert.Equal("source-root-a", anchor.ReferenceSourceFileRootId);
+    }
+
+    [Fact]
+    public async Task ResolveAsyncFallsBackToZeroWhenCompletionSourceFileRootPositionIsMissing()
+    {
+        const string datasetRootSlotId = "dataset-root";
+        const string completionMeshCode = "53394525";
+        using AnchorResolverFakeClient client = new AnchorResolverFakeClient((slotId, depth, callCount) =>
+        {
+            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 0)
+            {
+                return CreateSlot(datasetRootSlotId, "PLATEAU tokyo23ku");
+            }
+
+            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 1)
+            {
+                return CreateSlot(
+                    datasetRootSlotId,
+                    "PLATEAU tokyo23ku",
+                    children:
+                    [
+                        CreateSlot("source-root", "plateau_tokyo23ku_bldg_53394525", datasetRootSlotId),
+                    ]);
+            }
+
+            return null;
+        });
+
+        ResoniteSceneAnchorResolver resolver = new();
+
+        SceneAnchor anchor = await resolver.ResolveAsync(
+            client,
+            datasetRootSlotId,
+            completionMeshCode,
+            datasetRootExisted: true,
+            CancellationToken.None);
+
+        Assert.Equal("source-root", anchor.LocationSlotId);
+        Assert.Equal("source-root", anchor.ReferenceSourceFileRootId);
+        Assert.Equal(0.0, anchor.Position.X, 4);
+        Assert.Equal(0.0, anchor.Position.Y, 4);
+        Assert.Equal(0.0, anchor.Position.Z, 4);
     }
 
     [Fact]
@@ -141,13 +183,13 @@ public sealed class ResoniteSceneAnchorResolverTests
             "PLATEAU tokyo23ku",
             children:
             [
-                CreateSlot("mesh-b", "53394525", "dataset-root"),
-                CreateSlot("mesh-a", "53394525", "dataset-root"),
+                CreateSlot("mesh-b", "plateau_tokyo23ku_bldg_53394525_b", "dataset-root"),
+                CreateSlot("mesh-a", "plateau_tokyo23ku_bldg_53394525_a", "dataset-root"),
             ]);
 
         ResoniteSceneSlotSnapshot snapshot = new(datasetRoot);
 
-        ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult("53394525", "dataset-root");
+        ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult("plateau_tokyo23ku_bldg_53394525_a", "dataset-root");
 
         Assert.Equal(ResoniteSceneChildLookupState.FoundWithId, lookup.State);
         Assert.Equal("mesh-a", lookup.SlotId);
@@ -245,9 +287,6 @@ public sealed class ResoniteSceneAnchorResolverTests
         : IResoniteLinkClient
     {
         private readonly Dictionary<(string SlotId, int Depth), int> getSlotCallCounts = new();
-        private int nextSlotId;
-
-        public List<AddSlot> AddedSlots { get; } = [];
 
         public void Dispose()
         {
@@ -266,13 +305,7 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            string slotId = string.IsNullOrWhiteSpace(request.Data.ID)
-                ? $"created-slot-{Interlocked.Increment(ref nextSlotId)}"
-                : request.Data.ID;
-            request.Data.ID = slotId;
-            AddedSlots.Add(request);
-            return Task.FromResult(slotId);
+            throw new NotSupportedException();
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -280,34 +313,16 @@ public sealed class ResoniteSceneAnchorResolverTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            List<Response> responses = [];
-            foreach (DataModelOperation operation in operations)
+            if (operations.Count > 0)
             {
-                switch (operation)
-                {
-                    case AddSlot addSlot:
-                        string slotId = string.IsNullOrWhiteSpace(addSlot.Data.ID)
-                            ? $"created-slot-{Interlocked.Increment(ref nextSlotId)}"
-                            : addSlot.Data.ID;
-                        addSlot.Data.ID = slotId;
-                        AddedSlots.Add(addSlot);
-                        responses.Add(new NewEntityId
-                        {
-                            Success = true,
-                            EntityId = slotId,
-                            SourceMessageID = addSlot.MessageID,
-                        });
-                        break;
-                    default:
-                        throw new NotSupportedException();
-                }
+                throw new NotSupportedException();
             }
 
             return Task.FromResult(
                 new BatchResponse
                 {
                     Success = true,
-                    Responses = responses,
+                    Responses = [],
                 });
         }
 

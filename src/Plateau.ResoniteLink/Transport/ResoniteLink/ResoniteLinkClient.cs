@@ -131,7 +131,6 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         ArgumentNullException.ThrowIfNull(textureImport);
         AssetData result = textureImport switch
         {
-            ResoniteFileTextureImport fileImport => await ImportRawTextureFromFileAsync(fileImport, cancellationToken),
             ResoniteRawTextureImport rawImport => await ImportRawTextureAsync(rawImport, cancellationToken),
             ResoniteRawHdrTextureImport rawHdrImport => await ImportRawHdrTextureAsync(rawHdrImport, cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported texture import type '{textureImport.GetType().Name}'."),
@@ -202,16 +201,6 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             response.ErrorInfo,
             response.Data,
             "component");
-    }
-
-    private async Task<AssetData> ImportRawTextureFromFileAsync(
-        ResoniteFileTextureImport fileImport,
-        CancellationToken cancellationToken)
-    {
-        ResoniteRawTextureImport rawImport = await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-            fileImport.AbsolutePath,
-            cancellationToken: cancellationToken);
-        return await ImportRawTextureAsync(rawImport, cancellationToken);
     }
 
     private Task<AssetData> ImportRawTextureAsync(ResoniteRawTextureImport rawImport, CancellationToken cancellationToken)
@@ -348,8 +337,6 @@ internal interface IResoniteLinkTransport : IDisposable
 
     Task<AssetData> ImportMeshAsync(ImportMeshRawData request);
 
-    Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request);
-
     Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request);
 
     Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request);
@@ -378,8 +365,6 @@ internal sealed class LinkInterfaceResoniteLinkTransport(LinkInterface inner) : 
     public Task<SlotData> GetSlotDataAsync(GetSlot request) => inner.GetSlotData(request);
 
     public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => inner.ImportMesh(request);
-
-    public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request) => inner.ImportTexture(request);
 
     public Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request) => inner.ImportTexture(request);
 

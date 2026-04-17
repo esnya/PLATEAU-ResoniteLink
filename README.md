@@ -14,9 +14,6 @@ Shipped:
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 - Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
 
-Experimental:
-- `--resonitelink-connections > 1` remains an experimental live-send mode and should not be treated as the default reliable path.
-
 Pending:
 - Target-agnostic IR extraction and the deeper `Targets.Resonite` versus `Transport.ResoniteLink` split are internal follow-up work, not completed guarantees of this release.
 
@@ -27,7 +24,7 @@ Intentionally regressed:
 
 - Target runtime: .NET SDK 10. Release assets also require .NET 10.
 - A running ResoniteLink listener reachable by `--resonitelink-port` or `--resonitelink-url` is required.
-- Live adapter asset import uses `ImportMesh(ImportMeshRawData)` for meshes. Textures prefer file import for direct image assets such as bundled common materials, but automatically fall back to `ImportTexture` raw payloads when the listener cannot resolve the sender-local file path. Dataset-derived or generated textures use raw payloads.
+- Live adapter asset import uses `ImportMesh(ImportMeshRawData)` for meshes and `ImportTexture` raw payloads for textures, including bundled common materials, dataset-derived textures, and generated textures.
 - ResoniteLink entity IDs are treated as session-scoped opaque values. For successful create operations, the resolved `Response` ID is authoritative within the session; requested IDs are only batch-local hints for per-cityObject DataModel batches, must not be persisted or reused across sessions, and reuse discovery is handled separately from create confirmation.
 
 ## Quick Start

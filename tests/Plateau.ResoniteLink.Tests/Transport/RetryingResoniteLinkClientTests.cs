@@ -602,8 +602,6 @@ public sealed class RetryingResoniteLinkClientTests
 
         public Task<AssetData> ImportMeshAsync(ImportMeshRawData request) => throw new NotSupportedException();
 
-        public Task<AssetData> ImportTextureFileAsync(ImportTexture2DFile request) => throw new NotSupportedException();
-
         public Task<AssetData> ImportTextureRawAsync(ImportTexture2DRawData request) => throw new NotSupportedException();
 
         public Task<AssetData> ImportTextureRawHdrAsync(ImportTexture2DRawDataHDR request) => throw new NotSupportedException();

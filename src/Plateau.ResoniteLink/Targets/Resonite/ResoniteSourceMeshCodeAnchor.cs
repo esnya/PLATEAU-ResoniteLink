@@ -10,6 +10,27 @@ internal static partial class ResoniteSourceMeshCodeAnchor
     [GeneratedRegex(@"(?<!\d)(\d{8}|\d{6})(?!\d)", RegexOptions.CultureInvariant)]
     private static partial Regex MeshCodeRegex();
 
+    public static bool TryGetConcreteMeshCode(string value, out string meshCode)
+    {
+        meshCode = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        Match[] matches = MeshCodeRegex().Matches(value).Cast<Match>().ToArray();
+        foreach (Match match in matches.OrderByDescending(static entry => entry.Value.Length).ThenByDescending(static entry => entry.Index))
+        {
+            if (PlateauMeshCode.TryGetCenter(match.Value, out _))
+            {
+                meshCode = match.Value;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static string ResolveCompletionMeshCode(SceneBootstrapInfo setupInfo)
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
@@ -73,14 +94,9 @@ internal static partial class ResoniteSourceMeshCodeAnchor
                 continue;
             }
 
-            Match[] matches = MeshCodeRegex().Matches(fileName).Cast<Match>().ToArray();
-            foreach (Match match in matches.OrderByDescending(static entry => entry.Value.Length).ThenByDescending(static entry => entry.Index))
+            if (TryGetConcreteMeshCode(fileName, out string meshCode))
             {
-                if (PlateauMeshCode.TryGetCenter(match.Value, out _))
-                {
-                    yield return match.Value;
-                    break;
-                }
+                yield return meshCode;
             }
         }
     }

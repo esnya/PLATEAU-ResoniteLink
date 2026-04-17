@@ -19,9 +19,6 @@ internal sealed class ResoniteTextureImageLoader
                     rawTextureImport.RawRgba32Bytes,
                     rawTextureImport.Width,
                     rawTextureImport.Height)),
-            ResoniteFileTextureImport fileTextureImport => Image.LoadAsync<Rgba32>(
-                fileTextureImport.AbsolutePath,
-                cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Unsupported texture import type '{textureImport.GetType().Name}'."),
         };

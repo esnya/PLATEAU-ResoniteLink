@@ -7,8 +7,6 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal abstract record ResoniteTextureImport;
 
-internal sealed record ResoniteFileTextureImport(string AbsolutePath) : ResoniteTextureImport;
-
 internal readonly record struct TextureImportCacheKey(
     string Kind,
     string Identity,
@@ -34,12 +32,6 @@ internal sealed record ResoniteRawHdrTextureImport(
 
 internal static class ResoniteTextureImportFactory
 {
-    public static ResoniteFileTextureImport CreateFromFile(string absolutePath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
-        return new ResoniteFileTextureImport(absolutePath);
-    }
-
     public static async Task<ResoniteRawTextureImport> CreateRawFromFileAsync(
         string absolutePath,
         string colorProfile = ResoniteTextureColorProfiles.Srgb,
