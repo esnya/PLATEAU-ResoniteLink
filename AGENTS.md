@@ -23,4 +23,3 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 
 ## Live Send Workflow
 - For Coding Agent live tests, follow [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md).
-- Use [docs/live-testing.md](docs/live-testing.md) as the operator-facing workflow reference, with [docs/live-testing.ja.md](docs/live-testing.ja.md) as its translation mirror.

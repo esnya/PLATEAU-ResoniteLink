@@ -4,12 +4,13 @@
 
 Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `Plateau.ResoniteLink-cli-vX.Y.Z.zip` を公開します。
 
-この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / experimental / pending / intentionally regressed はここ と tests に揃えます。
+この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / pending / intentionally regressed はここ と tests に揃えます。
 
 ## Scope
 
 Shipped:
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
+- `--resonitelink-connections` は shipped な live-send option として扱う。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - LOD1 mesh bake と LOD2 atlas bake は CityGML scope、package、LOD、bake policy をキーにまとめ、emit される bake payload が cityObject の到着順に依存しないように保つ。
@@ -18,7 +19,7 @@ Pending:
 - target-agnostic IR の抽出と、`Targets.Resonite` / `Transport.ResoniteLink` の深い責務分離は、この release では完了済み保証に含めない内部 follow-up です。
 
 Intentionally regressed:
-- standalone の requirements 文書は release-truth surface としては維持しません。product scope は `README.md` と tests に置き、live-send の operator workflow は `docs/live-testing*.md` に置きます。
+- standalone の requirements 文書は release-truth surface としては維持しません。product scope は `README.md` と tests に置き、live-send の実行手順は `.agents/skills/resonite-live-send-debug/` 配下の Coding Agent skill に置きます。
 
 ## Runtime And Prerequisites
 
@@ -75,7 +76,6 @@ CLI は既定でマイルストーン級の進捗だけを表示し、file ご�
 ## 参考資料
 
 - contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)
-- operator 向け live workflow: [docs/live-testing.ja.md](docs/live-testing.ja.md)
 - Coding Agent 向け live workflow: [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md)
 
 ## License And Provenance

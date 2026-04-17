@@ -11,7 +11,7 @@ description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink �
 
 code-only review や static な log 読みには使わないでください。実際の live send、実際の Resonite world inspection、または machine-level execution がないと無効な比較が必要なときにだけ使います。
 
-このファイルは live-send を実行する Coding Agent 用 playbook です。ここでは Coding Agent 向けの実行判断と guardrail を扱い、current operator-facing workflow reference には [docs/live-testing.md](../../../docs/live-testing.md) を使います。
+このファイルは live-send を実行する Coding Agent 用 playbook であり、この repository における authoritative な live-send workflow reference です。
 
 ## Dataset Defaults
 
@@ -25,7 +25,7 @@ task が `frn` または city-furniture content を必要とする場合だけ�
 
 ## Canonical Procedure
 
-current operator-facing の live-send 手順は [docs/live-testing.md](../../../docs/live-testing.md) を参照してください。このファイルは Coding Agent 向けの guardrail、default、run worksheet を保持し、[references/workflow.md](./references/workflow.md) には agent-oriented な補助情報を置きます。
+bundled helper script を直に組み合わせて実行してください。このファイルは Coding Agent 向けの guardrail、default、workflow、run worksheet を保持し、[references/workflow.md](./references/workflow.md) には agent-oriented な補助情報を置きます。
 
 送信実行の判断は次の原則で行います。
 
@@ -43,6 +43,15 @@ disposable な headless 検証では、次の operator sequence を優先して�
 4. `run-live-send.ps1`
 5. `dump-root-session.ps1 -Label after-send`
 6. `stop-headless-session.ps1`
+
+`19001` で Matsumoto `54372778 -> 54372788` の fixed base/append 検証を行う場合は、次の順で helper を直実行してください。
+
+1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
+2. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-baseappend-baseline`
+3. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372778 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-base-heightmap-19001`
+4. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-base-heightmap-after-send`
+5. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372788 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-append-heightmap-19001`
+6. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-append-heightmap-after-send`
 
 ## Run Worksheet
 
@@ -85,16 +94,15 @@ tracked 済み、または明示指定した session から再帰的な Root sna
 live world から dataset root を消し、残存 CLI process を止め、local runtime artifact を消す。
 - `scripts/run-live-send.ps1`
 1 回の live send を explicit log 付きで起動する。
-- `scripts/compare-modes.ps1`
-cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行する。
-- `scripts/check-matsumoto-base-append-heightmap-19001.ps1`
-`19001` で Matsumoto `54372778 -> 54372788` の base/append 検証を `heightmap` mode で固定実行し、baseline / after-base / after-append の root dump を採る。
+- `scripts/windows-build-tools.ps1`
+他の script から使う Windows 側 `dotnet` / ResoniteAdmin build 解決 helper。
 
-上記 8 path はすべて `.agents/skills/resonite-live-send-debug/` からの相対 path です。
+上記 7 path はすべて `.agents/skills/resonite-live-send-debug/` からの相対 path です。
 
 ## Outputs
 
 - 各 run の stdout / stderr log は repository runtime directory 配下に distinct な name で保持する。
+- 観測面は CLI の stdout / stderr log と direct helper stdout とする。ad-hoc な wrapper return object を前提にしない。
 - 各 run は次で要約する。
   - listener endpoint
   - cleanup verification result

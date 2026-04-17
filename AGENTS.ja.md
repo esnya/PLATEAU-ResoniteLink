@@ -22,4 +22,3 @@
 
 ## Live Send 手順
 - Coding Agent が live test を行うときは [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md) に従うこと。
-- operator 向け workflow reference には [docs/live-testing.md](docs/live-testing.md) を使い、[docs/live-testing.ja.md](docs/live-testing.ja.md) はその翻訳 mirror として扱うこと。

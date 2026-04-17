@@ -2,7 +2,7 @@
 
 Use this reference after `SKILL.md` triggers.
 
-This file stays agent-facing on purpose. Use [docs/live-testing.md](../../../docs/live-testing.md) for the repository's current operator workflow, command examples, and validation sequence.
+This file stays agent-facing on purpose. Use it as supplemental notes after `SKILL.md`; do not depend on removed tracked live-testing documents.
 
 ## Defaults
 
@@ -12,10 +12,10 @@ This file stays agent-facing on purpose. Use [docs/live-testing.md](../../../doc
 
 ## Agent Guardrails
 
-- Prefer the bundled scripts under `.agents/skills/resonite-live-send-debug/scripts/` instead of ad hoc commands.
-- Use Windows-side wrappers when WSL cannot reach the listener through `localhost`.
+- Prefer the bundled helper scripts under `.agents/skills/resonite-live-send-debug/scripts/` instead of ad hoc commands.
+- Use Windows-side helper scripts when WSL cannot reach the listener through `localhost`.
 - Re-run listener discovery before each comparison rerun and keep `sessionName`, `sessionID`, and `linkPort` in the run notes.
-- Do not guess the listener port, process ID, log path, or session identity. Use discovery output and wrapper return values.
+- Do not guess the listener port, process ID, log path, or session identity. Use discovery output, helper stdout, and CLI logs.
 - Treat cleanup as destructive. It can remove dataset roots, stop matching live-send CLI processes, and delete local runtime artifacts.
 - Keep the final `DatasetRoot` in place after a successful validation unless the user explicitly requests cleanup.
 - Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
@@ -26,7 +26,7 @@ Expect these bundled files under this skill:
 
 - `tools/ResoniteAdmin/ResoniteAdmin.csproj`
 
-The wrappers rebuild the admin utility or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
+The helper scripts rebuild the admin utility or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
 
 ## Script Inventory
 
@@ -42,7 +42,5 @@ The wrappers rebuild the admin utility or CLI binaries on demand. Fresh Windows 
   Remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`
   Launch one Windows-side live send with explicit logs.
-- `scripts/compare-modes.ps1`
-  Run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
-- `scripts/check-matsumoto-base-append-heightmap-19001.ps1`
-  Run the fixed Matsumoto base/append validation for `54372778 -> 54372788` on port `19001` in `heightmap` mode, with root dumps before the base send, after the base send, and after the append send.
+- `scripts/windows-build-tools.ps1`
+  Resolve Windows-side `dotnet` and shared ResoniteAdmin build paths for the other helper scripts.
