@@ -246,4 +246,110 @@ public sealed class ResoniteLinkSceneBuilderTests
         Assert.Equal("Hierarchy Building", objectSlot.Name?.Value);
         Assert.Equal("LOD2", lodSlot.Name?.Value);
     }
+
+    [Fact]
+    public async Task BuildAsyncDoesNotCreateRedundantCompletionMeshCodePlaceholderSlot()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "placeholder-check",
+            DisplayName: "Placeholder Check",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("placeholder-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "placeholder-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Wireframe,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: "placeholder-source",
+            SourceFileRelativePath: sourceFile);
+
+        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+
+        Slot datasetRoot = Assert.Single(
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, $"PLATEAU {DatasetName}", StringComparison.Ordinal));
+        string[] directChildNames = client.SlotsById.Values
+            .Where(slot => string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal))
+            .Select(static slot => slot.Name?.Value ?? string.Empty)
+            .OrderBy(static name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.DoesNotContain(MeshCode, directChildNames);
+        Assert.Contains("Assets", directChildNames);
+        Assert.Contains(Path.GetFileNameWithoutExtension(sourceFile), directChildNames);
+    }
+
+    [Fact]
+    public async Task BuildAsyncPreservesOriginalNameForNonBakedLod1WhenMeshBakeIsDisabled()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        const string originalName = "Original LOD1 Building";
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "non-baked-name-check",
+            DisplayName: originalName,
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("non-baked-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "non-baked-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Wireframe,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: "non-baked-source",
+            SourceFileRelativePath: sourceFile);
+
+        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            enableMeshBake: false);
+
+        AddComponent meshRendererRequest = Assert.Single(
+            client.AddedComponents,
+            static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+        Slot objectSlot = client.SlotsById[meshRendererRequest.ContainerSlotId];
+
+        Assert.Equal(originalName, objectSlot.Name?.Value);
+        Assert.DoesNotContain(
+            client.SlotsById.Values,
+            static slot => slot.Name?.Value?.StartsWith("MeshBake ", StringComparison.Ordinal) == true);
+    }
 }

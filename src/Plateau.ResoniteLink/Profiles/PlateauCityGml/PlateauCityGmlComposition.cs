@@ -6,9 +6,6 @@ public static class PlateauCityGmlComposition
 {
     public static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
     {
-        return new LocalCityGmlConstructionSourceFactory(
-            new LocalCityGmlDocumentReader(),
-            new LocalCityGmlConstructionComposer(
-                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver())));
+        return PlateauCityGmlImportComposition.CreateConstructionSourceFactory();
     }
 }

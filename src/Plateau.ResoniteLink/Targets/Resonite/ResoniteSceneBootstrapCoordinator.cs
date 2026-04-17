@@ -66,7 +66,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         Slot? commonSlot = assetsSlot is null
             ? null
             : GetReusableChildSlot(new ResoniteSceneSlotSnapshot(assetsSlot), "Common", assetsSlot.ID!);
-        Slot? anchorSlot = GetReusableChildSlot(snapshot, completionMeshCode, existingDatasetRoot.Value.SlotId);
         string? existingLicenseComponentId = datasetRootSnapshot.Components?
             .Where(static component => string.Equals(component.ComponentType, LicenseComponentType, StringComparison.Ordinal))
             .OrderBy(static component => component.ID, StringComparer.Ordinal)
@@ -78,7 +77,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         List<DataModelOperation> operations = [];
         PendingBatchSlot? pendingAssets = null;
         PendingBatchSlot? pendingCommon = null;
-        PendingBatchSlot? pendingAnchor = null;
         PendingBatchComponent? pendingLicense = null;
         string batchScopeToken = CreateBatchScopeToken();
 
@@ -105,11 +103,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             ?? throw new InvalidOperationException("Bootstrap could not determine the Common parent slot.");
 
         ResoniteFloat3 anchorPosition = ResolveAnchorPosition(datasetRootSnapshot, completionMeshCode);
-        if (anchorSlot is null)
-        {
-            pendingAnchor = CreatePendingBatchSlot("bootstrap_anchor_root", completionMeshCode, batchScopeToken);
-            operations.Add(CreateAddSlotOperation(existingDatasetRoot.Value.SlotId, completionMeshCode, anchorPosition, null, pendingAnchor.Value));
-        }
 
         if (string.IsNullOrWhiteSpace(existingLicenseComponentId))
         {
@@ -141,11 +134,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
                 commonSlot = CreateSlot(entityMap.ResolveSlot(pendingCommon.Value));
             }
 
-            if (pendingAnchor is not null)
-            {
-                anchorSlot = CreateSlot(entityMap.ResolveSlot(pendingAnchor.Value), anchorPosition);
-            }
-
             if (pendingLicense is not null)
             {
                 datasetLicenseComponentId = entityMap.ResolveComponent(pendingLicense.Value).ComponentId;
@@ -159,7 +147,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             }
         }
 
-        if (assetsSlot is null || commonSlot is null || anchorSlot is null)
+        if (assetsSlot is null || commonSlot is null)
         {
             throw new InvalidOperationException("Bootstrap did not resolve required shared slots.");
         }
@@ -178,7 +166,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             new CreatedSlot(assetsSlot.ID!, assetsSlot.Name?.Value ?? "Assets"),
             new CreatedSlot(commonSlot.ID!, commonSlot.Name?.Value ?? "Common"),
             DatasetRootExisted: true,
-            new SceneAnchor(anchorSlot.ID!, completionMeshCode, GetSlotPosition(anchorSlot)),
+            new SceneAnchor(existingDatasetRoot.Value.SlotId, completionMeshCode, anchorPosition),
             datasetRootSnapshot,
             existingLicenseComponentId,
             datasetLicenseComponentId,
@@ -247,14 +235,12 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         PendingBatchSlot pendingDatasetRootSlot = CreatePendingBatchSlot("bootstrap_dataset_root", datasetRootName, batchScopeToken);
         PendingBatchSlot pendingDatasetAssetsRootSlot = CreatePendingBatchSlot("bootstrap_assets_root", "Assets", batchScopeToken);
         PendingBatchSlot pendingCommonAssetsRootSlot = CreatePendingBatchSlot("bootstrap_common_assets_root", "Common", batchScopeToken);
-        PendingBatchSlot pendingAnchorSlot = CreatePendingBatchSlot("bootstrap_anchor_root", completionMeshCode, batchScopeToken);
         PendingBatchComponent pendingLicense = CreatePendingBatchComponent("bootstrap_dataset_license", LicenseComponentType, batchScopeToken);
         List<DataModelOperation> operations =
         [
             CreateAddSlotOperation("Root", datasetRootName, null, null, pendingDatasetRootSlot),
             CreateAddSlotOperation(pendingDatasetRootSlot.LocalId, "Assets", null, null, pendingDatasetAssetsRootSlot),
             CreateAddSlotOperation(pendingDatasetAssetsRootSlot.LocalId, "Common", null, null, pendingCommonAssetsRootSlot),
-            CreateAddSlotOperation(pendingDatasetRootSlot.LocalId, completionMeshCode, anchorPosition, null, pendingAnchorSlot),
             CreateAddComponentOperation(
                 pendingDatasetRootSlot.LocalId,
                 LicenseComponentType,
@@ -278,7 +264,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         CreatedSlot datasetRootSlot = entityMap.ResolveSlot(pendingDatasetRootSlot);
         CreatedSlot datasetAssetsRootSlot = entityMap.ResolveSlot(pendingDatasetAssetsRootSlot);
         CreatedSlot commonAssetsRootSlot = entityMap.ResolveSlot(pendingCommonAssetsRootSlot);
-        CreatedSlot anchorSlot = entityMap.ResolveSlot(pendingAnchorSlot);
         CreatedComponent licenseComponent = entityMap.ResolveComponent(pendingLicense);
         foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
         {
@@ -292,7 +277,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             datasetAssetsRootSlot,
             commonAssetsRootSlot,
             DatasetRootExisted: false,
-            new SceneAnchor(anchorSlot.SlotId, completionMeshCode, anchorPosition),
+            new SceneAnchor(datasetRootSlot.SlotId, completionMeshCode, anchorPosition),
             DatasetRootSnapshot: null,
             ExistingLicenseComponentId: null,
             DatasetLicenseComponentId: licenseComponent.ComponentId,

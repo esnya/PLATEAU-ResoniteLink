@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 
+using Plateau.ResoniteLink.Profiles.PlateauCityGml;
+
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public static class PlateauImportServiceCollectionExtensions
@@ -8,14 +10,16 @@ public static class PlateauImportServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<ICityGmlDocumentReader, LocalCityGmlDocumentReader>();
-        services.AddSingleton<IDefaultMaterialResolver>(_ => new DefaultMaterialResolver());
+        services.AddSingleton<ICityGmlDocumentReader>(_ => PlateauCityGmlImportComposition.CreateDocumentReader());
+        services.AddSingleton<IDefaultMaterialResolver>(_ => PlateauCityGmlImportComposition.CreateMaterialResolver());
         services.AddSingleton<ICityGmlGeometryProjector>(provider =>
-            new LocalCityGmlGeometryProjector(provider.GetRequiredService<IDefaultMaterialResolver>()));
+            PlateauCityGmlImportComposition.CreateGeometryProjector(
+                provider.GetRequiredService<IDefaultMaterialResolver>()));
         services.AddSingleton<IResoniteConstructionComposer>(provider =>
-            new LocalCityGmlConstructionComposer(provider.GetRequiredService<ICityGmlGeometryProjector>()));
+            PlateauCityGmlImportComposition.CreateConstructionComposer(
+                provider.GetRequiredService<ICityGmlGeometryProjector>()));
         services.AddSingleton<IResoniteConstructionSourceFactory>(provider =>
-            new LocalCityGmlConstructionSourceFactory(
+            PlateauCityGmlImportComposition.CreateConstructionSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),
                 provider.GetRequiredService<IResoniteConstructionComposer>()));
 

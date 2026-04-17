@@ -2712,10 +2712,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
         IndexCreatedSharedSlot(bootstrapState.DatasetRootSlot.SlotId, bootstrapState.DatasetAssetsRootSlot);
         IndexCreatedSharedSlot(bootstrapState.DatasetAssetsRootSlot.SlotId, bootstrapState.CommonAssetsRootSlot);
-        IndexCreatedSharedSlot(
-            bootstrapState.DatasetRootSlot.SlotId,
-            new CreatedSlot(bootstrapState.SceneAnchor.SlotId, bootstrapState.SceneAnchor.MeshCode),
-            bootstrapState.SceneAnchor.Position);
     }
 
     private void IndexObservedSlotSnapshot(Slot slot)

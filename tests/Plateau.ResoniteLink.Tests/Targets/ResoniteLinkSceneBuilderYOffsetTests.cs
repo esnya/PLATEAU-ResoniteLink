@@ -25,7 +25,6 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         Slot datasetSlot = FindNonAssetSlotByName(client, $"PLATEAU {DatasetName}");
-        Slot meshRootSlot = FindNonAssetSlotByName(client, "53394525");
         Slot objectSlot = FindNonAssetSlotByName(client, "Height Test Building");
 
         Assert.Equal(0.0, GetSlotY(datasetSlot));
