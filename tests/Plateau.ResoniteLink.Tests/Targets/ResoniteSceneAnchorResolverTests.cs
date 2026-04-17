@@ -176,6 +176,56 @@ public sealed class ResoniteSceneAnchorResolverTests
     }
 
     [Fact]
+    public async Task ResolveAsyncReturnsDatasetRootAnchorWhenOnlyAssetsExist()
+    {
+        const string datasetRootSlotId = "dataset-root";
+        const string completionMeshCode = "53394525";
+        using AnchorResolverFakeClient client = new AnchorResolverFakeClient((slotId, depth, callCount) =>
+        {
+            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 0)
+            {
+                return CreateSlot(datasetRootSlotId, "PLATEAU tokyo23ku");
+            }
+
+            if (string.Equals(slotId, datasetRootSlotId, StringComparison.Ordinal) && depth == 1)
+            {
+                return CreateSlot(
+                    datasetRootSlotId,
+                    "PLATEAU tokyo23ku",
+                    children:
+                    [
+                        CreateSlot(
+                            "assets-root",
+                            "Assets",
+                            datasetRootSlotId,
+                            children:
+                            [
+                                CreateSlot("common-root", "Common", "assets-root"),
+                            ]),
+                    ]);
+            }
+
+            return null;
+        });
+
+        ResoniteSceneAnchorResolver resolver = new();
+
+        SceneAnchor anchor = await resolver.ResolveAsync(
+            client,
+            datasetRootSlotId,
+            completionMeshCode,
+            datasetRootExisted: true,
+            CancellationToken.None);
+
+        Assert.Equal(datasetRootSlotId, anchor.LocationSlotId);
+        Assert.Equal(completionMeshCode, anchor.MeshCode);
+        Assert.Null(anchor.ReferenceSourceFileRootId);
+        Assert.Equal(0.0, anchor.Position.X, 4);
+        Assert.Equal(0.0, anchor.Position.Y, 4);
+        Assert.Equal(0.0, anchor.Position.Z, 4);
+    }
+
+    [Fact]
     public void SnapshotSelectsPreferredChildWhenDuplicateNamesExist()
     {
         Slot datasetRoot = CreateSlot(

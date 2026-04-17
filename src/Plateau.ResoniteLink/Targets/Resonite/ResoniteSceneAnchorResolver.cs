@@ -60,28 +60,30 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
                 completionSourceFileRoot.ID);
         }
 
-        (Slot Slot, string MeshCode)? referenceSourceFileRoot = sourceFileRoots
+        (Slot Slot, string MeshCode) referenceSourceFileRoot = sourceFileRoots
             .Select(static child => ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(child.Name?.Value ?? string.Empty, out string meshCode)
                 ? (Slot: child, MeshCode: meshCode)
-                : ((Slot Slot, string MeshCode)?)null)
-            .Where(static candidate => candidate.HasValue)
-            .Select(static candidate => candidate!.Value)
+                : default)
+            .Where(static candidate => candidate.Slot is not null)
             .OrderBy(static candidate => candidate.MeshCode, StringComparer.Ordinal)
             .ThenBy(static candidate => candidate.Slot.ID ?? string.Empty, StringComparer.Ordinal)
             .FirstOrDefault();
-        if (referenceSourceFileRoot is not null)
+        if (referenceSourceFileRoot.Slot is not null)
         {
             return new SceneAnchor(
-                referenceSourceFileRoot.Value.Slot.ID ?? datasetRootSlotId,
+                referenceSourceFileRoot.Slot.ID ?? datasetRootSlotId,
                 completionMeshCode,
                 Add(
-                    GetSlotPositionOrDefault(referenceSourceFileRoot.Value.Slot),
-                    ComputeMeshCodeOffset(referenceSourceFileRoot.Value.MeshCode, completionMeshCode)),
-                referenceSourceFileRoot.Value.Slot.ID);
+                    GetSlotPositionOrDefault(referenceSourceFileRoot.Slot),
+                    ComputeMeshCodeOffset(referenceSourceFileRoot.MeshCode, completionMeshCode)),
+                referenceSourceFileRoot.Slot.ID);
         }
 
-        throw new InvalidOperationException(
-            $"Existing dataset root '{datasetRootSlotId}' does not contain a positioned source-file root that can resolve completion mesh '{completionMeshCode}'.");
+        return new SceneAnchor(
+            datasetRootSlotId,
+            completionMeshCode,
+            GetSlotPositionOrDefault(datasetRootSnapshot.Root ?? throw new InvalidOperationException("Dataset root snapshot did not include a root slot.")),
+            ReferenceSourceFileRootId: null);
     }
 
     private static async Task WaitForSlotAvailableAsync(

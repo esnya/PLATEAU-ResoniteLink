@@ -72,7 +72,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private int firstCityObjectDequeuedLogged;
     private IPlateauDatasetContentSource? datasetContentSource;
     private SceneAnchor? sceneAnchor;
-    private ResoniteLocalOrigin? requestLocalOrigin;
     private string? datasetLicenseComponentId;
     private Dictionary<string, string>? cityGmlSlotNamesByRelativePath;
 
@@ -210,7 +209,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        requestLocalOrigin = SceneImportContractMapper.ToInternal(request.Metadata).LocalOrigin;
 
         await BeginCoreAsync(
             CreateBootstrapInfo(request),
@@ -250,7 +248,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metadata);
-        requestLocalOrigin = metadata.LocalOrigin;
 
         await BeginCoreAsync(
             SceneBootstrapInfo.CreateFromMetadata(metadata, bootstrapDatasetContentSource?.SourcePath),
@@ -857,7 +854,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             firstProcessingFailureSource = null;
             sceneBuildStopwatch = null;
             sceneAnchor = null;
-            requestLocalOrigin = null;
             cityGmlSlotNamesByRelativePath = null;
         }
     }
@@ -1443,8 +1439,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             CityObjectSlotName: cityObject.DisplayName,
             CityObjectIdentityTag: CreateCityObjectIdentityTag(cityObject),
             CityObjectLocalPosition: ResolveCityObjectLocalPosition(
-                requestLocalOrigin ?? throw new ObjectDisposedException(nameof(ResoniteLocalOrigin), "Request local origin is not initialized."),
-                rootMeshCode,
+                ResolveMeshCodeRootPosition(rootMeshCode),
                 cityObject.Transform.Position),
             CityObjectRotation: cityObject.Transform.Rotation);
     }
@@ -1543,12 +1538,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         }
 
         if (sceneAnchor is { } anchor
-            && string.Equals(anchor.MeshCode, rootMeshCode, StringComparison.Ordinal)
-            && cityGmlSlot is not null)
+            && cityGmlSlot is not null
+            && (string.Equals(anchor.MeshCode, rootMeshCode, StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(anchor.ReferenceSourceFileRootId)))
         {
             sceneAnchor = anchor with
             {
                 LocationSlotId = cityGmlSlot.Value.SlotId,
+                MeshCode = rootMeshCode,
                 Position = rootPosition,
                 ReferenceSourceFileRootId = cityGmlSlot.Value.SlotId,
             };
@@ -2344,20 +2341,10 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     }
 
     private static ResoniteFloat3 ResolveCityObjectLocalPosition(
-        ResoniteLocalOrigin requestOrigin,
-        string rootMeshCode,
+        ResoniteFloat3 rootPosition,
         ResoniteFloat3 cityObjectPosition)
     {
-        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
-        {
-            return cityObjectPosition;
-        }
-
-        // City objects are produced in the request-local-origin frame; convert them
-        // to the target mesh-code local frame because root mesh slots already carry
-        // the inter-mesh-code offset in Resonite.
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
-        return Subtract(cityObjectPosition, rootOffsetFromRequest);
+        return Subtract(cityObjectPosition, rootPosition);
     }
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
@@ -2396,6 +2383,11 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         if (anchor is null)
         {
             return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        if (string.IsNullOrWhiteSpace(anchor.Value.ReferenceSourceFileRootId))
+        {
+            return anchor.Value.Position;
         }
 
         if (string.Equals(anchor.Value.MeshCode, meshCode, StringComparison.Ordinal))

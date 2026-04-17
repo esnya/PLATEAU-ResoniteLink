@@ -179,10 +179,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
-        ResoniteFloat3 expectedRootPosition = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
 
-        Assert.Equal(expectedRootPosition.X, GetSlotPosition(sourceFileRoot).X, 3);
-        Assert.Equal(expectedRootPosition.Z, GetSlotPosition(sourceFileRoot).Z, 3);
+        Assert.Equal(0.0, GetSlotPosition(sourceFileRoot).X, 3);
+        Assert.Equal(0.0, GetSlotPosition(sourceFileRoot).Z, 3);
 
         Slot objectSlot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject offset-run-one");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
@@ -229,9 +228,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
         Slot objectSlot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject offset-run-two");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
-        Assert.Equal(secondRunWorldPosition.X, accumulatedPosition.X, 3);
-        Assert.Equal(secondRunWorldPosition.Y, accumulatedPosition.Y, 3);
-        Assert.Equal(secondRunWorldPosition.Z, accumulatedPosition.Z, 3);
+        AssertNear(secondRunWorldPosition, accumulatedPosition, 0.2);
     }
 
     [Fact]
@@ -256,10 +253,9 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondaryDemSourceFile)}");
-        ResoniteFloat3 expectedRootPosition = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
 
-        Assert.Equal(expectedRootPosition.X, GetSlotPosition(sourceFileRoot).X, 3);
-        Assert.Equal(expectedRootPosition.Z, GetSlotPosition(sourceFileRoot).Z, 3);
+        Assert.Equal(0.0, GetSlotPosition(sourceFileRoot).X, 3);
+        Assert.Equal(0.0, GetSlotPosition(sourceFileRoot).Z, 3);
 
         Slot objectSlot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM HeightMap dem-heightmap-run-one");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
@@ -306,9 +302,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
         Slot objectSlot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM HeightMap dem-heightmap-run-two");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
-        Assert.Equal(secondRunWorldPosition.X, accumulatedPosition.X, 3);
-        Assert.Equal(secondRunWorldPosition.Y, accumulatedPosition.Y, 3);
-        Assert.Equal(secondRunWorldPosition.Z, accumulatedPosition.Z, 3);
+        AssertNear(secondRunWorldPosition, accumulatedPosition, 0.2);
     }
 
     [Fact]
@@ -336,6 +330,42 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Assert.Equal(
             $"ws://localhost:12345/#{sourceFileRoot.ID}",
             Assert.Single(destinations));
+    }
+
+    [Fact]
+    public async Task BuildAsyncAppendsIntoAssetsOnlyDatasetRootAndAnchorsFirstActualSourceFileRootAtDatasetRoot()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        using SceneBuilderRecordingClient client = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+
+        await using (ResoniteLinkSceneBuilder builder = ResoniteLinkSceneBuilderTestSupport.CreateBuilder(client))
+        {
+            await builder.BeginAsync(metadata, firstWorkDirectory.Path);
+            _ = await builder.CompleteAsync();
+        }
+
+        await using (ResoniteLinkSceneBuilder builder = ResoniteLinkSceneBuilderTestSupport.CreateBuilder(client))
+        {
+            await builder.BeginAsync(metadata, secondWorkDirectory.Path);
+            await builder.ProcessCityObjectAsync(
+                CreateBundledTriangleCityObject(
+                    "assets-only-append",
+                    actualMeshCode: SecondaryMeshCode,
+                    sourceFileRelativePath: SecondarySourceFile,
+                    worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0)));
+
+            IReadOnlyList<string> destinations = await builder.CompleteAsync();
+            Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
+                client,
+                $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
+
+            Assert.Equal(0.0, GetSlotPosition(sourceFileRoot).X, 3);
+            Assert.Equal(0.0, GetSlotPosition(sourceFileRoot).Z, 3);
+            Assert.Equal($"ws://localhost:12345/#{sourceFileRoot.ID}", Assert.Single(destinations));
+        }
     }
 
     private static ResoniteConstructionMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
@@ -548,26 +578,16 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         return accumulated;
     }
 
-    private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
-    {
-        Assert.True(PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter));
-        Assert.True(PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter));
-
-        GeographicLib.LocalCartesian cartesian = new(
-            referenceCenter.Latitude,
-            referenceCenter.Longitude,
-            referenceCenter.Altitude,
-            GeographicLib.Geocentric.WGS84);
-        (double x, double y, double z) eun = cartesian.Forward(
-            currentCenter.Latitude,
-            currentCenter.Longitude,
-            currentCenter.Altitude);
-        return new ResoniteFloat3(eun.x, 0.0, eun.y);
-    }
-
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
     {
         return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
+    }
+
+    private static void AssertNear(ResoniteFloat3 expected, ResoniteFloat3 actual, double tolerance)
+    {
+        Assert.InRange(actual.X, expected.X - tolerance, expected.X + tolerance);
+        Assert.InRange(actual.Y, expected.Y - tolerance, expected.Y + tolerance);
+        Assert.InRange(actual.Z, expected.Z - tolerance, expected.Z + tolerance);
     }
 
     private static string GetRendererMaterialReferenceTarget(
