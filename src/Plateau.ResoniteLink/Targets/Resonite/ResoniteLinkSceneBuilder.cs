@@ -1648,8 +1648,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
-        List<PlannedMaterialAsset> plannedMaterialAssets = [];
-        List<Task<PlannedDedicatedMaterialAsset>> dedicatedMaterialPlanningTasks = [];
+        Task<PlannedMaterialAsset>[] plannedMaterialTasks = new Task<PlannedMaterialAsset>[cityObject.Materials.Count];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
             ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
@@ -1661,7 +1660,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 material = NormalizeCommonMaterialBinding(material);
                 if (material.AssetScope != ResoniteMaterialAssetScope.Common)
                 {
-                    dedicatedMaterialPlanningTasks.Add(
+                    plannedMaterialTasks[materialIndex] = WrapDedicatedMaterialPlanningTask(
                         ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
                             importClient,
                             material,
@@ -1692,14 +1691,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 }
 
                 CreatedMaterialAsset existingMaterialAsset = await materialCreationTask.WaitAsync(cancellationToken);
-                plannedMaterialAssets.Add(
+                plannedMaterialTasks[materialIndex] = Task.FromResult<PlannedMaterialAsset>(
                     new PlannedReusableMaterialAsset(
                         new MaterialIdentity(materialKey),
                         existingMaterialAsset.MaterialComponentId));
             }
             else
             {
-                dedicatedMaterialPlanningTasks.Add(
+                plannedMaterialTasks[materialIndex] = WrapDedicatedMaterialPlanningTask(
                     ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
                         importClient,
                         material,
@@ -1712,14 +1711,12 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             }
         }
 
-        if (dedicatedMaterialPlanningTasks.Count == 0)
-        {
-            return plannedMaterialAssets;
-        }
+        return await Task.WhenAll(plannedMaterialTasks);
 
-        PlannedDedicatedMaterialAsset[] dedicatedMaterialAssets = await Task.WhenAll(dedicatedMaterialPlanningTasks);
-        plannedMaterialAssets.AddRange(dedicatedMaterialAssets);
-        return plannedMaterialAssets;
+        static async Task<PlannedMaterialAsset> WrapDedicatedMaterialPlanningTask(Task<PlannedDedicatedMaterialAsset> task)
+        {
+            return await task;
+        }
     }
 
     internal static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)

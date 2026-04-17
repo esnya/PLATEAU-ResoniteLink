@@ -99,6 +99,37 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncPreservesMixedCommonAndDedicatedMaterialOrder()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreateMixedMaterialCityObject(
+                    "mixed-material-order",
+                    ResoniteLinkSceneBuilderTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/mixed-albedo.png")),
+            ],
+            client);
+
+        string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject mixed-material-order");
+        Assert.Equal(2, materialIds.Length);
+        HashSet<string> commonMaterialIds = client.AddedComponents
+            .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
+                && path.Contains("/Assets/Common/", StringComparison.Ordinal))
+            .Select(static request => request.Data.ID)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.NotEqual(materialIds[0], materialIds[1]);
+        Assert.Contains(materialIds[0], commonMaterialIds);
+        Assert.DoesNotContain(materialIds[1], commonMaterialIds);
+        Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/mixed-albedo.png");
+    }
+
+    [Fact]
     public async Task BuildAsyncReusesNamedDatasetRootAssetsAndCommonAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -305,6 +336,67 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
+    private static ResoniteConstructionCityObject CreateMixedMaterialCityObject(
+        string objectIdentity,
+        ResoniteTexturePayload payload,
+        string sourceFileRelativePath = PrimarySourceFile)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mixed-common-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    AssetScope: ResoniteMaterialAssetScope.Common),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "mixed-dedicated-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: payload,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    AssetScope: ResoniteMaterialAssetScope.Common),
+            ],
+            SourceObjectKey: objectIdentity,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteImportedMesh CreateTwoSubmeshMesh()
+    {
+        return new ResoniteImportedMesh(
+            Vertices:
+            [
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "mixed-common-material", [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, "mixed-dedicated-material", [3, 4, 5]),
+            ]);
+    }
+
     private static ResoniteFloat3 GetSlotPosition(Slot slot)
     {
         return slot.Position is Field_float3 position
@@ -365,4 +457,21 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         Reference materialReference = Assert.IsType<Reference>(Assert.Single(materials.Elements));
         return materialReference.TargetID;
     }
+
+    private static string[] GetRendererMaterialReferenceTargets(
+        SceneBuilderRecordingClient client,
+        string slotName)
+    {
+        Component renderer = Assert.Single(
+            client.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, slotName, StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        SyncList materials = Assert.IsType<SyncList>(renderer.Members["Materials"]);
+        return materials.Elements
+            .Select(Assert.IsType<Reference>)
+            .Select(static reference => reference.TargetID)
+            .ToArray();
+    }
+
 }

@@ -1027,7 +1027,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return material;
         }
 
-        int bundledVariantIndex = material.BundledVariantIndex ?? 0;
+        // Atlas-baked building batches intentionally collapse preserved common materials to one
+        // deterministic bundled variant per family so batch-local common material fan-out stays bounded.
+        int bundledVariantIndex = 0;
         string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family, bundledVariantIndex);
         return material with
         {
