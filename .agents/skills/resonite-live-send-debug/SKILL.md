@@ -11,7 +11,7 @@ Warning: cleanup in this workflow can destroy live world results in the current 
 
 Do not use this skill for code-only review or static log reading. Use it only when the user wants a real live send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
 
-Use this file as the Coding Agent execution playbook for live-send runs. The operator-facing procedural reference remains [docs/live-testing.md](../../../docs/live-testing.md), which should stay readable and should not be duplicated here.
+Use this file as the Coding Agent execution playbook for live-send runs. Keep the live-send source of truth inside this skill package: use this file for execution heuristics and [references/workflow.md](./references/workflow.md) for the canonical operator-facing procedure.
 
 ## Dataset Defaults
 
@@ -25,9 +25,7 @@ Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actua
 
 ## Canonical Procedure
 
-Follow [docs/live-testing.md](../../../docs/live-testing.md) for the repository's live-send procedure. This skill does not redefine cleanup, send, or comparison steps.
-
-Use [references/workflow.md](./references/workflow.md) only for skill-specific defaults, guardrails, and script inventory.
+Follow [references/workflow.md](./references/workflow.md) for the canonical live-send procedure. This file keeps the Coding Agent guardrails, defaults, and run worksheet, while the reference file carries the procedural steps and command surface.
 
 Execution heuristics for sender placement:
 

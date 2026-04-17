@@ -1,18 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Plateau.ResoniteLink.Application\Plateau.ResoniteLink.Application.csproj" />
-    <ProjectReference Include="..\Plateau.ResoniteLink.Domain\Plateau.ResoniteLink.Domain.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="SixLabors.ImageSharp" />
-    <PackageReference Include="YellowDogMan.ResoniteLink" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Assets/DefaultMaterials/**/*.jpg" />
-    <EmbeddedResource Include="Assets/DefaultMaterials/**/*.png" />
+    <ProjectReference Include="..\Plateau.ResoniteLink\Plateau.ResoniteLink.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

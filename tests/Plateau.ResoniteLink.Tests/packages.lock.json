@@ -111,28 +111,22 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
-      "plateau.resonitelink.application": {
+      "plateau.resonitelink": {
         "type": "Project",
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
           "NetTopologySuite": "[2.6.0, )",
-          "Plateau.ResoniteLink.Domain": "[1.0.0, )",
           "SharpCompress": "[0.47.4, )",
-          "SixLabors.ImageSharp": "[3.1.12, )"
+          "SixLabors.ImageSharp": "[3.1.12, )",
+          "YellowDogMan.ResoniteLink": "[0.13.1, )"
         }
       },
       "plateau.resonitelink.cli": {
         "type": "Project",
         "dependencies": {
-          "Plateau.ResoniteLink.Application": "[1.0.0, )",
-          "Plateau.ResoniteLink.Domain": "[1.0.0, )",
-          "SixLabors.ImageSharp": "[3.1.12, )",
-          "YellowDogMan.ResoniteLink": "[0.13.1, )"
+          "Plateau.ResoniteLink": "[1.0.0, )"
         }
-      },
-      "plateau.resonitelink.domain": {
-        "type": "Project"
       },
       "resoniteadmin": {
         "type": "Project",

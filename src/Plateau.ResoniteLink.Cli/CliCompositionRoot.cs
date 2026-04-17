@@ -3,6 +3,8 @@ using System.Globalization;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Application.Logging;
+using Plateau.ResoniteLink.Profiles.PlateauCityGml;
+using Plateau.ResoniteLink.Targets.Resonite;
 
 namespace Plateau.ResoniteLink.Cli;
 
@@ -44,44 +46,19 @@ public static class CliCompositionRoot
                     $"--resonitelink-connections={options.ResoniteLinkConnectionCount} is experimental. "
                     + "Use the default value 1 for reliable live sends."));
         }
-        ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
-            ? ResoniteLinkSendDiagnostics.CreateEnabled(reporter)
-            : ResoniteLinkSendDiagnostics.Disabled;
 
         return new PlateauImportService(
-            new ResoniteLinkSceneBuilder(
+            ResoniteLiveSendComposition.CreateSceneBuilder(
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
-                diagnostics,
-                CreateSceneBuilderDependencies(),
+                options.EnableSendMetrics,
                 options.EnableMeshBake,
-                progressReporter: reporter),
-            CreateDatasetSourceResolver(),
-            CreateDocumentReader(),
-            CreateConstructionSourceFactory(),
-            progressReporter: reporter);
-    }
-
-    private static CkanPlateauDatasetSourceResolver CreateDatasetSourceResolver()
-    {
-        return new CkanPlateauDatasetSourceResolver(SharedDatasetResolverHttpClient);
-    }
-
-    private static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
-    {
-        return PlateauImportApplicationComposition.CreateConstructionSourceFactory();
-    }
-
-    private static LocalCityGmlDocumentReader CreateDocumentReader()
-    {
-        return new LocalCityGmlDocumentReader();
-    }
-
-    private static ResoniteLinkSceneBuilderDependencies CreateSceneBuilderDependencies()
-    {
-        return new ResoniteLinkSceneBuilderDependencies(
-            static () => new ResoniteLinkClient(),
-            new TerrainTextureAssetGenerator(SharedTerrainTextureAssetHttpClient));
+                SharedTerrainTextureAssetHttpClient,
+                reporter),
+            new CkanPlateauDatasetSourceResolver(SharedDatasetResolverHttpClient),
+            new LocalCityGmlDocumentReader(),
+            PlateauCityGmlComposition.CreateConstructionSourceFactory(),
+            reporter);
     }
 
     private static void WriteLogLine(
