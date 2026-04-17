@@ -7,3 +7,7 @@ internal readonly record struct CreatedSlot(
 internal readonly record struct CreatedComponent(
     string ComponentId,
     string ComponentType);
+
+internal readonly record struct CreatedMaterialAsset(
+    string MaterialComponentId,
+    string? MaterialPropertyBlockComponentId);

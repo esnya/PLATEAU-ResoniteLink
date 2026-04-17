@@ -28,6 +28,7 @@ public sealed class ResoniteLinkSendDiagnosticsTests
 
         string summary = Assert.Single(messages, static message => message.Contains("send_window_s=", StringComparison.Ordinal));
         Assert.Contains("sent=1", summary, StringComparison.Ordinal);
+        Assert.DoesNotContain("skipped_duplicate=", summary, StringComparison.Ordinal);
         Assert.DoesNotContain("skipped_existing=", summary, StringComparison.Ordinal);
         Assert.Contains("skipped_mesh_import_failure=1", summary, StringComparison.Ordinal);
         Assert.Contains("avg_rpc_per_sent=1.00", summary, StringComparison.Ordinal);

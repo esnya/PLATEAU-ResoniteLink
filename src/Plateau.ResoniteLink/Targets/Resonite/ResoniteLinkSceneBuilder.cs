@@ -51,7 +51,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private CreatedSlot? datasetRootSlot;
     private CreatedSlot? datasetAssetsRootSlot;
     private CreatedSlot? commonAssetsRootSlot;
-    private ResoniteMaterialAssetManager? materialAssetManager;
     private string? runRoot;
     private AsyncCompletedResultCache<TextureImportCacheKey, Uri>? importedTextureUriCache;
     private Channel<QueuedCityObject>? cityObjectChannel;
@@ -317,14 +316,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         sharedSlotIndex.Clear();
         observedSlotSnapshotsById.Clear();
         importedTextureUriCache = new();
-        materialAssetManager = new ResoniteMaterialAssetManager(
-            CreateSharedAssetComponentAsync,
-            CreateDedicatedAssetComponentAsync,
-            (client, parentSlotId, slotName, ct) =>
-                GetOrCreateSharedChildSlotByIdAsync(client, parentSlotId, slotName, null, null, ct),
-            CreateComponentAsync,
-            ImportTextureAsync,
-            ReportProgress);
         string localSourcePath = datasetContentSource?.SourcePath ?? bootstrapInfo.LocalSourcePath;
         if (datasetContentSource is null)
         {
@@ -485,18 +476,19 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         CancellationToken cancellationToken)
     {
         await priorFamilyTask.ConfigureAwait(false);
-        ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
         Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
-        CreatedMaterialAsset asset = await materialAssetManager.CreateMaterialComponentAsync(
+        PlannedDedicatedMaterialAsset plannedMaterial = await ResoniteMaterialPlanning.PlanCommonMaterialAssetAsync(
             setupClient,
             material,
-            preparedTextureImportsByIdentity: new Dictionary<string, ResoniteTextureImport>(StringComparer.Ordinal),
-            preparedTerrainTextureImportsByOverlay: new Dictionary<TerrainTextureOverlay, ResoniteTextureImport>(),
-            materialSlotId: commonAssetsSlotId,
-            materialSlotParentId: commonAssetsSlotId,
-            materialSlotName: CreateMaterialSlotName(material, useCommonMaterialAssets: true),
-            rendererSlotId: commonAssetsSlotId,
-            textureOverrideAssetSlotId: commonAssetsSlotId,
+            cancellationToken);
+        CreatedMaterialAsset asset = await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
+            setupClient,
+            plannedMaterial,
+            commonAssetsSlotId,
+            CreateMaterialSlotName(material, useCommonMaterialAssets: true),
+            (client, parentSlotId, slotName, ct) =>
+                GetOrCreateSharedChildSlotByIdAsync(client, parentSlotId, slotName, null, null, ct),
+            CreateComponentAsync,
             cancellationToken);
         commonMaterialStopwatch.Stop();
         int completedCount = Interlocked.Increment(ref firstCommonMaterialPrepLogged);
@@ -845,7 +837,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             datasetRootSlot = null;
             datasetAssetsRootSlot = null;
             commonAssetsRootSlot = null;
-            materialAssetManager = null;
             string? priorRunRoot = runRoot;
             runRoot = null;
             TryDeleteDirectory(priorRunRoot);
@@ -1296,7 +1287,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     {
         ObjectDisposedException.ThrowIf(bootstrapInfo is null, this);
         ObjectDisposedException.ThrowIf(commonAssetsRootSlot is null, this);
-        ObjectDisposedException.ThrowIf(materialAssetManager is null, this);
 
         IResoniteLinkClient routedClient = GetRoutedClient();
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
@@ -1672,7 +1662,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 if (material.AssetScope != ResoniteMaterialAssetScope.Common)
                 {
                     dedicatedMaterialPlanningTasks.Add(
-                        PlanDedicatedMaterialAssetAsync(
+                        ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
                             importClient,
                             material,
                             materialIndex,
@@ -1710,7 +1700,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             else
             {
                 dedicatedMaterialPlanningTasks.Add(
-                    PlanDedicatedMaterialAssetAsync(
+                    ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
                         importClient,
                         material,
                         materialIndex,
@@ -2183,7 +2173,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
 
-        Uri? albedoTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
+        Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
         if (albedoTextureUri is not null)
         {
             PendingBatchComponent albedoTexture = batchBuilder.AddComponent(
@@ -2196,7 +2186,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             };
         }
 
-        Uri? normalTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
+        Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
         if (normalTextureUri is not null)
         {
             PendingBatchComponent normalTexture = batchBuilder.AddComponent(
@@ -2213,7 +2203,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             };
         }
 
-        Uri? heightTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
+        Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
         if (heightTextureUri is not null)
         {
             PendingBatchComponent heightTexture = batchBuilder.AddComponent(
@@ -2230,7 +2220,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             };
         }
 
-        Uri? metallicTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
+        Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
         if (metallicTextureUri is not null)
         {
             PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
@@ -2247,7 +2237,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             };
         }
 
-        Uri? emissionTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
+        Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
         if (emissionTextureUri is not null)
         {
             PendingBatchComponent emissionTexture = batchBuilder.AddComponent(
@@ -2269,104 +2259,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             materialMembers);
     }
 
-    private async Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
-        IResoniteLinkClient importClient,
-        ResoniteMaterialBinding material,
-        int materialIndex,
-        string packageName,
-        Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
-        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
-        bool preserveDedicatedMaterialSlot,
-        CancellationToken cancellationToken)
-    {
-        Task<Uri?> albedoTextureTask = material.TexturePayload is not null
-            && !string.IsNullOrWhiteSpace(material.TexturePayload.Identity)
-            && preparedTextureDataByIdentity.TryGetValue(
-                material.TexturePayload.Identity,
-                out ResoniteTextureImport? directTextureImport)
-            ? ImportOptionalTextureAsync(importClient, directTextureImport, cancellationToken)
-            : material.TerrainOverlay is not null
-            && preparedTerrainTextureDataByOverlay.TryGetValue(
-                material.TerrainOverlay,
-                out ResoniteTextureImport? terrainOverlayTextureImport)
-            ? ImportOptionalTextureAsync(importClient, terrainOverlayTextureImport, cancellationToken)
-            : Task.FromResult<Uri?>(null);
-
-        Task<Uri?> normalTextureTask = Task.FromResult<Uri?>(null);
-        Task<Uri?> heightTextureTask = Task.FromResult<Uri?>(null);
-        Task<Uri?> metallicTextureTask = Task.FromResult<Uri?>(null);
-        Task<Uri?> emissionTextureTask = Task.FromResult<Uri?>(null);
-
-        if (ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
-            && textureSet is not null)
-        {
-            if (textureSet.NormalPath is not null)
-            {
-                normalTextureTask = ImportOptionalTextureAsync(
-                    importClient,
-                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                        textureSet.NormalPath,
-                        ResoniteTextureColorProfiles.Linear,
-                        cancellationToken),
-                    cancellationToken);
-            }
-
-            if (textureSet.HeightPath is not null
-                && material.Projection == ResoniteMaterialProjection.Uv)
-            {
-                heightTextureTask = ImportOptionalTextureAsync(
-                    importClient,
-                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                        textureSet.HeightPath,
-                        ResoniteTextureColorProfiles.Linear,
-                        cancellationToken),
-                    cancellationToken);
-            }
-
-            if (textureSet.MetallicPath is not null)
-            {
-                metallicTextureTask = ImportOptionalTextureAsync(
-                    importClient,
-                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                        textureSet.MetallicPath,
-                        ResoniteTextureColorProfiles.Linear,
-                        cancellationToken),
-                    cancellationToken);
-            }
-
-            if (textureSet.EmissionPath is not null)
-            {
-                emissionTextureTask = ImportOptionalTextureAsync(
-                    importClient,
-                    await ResoniteTextureImportFactory.CreateRawFromFileAsync(
-                        textureSet.EmissionPath,
-                        ResoniteTextureColorProfiles.Srgb,
-                        cancellationToken),
-                    cancellationToken);
-            }
-        }
-
-        await Task.WhenAll(
-            albedoTextureTask,
-            normalTextureTask,
-            heightTextureTask,
-            metallicTextureTask,
-            emissionTextureTask);
-
-        List<PlannedTextureAsset> textures = [];
-        AddPlannedTextureAsset(textures, "albedo", await albedoTextureTask);
-        AddPlannedTextureAsset(textures, "normal", await normalTextureTask);
-        AddPlannedTextureAsset(textures, "height", await heightTextureTask);
-        AddPlannedTextureAsset(textures, "metallic", await metallicTextureTask);
-        AddPlannedTextureAsset(textures, "emission", await emissionTextureTask);
-
-        return new PlannedDedicatedMaterialAsset(
-            CreateDedicatedMaterialIdentity(packageName, materialIndex, material.MaterialKey),
-            material,
-            textures,
-            preserveDedicatedMaterialSlot);
-    }
-
     private Task<Uri?> ImportOptionalTextureAsync(
         IResoniteLinkClient importClient,
         ResoniteTextureImport textureImport,
@@ -2381,37 +2273,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         CancellationToken cancellationToken)
     {
         return await ImportTextureAsync(importClient, textureImport, cancellationToken);
-    }
-
-    private static void AddPlannedTextureAsset(
-        List<PlannedTextureAsset> textures,
-        string role,
-        Uri? assetUri)
-    {
-        if (assetUri is null)
-        {
-            return;
-        }
-
-        textures.Add(new PlannedTextureAsset(new TextureIdentity(role), assetUri));
-    }
-
-    private static Uri? TryGetPlannedTextureUri(
-        IEnumerable<PlannedTextureAsset> textures,
-        string role)
-    {
-        return textures.FirstOrDefault(texture => string.Equals(texture.Identity.Value, role, StringComparison.Ordinal))?.AssetUri;
-    }
-
-    private static MaterialIdentity CreateDedicatedMaterialIdentity(
-        string packageName,
-        int materialIndex,
-        string materialKey)
-    {
-        return new MaterialIdentity(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"dedicated|{packageName}|{materialIndex}|{materialKey}"));
     }
 
     internal static Dictionary<string, Member> CreateTextureMembers(Uri assetUri)
@@ -2679,64 +2540,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                         StringComparer.Ordinal),
                 },
             },
-            cancellationToken);
-    }
-
-    private Task<CreatedComponent> CreateSharedAssetComponentAsync(
-        IResoniteLinkClient client,
-        string containerSlotId,
-        string componentType,
-        Func<CancellationToken, Task<Uri>> importAssetAsync,
-        CancellationToken cancellationToken)
-    {
-        return CreateAssetComponentAsync(
-            client,
-            containerSlotId,
-            componentType,
-            new Dictionary<string, Member>(StringComparer.Ordinal),
-            importAssetAsync,
-            cancellationToken);
-    }
-
-    private Task<CreatedComponent> CreateDedicatedAssetComponentAsync(
-        IResoniteLinkClient client,
-        string containerSlotId,
-        string componentType,
-        Func<CancellationToken, Task<Uri>> importAssetAsync,
-        CancellationToken cancellationToken)
-    {
-        return CreateAssetComponentAsync(
-            client,
-            containerSlotId,
-            componentType,
-            new Dictionary<string, Member>(StringComparer.Ordinal),
-            importAssetAsync,
-            cancellationToken);
-    }
-
-    private async Task<CreatedComponent> CreateAssetComponentAsync(
-        IResoniteLinkClient client,
-        string containerSlotId,
-        string componentType,
-        IReadOnlyDictionary<string, Member> members,
-        Func<CancellationToken, Task<Uri>> importAssetAsync,
-        CancellationToken cancellationToken)
-    {
-        ReportProgress($"[live] Importing asset for component type '{componentType}'.");
-        Uri assetUri = await importAssetAsync(cancellationToken);
-        ReportProgress($"[live] Asset import completed for component type '{componentType}' -> '{assetUri}'.");
-        Dictionary<string, Member> componentMembers = new(members, StringComparer.Ordinal)
-        {
-            ["URL"] = new Field_Uri
-            {
-                Value = assetUri,
-            },
-        };
-        return await CreateComponentAsync(
-            client,
-            containerSlotId,
-            componentType,
-            componentMembers,
             cancellationToken);
     }
 
