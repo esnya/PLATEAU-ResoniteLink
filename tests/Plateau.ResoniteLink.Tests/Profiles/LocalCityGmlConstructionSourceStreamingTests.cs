@@ -186,9 +186,16 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+            IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
+            _ = referenceSystem;
+            _ = globalOriginPoint;
+            _ = globalCartesian;
+            _ = demTerrainTextureOverlays;
+            _ = requestedMeshAreas;
+            _ = request;
             foreach (BootstrapParsedCityObject cityObject in sourceFile.CityObjects)
             {
                 if (predicate is not null && !predicate(cityObject))

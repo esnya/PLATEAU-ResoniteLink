@@ -72,6 +72,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private int firstCityObjectDequeuedLogged;
     private IPlateauDatasetContentSource? datasetContentSource;
     private SceneAnchor? sceneAnchor;
+    private ResoniteLocalOrigin? requestLocalOrigin;
     private string? datasetLicenseComponentId;
     private Dictionary<string, string>? cityGmlSlotNamesByRelativePath;
 
@@ -209,6 +210,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        requestLocalOrigin = SceneImportContractMapper.ToInternal(request.Metadata).LocalOrigin;
 
         await BeginCoreAsync(
             CreateBootstrapInfo(request),
@@ -248,6 +250,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metadata);
+        requestLocalOrigin = metadata.LocalOrigin;
 
         await BeginCoreAsync(
             SceneBootstrapInfo.CreateFromMetadata(metadata, bootstrapDatasetContentSource?.SourcePath),
@@ -854,6 +857,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             firstProcessingFailureSource = null;
             sceneBuildStopwatch = null;
             sceneAnchor = null;
+            requestLocalOrigin = null;
             cityGmlSlotNamesByRelativePath = null;
         }
     }
@@ -1194,6 +1198,11 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ObjectDisposedException.ThrowIf(bootstrapInfo is null, this);
         ObjectDisposedException.ThrowIf(datasetContentSource is null, this);
 
+        if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
+        {
+            ValidateTriangleMeshBindings(cityObject, triangleGeometry.Mesh);
+        }
+
         TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)
             .Select(static material => material.TerrainOverlay!)
@@ -1439,7 +1448,8 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             CityObjectSlotName: cityObject.DisplayName,
             CityObjectIdentityTag: CreateCityObjectIdentityTag(cityObject),
             CityObjectLocalPosition: ResolveCityObjectLocalPosition(
-                ResolveMeshCodeRootPosition(rootMeshCode),
+                requestLocalOrigin ?? throw new ObjectDisposedException(nameof(ResoniteLocalOrigin), "Request local origin is not initialized."),
+                rootMeshCode,
                 cityObject.Transform.Position),
             CityObjectRotation: cityObject.Transform.Rotation);
     }
@@ -1472,73 +1482,36 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 assetLodSlot.Value);
         }
 
-        CityObjectBatchBuilder batchBuilder = new();
-        PendingBatchSlot? pendingCityGmlSlot = null;
-        PendingBatchSlot? pendingAssetCityGmlSlot = null;
-        PendingBatchSlot? pendingLodSlot = null;
-        PendingBatchSlot? pendingAssetLodSlot = null;
-
-        string cityGmlParentId = datasetRoot.SlotId;
-        if (cityGmlSlot is null)
-        {
-            pendingCityGmlSlot = batchBuilder.AddSlot(datasetRoot.SlotId, cityGmlSlotName, rootPosition, null);
-            cityGmlParentId = pendingCityGmlSlot.Value.LocalId;
-        }
-        else
-        {
-            cityGmlParentId = cityGmlSlot.Value.SlotId;
-        }
-
-        string assetCityGmlParentId = datasetAssetsRoot.SlotId;
-        if (assetCityGmlSlot is null)
-        {
-            pendingAssetCityGmlSlot = batchBuilder.AddSlot(datasetAssetsRoot.SlotId, cityGmlSlotName, null, null);
-            assetCityGmlParentId = pendingAssetCityGmlSlot.Value.LocalId;
-        }
-        else
-        {
-            assetCityGmlParentId = assetCityGmlSlot.Value.SlotId;
-        }
-
-        if (lodSlot is null)
-        {
-            pendingLodSlot = batchBuilder.AddSlot(cityGmlParentId, lodSlotName, null, null);
-        }
-
-        if (assetLodSlot is null)
-        {
-            pendingAssetLodSlot = batchBuilder.AddSlot(assetCityGmlParentId, lodSlotName, null, null);
-        }
-
-        if (batchBuilder.Operations.Count > 0)
-        {
-            BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
-            CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
-            entityMap.ValidateAll(batchBuilder.PendingOperations);
-
-            if (pendingCityGmlSlot is not null)
-            {
-                cityGmlSlot = IndexCreatedSharedSlot(datasetRoot.SlotId, entityMap.ResolveSlot(pendingCityGmlSlot.Value));
-            }
-
-            if (pendingAssetCityGmlSlot is not null)
-            {
-                assetCityGmlSlot = IndexCreatedSharedSlot(datasetAssetsRoot.SlotId, entityMap.ResolveSlot(pendingAssetCityGmlSlot.Value));
-            }
-
-            if (pendingLodSlot is not null)
-            {
-                lodSlot = IndexCreatedSharedSlot(cityGmlSlot!.Value.SlotId, entityMap.ResolveSlot(pendingLodSlot.Value));
-            }
-
-            if (pendingAssetLodSlot is not null)
-            {
-                assetLodSlot = IndexCreatedSharedSlot(assetCityGmlSlot!.Value.SlotId, entityMap.ResolveSlot(pendingAssetLodSlot.Value));
-            }
-        }
+        cityGmlSlot ??= await GetOrCreateSharedChildSlotAsync(
+            client,
+            datasetRoot,
+            cityGmlSlotName,
+            rootPosition,
+            null,
+            cancellationToken);
+        assetCityGmlSlot ??= await GetOrCreateSharedChildSlotAsync(
+            client,
+            datasetAssetsRoot,
+            cityGmlSlotName,
+            null,
+            null,
+            cancellationToken);
+        lodSlot ??= await GetOrCreateSharedChildSlotAsync(
+            client,
+            cityGmlSlot.Value,
+            lodSlotName,
+            null,
+            null,
+            cancellationToken);
+        assetLodSlot ??= await GetOrCreateSharedChildSlotAsync(
+            client,
+            assetCityGmlSlot.Value,
+            lodSlotName,
+            null,
+            null,
+            cancellationToken);
 
         if (sceneAnchor is { } anchor
-            && cityGmlSlot is not null
             && (string.Equals(anchor.MeshCode, rootMeshCode, StringComparison.Ordinal)
                 || string.IsNullOrWhiteSpace(anchor.ReferenceSourceFileRootId)))
         {
@@ -1631,6 +1604,68 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{lodKey}|{objectIdentity}");
+    }
+
+    private static void ValidateTriangleMeshBindings(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteImportedMesh mesh)
+    {
+        if (mesh.Submeshes.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Triangle mesh '{cityObject.DisplayName}' did not contain any submesh.");
+        }
+
+        if (cityObject.Materials.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Triangle mesh '{cityObject.DisplayName}' did not contain any material.");
+        }
+
+        Dictionary<int, ResoniteMeshSubmesh> submeshByIndex = mesh.Submeshes.ToDictionary(
+            static submesh => submesh.Index,
+            static submesh => submesh);
+        if (submeshByIndex.Count != mesh.Submeshes.Count)
+        {
+            throw new InvalidOperationException(
+                $"Triangle mesh '{cityObject.DisplayName}' contained duplicate submesh indices.");
+        }
+
+        Dictionary<int, string> materialKeyBySubmeshIndex = new();
+        foreach (ResoniteMaterialBinding material in cityObject.Materials)
+        {
+            if (material.SubmeshIndices.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Triangle mesh '{cityObject.DisplayName}' material '{material.MaterialKey}' did not target any submesh.");
+            }
+
+            foreach (int submeshIndex in material.SubmeshIndices)
+            {
+                if (!submeshByIndex.ContainsKey(submeshIndex))
+                {
+                    throw new InvalidOperationException(
+                        $"Triangle mesh '{cityObject.DisplayName}' material '{material.MaterialKey}' targeted missing submesh index {submeshIndex}.");
+                }
+
+                if (materialKeyBySubmeshIndex.TryGetValue(submeshIndex, out string? existingMaterialKey))
+                {
+                    throw new InvalidOperationException(
+                        $"Triangle mesh '{cityObject.DisplayName}' assigned submesh index {submeshIndex} to both '{existingMaterialKey}' and '{material.MaterialKey}'.");
+                }
+
+                materialKeyBySubmeshIndex[submeshIndex] = material.MaterialKey;
+            }
+        }
+
+        foreach (int submeshIndex in submeshByIndex.Keys.OrderBy(static index => index))
+        {
+            if (!materialKeyBySubmeshIndex.ContainsKey(submeshIndex))
+            {
+                throw new InvalidOperationException(
+                    $"Triangle mesh '{cityObject.DisplayName}' left submesh index {submeshIndex} without a material assignment.");
+            }
+        }
     }
 
     private static string CreateCityObjectIdentityTag(ResoniteConstructionCityObject cityObject)
@@ -2341,10 +2376,17 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     }
 
     private static ResoniteFloat3 ResolveCityObjectLocalPosition(
-        ResoniteFloat3 rootPosition,
+        ResoniteLocalOrigin requestOrigin,
+        string rootMeshCode,
         ResoniteFloat3 cityObjectPosition)
     {
-        return Subtract(cityObjectPosition, rootPosition);
+        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
+        {
+            return cityObjectPosition;
+        }
+
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        return Subtract(cityObjectPosition, rootOffsetFromRequest);
     }
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
@@ -2383,11 +2425,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         if (anchor is null)
         {
             return new ResoniteFloat3(0.0, 0.0, 0.0);
-        }
-
-        if (string.IsNullOrWhiteSpace(anchor.Value.ReferenceSourceFileRootId))
-        {
-            return anchor.Value.Position;
         }
 
         if (string.Equals(anchor.Value.MeshCode, meshCode, StringComparison.Ordinal))

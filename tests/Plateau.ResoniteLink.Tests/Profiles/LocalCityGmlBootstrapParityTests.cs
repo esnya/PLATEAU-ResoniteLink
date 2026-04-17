@@ -57,7 +57,7 @@ public sealed class LocalCityGmlBootstrapParityTests
                 "udx/luse/533945/plateau_tokyo23ku_luse_533945.gml",
                 "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml"],
             expectedPackageNames: ["bldg", "dem", "luse", "tran"],
-            expectedRequestedMeshCodes: ["533945", "53394525"],
+            expectedRequestedMeshCodes: ["53394525"],
             expectedTerrainSamplerPresent: false);
     }
 

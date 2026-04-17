@@ -60,9 +60,18 @@ public sealed class LocalCityGmlConstructionComposerTests
             GeodeticPoint globalOriginPoint,
             LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+            IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
+            _ = sourceFile;
+            _ = referenceSystem;
+            _ = globalOriginPoint;
+            _ = globalCartesian;
+            _ = demTerrainTextureOverlays;
+            _ = requestedMeshAreas;
+            _ = request;
+            _ = predicate;
             throw new InvalidOperationException("Compose should not materialize geometry.");
         }
     }

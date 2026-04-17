@@ -14,6 +14,7 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
@@ -23,6 +24,7 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
             globalOriginPoint.ToLegacy(),
             globalCartesian,
             demTerrainTextureOverlays,
+            requestedMeshAreas,
             terrainHeightSampler: null,
             request,
             materialResolver,

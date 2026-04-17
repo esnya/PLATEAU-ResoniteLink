@@ -9,6 +9,7 @@ internal static class ResoniteMeshImportFactory
     public static ImportMeshRawData Create(ResoniteImportedMesh mesh)
     {
         ArgumentNullException.ThrowIfNull(mesh);
+        Validate(mesh);
 
         ResoniteMeshSubmesh[] orderedSubmeshes = mesh.Submeshes
             .OrderBy(static submesh => submesh.Index)
@@ -80,5 +81,76 @@ internal static class ResoniteMeshImportFactory
         }
 
         return request;
+    }
+
+    private static void Validate(ResoniteImportedMesh mesh)
+    {
+        if (mesh.Vertices.Count == 0)
+        {
+            throw new InvalidOperationException("Triangle mesh did not contain any vertex.");
+        }
+
+        if (mesh.Submeshes.Count == 0)
+        {
+            throw new InvalidOperationException("Triangle mesh did not contain any submesh.");
+        }
+
+        for (int vertexIndex = 0; vertexIndex < mesh.Vertices.Count; vertexIndex++)
+        {
+            ResoniteMeshVertex vertex = mesh.Vertices[vertexIndex];
+            ThrowIfNotFinite(vertex.Position.X, "position.x", vertexIndex);
+            ThrowIfNotFinite(vertex.Position.Y, "position.y", vertexIndex);
+            ThrowIfNotFinite(vertex.Position.Z, "position.z", vertexIndex);
+            ThrowIfNotFinite(vertex.Normal.X, "normal.x", vertexIndex);
+            ThrowIfNotFinite(vertex.Normal.Y, "normal.y", vertexIndex);
+            ThrowIfNotFinite(vertex.Normal.Z, "normal.z", vertexIndex);
+            ThrowIfNotFinite(vertex.UV0.X, "uv0.x", vertexIndex);
+            ThrowIfNotFinite(vertex.UV0.Y, "uv0.y", vertexIndex);
+
+            if (vertex.Color is not null)
+            {
+                ThrowIfNotFinite(vertex.Color.R, "color.r", vertexIndex);
+                ThrowIfNotFinite(vertex.Color.G, "color.g", vertexIndex);
+                ThrowIfNotFinite(vertex.Color.B, "color.b", vertexIndex);
+                ThrowIfNotFinite(vertex.Color.A, "color.a", vertexIndex);
+            }
+        }
+
+        for (int submeshIndex = 0; submeshIndex < mesh.Submeshes.Count; submeshIndex++)
+        {
+            ResoniteMeshSubmesh submesh = mesh.Submeshes[submeshIndex];
+            if (submesh.TriangleVertexIndices.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Triangle mesh submesh '{submesh.MaterialKey}' did not contain any index.");
+            }
+
+            if (submesh.TriangleVertexIndices.Count % 3 != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Triangle mesh submesh '{submesh.MaterialKey}' had {submesh.TriangleVertexIndices.Count} indices, which is not divisible by three.");
+            }
+
+            for (int triangleIndex = 0; triangleIndex < submesh.TriangleVertexIndices.Count; triangleIndex++)
+            {
+                int vertexIndex = submesh.TriangleVertexIndices[triangleIndex];
+                if ((uint)vertexIndex >= (uint)mesh.Vertices.Count)
+                {
+                    throw new InvalidOperationException(
+                        $"Triangle mesh submesh '{submesh.MaterialKey}' referenced vertex index {vertexIndex}, but vertex_count={mesh.Vertices.Count}.");
+                }
+            }
+        }
+    }
+
+    private static void ThrowIfNotFinite(double value, string fieldName, int vertexIndex)
+    {
+        if (double.IsFinite(value))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Triangle mesh vertex {vertexIndex} contained non-finite {fieldName}={value}.");
     }
 }

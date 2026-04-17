@@ -251,7 +251,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
         Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
         if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
-            return null;
+            throw new InvalidOperationException(
+                $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
         List<AtlasBatchEntry> atlasEntries = [];
@@ -261,7 +262,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
             cancellationToken.ThrowIfCancellationRequested();
             if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
             {
-                continue;
+                throw new InvalidOperationException(
+                    $"LOD2 atlas bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
             }
 
             Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
@@ -287,9 +289,13 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return null;
         }
 
-        return atlasEntries.Count > 0 || preservedEntries.Count > 0
-            ? new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries)
-            : null;
+        if (atlasEntries.Count == 0 && preservedEntries.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"LOD2 atlas bake city object '{cityObject.DisplayName}' produced no atlas or preserved submesh candidate.");
+        }
+
+        return new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries);
     }
 
     private async Task<MaterialAtlasTile> CreateAtlasTileAsync(
@@ -554,6 +560,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
             };
             submeshes.Add(new ResoniteMeshSubmesh(submeshIndex, preservedMaterial.MaterialKey, preservedTriangleIndices));
             materials.Add(preservedMaterial);
+        }
+
+        if (submeshes.Count == 0 || materials.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"LOD2 atlas bake batch '{sourceUnitKey.PackageName}:{sourceUnitKey.ActualMeshCode}:LOD{sourceUnitKey.LodLevel}' produced no materialized submesh.");
         }
 
         return new ResoniteConstructionCityObject(
@@ -1027,15 +1039,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return material;
         }
 
+        int bundledVariantIndex = 0;
+        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family, bundledVariantIndex);
         return material with
         {
-            MaterialKey = ResoniteLinkSceneBuilder.CreateCanonicalCommonMaterialKey(
-                material.Family,
-                material.BundledVariantIndex ?? 0,
-                material.Projection,
-                material.TextureScale),
+            MaterialKey = $"common-{material.Family}-variant:{bundledVariantIndex}",
             TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-            BundledVariantIndex = material.BundledVariantIndex ?? 0,
+            TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
+            TextureOffset = null,
+            BundledVariantIndex = bundledVariantIndex,
         };
     }
 

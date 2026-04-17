@@ -81,6 +81,50 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Empty(baker.FlushAll());
     }
 
+    [Fact]
+    public void FlushAllRejectsBufferedMeshBakeWhenSubmeshMaterialAssignmentIsMissing()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        ResoniteConstructionCityObject invalid = new(
+            SlotKey: "invalid",
+            DisplayName: "invalid",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(10.0, 0.0, 10.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "shared-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "missing-material", [1, 3, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: "unit-a:invalid",
+            SourceUnitKey: "unit-a",
+            SourceFileRelativePath: null);
+
+        Assert.True(baker.TryBuffer(invalid, out _));
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(baker.FlushAll);
+        Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,

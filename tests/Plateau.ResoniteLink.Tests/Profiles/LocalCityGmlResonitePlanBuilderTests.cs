@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -189,6 +190,60 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         Assert.True(topEdge.Min() > -1.0, $"Top edge dropped to sea-level fallback: min={topEdge.Min():F6}");
     }
 
+    [Fact]
+    public async Task DemExactMeshRequestFiltersSplitParentMeshPiecesAfterOverlaySplit()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject demCityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.PackageName == "dem");
+        HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
+        Assert.True(geometry.Width > 0);
+        Assert.True(geometry.Height > 0);
+    }
+
+    [Fact]
+    public async Task DemExactMeshRequestPrefersConcreteMeshCodeNamedParentDemObjects()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeNamedParentMeshDemFixture(datasetRoot.Path, "53394525", "53394526");
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject demCityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.PackageName == "dem");
+        Assert.Equal("53394525", demCityObject.DisplayName);
+    }
+
     private static void CreateRuntimeMixedSurfaceDemFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
@@ -312,6 +367,201 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
             """;
 
         File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_chunk.gml"), xml);
+    }
+
+    private static void CreateRuntimeParentMeshDemFixture(string datasetRoot, string requestedMeshCode, string adjacentMeshCode)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", requestedMeshCode[..6]);
+        Directory.CreateDirectory(packageDirectory);
+
+        (double requestedSouth, double requestedNorth, double requestedWest, double requestedEast) = GetMeshBounds(requestedMeshCode);
+        (double adjacentSouth, double adjacentNorth, double adjacentWest, double adjacentEast) = GetMeshBounds(adjacentMeshCode);
+
+        string requestedTriangle = CreateTrianglePosList(
+            requestedSouth,
+            requestedNorth,
+            requestedWest,
+            requestedEast,
+            5.0,
+            7.0,
+            9.0);
+        string adjacentTriangle = CreateTrianglePosList(
+            adjacentSouth,
+            adjacentNorth,
+            adjacentWest,
+            adjacentEast,
+            6.0,
+            8.0,
+            10.0);
+
+        string xml =
+            $$"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>{{requestedSouth.ToString("F8", CultureInfo.InvariantCulture)}} {{requestedWest.ToString("F8", CultureInfo.InvariantCulture)}} 0</gml:lowerCorner>
+                  <gml:upperCorner>{{adjacentNorth.ToString("F8", CultureInfo.InvariantCulture)}} {{adjacentEast.ToString("F8", CultureInfo.InvariantCulture)}} 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-parent">
+                  <gml:name>Parent Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-parent-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-requested">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-requested">
+                                  <gml:posList>{{requestedTriangle}}</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                            <gml:Triangle gml:id="tri-adjacent">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-adjacent">
+                                  <gml:posList>{{adjacentTriangle}}</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(Path.Combine(packageDirectory, $"plateau_tokyo23ku_dem_{requestedMeshCode[..6]}_parent.gml"), xml);
+    }
+
+    private static void CreateRuntimeNamedParentMeshDemFixture(string datasetRoot, string requestedMeshCode, string adjacentMeshCode)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", requestedMeshCode[..6]);
+        Directory.CreateDirectory(packageDirectory);
+
+        (double requestedSouth, double requestedNorth, double requestedWest, double requestedEast) = GetMeshBounds(requestedMeshCode);
+        (double adjacentSouth, double adjacentNorth, double adjacentWest, double adjacentEast) = GetMeshBounds(adjacentMeshCode);
+
+        string requestedTriangle = CreateTrianglePosList(
+            requestedSouth,
+            requestedNorth,
+            requestedWest,
+            requestedEast,
+            5.0,
+            7.0,
+            9.0);
+        string adjacentTriangle = CreateTrianglePosList(
+            adjacentSouth,
+            adjacentNorth,
+            adjacentWest,
+            adjacentEast,
+            6.0,
+            8.0,
+            10.0);
+
+        string xml =
+            $$"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>{{requestedSouth.ToString("F8", CultureInfo.InvariantCulture)}} {{requestedWest.ToString("F8", CultureInfo.InvariantCulture)}} 0</gml:lowerCorner>
+                  <gml:upperCorner>{{adjacentNorth.ToString("F8", CultureInfo.InvariantCulture)}} {{adjacentEast.ToString("F8", CultureInfo.InvariantCulture)}} 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-{{requestedMeshCode}}">
+                  <gml:name>{{requestedMeshCode}}</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-{{requestedMeshCode}}-component">
+                      <gml:name>{{requestedMeshCode}}</gml:name>
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-{{requestedMeshCode}}">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-{{requestedMeshCode}}">
+                                  <gml:posList>{{requestedTriangle}}</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-{{adjacentMeshCode}}">
+                  <gml:name>{{adjacentMeshCode}}</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-{{adjacentMeshCode}}-component">
+                      <gml:name>{{adjacentMeshCode}}</gml:name>
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-{{adjacentMeshCode}}">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-{{adjacentMeshCode}}">
+                                  <gml:posList>{{adjacentTriangle}}</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(Path.Combine(packageDirectory, $"plateau_tokyo23ku_dem_{requestedMeshCode[..6]}_named-parent.gml"), xml);
+    }
+
+    private static (double South, double North, double West, double East) GetMeshBounds(string meshCode)
+    {
+        Assert.True(PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds));
+        return (bounds.SouthLatitude, bounds.NorthLatitude, bounds.WestLongitude, bounds.EastLongitude);
+    }
+
+    private static string CreateTrianglePosList(
+        double southLatitude,
+        double northLatitude,
+        double westLongitude,
+        double eastLongitude,
+        double heightA,
+        double heightB,
+        double heightC)
+    {
+        double latitude0 = southLatitude + ((northLatitude - southLatitude) * 0.15);
+        double latitude1 = southLatitude + ((northLatitude - southLatitude) * 0.85);
+        double longitude0 = westLongitude + ((eastLongitude - westLongitude) * 0.15);
+        double longitude1 = westLongitude + ((eastLongitude - westLongitude) * 0.85);
+
+        return string.Join(
+            ' ',
+            [
+                latitude0.ToString("F8", CultureInfo.InvariantCulture),
+                longitude0.ToString("F8", CultureInfo.InvariantCulture),
+                heightA.ToString("F3", CultureInfo.InvariantCulture),
+                latitude1.ToString("F8", CultureInfo.InvariantCulture),
+                longitude0.ToString("F8", CultureInfo.InvariantCulture),
+                heightB.ToString("F3", CultureInfo.InvariantCulture),
+                latitude1.ToString("F8", CultureInfo.InvariantCulture),
+                longitude1.ToString("F8", CultureInfo.InvariantCulture),
+                heightC.ToString("F3", CultureInfo.InvariantCulture),
+                latitude0.ToString("F8", CultureInfo.InvariantCulture),
+                longitude0.ToString("F8", CultureInfo.InvariantCulture),
+                heightA.ToString("F3", CultureInfo.InvariantCulture),
+            ]);
     }
 
     private sealed class StubSceneBuilder : ISceneImportTarget

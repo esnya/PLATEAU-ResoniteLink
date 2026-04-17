@@ -12,6 +12,7 @@ internal interface ICityGmlGeometryProjector
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null);
 }

@@ -59,4 +59,88 @@ public sealed class ResoniteMeshImportFactoryTests
         Assert.Equal(1.0f, result.Colors[1].b, 6);
         Assert.Equal(1.0f, result.Colors[1].a, 6);
     }
+
+    [Fact]
+    public void CreateRejectsOutOfRangeTriangleIndices()
+    {
+        ResoniteImportedMesh mesh = new(
+            Vertices:
+            [
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(0.0, 0.0, 0.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(1.0, 0.0, 0.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(0.0, 0.0, 1.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 99]),
+            ]);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
+
+        Assert.Contains("referenced vertex index 99", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateRejectsNonFiniteVertexData()
+    {
+        ResoniteImportedMesh mesh = new(
+            Vertices:
+            [
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(double.NaN, 0.0, 0.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(1.0, 0.0, 0.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(0.0, 0.0, 1.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "invalid", [0, 1, 2]),
+            ]);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
+
+        Assert.Contains("non-finite position.x", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateRejectsTriangleMeshWithoutAnySubmesh()
+    {
+        ResoniteImportedMesh mesh = new(
+            Vertices:
+            [
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(0.0, 0.0, 0.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(1.0, 0.0, 0.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(
+                    new ResoniteFloat3(0.0, 0.0, 1.0),
+                    new ResoniteFloat3(0.0, 1.0, 0.0),
+                    new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes: []);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
+
+        Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
+    }
 }

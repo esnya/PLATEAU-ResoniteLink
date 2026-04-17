@@ -276,7 +276,8 @@ public static class LocalCityGmlSourceFileDiscovery
         {
             if (IsLiteral)
             {
-                if (exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
+                if (candidateMeshCode.Length == Input.Length
+                    && exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
                 {
                     yield return candidateMeshCode;
                 }

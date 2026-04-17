@@ -118,9 +118,17 @@ public sealed class LocalCityGmlConstructionSourceTests
             GeodeticPoint globalOriginPoint,
             GeographicLib.LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+            IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
+            _ = referenceSystem;
+            _ = globalOriginPoint;
+            _ = globalCartesian;
+            _ = demTerrainTextureOverlays;
+            _ = requestedMeshAreas;
+            _ = request;
+            _ = predicate;
             int concurrency = Interlocked.Increment(ref currentConcurrency);
             UpdateMaxConcurrency(concurrency);
 

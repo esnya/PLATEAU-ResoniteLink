@@ -19,6 +19,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
+    private readonly LocalCityGmlResonitePlanBuilder.MeshCodeArea[] requestedMeshAreas;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
@@ -34,6 +35,8 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.progressReporter = progressReporter;
+        requestedMeshAreas = LocalCityGmlResonitePlanBuilder.MeshCodeArea.CreateManyFromRequestedMeshCodes(
+            Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
     }
 
     public ResoniteConstructionMetadata Metadata { get; }
@@ -86,6 +89,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                              globalOriginPoint,
                              globalCartesian,
                              demTerrainTextureOverlays,
+                             requestedMeshAreas,
                              request))
                 {
                     yield return cityObject;
@@ -242,6 +246,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
+                         requestedMeshAreas,
                          request))
             {
                 cancellationToken.ThrowIfCancellationRequested();

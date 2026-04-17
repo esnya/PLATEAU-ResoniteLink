@@ -233,7 +233,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             {
                 if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
                 {
-                    continue;
+                    throw new InvalidOperationException(
+                        $"Buffered mesh bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
                 }
 
                 MaterialIdentity identity = MaterialIdentity.From(material);
@@ -265,6 +266,12 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             ResoniteMaterialBinding material = materialByIdentity[identity];
             submeshes.Add(new ResoniteMeshSubmesh(submeshIndex, material.MaterialKey, indices));
             materials.Add(material with { SubmeshIndices = [submeshIndex] });
+        }
+
+        if (submeshes.Count == 0 || materials.Count == 0)
+        {
+            throw new InvalidOperationException(
+                $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}:LOD{(cellKey.LodLevel.HasValue ? cellKey.LodLevel.Value.ToString(CultureInfo.InvariantCulture) : "none")}' produced no materialized submesh.");
         }
 
         BakedOutputCityObjectCount++;

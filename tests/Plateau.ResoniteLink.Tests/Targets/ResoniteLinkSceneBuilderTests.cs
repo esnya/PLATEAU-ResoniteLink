@@ -352,4 +352,220 @@ public sealed class ResoniteLinkSceneBuilderTests
             client.SlotsById.Values,
             static slot => slot.Name?.Value?.StartsWith("MeshBake ", StringComparison.Ordinal) == true);
     }
+
+    [Fact]
+    public async Task BuildAsyncRejectsOutOfRangeMaterialSubmeshAssignment()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "invalid-submesh-range",
+            DisplayName: "Invalid Submesh Range",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("only-submesh"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "only-submesh",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "invalid-submesh-range");
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+
+        Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncRejectsDuplicateMaterialSubmeshAssignment()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "invalid-submesh-duplicate",
+            DisplayName: "Invalid Submesh Duplicate",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "first-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "second-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0, 1]),
+            ],
+            SourceObjectKey: "invalid-submesh-duplicate");
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+
+        Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncRejectsUnassignedMeshSubmesh()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "invalid-submesh-unassigned",
+            DisplayName: "Invalid Submesh Unassigned",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "first-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: "invalid-submesh-unassigned");
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+
+        Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncRejectsTriangleMeshWithoutAnySubmesh()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "invalid-empty-submesh",
+            DisplayName: "Invalid Empty Submesh",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                Vertices:
+                [
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(0.0, 0.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(1.0, 0.0, 0.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(
+                        new ResoniteFloat3(0.0, 0.0, 1.0),
+                        new ResoniteFloat3(0.0, 1.0, 0.0),
+                        new ResoniteFloat2(0.0, 1.0)),
+                ],
+                Submeshes: []),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "unused-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: "invalid-empty-submesh");
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+
+        Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static ResoniteImportedMesh CreateTwoSubmeshMesh()
+    {
+        return new ResoniteImportedMesh(
+            Vertices:
+            [
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "first-material", [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, "second-material", [3, 4, 5]),
+            ]);
+    }
 }
