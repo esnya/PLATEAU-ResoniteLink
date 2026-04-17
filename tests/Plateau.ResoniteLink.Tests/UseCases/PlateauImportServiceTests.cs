@@ -67,13 +67,12 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
         Assert.Same(documentSet, constructionSourceFactory.LastDocumentSet);
         Assert.NotNull(sceneBuilder.BeginRequest);
-        Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Request.LocalSourcePath);
+        Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
         Assert.Same(datasetSource, sceneBuilder.BeginRequest.DatasetContentSource);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
-        Assert.Equal(CommonMaterialCatalog.CreateForPackages(["bldg"]).Count, sceneBuilder.BeginRequest.CommonMaterials.Count);
-        Assert.All(
-            sceneBuilder.BeginRequest.CommonMaterials,
-            static material => Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope));
+        Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
+        Assert.Equal(documentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(documentSet.RequestedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.RequestedMeshCodes);
         Assert.Single(sceneBuilder.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, documentReader.ReadCallCount);
@@ -81,7 +80,8 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(1, sceneBuilder.BeginCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneBuilder.DisposeCount);
-        Assert.Equal(source.Metadata, result.Metadata);
+        Assert.Equal(source.Metadata.WorldName, result.Metadata.SceneName);
+        Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
         Assert.Equal(["stub://destination"], result.Destinations);
     }
 
@@ -165,7 +165,7 @@ public sealed class PlateauImportServiceTests
             LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
     }
 
-    private sealed class RecordingSceneBuilder : IResoniteSceneBuilder
+    private sealed class RecordingSceneBuilder : ISceneImportTarget
     {
         public int EnsureConnectedCallCount { get; private set; }
 
@@ -175,7 +175,7 @@ public sealed class PlateauImportServiceTests
 
         public SceneBuildRequest? BeginRequest { get; private set; }
 
-        public List<ResoniteConstructionCityObject> ProcessedCityObjects { get; } = [];
+        public List<ImportedCityObject> ProcessedCityObjects { get; } = [];
 
         public bool CompleteCalled { get; private set; }
 
@@ -198,7 +198,7 @@ public sealed class PlateauImportServiceTests
         }
 
         public Task ProcessCityObjectAsync(
-            ResoniteConstructionCityObject cityObject,
+            ImportedCityObject cityObject,
             CancellationToken cancellationToken = default)
         {
             ProcessedCityObjects.Add(cityObject);

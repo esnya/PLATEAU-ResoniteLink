@@ -14,7 +14,7 @@ public sealed class CliApplicationTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateImportService(IResoniteSceneBuilder sceneBuilder)
+    private static PlateauImportService CreateImportService(ISceneImportTarget sceneBuilder)
     {
         return new PlateauImportService(
             sceneBuilder,
@@ -162,9 +162,9 @@ public sealed class CliApplicationTests
         return CliTestData.BuildLocalBuildArgs(fixturePath);
     }
 
-    private sealed class StubSceneBuilder : IResoniteSceneBuilder
+    private sealed class StubSceneBuilder : ISceneImportTarget
     {
-        public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<ImportedCityObject> CityObjects { get; } = [];
 
         public Task EnsureConnectedAsync(
             PlateauImportRequest request,
@@ -182,7 +182,7 @@ public sealed class CliApplicationTests
         }
 
         public Task ProcessCityObjectAsync(
-            ResoniteConstructionCityObject cityObject,
+            ImportedCityObject cityObject,
             CancellationToken cancellationToken = default)
         {
             CityObjects.Add(cityObject);

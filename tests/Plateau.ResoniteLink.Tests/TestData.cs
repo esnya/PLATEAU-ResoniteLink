@@ -9,6 +9,11 @@ internal static class TestData
         return Path.Combine(RepositoryRoot, "tests", "Fixtures", fixtureName);
     }
 
+    public static string GetRepositoryPath(params string[] relativeSegments)
+    {
+        return relativeSegments.Aggregate(RepositoryRoot, Path.Combine);
+    }
+
     private static string GetRepositoryRoot()
     {
         DirectoryInfo? current = new(AppContext.BaseDirectory);

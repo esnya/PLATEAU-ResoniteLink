@@ -4,7 +4,7 @@
 
 Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `Plateau.ResoniteLink-cli-vX.Y.Z.zip` を公開します。
 
-この README は、`beta` を `main` に取り込んだ後の mainline release における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / experimental / pending / intentionally regressed はここ と tests に揃えます。
+この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / experimental / pending / intentionally regressed はここ と tests に揃えます。
 
 ## Scope
 
@@ -21,7 +21,7 @@ Pending:
 - target-agnostic IR の抽出と、`Targets.Resonite` / `Transport.ResoniteLink` の深い責務分離は、この release では完了済み保証に含めない内部 follow-up です。
 
 Intentionally regressed:
-- tracked な `docs/live-testing*.md` と standalone の requirements 文書は、release-truth surface としては維持しません。正本は `README.md`、tests、`.agents/skills/` 配下の live-send skill workflow に置きます。
+- standalone の requirements 文書は release-truth surface としては維持しません。product scope は `README.md` と tests に置き、live-send の operator workflow は `docs/live-testing*.md` に置きます。
 
 ## Runtime And Prerequisites
 
@@ -78,6 +78,7 @@ CLI は既定でマイルストーン級の進捗だけを表示し、file ご�
 ## 参考資料
 
 - contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)
+- operator 向け live workflow: [docs/live-testing.ja.md](docs/live-testing.ja.md)
 - Coding Agent 向け live workflow: [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md)
 
 ## License And Provenance

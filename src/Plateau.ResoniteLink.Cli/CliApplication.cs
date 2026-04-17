@@ -69,7 +69,7 @@ public sealed class CliApplication
                 cancellationToken);
 
             await standardOutput.WriteLineAsync("Resonite import completed.");
-            await standardOutput.WriteLineAsync($"World: {result.Metadata.WorldName}");
+            await standardOutput.WriteLineAsync($"World: {result.Metadata.SceneName}");
 
             foreach (string destination in result.Destinations)
             {

@@ -2,13 +2,8 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public interface IResoniteSceneBuilder : IAsyncDisposable
+public interface ISceneImportTarget : IAsyncDisposable
 {
-    /// <summary>
-    /// Verifies transport/session availability before source bootstrap.
-    /// Implementations must treat <paramref name="request"/> as informational only and must not
-    /// depend on source-resolution side effects or previously created external object identifiers.
-    /// </summary>
     Task EnsureConnectedAsync(
         PlateauImportRequest request,
         CancellationToken cancellationToken = default);
@@ -18,7 +13,7 @@ public interface IResoniteSceneBuilder : IAsyncDisposable
         CancellationToken cancellationToken = default);
 
     Task ProcessCityObjectAsync(
-        ResoniteConstructionCityObject cityObject,
+        ImportedCityObject cityObject,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default);

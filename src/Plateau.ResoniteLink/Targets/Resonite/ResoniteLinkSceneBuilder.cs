@@ -15,7 +15,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
-public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
+public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
@@ -215,7 +215,7 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
             CreateBootstrapInfo(request),
             request.WorkRoot,
             request.DatasetContentSource,
-            request.CommonMaterials,
+            CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
             cancellationToken);
     }
 
@@ -662,8 +662,24 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
     }
 
     public async Task ProcessCityObjectAsync(
+        ImportedCityObject cityObject,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cityObject);
+        await ProcessCityObjectCoreAsync(SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
+    }
+
+    internal async Task ProcessCityObjectAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(cityObject);
+        await ProcessCityObjectCoreAsync(cityObject, cancellationToken);
+    }
+
+    private async Task ProcessCityObjectCoreAsync(
+        ResoniteConstructionCityObject cityObject,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
 
@@ -2952,14 +2968,10 @@ public sealed class ResoniteLinkSceneBuilder : IResoniteSceneBuilder
 
     private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
     {
-        return new SceneBootstrapInfo(
-            request.Request.Dataset,
-            request.Request.MeshCode,
-            request.Request.LocalSourcePath ?? request.DatasetContentSource.SourcePath,
-            request.PackageNames,
-            request.SourceFiles,
-            request.RequestedMeshCodes,
-            request.DatasetLicense);
+        ResoniteConstructionMetadata metadata = SceneImportContractMapper.ToInternal(request.Metadata);
+        return SceneBootstrapInfo.CreateFromMetadata(
+            metadata,
+            request.DatasetContentSource.SourcePath);
     }
 
     private readonly record struct PendingBatchSlot(

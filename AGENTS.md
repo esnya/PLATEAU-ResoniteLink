@@ -22,4 +22,5 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 - Keep auxiliary git worktrees under `<repo>/.worktree/`, and avoid sibling directories or `/tmp` worktrees; this keeps ephemeral worktrees consistently ignored and separated from the main checkout.
 
 ## Live Send Workflow
-- For Coding Agent live tests, follow [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md). Keep the live-send workflow source of truth inside that skill and its referenced assets, not in tracked `docs/`.
+- For Coding Agent live tests, follow [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md).
+- Use [docs/live-testing.md](docs/live-testing.md) as the operator-facing workflow reference, with [docs/live-testing.ja.md](docs/live-testing.ja.md) as its translation mirror.

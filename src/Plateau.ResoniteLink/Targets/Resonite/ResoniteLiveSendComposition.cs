@@ -7,7 +7,7 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 public static class ResoniteLiveSendComposition
 {
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "ResoniteLinkSceneBuilder owns the client session lifetime.")]
-    public static IResoniteSceneBuilder CreateSceneBuilder(
+    public static ISceneImportTarget CreateSceneBuilder(
         Uri endpoint,
         int connectionCount,
         bool enableSendMetrics,

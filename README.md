@@ -4,7 +4,7 @@
 
 Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.go.jp/plateau/) CityGML datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). Import behavior and terminology stay aligned with [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/). GitHub Releases are the canonical changelog, and each `vX.Y.Z` release publishes a framework-dependent CLI asset named `Plateau.ResoniteLink-cli-vX.Y.Z.zip`.
 
-This README is the canonical human-readable scope statement for the post-`beta` mainline release. Keep shipped, experimental, pending, and intentionally regressed behavior aligned here and in tests instead of reviving a separate requirements document.
+This README is the canonical human-readable scope statement for the current `beta` branch. Keep shipped, experimental, pending, and intentionally regressed behavior aligned here and in tests instead of reviving a separate requirements document.
 
 ## Scope
 
@@ -21,7 +21,7 @@ Pending:
 - Target-agnostic IR extraction and the deeper `Targets.Resonite` versus `Transport.ResoniteLink` split are internal follow-up work, not completed guarantees of this release.
 
 Intentionally regressed:
-- Tracked `docs/live-testing*.md` workflow documents and a standalone requirements document are not maintained as release-truth surfaces. The source of truth is `README.md`, tests, and the live-send skill workflow under `.agents/skills/`.
+- A standalone requirements document is not maintained as a release-truth surface. Product scope lives in `README.md` and tests, while live-send operator workflow lives in `docs/live-testing*.md`.
 
 ## Runtime And Prerequisites
 
@@ -78,6 +78,7 @@ When `--work-root` is omitted, the CLI stores dataset-local archives and live te
 ## Further Reading
 
 - Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Operator live workflow: [docs/live-testing.md](docs/live-testing.md)
 - Coding-agent live workflow: [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md)
 
 ## License And Provenance

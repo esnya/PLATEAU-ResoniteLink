@@ -12,7 +12,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(IResoniteSceneBuilder sceneBuilder)
+    private static PlateauImportService CreateService(ISceneImportTarget sceneBuilder)
     {
         return new PlateauImportService(
             sceneBuilder,
@@ -71,27 +71,30 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ResoniteConstructionCityObject[] demCityObjects = sceneBuilder.CityObjects
+        ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
             .ToArray();
 
         Assert.Equal(2, demCityObjects.Length);
 
-        ResoniteConstructionCityObject generatedChunk = Assert.Single(
+        ImportedCityObject generatedChunk = Assert.Single(
             demCityObjects,
             static cityObject => cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
-        ResoniteConstructionCityObject explicitChunk = Assert.Single(
+        ImportedCityObject explicitChunk = Assert.Single(
             demCityObjects,
             static cityObject => cityObject.Materials.Any(static material => material.TexturePayload is not null));
 
-        ResoniteMaterialBinding generatedMaterial = Assert.Single(generatedChunk.Materials);
-        Assert.Equal(ResoniteTextureSourceKind.Dataset, generatedMaterial.TextureSourceKind);
+        Assert.Equal("dem", generatedChunk.PackageName);
+        Assert.Equal("dem", explicitChunk.PackageName);
+
+        MaterialBinding generatedMaterial = Assert.Single(generatedChunk.Materials);
+        Assert.Equal(TextureSourceKind.Dataset, generatedMaterial.TextureSourceKind);
         Assert.NotNull(generatedMaterial.TerrainOverlay);
         Assert.Null(generatedMaterial.TexturePayload);
         Assert.Single(generatedChunk.Mesh.Submeshes);
         Assert.InRange(generatedChunk.Mesh.Vertices.Count, 3, 9);
 
-        ResoniteMaterialBinding explicitMaterial = Assert.Single(explicitChunk.Materials);
+        MaterialBinding explicitMaterial = Assert.Single(explicitChunk.Materials);
         Assert.NotNull(explicitMaterial.TexturePayload);
         Assert.Contains(
             "udx/dem/53394525/appearance/mixed_surface.png",
@@ -118,11 +121,12 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ResoniteConstructionCityObject demCityObject = Assert.Single(
+        ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem");
+        Assert.Equal("dem", demCityObject.PackageName);
 
-        ResoniteMaterialBinding material = Assert.Single(demCityObject.Materials);
+        MaterialBinding material = Assert.Single(demCityObject.Materials);
         Assert.NotNull(material.TerrainOverlay);
         Assert.Null(material.TexturePayload);
 
@@ -265,9 +269,9 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_chunk.gml"), xml);
     }
 
-    private sealed class StubSceneBuilder : IResoniteSceneBuilder
+    private sealed class StubSceneBuilder : ISceneImportTarget
     {
-        public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<ImportedCityObject> CityObjects { get; } = [];
 
         public Task EnsureConnectedAsync(
             PlateauImportRequest request,
@@ -286,7 +290,7 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
         }
 
         public Task ProcessCityObjectAsync(
-            ResoniteConstructionCityObject cityObject,
+            ImportedCityObject cityObject,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
