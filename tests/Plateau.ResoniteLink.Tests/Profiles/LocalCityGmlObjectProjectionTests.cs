@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -75,6 +76,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem")
+            .Where(static cityObject => !cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal))
             .ToArray();
 
         Assert.Equal(2, demCityObjects.Length);
@@ -125,7 +127,8 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
+            static cityObject => cityObject.PackageName == "dem"
+                && !cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
         Assert.Equal("dem", demCityObject.PackageName);
 
         MaterialBinding material = Assert.Single(demCityObject.Materials);
@@ -168,7 +171,8 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
+            static cityObject => cityObject.PackageName == "dem"
+                && !cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
         HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
 
         double[] topEdge = Enumerable.Range(0, geometry.Width)
@@ -212,7 +216,8 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
+            static cityObject => cityObject.PackageName == "dem"
+                && !cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
         HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
         Assert.True(geometry.Width > 0);
         Assert.True(geometry.Height > 0);
@@ -240,8 +245,136 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
+            static cityObject => cityObject.PackageName == "dem"
+                && !cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
         Assert.Equal("53394525", demCityObject.DisplayName);
+    }
+
+    [Fact]
+    public void AlignAdjacentDemHeightMapChunkBoundariesAveragesSharedSamplesForPartialOverlapWithDifferentResolution()
+    {
+        ResoniteConstructionCityObject left = CreateHeightMapCityObject(
+            "left-dem",
+            new ResoniteFloat3(0.0, 14.0, 0.0),
+            width: 2,
+            height: 5,
+            sizeX: 2.0,
+            sizeZ: 4.0,
+            [
+                1.0, 10.0,
+                1.0, 11.0,
+                1.0, 12.0,
+                1.0, 13.0,
+                1.0, 14.0,
+            ]);
+        ResoniteConstructionCityObject right = CreateHeightMapCityObject(
+            "right-dem",
+            new ResoniteFloat3(2.0, 22.0, 0.0),
+            width: 2,
+            height: 3,
+            sizeX: 2.0,
+            sizeZ: 2.0,
+            [
+                20.0, 2.0,
+                21.0, 2.0,
+                22.0, 2.0,
+            ]);
+
+        ResoniteConstructionCityObject[] aligned = AlignAdjacentDemHeightMapChunkBoundariesForTest([left, right]);
+
+        ResoniteHeightMapGridGeometry alignedLeft = Assert.IsType<ResoniteHeightMapGridGeometry>(aligned[0].Geometry);
+        ResoniteHeightMapGridGeometry alignedRight = Assert.IsType<ResoniteHeightMapGridGeometry>(aligned[1].Geometry);
+
+        Assert.Equal(10.0, alignedLeft.HeightSamples[1], 6);
+        Assert.Equal(15.5, alignedLeft.HeightSamples[3], 6);
+        Assert.Equal(16.5, alignedLeft.HeightSamples[5], 6);
+        Assert.Equal(17.5, alignedLeft.HeightSamples[7], 6);
+        Assert.Equal(14.0, alignedLeft.HeightSamples[9], 6);
+
+        Assert.Equal(15.5, alignedRight.HeightSamples[0], 6);
+        Assert.Equal(16.5, alignedRight.HeightSamples[2], 6);
+        Assert.Equal(17.5, alignedRight.HeightSamples[4], 6);
+    }
+
+    [Fact]
+    public async Task TerrainAlignedObjectDoesNotUseNearestTerrainPointOutsideDemTriangles()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemAndLandUseGapFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem", "luse"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject landUse = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.PackageName == "luse");
+
+        Assert.True(
+            landUse.Transform.Position.Y > 40.0,
+            $"Land-use object was incorrectly snapped toward nearby DEM fallback height: y={landUse.Transform.Position.Y:F6}");
+    }
+
+    [Fact]
+    public async Task DemMeshModeEmitsPerimeterSkirtCompanionObject()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemChunkFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject skirt = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
+        Assert.False(skirt.CollisionEnabled);
+        Assert.IsType<TriangleMeshGeometry>(skirt.Geometry);
+    }
+
+    [Fact]
+    public async Task DemHeightMapModeEmitsPerimeterSkirtCompanionObject()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemChunkFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject skirt = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
+        Assert.False(skirt.CollisionEnabled);
+        Assert.IsType<TriangleMeshGeometry>(skirt.Geometry);
     }
 
     [Fact]
@@ -427,6 +560,82 @@ public sealed class LocalCityGmlObjectProjectionTests
             """;
 
         File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_chunk.gml"), xml);
+    }
+
+    private static void CreateRuntimeDemAndLandUseGapFixture(string datasetRoot)
+    {
+        string demDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
+        string landUseDirectory = Path.Combine(datasetRoot, "udx", "luse", "53394525");
+        Directory.CreateDirectory(demDirectory);
+        Directory.CreateDirectory(landUseDirectory);
+
+        string demXml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.6699 139.7100 20</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <dem:ReliefFeature gml:id="dem-gap">
+                  <gml:name>Gap Relief</gml:name>
+                  <dem:reliefComponent>
+                    <dem:TINRelief gml:id="dem-gap-component">
+                      <dem:tin>
+                        <gml:TriangulatedSurface>
+                          <gml:trianglePatches>
+                            <gml:Triangle gml:id="tri-gap-a">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="ring-gap-a">
+                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7008 6 35.6698 139.7040 7 35.6669 139.7008 5</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Triangle>
+                          </gml:trianglePatches>
+                        </gml:TriangulatedSurface>
+                      </dem:tin>
+                    </dem:TINRelief>
+                  </dem:reliefComponent>
+                </dem:ReliefFeature>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        File.WriteAllText(Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525_gap.gml"), demXml);
+
+        string landUseXml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:luse="http://www.opengis.net/citygml/landuse/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.6699 139.7100 60</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <luse:LandUse gml:id="luse-gap">
+                  <gml:name>Gap Land Use</gml:name>
+                  <luse:lod1MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon gml:id="luse-gap-polygon">
+                          <gml:exterior>
+                            <gml:LinearRing gml:id="luse-gap-ring">
+                              <gml:posList>35.6672 139.7060 50 35.6692 139.7060 50 35.6692 139.7085 50 35.6672 139.7085 50 35.6672 139.7060 50</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </luse:lod1MultiSurface>
+                </luse:LandUse>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        File.WriteAllText(Path.Combine(landUseDirectory, "plateau_tokyo23ku_luse_53394525_gap.gml"), landUseXml);
     }
 
     private static void CreateRuntimeFacadeBuildingFixture(
@@ -676,6 +885,56 @@ public sealed class LocalCityGmlObjectProjectionTests
                 longitude0.ToString("F8", CultureInfo.InvariantCulture),
                 heightA.ToString("F3", CultureInfo.InvariantCulture),
             ]);
+    }
+
+    private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundariesForTest(
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection)
+            .GetMethod(
+                "AlignAdjacentDemHeightMapChunkBoundaries",
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve AlignAdjacentDemHeightMapChunkBoundaries.");
+
+        return (ResoniteConstructionCityObject[])method.Invoke(null, [cityObjects])!;
+    }
+
+    private static ResoniteConstructionCityObject CreateHeightMapCityObject(
+        string slotKey,
+        ResoniteFloat3 position,
+        int width,
+        int height,
+        double sizeX,
+        double sizeZ,
+        IReadOnlyList<double> heightSamples)
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: $"{slotKey}-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "dem",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(position),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: width,
+                Height: height,
+                Size: new ResoniteFloat2(sizeX, sizeZ),
+                MinHeight: heightSamples.Min(),
+                MaxHeight: heightSamples.Max(),
+                HeightSamples: heightSamples),
+            Materials: [material],
+            SourceObjectKey: slotKey,
+            SourceUnitKey: slotKey,
+            SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
 
     private static void AssertVerticalRepeatCount(ImportedCityObject cityObject, MaterialBinding material, double expectedRepeats)
