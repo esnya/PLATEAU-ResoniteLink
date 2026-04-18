@@ -17,12 +17,10 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
     private const string RootSlotId = "Root";
-    private const string CommonAssetsSlotName = "Common";
     private const string DemPackageName = "dem";
     private const string HeightMapAssetSlotSuffix = "_heightmap";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private const string CityGmlSlotDuplicateSuffixFormat = "{0:D4}";
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly ResoniteLinkSendDiagnostics diagnostics;
@@ -257,13 +255,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private async Task BeginCoreAsync(
         SceneBootstrapInfo bootstrapInfo,
         string workRoot,
-        IPlateauDatasetContentSource? datasetContentSource,
+        IPlateauDatasetContentSource datasetContentSource,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
         ResoniteLocalOrigin requestLocalOrigin,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(bootstrapInfo);
+        ArgumentNullException.ThrowIfNull(datasetContentSource);
         ArgumentNullException.ThrowIfNull(commonMaterials);
         ArgumentNullException.ThrowIfNull(normalizedRequest);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
@@ -290,29 +289,10 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         IResoniteLinkClient routedClient = GetRoutedClient();
         LiveSendProgressState progress = new();
         LiveSendMaterialState materials = new();
-        string localSourcePath = datasetContentSource?.SourcePath ?? bootstrapInfo.LocalSourcePath;
-        if (datasetContentSource is null)
-        {
-            ArgumentException.ThrowIfNullOrWhiteSpace(localSourcePath);
-            Stopwatch contentSourceStopwatch = Stopwatch.StartNew();
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Opening resolved dataset content source '{localSourcePath}'."));
-            datasetContentSource = await PlateauDatasetContentSourceFactory.CreateAsync(localSourcePath, cancellationToken);
-            contentSourceStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    $"Dataset content source opened in {contentSourceStopwatch.Elapsed.TotalSeconds:F2}s."));
-        }
-        else
-        {
-            ReportProgress(
-                PlateauLog.Info(
-                    "live",
-                    "Reusing dataset content source provided by caller."));
-        }
+        ReportProgress(
+            PlateauLog.Info(
+                "live",
+                "Reusing dataset content source provided by caller."));
         ResoniteTextureImageLoader textureImageLoader = new();
         ReportProgress(
             PlateauLog.Info("live", "Setting up mutable helpers (baker)."));
@@ -396,11 +376,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         LiveSendExecutionContext context = new(
             bootstrapInfo,
             bootstrapState.DatasetRootSlot,
-            bootstrapState.DatasetAssetsRootSlot,
-            bootstrapState.CommonAssetsRootSlot,
-            datasetContentSource,
-            requestLocalOrigin,
-            CreateCityGmlSlotNamesByRelativePath(bootstrapInfo.SourceFiles),
             cityObjectBaker);
         activeRun = new LiveSendExecutionRun
         {
@@ -429,49 +404,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             PlateauLog.Info(
                 "live",
                 $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
-    }
-
-    private Task<CreatedMaterialAsset> CreateOrStartCommonMaterialWarmupTask(
-        IResoniteLinkClient setupClient,
-        string commonAssetsSlotId,
-        ResoniteMaterialBinding material,
-        Task priorFamilyTask,
-        CancellationToken cancellationToken)
-    {
-        return CreateOrStartCommonMaterialWarmupTaskCore(setupClient, commonAssetsSlotId, material, priorFamilyTask, cancellationToken);
-    }
-
-    private async Task<CreatedMaterialAsset> CreateOrStartCommonMaterialWarmupTaskCore(
-        IResoniteLinkClient setupClient,
-        string commonAssetsSlotId,
-        ResoniteMaterialBinding material,
-        Task priorFamilyTask,
-        CancellationToken cancellationToken)
-    {
-        await priorFamilyTask.ConfigureAwait(false);
-        Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
-        PlannedDedicatedMaterialAsset plannedMaterial = await ResoniteMaterialPlanning.PlanCommonMaterialAssetAsync(
-            setupClient,
-            material,
-            cancellationToken);
-        CreatedMaterialAsset asset = await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
-            setupClient,
-            plannedMaterial,
-            commonAssetsSlotId,
-            CreateMaterialSlotName(material, useCommonMaterialAssets: true),
-            Placement.GetOrCreateSharedChildSlotAsync,
-            CreateComponentAsync,
-            cancellationToken);
-        commonMaterialStopwatch.Stop();
-        int completedCount = Interlocked.Increment(ref firstCommonMaterialPrepLogged);
-        if (completedCount == 1 || completedCount % 25 == 0)
-        {
-            ReportProgress(
-                $"[live] Common material '{CreateMaterialSlotName(material, useCommonMaterialAssets: true)}' prepared in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s "
-                + $"(count={completedCount}).");
-        }
-
-        return asset;
     }
 
     private Task<CreatedSlot?> TryGetDatasetRootAsync(
@@ -1507,29 +1439,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         }
     }
 
-    internal static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
-    {
-        return ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets);
-    }
-
-    internal static ResoniteMaterialBinding NormalizeCommonMaterialBinding(ResoniteMaterialBinding material)
-    {
-        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-    }
-
-    internal static string CreateCanonicalCommonMaterialKey(
-        string family,
-        int bundledVariantIndex,
-        ResoniteMaterialProjection projection,
-        ResoniteFloat2? textureScale)
-    {
-        return ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
-            family,
-            bundledVariantIndex,
-            projection,
-            textureScale);
-    }
-
     private static bool IsDemPackage(string packageName)
     {
         return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
@@ -1955,33 +1864,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         };
     }
 
-    private static Field_float3 CreateFloat3(ResoniteFloat3 value)
-    {
-        return new Field_float3
-        {
-            Value = new float3
-            {
-                x = (float)value.X,
-                y = (float)value.Y,
-                z = (float)value.Z,
-            },
-        };
-    }
-
-    private static Field_floatQ CreateFloatQ(ResoniteFloatQ value)
-    {
-        return new Field_floatQ
-        {
-            Value = new floatQ
-            {
-                x = (float)value.X,
-                y = (float)value.Y,
-                z = (float)value.Z,
-                w = (float)value.W,
-            },
-        };
-    }
-
     private async Task AwaitProcessingTasksIfCompletedAsync()
     {
         if (activeRun is not null)
@@ -2018,12 +1900,12 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         IReadOnlyDictionary<string, Member> members,
         CancellationToken cancellationToken)
     {
-        PendingBatchComponent pendingComponent = new(
+        ResoniteBatchOperations.PendingBatchComponent pendingComponent = new(
             LocalId: $"single_component_{Guid.NewGuid():N}",
             MessageId: $"single_component_message_{Guid.NewGuid():N}",
             ComponentType: componentType);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(
-            [CreateAddComponentOperation(containerSlotId, componentType, members, pendingComponent.LocalId, pendingComponent.MessageId)],
+            [ResoniteBatchOperations.CreateAddComponentOperation(containerSlotId, componentType, members, pendingComponent.LocalId, pendingComponent.MessageId)],
             cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
     }
@@ -2057,12 +1939,12 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        PendingBatchSlot pendingSlot = new(
+        ResoniteBatchOperations.PendingBatchSlot pendingSlot = new(
             LocalId: $"single_slot_{Guid.NewGuid():N}",
             MessageId: $"single_slot_message_{Guid.NewGuid():N}",
             SlotName: slotName);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(
-            [CreateAddSlotOperation(parentId, slotName, position, rotation, requestedSlotId: pendingSlot.LocalId, messageId: pendingSlot.MessageId)],
+            [ResoniteBatchOperations.CreateAddSlotOperation(parentId, slotName, position, rotation, requestedSlotId: pendingSlot.LocalId, messageId: pendingSlot.MessageId)],
             cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveSlot(pendingSlot);
     }
@@ -2096,61 +1978,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         };
     }
 
-    private static AddSlot CreateAddSlotOperation(
-        string parentId,
-        string slotName,
-        ResoniteFloat3? position,
-        ResoniteFloatQ? rotation,
-        string? requestedSlotId = null,
-        string? messageId = null)
-    {
-        return new AddSlot
-        {
-            MessageID = messageId,
-            Data = new Slot
-            {
-                ID = requestedSlotId,
-                Parent = new Reference
-                {
-                    TargetID = parentId,
-                },
-                Name = new Field_string
-                {
-                    Value = slotName,
-                },
-                Position = position is null ? null : CreateFloat3(position),
-                Rotation = rotation is null ? null : CreateFloatQ(rotation),
-            },
-        };
-    }
-
-    private static AddComponent CreateAddComponentOperation(
-        string containerSlotId,
-        string componentType,
-        IReadOnlyDictionary<string, Member> members,
-        string? requestedComponentId = null,
-        string? messageId = null)
-    {
-        return new AddComponent
-        {
-            MessageID = messageId,
-            ContainerSlotId = containerSlotId,
-            Data = new Component
-            {
-                ID = requestedComponentId,
-                ComponentType = componentType,
-                Members = new Dictionary<string, Member>(members, StringComparer.Ordinal),
-            },
-        };
-    }
-
-    private static string FormatLodSlotName(int? lodLevel)
-    {
-        return lodLevel.HasValue
-            ? string.Create(CultureInfo.InvariantCulture, $"LOD{lodLevel.Value}")
-            : "LOD0";
-    }
-
     private static string CreateMeshAssetSlotName(ResoniteConstructionCityObject cityObject)
     {
         return cityObject.DisplayName;
@@ -2173,276 +2000,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         return SceneBootstrapInfo.CreateFromMetadata(
             metadata,
             request.DatasetContentSource.SourcePath);
-    }
-
-    private readonly record struct PendingBatchSlot(
-        string LocalId,
-        string MessageId,
-        string SlotName);
-
-    private readonly record struct PendingBatchComponent(
-        string LocalId,
-        string MessageId,
-        string ComponentType);
-
-    private readonly record struct PendingBatchOperation(
-        string MessageId,
-        string Description);
-
-    private sealed class CityObjectBatchBuilder
-    {
-        private readonly string batchScopeToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
-        private int nextEntityId;
-        private int nextMessageId;
-
-        public List<DataModelOperation> Operations { get; } = [];
-        public List<PendingBatchOperation> PendingOperations { get; } = [];
-
-        public PendingBatchSlot AddSlot(
-            string parentId,
-            string slotName,
-            ResoniteFloat3? position,
-            ResoniteFloatQ? rotation)
-        {
-            string localId = AllocateEntityId("local_slot");
-            string messageId = AllocateMessageId();
-            Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
-            PendingOperations.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
-            return new PendingBatchSlot(localId, messageId, slotName);
-        }
-
-        public PendingBatchComponent AddComponent(
-            string containerSlotId,
-            string componentType,
-            IReadOnlyDictionary<string, Member> members)
-        {
-            string localId = AllocateEntityId("local_component");
-            string messageId = AllocateMessageId();
-            Operations.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
-            PendingOperations.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
-            return new PendingBatchComponent(localId, messageId, componentType);
-        }
-
-        private string AllocateEntityId(string prefix)
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"{prefix}_{batchScopeToken}_{++nextEntityId}");
-        }
-
-        private string AllocateMessageId()
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"batch_message_{batchScopeToken}_{++nextMessageId}");
-        }
-    }
-
-    private sealed class CanonicalBatchEntityMap
-    {
-        private readonly Dictionary<string, Response> responsesByMessageId;
-        private readonly Queue<Response> responsesWithoutMessageId;
-
-        private CanonicalBatchEntityMap(
-            Dictionary<string, Response> responsesByMessageId,
-            Queue<Response> responsesWithoutMessageId)
-        {
-            this.responsesByMessageId = responsesByMessageId;
-            this.responsesWithoutMessageId = responsesWithoutMessageId;
-        }
-
-        public static CanonicalBatchEntityMap Create(BatchResponse batchResponse)
-        {
-            ArgumentNullException.ThrowIfNull(batchResponse);
-            return new CanonicalBatchEntityMap(
-                (batchResponse.Responses ?? [])
-                    .Where(static response => !string.IsNullOrWhiteSpace(response.SourceMessageID))
-                    .ToDictionary(response => response.SourceMessageID, StringComparer.Ordinal),
-                new Queue<Response>(
-                    (batchResponse.Responses ?? [])
-                        .Where(static response => string.IsNullOrWhiteSpace(response.SourceMessageID))));
-        }
-
-        public CreatedSlot ResolveSlot(PendingBatchSlot pendingSlot)
-        {
-            Response response = ResolveResponse(pendingSlot.MessageId);
-            if (response is not NewEntityId newEntityId || string.IsNullOrWhiteSpace(newEntityId.EntityId))
-            {
-                throw new InvalidOperationException(
-                    $"Batch response for slot '{pendingSlot.SlotName}' did not include a canonical slot ID.");
-            }
-
-            return new CreatedSlot(newEntityId.EntityId, pendingSlot.SlotName);
-        }
-
-        public CreatedComponent ResolveComponent(PendingBatchComponent pendingComponent)
-        {
-            Response response = ResolveResponse(pendingComponent.MessageId);
-            if (response is not NewEntityId newEntityId || string.IsNullOrWhiteSpace(newEntityId.EntityId))
-            {
-                throw new InvalidOperationException(
-                    $"Batch response for component '{pendingComponent.ComponentType}' did not include a canonical component ID.");
-            }
-
-            return new CreatedComponent(newEntityId.EntityId, pendingComponent.ComponentType);
-        }
-
-        public void ValidateAll(IReadOnlyList<PendingBatchOperation> pendingOperations)
-        {
-            ArgumentNullException.ThrowIfNull(pendingOperations);
-            foreach (PendingBatchOperation pendingOperation in pendingOperations)
-            {
-                _ = ResolveResponse(
-                    pendingOperation.MessageId,
-                    $"validate {pendingOperation.Description}");
-            }
-        }
-
-        private Response ResolveResponse(string messageId)
-        {
-            return ResolveResponse(messageId, $"resolve batch message '{messageId}'");
-        }
-
-        private Response ResolveResponse(string messageId, string operationName)
-        {
-            if (!responsesByMessageId.TryGetValue(messageId, out Response? response))
-            {
-                if (responsesWithoutMessageId.Count == 0)
-                {
-                    throw new InvalidOperationException($"Batch response did not include message '{messageId}'.");
-                }
-
-                response = responsesWithoutMessageId.Dequeue();
-            }
-
-            ResoniteLinkClient.EnsureSuccess(response, operationName);
-            return response;
-        }
-    }
-
-    private sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgress)
-    {
-        public Task ExecuteAsync(
-            IResoniteLinkClient client,
-            ResoniteConstructionCityObject cityObject,
-            PlannedBatchEmission batchEmission,
-            CancellationToken cancellationToken)
-        {
-            return ExecuteCoreAsync(client, cityObject, batchEmission, cancellationToken);
-        }
-
-        private async Task ExecuteCoreAsync(
-            IResoniteLinkClient client,
-            ResoniteConstructionCityObject cityObject,
-            PlannedBatchEmission batchEmission,
-            CancellationToken cancellationToken)
-        {
-            CityObjectBatchBuilder batchBuilder = new();
-            Dictionary<string, PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
-            Dictionary<string, PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
-
-            foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
-            {
-                PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
-                    ResolveTargetId(slotEmission.ParentId, pendingSlotsByPlanId, pendingComponentsByPlanId),
-                    slotEmission.SlotName,
-                    slotEmission.Position,
-                    slotEmission.Rotation);
-                pendingSlotsByPlanId[slotEmission.Identity.Value] = pendingSlot;
-            }
-
-            foreach (PlannedBatchComponentEmission componentEmission in batchEmission.ComponentEmissions)
-            {
-                Dictionary<string, Member> translatedMembers = TranslateMembers(
-                    componentEmission.Members,
-                    pendingSlotsByPlanId,
-                    pendingComponentsByPlanId);
-                if (string.Equals(componentEmission.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal)
-                    && translatedMembers.TryGetValue("Points", out Member? pointsMember)
-                    && translatedMembers.TryGetValue("DisplacementMagnitude", out Member? displacementMember)
-                    && pointsMember is Field_int2 points
-                    && displacementMember is Field_float displacement)
-                {
-                    reportProgress(
-                        $"[live] HeightMap texture ready. Creating GridMesh "
-                        + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3}).");
-                }
-
-                PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
-                    ResolveTargetId(componentEmission.ContainerId, pendingSlotsByPlanId, pendingComponentsByPlanId),
-                    componentEmission.ComponentType,
-                    translatedMembers);
-                pendingComponentsByPlanId[componentEmission.Identity.Value] = pendingComponent;
-            }
-
-            int operationCount = batchBuilder.Operations.Count;
-            Stopwatch batchStopwatch = Stopwatch.StartNew();
-            BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
-            batchStopwatch.Stop();
-            reportProgress(
-                PlateauLog.Debug(
-                    "live",
-                    $"City object '{cityObject.DisplayName}' batch completed in {batchStopwatch.Elapsed.TotalSeconds:F3}s "
-                    + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
-
-            CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
-            canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingOperations);
-            foreach (BatchPlanEntityId slotResolutionTarget in batchEmission.SlotResolutionTargets)
-            {
-                _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget.Value]);
-            }
-
-            foreach (BatchPlanEntityId componentResolutionTarget in batchEmission.ComponentResolutionTargets)
-            {
-                _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget.Value]);
-            }
-        }
-
-        private static string ResolveTargetId(
-            string targetId,
-            IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
-            IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
-        {
-            if (pendingSlotsByPlanId.TryGetValue(targetId, out PendingBatchSlot pendingSlot))
-            {
-                return pendingSlot.LocalId;
-            }
-
-            if (pendingComponentsByPlanId.TryGetValue(targetId, out PendingBatchComponent pendingComponent))
-            {
-                return pendingComponent.LocalId;
-            }
-
-            return targetId;
-        }
-
-        private static Dictionary<string, Member> TranslateMembers(
-            IReadOnlyDictionary<string, Member> members,
-            IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
-            IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
-        {
-            return members.ToDictionary(
-                static pair => pair.Key,
-                pair => TranslateMember(pair.Value, pendingSlotsByPlanId, pendingComponentsByPlanId),
-                StringComparer.Ordinal);
-        }
-
-        private static Member TranslateMember(
-            Member member,
-            IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
-            IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
-        {
-            return member switch
-            {
-                Reference reference => new Reference
-                {
-                    TargetID = ResolveTargetId(reference.TargetID, pendingSlotsByPlanId, pendingComponentsByPlanId),
-                },
-                SyncList syncList => new SyncList
-                {
-                    Elements = syncList.Elements
-                        .Select(element => TranslateMember(element, pendingSlotsByPlanId, pendingComponentsByPlanId))
-                        .ToList(),
-                },
-                _ => member,
-            };
-        }
     }
 
     internal sealed record QueuedCityObject(
@@ -2477,126 +2034,5 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         int ConnectionCount,
         int QueueCapacity,
         long MemoryBudgetBytes);
-
-    internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
-    {
-        private readonly Channel<QueuedCityObject> cityObjectChannel;
-        private readonly CancellationTokenSource processingCancellationSource;
-        private readonly TaskCompletionSource<Exception> firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly AsyncWeightedGate cityObjectMemoryGate;
-        private readonly Stopwatch sceneBuildStopwatch = Stopwatch.StartNew();
-        private Task[] processingTasks = [];
-
-        public LiveSendExecutionRuntime(LiveSendRuntimePlan plan, CancellationToken cancellationToken)
-        {
-            ArgumentNullException.ThrowIfNull(plan);
-
-            cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
-                new BoundedChannelOptions(plan.QueueCapacity)
-                {
-                    SingleReader = false,
-                    SingleWriter = false,
-                    FullMode = BoundedChannelFullMode.Wait,
-                });
-            processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cityObjectMemoryGate = new AsyncWeightedGate(plan.MemoryBudgetBytes);
-        }
-
-        public ChannelReader<QueuedCityObject> Reader => cityObjectChannel.Reader;
-
-        public CancellationToken ProcessingCancellationToken => processingCancellationSource.Token;
-
-        public bool IsCancellationRequested => processingCancellationSource.IsCancellationRequested;
-
-        public int ProcessingTaskCount => processingTasks.Length;
-
-        public double ElapsedTotalSeconds => sceneBuildStopwatch.Elapsed.TotalSeconds;
-
-        public void Start(Task[] tasks)
-        {
-            ArgumentNullException.ThrowIfNull(tasks);
-            processingTasks = tasks;
-        }
-
-        public ValueTask<AsyncWeightedGate.Lease> AcquireCityObjectMemoryAsync(long estimatedWorksetBytes, CancellationToken cancellationToken)
-        {
-            return cityObjectMemoryGate.AcquireAsync(estimatedWorksetBytes, cancellationToken);
-        }
-
-        public ValueTask WriteAsync(QueuedCityObject queuedCityObject, CancellationToken cancellationToken)
-        {
-            return cityObjectChannel.Writer.WriteAsync(queuedCityObject, cancellationToken);
-        }
-
-        public void CompleteWriter()
-        {
-            cityObjectChannel.Writer.TryComplete();
-        }
-
-        public async Task AwaitCompletionAsync(CancellationToken cancellationToken)
-        {
-            Task allProcessingTasks = Task.WhenAll(processingTasks);
-            Task completedTask = await Task.WhenAny(allProcessingTasks, firstProcessingFailureSource.Task).WaitAsync(cancellationToken);
-            if (completedTask == firstProcessingFailureSource.Task)
-            {
-                Cancel();
-                Exception failure = await firstProcessingFailureSource.Task.WaitAsync(cancellationToken);
-                throw failure;
-            }
-
-            await allProcessingTasks.WaitAsync(cancellationToken);
-        }
-
-        public async Task AwaitIfAnyTaskCompletedAsync()
-        {
-            if (firstProcessingFailureSource.Task.IsCompletedSuccessfully)
-            {
-                Exception failure = await firstProcessingFailureSource.Task;
-                throw failure;
-            }
-
-            if (Array.Exists(processingTasks, static task => task.IsCompleted))
-            {
-                await Task.WhenAll(processingTasks);
-            }
-        }
-
-        public void TryMarkFailure(Exception exception)
-        {
-            if (exception is OperationCanceledException)
-            {
-                return;
-            }
-
-            firstProcessingFailureSource.TrySetResult(exception);
-        }
-
-        public void Cancel()
-        {
-            try
-            {
-                _ = processingCancellationSource.CancelAsync();
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            cityObjectChannel.Writer.TryComplete();
-            Cancel();
-
-            Task[] drainTasks = processingTasks
-                .Select(static task => task.ContinueWith(
-                    static completedTask => _ = completedTask.Exception,
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default))
-                .ToArray();
-            await Task.WhenAll(drainTasks);
-            processingCancellationSource.Dispose();
-        }
-    }
 
 }

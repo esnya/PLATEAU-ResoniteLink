@@ -108,7 +108,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             batchPlan.SlotEmissions,
             slot => string.Equals(
                 slot.SlotName,
-                ResoniteLinkSceneBuilder.CreateMaterialSlotName(dedicatedMaterial.Material, useCommonMaterialAssets: false),
+                ResoniteSceneMaterialConventions.CreateMaterialSlotName(dedicatedMaterial.Material, useCommonMaterialAssets: false),
                 StringComparison.Ordinal));
         PlannedBatchComponentEmission dedicatedMaterialComponent = Assert.Single(
             batchPlan.ComponentEmissions,

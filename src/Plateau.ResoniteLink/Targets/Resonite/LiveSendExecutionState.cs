@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 
-using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
@@ -8,11 +7,6 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 internal sealed record LiveSendExecutionContext(
     SceneBootstrapInfo BootstrapInfo,
     CreatedSlot DatasetRootSlot,
-    CreatedSlot DatasetAssetsRootSlot,
-    CreatedSlot CommonAssetsRootSlot,
-    IPlateauDatasetContentSource DatasetContentSource,
-    ResoniteLocalOrigin RequestLocalOrigin,
-    IReadOnlyDictionary<string, string> CityGmlSlotNamesByRelativePath,
     CompositeCityObjectBaker? CityObjectBaker);
 
 internal sealed class LiveSendProgressState
@@ -71,5 +65,5 @@ internal sealed class LiveSendExecutionRun
 
     public required AsyncCompletedResultCache<TextureImportCacheKey, Uri> ImportedTextureUriCache { get; init; }
 
-    public required ResoniteLinkSceneBuilder.LiveSendExecutionRuntime Runtime { get; init; }
+    public required LiveSendExecutionRuntime Runtime { get; init; }
 }
