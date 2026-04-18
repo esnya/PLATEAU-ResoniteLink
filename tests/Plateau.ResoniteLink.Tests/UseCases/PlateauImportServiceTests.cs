@@ -76,8 +76,7 @@ public sealed class PlateauImportServiceTests
         Assert.Single(sceneBuilder.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, documentReader.ReadCallCount);
-        Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
-        Assert.Equal(1, sceneBuilder.BeginCallCount);
+        Assert.Equal(1, sceneBuilder.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneBuilder.DisposeCount);
         Assert.Equal(source.Metadata.WorldName, result.Metadata.SceneName);
@@ -124,10 +123,54 @@ public sealed class PlateauImportServiceTests
             static error => error.Contains("No triangulated CityGML geometry", StringComparison.Ordinal));
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, documentReader.ReadCallCount);
-        Assert.Equal(1, sceneBuilder.EnsureConnectedCallCount);
-        Assert.Equal(1, sceneBuilder.BeginCallCount);
+        Assert.Equal(0, sceneBuilder.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
-        Assert.False(sceneBuilder.CompleteCalled);
+        Assert.Equal(1, sceneBuilder.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ThrowsOperationalFailureWhenTargetFailsEveryCityObject()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            Source: new ValidatedPlateauLocalImportSource(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
+        LocalCityGmlDocumentSet documentSet = CreateDocumentSet(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        RecordingSceneBuilder sceneBuilder = new()
+        {
+            ExecutionResultFactory = static cityObjectCount => new SceneImportExecutionResult(
+                ["stub://destination"],
+                ProcessedCityObjectCount: 0,
+                FailedCityObjectCount: cityObjectCount),
+        };
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        RecordingDocumentReader documentReader = new(documentSet);
+        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], documentSet.RelativeSourceFiles));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            documentReader,
+            constructionSourceFactory);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(request, workRoot.Path));
+
+        Assert.Contains("Live send failed for all", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(1, sceneBuilder.ExecuteCallCount);
+        Assert.Single(sceneBuilder.ProcessedCityObjects);
         Assert.Equal(1, sceneBuilder.DisposeCount);
     }
 
@@ -167,9 +210,7 @@ public sealed class PlateauImportServiceTests
 
     private sealed class RecordingSceneBuilder : ISceneImportTarget
     {
-        public int EnsureConnectedCallCount { get; private set; }
-
-        public int BeginCallCount { get; private set; }
+        public int ExecuteCallCount { get; private set; }
 
         public PlateauImportRequest? ConnectedRequest { get; private set; }
 
@@ -177,38 +218,26 @@ public sealed class PlateauImportServiceTests
 
         public List<ImportedCityObject> ProcessedCityObjects { get; } = [];
 
-        public bool CompleteCalled { get; private set; }
-
         public int DisposeCount { get; private set; }
 
-        public Task EnsureConnectedAsync(PlateauImportRequest request, CancellationToken cancellationToken = default)
-        {
-            EnsureConnectedCallCount++;
-            ConnectedRequest = request;
-            return Task.CompletedTask;
-        }
+        public Func<int, SceneImportExecutionResult>? ExecutionResultFactory { get; init; }
 
-        public Task BeginAsync(
-            SceneBuildRequest request,
+        public async Task<SceneImportExecutionResult> ExecuteAsync(
+            SceneImportExecutionPlan plan,
+            IAsyncEnumerable<ImportedCityObject> cityObjects,
             CancellationToken cancellationToken = default)
         {
-            BeginCallCount++;
-            BeginRequest = request;
-            return Task.CompletedTask;
-        }
+            ExecuteCallCount++;
+            ConnectedRequest = plan.NormalizedRequest;
+            BeginRequest = plan.SceneBuildRequest;
+            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            {
+                ProcessedCityObjects.Add(cityObject);
+            }
 
-        public Task ProcessCityObjectAsync(
-            ImportedCityObject cityObject,
-            CancellationToken cancellationToken = default)
-        {
-            ProcessedCityObjects.Add(cityObject);
-            return Task.CompletedTask;
-        }
-
-        public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
-        {
-            CompleteCalled = true;
-            return Task.FromResult<IReadOnlyList<string>>(["stub://destination"]);
+            return ExecutionResultFactory is null
+                ? new SceneImportExecutionResult(["stub://destination"], ProcessedCityObjects.Count)
+                : ExecutionResultFactory(ProcessedCityObjects.Count);
         }
 
         public ValueTask DisposeAsync()

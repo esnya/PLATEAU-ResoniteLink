@@ -36,45 +36,159 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private readonly ILiveSendClientSession clientSession;
 #pragma warning restore CA1859
     private readonly Action<string>? progressReporter;
-    private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache = new();
-    private readonly AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> canonicalParentScopeCache = new();
-    private readonly AsyncCompletedResultCache<string, string> cityGmlSlotNameCache = new();
-    private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, Task> commonMaterialFamilyWarmupTasks = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, Task<CreatedMaterialAsset>> commonMaterialCreationTasks = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, CreatedSlot> sharedSlotIndex = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
 #pragma warning disable CA1859
     private readonly IResoniteSceneBootstrapCoordinator sceneBootstrapCoordinator;
 #pragma warning restore CA1859
-    private SceneBootstrapInfo? bootstrapInfo;
-    private CreatedSlot? datasetRootSlot;
-    private CreatedSlot? datasetAssetsRootSlot;
-    private CreatedSlot? commonAssetsRootSlot;
-    private string? runRoot;
-    private AsyncCompletedResultCache<TextureImportCacheKey, Uri>? importedTextureUriCache;
-    private Channel<QueuedCityObject>? cityObjectChannel;
-    private Task[]? processingTasks;
-    private CancellationTokenSource? processingCancellationSource;
-    private TaskCompletionSource<Exception>? firstProcessingFailureSource;
-    private CompositeCityObjectBaker? cityObjectBaker;
-    private AsyncWeightedGate? cityObjectMemoryGate;
-    private int attemptedCityObjectCount;
-    private int processedCityObjectCount;
-    private int failedCityObjectCount;
-    private Stopwatch? sceneBuildStopwatch;
-    private int firstQueuedCityObjectLogged;
-    private int firstPreparedCityObjectLogged;
-    private int firstBuiltCityObjectLogged;
-    private int firstCityObjectPreparationStartedLogged;
-    private int firstCommonMaterialPrepLogged;
-    private int firstCityObjectStreamingStartedLogged;
-    private int firstCityObjectDequeuedLogged;
-    private IPlateauDatasetContentSource? datasetContentSource;
-    private SceneAnchor? sceneAnchor;
-    private ResoniteLocalOrigin? requestLocalOrigin;
-    private string? datasetLicenseComponentId;
-    private Dictionary<string, string>? cityGmlSlotNamesByRelativePath;
+    private ResoniteSceneRunState? activeRunState;
+
+    private SceneBootstrapInfo? bootstrapInfo
+    {
+        get => activeRunState?.BootstrapInfo;
+        set => GetMutableRunState().BootstrapInfo = value;
+    }
+
+    private CreatedSlot? datasetRootSlot
+    {
+        get => activeRunState?.DatasetRootSlot;
+        set => GetMutableRunState().DatasetRootSlot = value;
+    }
+
+    private CreatedSlot? datasetAssetsRootSlot
+    {
+        get => activeRunState?.DatasetAssetsRootSlot;
+        set => GetMutableRunState().DatasetAssetsRootSlot = value;
+    }
+
+    private CreatedSlot? commonAssetsRootSlot
+    {
+        get => activeRunState?.CommonAssetsRootSlot;
+        set => GetMutableRunState().CommonAssetsRootSlot = value;
+    }
+
+    private string? runRoot
+    {
+        get => activeRunState?.RunRoot;
+        set => GetMutableRunState().RunRoot = value;
+    }
+
+    private AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache
+        => GetMutableRunState().SharedSlotCache;
+
+    private AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> canonicalParentScopeCache
+        => GetMutableRunState().CanonicalParentScopeCache;
+
+    private ConcurrentDictionary<string, byte> createdSlotIds
+        => GetMutableRunState().CreatedSlotIds;
+
+    private ConcurrentDictionary<string, Task> commonMaterialFamilyWarmupTasks
+        => GetMutableRunState().CommonMaterialFamilyWarmupTasks;
+
+    private ConcurrentDictionary<string, Task<CreatedMaterialAsset>> commonMaterialCreationTasks
+        => GetMutableRunState().CommonMaterialCreationTasks;
+
+    private ConcurrentDictionary<string, CreatedSlot> sharedSlotIndex
+        => GetMutableRunState().SharedSlotIndex;
+
+    private ConcurrentDictionary<string, Slot> observedSlotSnapshotsById
+        => GetMutableRunState().ObservedSlotSnapshotsById;
+
+    private AsyncCompletedResultCache<TextureImportCacheKey, Uri>? importedTextureUriCache
+    {
+        get => activeRunState?.ImportedTextureUriCache;
+        set => GetMutableRunState().ImportedTextureUriCache = value;
+    }
+
+    private Channel<QueuedCityObject>? cityObjectChannel
+    {
+        get => activeRunState?.CityObjectChannel;
+        set => GetMutableRunState().CityObjectChannel = value;
+    }
+
+    private Task[]? processingTasks
+    {
+        get => activeRunState?.ProcessingTasks;
+        set => GetMutableRunState().ProcessingTasks = value;
+    }
+
+    private CancellationTokenSource? processingCancellationSource
+    {
+        get => activeRunState?.ProcessingCancellationSource;
+        set => GetMutableRunState().ProcessingCancellationSource = value;
+    }
+
+    private TaskCompletionSource<Exception>? firstProcessingFailureSource
+    {
+        get => activeRunState?.FirstProcessingFailureSource;
+        set => GetMutableRunState().FirstProcessingFailureSource = value;
+    }
+
+    private CompositeCityObjectBaker? cityObjectBaker
+    {
+        get => activeRunState?.CityObjectBaker;
+        set => GetMutableRunState().CityObjectBaker = value;
+    }
+
+    private AsyncWeightedGate? cityObjectMemoryGate
+    {
+        get => activeRunState?.CityObjectMemoryGate;
+        set => GetMutableRunState().CityObjectMemoryGate = value;
+    }
+
+    private ref int attemptedCityObjectCount => ref GetMutableRunState().AttemptedCityObjectCount;
+
+    private ref int processedCityObjectCount => ref GetMutableRunState().ProcessedCityObjectCount;
+
+    private ref int failedCityObjectCount => ref GetMutableRunState().FailedCityObjectCount;
+
+    private Stopwatch? sceneBuildStopwatch
+    {
+        get => activeRunState?.SceneBuildStopwatch;
+        set => GetMutableRunState().SceneBuildStopwatch = value;
+    }
+
+    private ref int firstQueuedCityObjectLogged => ref GetMutableRunState().FirstQueuedCityObjectLogged;
+
+    private ref int firstPreparedCityObjectLogged => ref GetMutableRunState().FirstPreparedCityObjectLogged;
+
+    private ref int firstBuiltCityObjectLogged => ref GetMutableRunState().FirstBuiltCityObjectLogged;
+
+    private ref int firstCityObjectPreparationStartedLogged => ref GetMutableRunState().FirstCityObjectPreparationStartedLogged;
+
+    private ref int firstCommonMaterialPrepLogged => ref GetMutableRunState().FirstCommonMaterialPrepLogged;
+
+    private ref int firstCityObjectStreamingStartedLogged => ref GetMutableRunState().FirstCityObjectStreamingStartedLogged;
+
+    private ref int firstCityObjectDequeuedLogged => ref GetMutableRunState().FirstCityObjectDequeuedLogged;
+
+    private IPlateauDatasetContentSource? datasetContentSource
+    {
+        get => activeRunState?.DatasetContentSource;
+        set => GetMutableRunState().DatasetContentSource = value;
+    }
+
+    private SceneAnchor? sceneAnchor
+    {
+        get => activeRunState?.SceneAnchor;
+        set => GetMutableRunState().SceneAnchor = value;
+    }
+
+    private ResoniteLocalOrigin? requestLocalOrigin
+    {
+        get => activeRunState?.RequestLocalOrigin;
+        set => GetMutableRunState().RequestLocalOrigin = value;
+    }
+
+    private string? datasetLicenseComponentId
+    {
+        get => activeRunState?.DatasetLicenseComponentId;
+        set => GetMutableRunState().DatasetLicenseComponentId = value;
+    }
+
+    private Dictionary<string, string>? cityGmlSlotNamesByRelativePath
+    {
+        get => activeRunState?.CityGmlSlotNamesByRelativePath;
+        set => GetMutableRunState().CityGmlSlotNamesByRelativePath = value;
+    }
 
     public ResoniteLinkSceneBuilder(Uri endpoint, Action<string>? progressReporter = null)
         : this(
@@ -196,68 +310,53 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
     internal bool MeshBakeEnabled { get; }
 
-    public async Task EnsureConnectedAsync(
-        PlateauImportRequest request,
+    public async Task<SceneImportExecutionResult> ExecuteAsync(
+        SceneImportExecutionPlan plan,
+        IAsyncEnumerable<ImportedCityObject> cityObjects,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(cityObjects);
+        if (activeRunState is not null)
+        {
+            throw new InvalidOperationException("A live scene build run is already active on this scene builder instance.");
+        }
 
-        await clientSession.EnsureConnectedAsync(request, cancellationToken);
-    }
+        activeRunState = new ResoniteSceneRunState
+        {
+            RequestLocalOrigin = SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
+        };
+        bool completedSuccessfully = false;
 
-    public async Task BeginAsync(
-        SceneBuildRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        requestLocalOrigin = SceneImportContractMapper.ToInternal(request.Metadata).LocalOrigin;
+        try
+        {
+            SceneBuildRequest request = plan.SceneBuildRequest;
+            await BeginCoreAsync(
+                CreateBootstrapInfo(request),
+                request.WorkRoot,
+                request.DatasetContentSource,
+                CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
+                plan.NormalizedRequest,
+                cancellationToken);
 
-        await BeginCoreAsync(
-            CreateBootstrapInfo(request),
-            request.WorkRoot,
-            request.DatasetContentSource,
-            CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
-            cancellationToken);
-    }
+            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            {
+                await ProcessCityObjectCoreAsync(SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
+            }
 
-    internal async Task BeginAsync(
-        SceneBootstrapInfo bootstrapInfo,
-        string workRoot,
-        IPlateauDatasetContentSource? datasetContentSource,
-        IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
-        CancellationToken cancellationToken = default)
-    {
-        await BeginCoreAsync(
-            bootstrapInfo,
-            workRoot,
-            datasetContentSource,
-            commonMaterials,
-            cancellationToken);
-    }
-
-    internal async Task BeginAsync(
-        ResoniteConstructionMetadata metadata,
-        string workRoot,
-        CancellationToken cancellationToken = default)
-    {
-        await BeginAsync(metadata, workRoot, (IPlateauDatasetContentSource?)null, cancellationToken);
-    }
-
-    internal async Task BeginAsync(
-        ResoniteConstructionMetadata metadata,
-        string workRoot,
-        IPlateauDatasetContentSource? bootstrapDatasetContentSource,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(metadata);
-        requestLocalOrigin = metadata.LocalOrigin;
-
-        await BeginCoreAsync(
-            SceneBootstrapInfo.CreateFromMetadata(metadata, bootstrapDatasetContentSource?.SourcePath),
-            workRoot,
-            bootstrapDatasetContentSource,
-            CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames),
-            cancellationToken);
+            IReadOnlyList<string> destinations = await CompleteCoreAsync(cancellationToken);
+            completedSuccessfully = true;
+            return new SceneImportExecutionResult(
+                destinations,
+                processedCityObjectCount,
+                failedCityObjectCount);
+        }
+        finally
+        {
+            await ResetRunStateAsync(
+                disposeClients: false,
+                resetClients: !completedSuccessfully);
+        }
     }
 
     private async Task BeginCoreAsync(
@@ -265,11 +364,18 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         string workRoot,
         IPlateauDatasetContentSource? datasetContentSource,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
+        PlateauImportRequest normalizedRequest,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(bootstrapInfo);
         ArgumentNullException.ThrowIfNull(commonMaterials);
+        ArgumentNullException.ThrowIfNull(normalizedRequest);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
+
+        if (activeRunState is null)
+        {
+            throw new InvalidOperationException("Live scene run state must be initialized before starting execution.");
+        }
 
         if (this.bootstrapInfo is not null || processingTasks is not null)
         {
@@ -292,14 +398,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
-        await clientSession.EnsureConnectedAsync(
-            new PlateauImportRequest(
-                bootstrapInfo.Dataset,
-                bootstrapInfo.MeshCode,
-                DatasetSourceKind.Local,
-                bootstrapInfo.LocalSourcePath,
-                null),
-            cancellationToken);
+        await clientSession.EnsureConnectedAsync(normalizedRequest, cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -658,22 +757,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         }
     }
 
-    public async Task ProcessCityObjectAsync(
-        ImportedCityObject cityObject,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(cityObject);
-        await ProcessCityObjectCoreAsync(SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
-    }
-
-    internal async Task ProcessCityObjectAsync(
-        ResoniteConstructionCityObject cityObject,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(cityObject);
-        await ProcessCityObjectCoreAsync(cityObject, cancellationToken);
-    }
-
     private async Task ProcessCityObjectCoreAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
@@ -705,7 +788,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         await EnqueueCityObjectAsync(cityObject, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
+    private async Task<IReadOnlyList<string>> CompleteCoreAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
         ObjectDisposedException.ThrowIf(processingTasks is null, this);
@@ -810,56 +893,68 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
     public async ValueTask DisposeAsync()
     {
-        cityObjectChannel?.Writer.TryComplete();
+        await ResetRunStateAsync(
+            disposeClients: true,
+            resetClients: false);
+    }
 
-        CancelProcessing();
-
-        if (processingTasks is not null)
+    private async ValueTask ResetRunStateAsync(bool disposeClients, bool resetClients)
+    {
+        ResoniteSceneRunState? runState = activeRunState;
+        if (runState is not null)
         {
-            Task[] drainTasks = processingTasks
-                .Select(static task => task.ContinueWith(
-                    static completedTask => _ = completedTask.Exception,
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default))
-                .ToArray();
-            await Task.WhenAll(drainTasks);
+            runState.CityObjectChannel?.Writer.TryComplete();
+
+            try
+            {
+                if (runState.ProcessingCancellationSource is not null)
+                {
+                    await runState.ProcessingCancellationSource.CancelAsync();
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+
+            if (runState.ProcessingTasks is not null)
+            {
+                Task[] drainTasks = runState.ProcessingTasks
+                    .Select(static task => task.ContinueWith(
+                        static completedTask => _ = completedTask.Exception,
+                        CancellationToken.None,
+                        TaskContinuationOptions.ExecuteSynchronously,
+                        TaskScheduler.Default))
+                    .ToArray();
+                await Task.WhenAll(drainTasks);
+            }
         }
 
         try
         {
-            clientSession.DisposeClients();
+            if (disposeClients)
+            {
+                clientSession.DisposeClients();
+            }
+            else if (resetClients)
+            {
+                await clientSession.ResetClientsAsync();
+            }
         }
         finally
         {
-            bootstrapInfo = null;
-            datasetContentSource = null;
-            datasetRootSlot = null;
-            datasetAssetsRootSlot = null;
-            commonAssetsRootSlot = null;
-            string? priorRunRoot = runRoot;
-            runRoot = null;
-            TryDeleteDirectory(priorRunRoot);
-            sharedSlotCache.Clear();
-            canonicalParentScopeCache.Clear();
-            createdSlotIds.Clear();
-            sharedSlotIndex.Clear();
-            observedSlotSnapshotsById.Clear();
-            importedTextureUriCache = null;
-            cityObjectMemoryGate = null;
-            cityObjectChannel = null;
-            processingTasks = null;
-            commonMaterialFamilyWarmupTasks.Clear();
-            commonMaterialCreationTasks.Clear();
-            cityObjectBaker = null;
-            processingCancellationSource?.Dispose();
-            processingCancellationSource = null;
-            firstProcessingFailureSource = null;
-            sceneBuildStopwatch = null;
-            sceneAnchor = null;
-            requestLocalOrigin = null;
-            cityGmlSlotNamesByRelativePath = null;
+            activeRunState = null;
+            if (runState is not null)
+            {
+                runState.ProcessingCancellationSource?.Dispose();
+                TryDeleteDirectory(runState.RunRoot);
+            }
         }
+    }
+
+    private ResoniteSceneRunState GetMutableRunState()
+    {
+        return activeRunState
+            ?? throw new ObjectDisposedException(nameof(ResoniteLinkSceneBuilder), "Live scene run state is not initialized.");
     }
 
     private static void TryDeleteDirectory(string? path)
@@ -2512,7 +2607,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     {
         try
         {
-            processingCancellationSource?.Cancel();
+            _ = processingCancellationSource?.CancelAsync();
         }
         catch (ObjectDisposedException)
         {
@@ -3098,5 +3193,78 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ResoniteTextureSourceKind TextureSourceKind,
         ResoniteTextureImport TextureImport,
         TerrainTextureOverlay? TerrainOverlay = null);
+
+    private sealed class ResoniteSceneRunState
+    {
+        public SceneBootstrapInfo? BootstrapInfo { get; set; }
+
+        public CreatedSlot? DatasetRootSlot { get; set; }
+
+        public CreatedSlot? DatasetAssetsRootSlot { get; set; }
+
+        public CreatedSlot? CommonAssetsRootSlot { get; set; }
+
+        public string? RunRoot { get; set; }
+
+        public AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> SharedSlotCache { get; } = new();
+
+        public AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> CanonicalParentScopeCache { get; } = new();
+
+        public ConcurrentDictionary<string, byte> CreatedSlotIds { get; } = new(StringComparer.Ordinal);
+
+        public ConcurrentDictionary<string, Task> CommonMaterialFamilyWarmupTasks { get; } = new(StringComparer.Ordinal);
+
+        public ConcurrentDictionary<string, Task<CreatedMaterialAsset>> CommonMaterialCreationTasks { get; } = new(StringComparer.Ordinal);
+
+        public ConcurrentDictionary<string, CreatedSlot> SharedSlotIndex { get; } = new(StringComparer.Ordinal);
+
+        public ConcurrentDictionary<string, Slot> ObservedSlotSnapshotsById { get; } = new(StringComparer.Ordinal);
+
+        public AsyncCompletedResultCache<TextureImportCacheKey, Uri>? ImportedTextureUriCache { get; set; }
+
+        public Channel<QueuedCityObject>? CityObjectChannel { get; set; }
+
+        public Task[]? ProcessingTasks { get; set; }
+
+        public CancellationTokenSource? ProcessingCancellationSource { get; set; }
+
+        public TaskCompletionSource<Exception>? FirstProcessingFailureSource { get; set; }
+
+        public CompositeCityObjectBaker? CityObjectBaker { get; set; }
+
+        public AsyncWeightedGate? CityObjectMemoryGate { get; set; }
+
+        public int AttemptedCityObjectCount;
+
+        public int ProcessedCityObjectCount;
+
+        public int FailedCityObjectCount;
+
+        public Stopwatch? SceneBuildStopwatch { get; set; }
+
+        public int FirstQueuedCityObjectLogged;
+
+        public int FirstPreparedCityObjectLogged;
+
+        public int FirstBuiltCityObjectLogged;
+
+        public int FirstCityObjectPreparationStartedLogged;
+
+        public int FirstCommonMaterialPrepLogged;
+
+        public int FirstCityObjectStreamingStartedLogged;
+
+        public int FirstCityObjectDequeuedLogged;
+
+        public IPlateauDatasetContentSource? DatasetContentSource { get; set; }
+
+        public SceneAnchor? SceneAnchor { get; set; }
+
+        public ResoniteLocalOrigin? RequestLocalOrigin { get; set; }
+
+        public string? DatasetLicenseComponentId { get; set; }
+
+        public Dictionary<string, string>? CityGmlSlotNamesByRelativePath { get; set; }
+    }
 
 }

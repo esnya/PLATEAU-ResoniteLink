@@ -16,6 +16,12 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 - Large improvement plans that need temporary retention must live under `.tmp/plans/` and stay untracked. Do not keep them under `docs/`, do not link or cite them from active documentation as operational truth, and promote only accepted current outcomes into tracked docs, code, or tests.
 - Keep PLATEAU terminology and import semantics aligned with `PLATEAU-SDK-for-UNITY` when shaping dataset, tile, and adapter concepts.
 - Keep Resonite-specific I/O behind abstractions so CLI orchestration, application logic, and domain models remain testable and host-agnostic.
+- Prefer immutable value types for plans, states, snapshots, policies, inputs, outputs, and results.
+- Prefer pure transforms for normalization, validation, identity derivation, naming, grouping, ordering, budgeting, and plan construction.
+- Avoid ordered lifecycle APIs over shared mutable objects when a value-based execution contract can express the same behavior.
+- Keep mutable state localized to narrow boundary adapters for transport, filesystem, network, caching, logging/progress, and cancellation.
+- Treat transport and target integration as immutable-by-default: prefer read-once/create-only flows, and isolate unavoidable update operations in dedicated adapter layers.
+- Do not introduce new broad behavior-oriented types such as `Builder`, `Manager`, `Coordinator`, `Helper`, or `Util` unless the user explicitly requests that pattern.
 - Prefer deterministic outputs, explicit command inputs, and reproducible local/CI behavior.
 - Add or update automated tests when behavior changes.
 

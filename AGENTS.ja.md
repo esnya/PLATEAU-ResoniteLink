@@ -17,6 +17,12 @@
 - 補助的な git worktree は `<repo>/.worktree/` 配下で管理し、同階層の sibling ディレクトリや `/tmp` に worktree を置かないこと。これにより一時的な worktree が既定の主ワークツリー外に散逸することを防ぐ。
 - データセット、タイル、アダプターの概念を設計するときは、`PLATEAU-SDK-for-UNITY` の用語とインポート意味論に揃える。
 - CLI のオーケストレーション、アプリケーションロジック、ドメインモデルをテスト可能でホスト非依存に保つため、Resonite 固有の I/O は抽象の背後に置く。
+- plan、state、snapshot、policy、input、output、result には、可能な限り immutable な value type を優先する。
+- 正規化、検証、ID 導出、命名、グルーピング、順序付け、予算化、plan 構築には pure transform を優先する。
+- value-based な実行契約で表現できるなら、共有 mutable object に対する ordered lifecycle API は避ける。
+- mutable state は transport、filesystem、network、cache、logging/progress、cancellation のような狭い boundary adapter に局所化する。
+- transport と target integration は immutable-by-default とし、read-once / create-only を優先し、不可避な update は専用 adapter layer に隔離する。
+- ユーザーが明示的に求めない限り、`Builder`、`Manager`、`Coordinator`、`Helper`、`Util` のような広すぎる振る舞い志向の型を新設しない。
 - 決定的な出力、明示的なコマンド入力、再現可能なローカル/CI の挙動を優先する。
 - 振る舞いを変更したら、自動テストを追加または更新する。
 

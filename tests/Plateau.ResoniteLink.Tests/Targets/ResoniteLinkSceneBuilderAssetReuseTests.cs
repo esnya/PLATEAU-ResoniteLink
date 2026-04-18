@@ -1,3 +1,4 @@
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using GeographicLib;
@@ -318,22 +319,24 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         using TemporaryDirectory workDirectory = new();
         await using ResoniteLinkSceneBuilder builder = ResoniteLinkSceneBuilderTestSupport.CreateBuilder(client);
 
-        await builder.BeginAsync(metadata, workDirectory.Path);
-        await builder.ProcessCityObjectAsync(
-            CreateBundledTriangleCityObject(
-                "completion-root",
-                actualMeshCode: MeshCode,
-                sourceFileRelativePath: PrimarySourceFile,
-                worldPosition: new ResoniteFloat3(123.0, 0.0, 456.0)));
-
-        IReadOnlyList<string> destinations = await builder.CompleteAsync();
+        SceneImportExecutionResult executionResult = await ResoniteLinkSceneBuilderTestSupport.ExecuteSceneAsync(
+            builder,
+            metadata,
+            workDirectory.Path,
+            [
+                CreateBundledTriangleCityObject(
+                    "completion-root",
+                    actualMeshCode: MeshCode,
+                    sourceFileRelativePath: PrimarySourceFile,
+                    worldPosition: new ResoniteFloat3(123.0, 0.0, 456.0)),
+            ]);
 
         Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
         Assert.Equal(
             $"ws://localhost:12345/#{sourceFileRoot.ID}",
-            Assert.Single(destinations));
+            Assert.Single(executionResult.Destinations));
     }
 
     [Fact]
@@ -347,21 +350,22 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
 
         await using (ResoniteLinkSceneBuilder builder = ResoniteLinkSceneBuilderTestSupport.CreateBuilder(client))
         {
-            await builder.BeginAsync(metadata, firstWorkDirectory.Path);
-            _ = await builder.CompleteAsync();
+            _ = await ResoniteLinkSceneBuilderTestSupport.ExecuteSceneAsync(builder, metadata, firstWorkDirectory.Path, []);
         }
 
         await using (ResoniteLinkSceneBuilder builder = ResoniteLinkSceneBuilderTestSupport.CreateBuilder(client))
         {
-            await builder.BeginAsync(metadata, secondWorkDirectory.Path);
-            await builder.ProcessCityObjectAsync(
-                CreateBundledTriangleCityObject(
-                    "assets-only-append",
-                    actualMeshCode: SecondaryMeshCode,
-                    sourceFileRelativePath: SecondarySourceFile,
-                    worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0)));
-
-            IReadOnlyList<string> destinations = await builder.CompleteAsync();
+            SceneImportExecutionResult executionResult = await ResoniteLinkSceneBuilderTestSupport.ExecuteSceneAsync(
+                builder,
+                metadata,
+                secondWorkDirectory.Path,
+                [
+                    CreateBundledTriangleCityObject(
+                        "assets-only-append",
+                        actualMeshCode: SecondaryMeshCode,
+                        sourceFileRelativePath: SecondarySourceFile,
+                        worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0)),
+                ]);
             Slot sourceFileRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByPathSuffix(
                 client,
                 $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
@@ -371,7 +375,7 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
             Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
             Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
             AssertNear(new ResoniteFloat3(10.0, 0.0, 20.0), GetAccumulatedPosition(client, objectSlot), 0.2);
-            Assert.Equal($"ws://localhost:12345/#{sourceFileRoot.ID}", Assert.Single(destinations));
+            Assert.Equal($"ws://localhost:12345/#{sourceFileRoot.ID}", Assert.Single(executionResult.Destinations));
         }
     }
 
@@ -384,24 +388,24 @@ public sealed class ResoniteLinkSceneBuilderAssetReuseTests
         using TemporaryDirectory workDirectory = new();
         await using ResoniteLinkSceneBuilder builder = ResoniteLinkSceneBuilderTestSupport.CreateBuilder(client, enableMeshBake: false);
 
-        await builder.BeginAsync(metadata, workDirectory.Path);
-        await Task.WhenAll(
-            builder.ProcessCityObjectAsync(
+        _ = await ResoniteLinkSceneBuilderTestSupport.ExecuteSceneAsync(
+            builder,
+            metadata,
+            workDirectory.Path,
+            [
                 CreateBundledTriangleCityObject(
                     "concurrent-lod1",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondarySourceFile,
                     worldPosition: new ResoniteFloat3(10.0, 0.0, 20.0),
-                    lodLevel: 1)),
-            builder.ProcessCityObjectAsync(
+                    lodLevel: 1),
                 CreateBundledTriangleCityObject(
                     "concurrent-lod2",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondarySourceFile,
                     worldPosition: new ResoniteFloat3(11.0, 0.0, 21.0),
-                    lodLevel: 2)));
-
-        _ = await builder.CompleteAsync();
+                    lodLevel: 2),
+            ]);
 
         string sourceFileRootName = Path.GetFileNameWithoutExtension(SecondarySourceFile);
         Slot datasetRoot = ResoniteLinkSceneBuilderTestSupport.FindUniqueSlotByNameOutsideAssets(client, $"PLATEAU {DatasetName}");
