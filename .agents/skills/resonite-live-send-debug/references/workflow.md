@@ -70,6 +70,39 @@ This file stays agent-facing on purpose. Use it as supplemental notes after `SKI
 - Cleanup check:
   after recording the readback, remove the probe component unless the run is intentionally being preserved for manual inspection.
 
+## Matsumoto Reference Values
+
+- Treat the values in this section as current reference data for Matsumoto live checks, not as strict golden numbers.
+- The purpose of these numbers is to catch extreme unintended changes such as collapse to unit scale, axis swaps, sudden offset explosions, or category-mismatched geometry. They are comparison seeds, not pass/fail thresholds.
+- Prefer comparing the same slot tag across runs. Do not compare different mesh codes or different emitted categories as if they shared one expected shape.
+
+- Reference sample A:
+  dataset `plateau-20202-matsumoto-shi-2020`
+  mesh code `54372778`
+  category `DEM`
+  slot tag `54372778|dem|none|udx_dem_543727_dem_6697_55_op_gml_dem_d0d95755_3366_4fa2_8c49_9c304fb295ce`
+  slot position `{"x":3934.2598,"y":612.1313,"z":2310.8608}`
+  slot rotation `{"x":0.7071068,"y":0.0,"z":0.0,"w":0.7071068}`
+  local BoxCollider offset `{"x":0.0,"y":0.0,"z":0.0}`
+  local BoxCollider size `{"x":1123.9403,"y":924.78,"z":0.0}`
+  interpretation:
+  this is a thin DEM sheet after `SetFromLocalBounds`; one axis collapsing near zero is expected here, while sudden thickness growth or XY collapse is suspicious.
+
+- Reference sample B:
+  dataset `plateau-20202-matsumoto-shi-2020`
+  mesh code `54372788`
+  category `AtlasBake`
+  slot tag `54372788|bldg|2|atlasbake:54372788:bldg:06927625:61717c92b772:2:0003`
+  slot position `{"x":-574.12836,"y":590.0462,"z":-467.71707}`
+  slot rotation `{"x":0.0,"y":0.0,"z":0.0,"w":1.0}`
+  local BoxCollider offset `{"x":434.89987,"y":13.178907,"z":463.00485}`
+  local BoxCollider size `{"x":869.79974,"y":26.357815,"z":926.0097}`
+  interpretation:
+  this is a broad, low-height atlas-baked building aggregate; collapse toward unit scale, large origin drift, or a major height-vs-footprint swap is suspicious.
+
+- Artifact path for the current reference snapshot:
+  `runtime/windows/resonite/root-dumps/workspace-matsumoto-local-bounds-eval-20260418-180506.json`
+
 ## RawOutput Readback Limits
 
 - In the currently observed combination of `Resonite 2026.4.16.1327` and `ResoniteLink 0.13.1.0`, `RawOutput` members on metadata components did not produce readable values through Link even when the target asset reference was set correctly and the component was polled again later.

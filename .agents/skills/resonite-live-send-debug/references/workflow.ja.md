@@ -70,6 +70,39 @@
 - Cleanup check:
   readback 記録後は、manual inspection のために残すと明記している場合を除き probe component を削除する。
 
+## Matsumoto Reference Values
+
+- この section の値は Matsumoto live check の現行参考データであり、厳密な golden number ではない。
+- 目的は、unit scale への collapse、軸の入れ替わり、offset の急激な発散、category 不一致の geometry といった極端な意図しない変化を拾うこと。pass/fail の閾値ではなく comparison seed として使う。
+- 比較は同じ slot tag を run 間で突き合わせることを優先する。異なる mesh code や異なる emitted category を、同じ expected shape として比較しない。
+
+- Reference sample A:
+  dataset `plateau-20202-matsumoto-shi-2020`
+  mesh code `54372778`
+  category `DEM`
+  slot tag `54372778|dem|none|udx_dem_543727_dem_6697_55_op_gml_dem_d0d95755_3366_4fa2_8c49_9c304fb295ce`
+  slot position `{"x":3934.2598,"y":612.1313,"z":2310.8608}`
+  slot rotation `{"x":0.7071068,"y":0.0,"z":0.0,"w":0.7071068}`
+  local BoxCollider offset `{"x":0.0,"y":0.0,"z":0.0}`
+  local BoxCollider size `{"x":1123.9403,"y":924.78,"z":0.0}`
+  interpretation:
+  `SetFromLocalBounds` 後の薄い DEM sheet として読む。1 軸がほぼ 0 なのは想定内で、厚みの急増や XY の collapse は suspicious。
+
+- Reference sample B:
+  dataset `plateau-20202-matsumoto-shi-2020`
+  mesh code `54372788`
+  category `AtlasBake`
+  slot tag `54372788|bldg|2|atlasbake:54372788:bldg:06927625:61717c92b772:2:0003`
+  slot position `{"x":-574.12836,"y":590.0462,"z":-467.71707}`
+  slot rotation `{"x":0.0,"y":0.0,"z":0.0,"w":1.0}`
+  local BoxCollider offset `{"x":434.89987,"y":13.178907,"z":463.00485}`
+  local BoxCollider size `{"x":869.79974,"y":26.357815,"z":926.0097}`
+  interpretation:
+  平面的に広く高さの低い atlas-baked building aggregate として読む。unit scale への collapse、origin からの大きな drift、高さと footprint の大きな入れ替わりは suspicious。
+
+- 現行参考 snapshot の artifact path:
+  `runtime/windows/resonite/root-dumps/workspace-matsumoto-local-bounds-eval-20260418-180506.json`
+
 ## RawOutput Readback Limits
 
 - 現時点で観測した `Resonite 2026.4.16.1327` と `ResoniteLink 0.13.1.0` の組み合わせでは、metadata component 上の `RawOutput` member は、target asset reference を正しく設定して再pollしても Link 経由では読める値にならなかった。
