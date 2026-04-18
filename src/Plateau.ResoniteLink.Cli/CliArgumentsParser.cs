@@ -39,6 +39,10 @@ public static class CliArgumentsParser
                                 Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
           --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
           --work-root <path>     Optional. Parent directory for dataset-local archive storage and live temporary files. Default: local.
+          --terrain-tile-cache-root <path>
+                                Optional. Override the persistent terrain tile cache root.
+          --disable-terrain-tile-cache
+                                Optional. Disable persistent terrain tile caching across runs.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
@@ -81,6 +85,8 @@ public static class CliArgumentsParser
         string? meshCode = null;
         string? localSourcePath = null;
         string workRoot = "local";
+        string? terrainTileCacheRoot = null;
+        bool disableTerrainTileCache = false;
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
         bool enableMeshBake = true;
@@ -134,6 +140,12 @@ public static class CliArgumentsParser
                         break;
                     case "--work-root":
                         workRoot = ReadValue(args, ref index, token);
+                        break;
+                    case "--terrain-tile-cache-root":
+                        terrainTileCacheRoot = ReadValue(args, ref index, token);
+                        break;
+                    case "--disable-terrain-tile-cache":
+                        disableTerrainTileCache = true;
                         break;
                     case "--resonitelink-port":
                         {
@@ -362,6 +374,8 @@ public static class CliArgumentsParser
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
                 enableMeshBake,
+                terrainTileCacheRoot,
+                disableTerrainTileCache,
                 enableSendMetrics,
                 verboseLogging));
     }

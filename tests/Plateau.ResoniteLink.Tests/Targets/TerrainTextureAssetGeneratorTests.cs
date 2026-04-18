@@ -15,7 +15,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
@@ -37,7 +37,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png") with
         {
@@ -56,7 +56,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
         TerrainTextureOverlay overlay = new(
             PackageName: "dem",
@@ -85,7 +85,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new(delayPerRequest: TimeSpan.FromMilliseconds(50));
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         Task<ResoniteRawTextureImport>[] requests =
@@ -102,11 +102,58 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncReusesPersistentTileCacheAcrossGeneratorInstances()
+    {
+        using TemporaryDirectory cacheRoot = new();
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        using (FakeMapTileHandler firstHandler = new())
+        using (HttpClient firstClient = new(firstHandler))
+        {
+            TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
+            _ = await firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+            Assert.Equal(4, firstHandler.RequestCount);
+        }
+
+        using FakeMapTileHandler secondHandler = new();
+        using HttpClient secondClient = new(secondHandler);
+        TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path);
+
+        ResoniteRawTextureImport texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(0, secondHandler.RequestCount);
+        Assert.Contains("terrain-overlay/dem/1/", texture.Identity, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncSkipsPersistentTileCacheWhenDisabled()
+    {
+        using TemporaryDirectory cacheRoot = new();
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        using (FakeMapTileHandler firstHandler = new())
+        using (HttpClient firstClient = new(firstHandler))
+        {
+            TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
+            _ = await firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+            Assert.Equal(4, firstHandler.RequestCount);
+        }
+
+        using FakeMapTileHandler secondHandler = new();
+        using HttpClient secondClient = new(secondHandler);
+        TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path, disablePersistentCache: true);
+
+        _ = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(4, secondHandler.RequestCount);
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncRemovesFaultedSharedGenerationAndRetries()
     {
         using FlakyMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         await Assert.ThrowsAsync<HttpRequestException>(() => generator.EnsureTextureAsync(overlay, CancellationToken.None));
@@ -118,11 +165,34 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncDoesNotPersistUnsuccessfulTileResponses()
+    {
+        using TemporaryDirectory cacheRoot = new();
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        using (FlakyMapTileHandler firstHandler = new())
+        using (HttpClient firstClient = new(firstHandler))
+        {
+            TerrainTextureAssetGenerator firstGenerator = new(firstClient, cacheRoot.Path);
+            await Assert.ThrowsAsync<HttpRequestException>(() => firstGenerator.EnsureTextureAsync(overlay, CancellationToken.None));
+        }
+
+        using RetryableMapTileHandler secondHandler = new();
+        using HttpClient secondClient = new(secondHandler);
+        TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path);
+
+        ResoniteRawTextureImport texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(512, texture.Width);
+        Assert.Equal(4, secondHandler.RequestCount);
+    }
+
+    [Fact]
     public async Task ResolveDatasetLicenseUsesPlateauOnlyTermsWhenNoFallbackTileWasUsed()
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
 
@@ -141,7 +211,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using PrimaryFallbackMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay(
             "https://primary.example/{z}/{x}/{y}.png",
             "https://fallback.example/{z}/{x}/{y}.png");
@@ -161,7 +231,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
 
@@ -179,7 +249,7 @@ public sealed class TerrainTextureAssetGeneratorTests
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
 
@@ -292,6 +362,29 @@ public sealed class TerrainTextureAssetGeneratorTests
             {
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
             }
+
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+
+            using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class RetryableMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref requestCount);
 
             string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
             int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);

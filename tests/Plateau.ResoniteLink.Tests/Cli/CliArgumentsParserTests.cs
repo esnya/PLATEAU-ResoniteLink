@@ -34,6 +34,8 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.True(result.Options.EnableMeshBake);
+        Assert.Null(result.Options.TerrainTileCacheRoot);
+        Assert.False(result.Options.DisableTerrainTileCache);
         Assert.False(result.Options.EnableSendMetrics);
         Assert.False(result.Options.VerboseLogging);
     }
@@ -399,6 +401,30 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesTerrainTileCacheOptions()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--terrain-tile-cache-root",
+                "/data/cache",
+                "--disable-terrain-tile-cache",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal("/data/cache", result.Options!.TerrainTileCacheRoot);
+        Assert.True(result.Options.DisableTerrainTileCache);
+    }
+
+    [Fact]
     public void ParseRejectsInvalidResoniteLinkConnectionCount()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -424,6 +450,14 @@ public sealed class CliArgumentsParserTests
     {
         Assert.Contains(
             "Parallel ResoniteLink connection count for live sends. Default: 4.",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--terrain-tile-cache-root <path>",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--disable-terrain-tile-cache",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
     }

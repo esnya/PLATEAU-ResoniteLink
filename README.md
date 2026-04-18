@@ -16,6 +16,7 @@ Shipped:
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 - When multiple source files match a requested area, order them from the requested center outward instead of prioritizing DEM globally.
 - Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
+- Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
 
 Pending:
 - Target-agnostic IR extraction and the deeper `Targets.Resonite` versus `Transport.ResoniteLink` split are internal follow-up work, not completed guarantees of this release.
@@ -90,7 +91,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
 
-When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`.
+When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`. Terrain tile downloads are cached separately under the local app-data cache root by default; override that path with `--terrain-tile-cache-root` or disable cross-run tile caching with `--disable-terrain-tile-cache`.
 
 ## Further Reading
 

@@ -12,6 +12,8 @@ public static class ResoniteSceneImportTargetFactory
         int connectionCount,
         bool enableSendMetrics,
         bool enableMeshBake,
+        string? terrainTileCacheRoot,
+        bool disableTerrainTileCache,
         HttpClient terrainTextureAssetHttpClient,
         Action<string>? progressReporter = null)
     {
@@ -32,7 +34,10 @@ public static class ResoniteSceneImportTargetFactory
                     connectionCount,
                     diagnostics,
                     progressReporter),
-                new TerrainTextureAssetGenerator(terrainTextureAssetHttpClient)),
+                new TerrainTextureAssetGenerator(
+                    terrainTextureAssetHttpClient,
+                    terrainTileCacheRoot,
+                    disableTerrainTileCache)),
             enableMeshBake,
             progressReporter);
     }

@@ -53,8 +53,10 @@ public sealed class ImportServiceFactoryTests
             request,
             "local",
             new Uri("ws://localhost:12345/"),
-            1,
+            4,
             enableMeshBake,
+            TerrainTileCacheRoot: null,
+            DisableTerrainTileCache: false,
             EnableSendMetrics: false,
             VerboseLogging: false);
     }

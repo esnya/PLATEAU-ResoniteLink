@@ -8,5 +8,7 @@ public sealed record BuildCommandOptions(
     Uri? ResoniteLinkUri,
     int ResoniteLinkConnectionCount,
     bool EnableMeshBake,
+    string? TerrainTileCacheRoot,
+    bool DisableTerrainTileCache,
     bool EnableSendMetrics,
     bool VerboseLogging) : CliCommandOptions;

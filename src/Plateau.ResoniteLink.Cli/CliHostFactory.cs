@@ -111,6 +111,8 @@ internal sealed class DefaultSceneImportTargetFactory(IHttpClientFactory httpCli
             options.ResoniteLinkConnectionCount,
             options.EnableSendMetrics,
             options.EnableMeshBake,
+            options.TerrainTileCacheRoot,
+            options.DisableTerrainTileCache,
             httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName),
             progressReporter);
     }
