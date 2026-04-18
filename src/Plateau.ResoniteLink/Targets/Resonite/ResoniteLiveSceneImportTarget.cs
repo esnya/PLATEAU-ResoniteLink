@@ -39,6 +39,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             endpoint,
             4,
             ResoniteLinkSendDiagnostics.Disabled,
+            PlateauImportMemoryProfile.Large,
             CreateDefaultDependencies(
                 endpoint,
                 4,
@@ -55,6 +56,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             endpoint,
             connectionCount,
             ResoniteLinkSendDiagnostics.Disabled,
+            PlateauImportMemoryProfile.Large,
             CreateDefaultDependencies(
                 endpoint,
                 connectionCount,
@@ -70,11 +72,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         Uri endpoint,
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
+        PlateauImportMemoryProfile memoryProfile,
         Action<string>? progressReporter = null)
         : this(
             endpoint,
             connectionCount,
             diagnostics,
+            memoryProfile,
             CreateDefaultDependencies(
                 endpoint,
                 connectionCount,
@@ -90,12 +94,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         Uri endpoint,
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
+        PlateauImportMemoryProfile memoryProfile,
         bool enableMeshBake,
         Action<string>? progressReporter = null)
         : this(
             endpoint,
             connectionCount,
             diagnostics,
+            memoryProfile,
             CreateDefaultDependencies(
                 endpoint,
                 connectionCount,
@@ -114,6 +120,25 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteLiveSceneImportDependencies dependencies,
         bool enableMeshBake = true,
         Action<string>? progressReporter = null)
+        : this(
+            endpoint,
+            connectionCount,
+            diagnostics,
+            PlateauImportMemoryProfile.Large,
+            dependencies,
+            enableMeshBake,
+            progressReporter)
+    {
+    }
+
+    internal ResoniteLiveSceneImportTarget(
+        Uri endpoint,
+        int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
+        PlateauImportMemoryProfile memoryProfile,
+        ResoniteLiveSceneImportDependencies dependencies,
+        bool enableMeshBake = true,
+        Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
@@ -121,6 +146,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
+        MemoryProfile = memoryProfile;
         this.diagnostics = diagnostics;
         this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
         MeshBakeEnabled = enableMeshBake;
@@ -152,6 +178,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     }
 
     internal bool MeshBakeEnabled { get; }
+
+    internal PlateauImportMemoryProfile MemoryProfile { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -321,9 +349,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 $"Starting routed send workers (connection_pool={connectionCount})."));
         LiveSendExecutionRuntime runtime = new(runtimePlan, cancellationToken);
         progress.Reset();
+        ResoniteImportBudgetProfile resourceBudget = runPlan.ResourceBudget;
         CompositeCityObjectBaker? cityObjectBaker = runPlan.MeshBakeEnabled
             ? new CompositeCityObjectBaker(
-                new Lod2AtlasCityObjectBaker(textureImageLoader),
+                new Lod2AtlasCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget),
                 new FixedCellCityObjectMeshBaker())
             : null;
         LiveSendRunContext context = new(
@@ -347,7 +376,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Send lane tasks launched (connection budget={connectionCount}, "
                 + $"queue_capacity_total={runtimePlan.QueueCapacity}, "
-                + $"memory_budget_bytes={runtimePlan.MemoryBudgetBytes})."));
+                + $"memory_budget_bytes={runtimePlan.MemoryBudgetBytes}, "
+                + $"memory_profile={resourceBudget.Name.ToString().ToLowerInvariant()}, "
+                + $"runtime_vram_budget_bytes={resourceBudget.RuntimeVramBudgetBytes})."));
         laneStartStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -389,17 +420,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         string resolvedWorkRoot,
         ResoniteLocalOrigin requestLocalOrigin)
     {
+        ResoniteImportBudgetProfile resourceBudget = ResoniteImportBudgetProfiles.ForProfile(MemoryProfile);
         return new LiveSendRunPlan(
             bootstrapInfo,
             resolvedWorkRoot,
             requestLocalOrigin,
             ResonitePlacementPolicy.CreateCityGmlSlotNamesByRelativePath(bootstrapInfo.SourceFiles),
+            resourceBudget,
             new LiveSendQueuePlan(
                 connectionCount,
                 Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount),
-                Math.Max(
-                    MaxInFlightCityObjectWorkingSetBytesFloor,
-                    connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane)),
+                Math.Max(resourceBudget.ImportWorkingSetBytes,
+                    Math.Max(
+                        MaxInFlightCityObjectWorkingSetBytesFloor,
+                        connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane))),
             MeshBakeEnabled);
     }
 

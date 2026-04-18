@@ -145,6 +145,44 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b" && cityObject.SourceFileRelativePath == "unit-b.gml");
     }
 
+    [Fact]
+    public async Task FlushAllAsyncPacksMixedSizeTexturesIntoSingleAtlasBatch()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreatePayload("textures/a.png", new Rgba32(255, 0, 0, 255), 7, 7), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreatePayload("textures/b.png", new Rgba32(0, 255, 0, 255), 1, 7), 2, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreatePayload("textures/c.png", new Rgba32(0, 0, 255, 255), 3, 3), 4, "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        Assert.Equal(8, atlasPayload.Width);
+        Assert.Equal(10, atlasPayload.Height);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncCapsAtlasTileSizeForSmallMemoryProfile()
+    {
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(),
+            maxAtlasSize: 2048,
+            tilePaddingPixels: 0,
+            resourceBudget: ResoniteImportBudgetProfiles.Small);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-large",
+                CreatePayload("textures/large.png", new Rgba32(255, 0, 0, 255), 1024, 1024),
+                0,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        Assert.Equal(512, atlasPayload.Width);
+        Assert.Equal(512, atlasPayload.Height);
+    }
+
     private static async Task AssertBufferedAsync(Lod2AtlasCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
     {
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);

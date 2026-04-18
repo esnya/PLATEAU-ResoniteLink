@@ -15,7 +15,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
     int tilePaddingPixels = 2,
     IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
     int maxBufferedSourceUnits = 32,
-    int maxBufferedCityObjectsPerSourceUnit = 256) : IResoniteBufferedCityObjectBaker
+    int maxBufferedCityObjectsPerSourceUnit = 256,
+    ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
@@ -32,6 +33,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
     public int BakedInputCityObjectCount { get; private set; }
 
     public int BakedOutputCityObjectCount { get; private set; }
+
+    private int EffectiveMaxAtlasSize => Math.Max(1, Math.Min(maxAtlasSize, resourceBudget?.MaxAtlasSize ?? maxAtlasSize));
+
+    private int EffectiveMaxAtlasTextureEdge
+    {
+        get
+        {
+            int profileMaxTileEdge = resourceBudget?.MaxAtlasTextureEdge ?? EffectiveMaxAtlasSize;
+            return Math.Max(1, Math.Min(EffectiveMaxAtlasSize - (tilePaddingPixels * 2), profileMaxTileEdge));
+        }
+    }
 
     public async ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
@@ -312,8 +324,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
             ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
 
-        int maxTileWidth = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
-        int maxTileHeight = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
+        int maxTileWidth = EffectiveMaxAtlasTextureEdge;
+        int maxTileHeight = EffectiveMaxAtlasTextureEdge;
         int targetWidth = Math.Max(1, Math.Min(maxTileWidth, (int)Math.Ceiling(sourceImage.Width * uvBounds.Width)));
         int targetHeight = Math.Max(1, Math.Min(maxTileHeight, (int)Math.Ceiling(sourceImage.Height * uvBounds.Height)));
         using Image<Rgba32> bakedImage = BakeUsedUvRegion(sourceImage, uvBounds, targetWidth, targetHeight);
@@ -718,49 +730,166 @@ internal sealed class Lod2AtlasCityObjectBaker(
         IReadOnlyList<AtlasBatchEntry> entries,
         out AtlasLayout? layout)
     {
+        int atlasMaxSize = EffectiveMaxAtlasSize;
         List<AtlasPlacement> placements = [];
-        int cursorX = 0;
-        int cursorY = 0;
-        int rowHeight = 0;
+        List<Rect> freeRectangles = [new Rect(0, 0, atlasMaxSize, atlasMaxSize)];
         int usedWidth = 0;
+        int usedHeight = 0;
 
         foreach (AtlasBatchEntry entry in entries)
         {
             int paddedWidth = entry.Tile.Image.Width + (tilePaddingPixels * 2);
             int paddedHeight = entry.Tile.Image.Height + (tilePaddingPixels * 2);
-            if (paddedWidth > maxAtlasSize || paddedHeight > maxAtlasSize)
+            if (paddedWidth > atlasMaxSize || paddedHeight > atlasMaxSize)
             {
                 layout = null;
                 return false;
             }
 
-            if (cursorX > 0 && cursorX + paddedWidth > maxAtlasSize)
-            {
-                cursorX = 0;
-                cursorY += rowHeight;
-                rowHeight = 0;
-            }
-
-            if (cursorY + paddedHeight > maxAtlasSize)
+            if (!TryChooseFreeRectangle(freeRectangles, paddedWidth, paddedHeight, out Rect selectedRect))
             {
                 layout = null;
                 return false;
             }
 
-            Rect outerRect = new(cursorX, cursorY, paddedWidth, paddedHeight);
-            Rect innerRect = new(cursorX + tilePaddingPixels, cursorY + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
+            Rect outerRect = new(selectedRect.X, selectedRect.Y, paddedWidth, paddedHeight);
+            Rect innerRect = new(selectedRect.X + tilePaddingPixels, selectedRect.Y + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
             placements.Add(new AtlasPlacement(entry, outerRect, innerRect));
-            cursorX += paddedWidth;
-            rowHeight = Math.Max(rowHeight, paddedHeight);
-            usedWidth = Math.Max(usedWidth, cursorX);
+            SplitFreeRectangles(freeRectangles, outerRect);
+            PruneFreeRectangles(freeRectangles);
+            usedWidth = Math.Max(usedWidth, outerRect.X + outerRect.Width);
+            usedHeight = Math.Max(usedHeight, outerRect.Y + outerRect.Height);
         }
 
-        int usedHeight = cursorY + rowHeight;
         layout = new AtlasLayout(
             Math.Max(1, usedWidth),
             Math.Max(1, usedHeight),
             placements);
         return true;
+    }
+
+    private static bool TryChooseFreeRectangle(
+        IReadOnlyList<Rect> freeRectangles,
+        int requiredWidth,
+        int requiredHeight,
+        out Rect selectedRect)
+    {
+        selectedRect = default;
+        bool found = false;
+        int bestAreaFit = int.MaxValue;
+        int bestShortSideFit = int.MaxValue;
+
+        foreach (Rect freeRect in freeRectangles)
+        {
+            if (requiredWidth > freeRect.Width || requiredHeight > freeRect.Height)
+            {
+                continue;
+            }
+
+            int areaFit = (freeRect.Width * freeRect.Height) - (requiredWidth * requiredHeight);
+            int shortSideFit = Math.Min(freeRect.Width - requiredWidth, freeRect.Height - requiredHeight);
+            if (areaFit < bestAreaFit
+                || (areaFit == bestAreaFit && shortSideFit < bestShortSideFit)
+                || (areaFit == bestAreaFit && shortSideFit == bestShortSideFit
+                    && (freeRect.Y < selectedRect.Y
+                        || (freeRect.Y == selectedRect.Y && freeRect.X < selectedRect.X))))
+            {
+                selectedRect = freeRect;
+                bestAreaFit = areaFit;
+                bestShortSideFit = shortSideFit;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private static void SplitFreeRectangles(List<Rect> freeRectangles, Rect usedRect)
+    {
+        for (int index = freeRectangles.Count - 1; index >= 0; index--)
+        {
+            Rect freeRect = freeRectangles[index];
+            if (!Intersects(freeRect, usedRect))
+            {
+                continue;
+            }
+
+            freeRectangles.RemoveAt(index);
+
+            if (usedRect.X > freeRect.X)
+            {
+                freeRectangles.Add(new Rect(
+                    freeRect.X,
+                    freeRect.Y,
+                    usedRect.X - freeRect.X,
+                    freeRect.Height));
+            }
+
+            if (usedRect.X + usedRect.Width < freeRect.X + freeRect.Width)
+            {
+                freeRectangles.Add(new Rect(
+                    usedRect.X + usedRect.Width,
+                    freeRect.Y,
+                    (freeRect.X + freeRect.Width) - (usedRect.X + usedRect.Width),
+                    freeRect.Height));
+            }
+
+            if (usedRect.Y > freeRect.Y)
+            {
+                freeRectangles.Add(new Rect(
+                    freeRect.X,
+                    freeRect.Y,
+                    freeRect.Width,
+                    usedRect.Y - freeRect.Y));
+            }
+
+            if (usedRect.Y + usedRect.Height < freeRect.Y + freeRect.Height)
+            {
+                freeRectangles.Add(new Rect(
+                    freeRect.X,
+                    usedRect.Y + usedRect.Height,
+                    freeRect.Width,
+                    (freeRect.Y + freeRect.Height) - (usedRect.Y + usedRect.Height)));
+            }
+        }
+    }
+
+    private static void PruneFreeRectangles(List<Rect> freeRectangles)
+    {
+        for (int leftIndex = freeRectangles.Count - 1; leftIndex >= 0; leftIndex--)
+        {
+            Rect left = freeRectangles[leftIndex];
+            for (int rightIndex = freeRectangles.Count - 1; rightIndex >= 0; rightIndex--)
+            {
+                if (leftIndex == rightIndex)
+                {
+                    continue;
+                }
+
+                Rect right = freeRectangles[rightIndex];
+                if (Contains(right, left))
+                {
+                    freeRectangles.RemoveAt(leftIndex);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static bool Intersects(Rect left, Rect right)
+    {
+        return left.X < right.X + right.Width
+            && left.X + left.Width > right.X
+            && left.Y < right.Y + right.Height
+            && left.Y + left.Height > right.Y;
+    }
+
+    private static bool Contains(Rect outer, Rect inner)
+    {
+        return inner.X >= outer.X
+            && inner.Y >= outer.Y
+            && inner.X + inner.Width <= outer.X + outer.Width
+            && inner.Y + inner.Height <= outer.Y + outer.Height;
     }
 
     private static void ApplyBaseColor(Image<Rgba32> image, ResoniteColor color)
