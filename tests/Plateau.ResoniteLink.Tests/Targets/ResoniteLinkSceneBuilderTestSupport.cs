@@ -221,6 +221,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 
     public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
 
+    public List<UpdateComponent> UpdatedComponents { get; } = [];
+
     public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, Slot> SlotsById { get; } = new(StringComparer.Ordinal);
@@ -404,6 +406,17 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
         {
+            UpdatedComponents.Add(new UpdateComponent
+            {
+                Data = new Component
+                {
+                    ID = request.Data.ID,
+                    Members = request.Data.Members.ToDictionary(
+                        static pair => pair.Key,
+                        static pair => pair.Value,
+                        StringComparer.Ordinal),
+                },
+            });
             if (!ComponentsById.TryGetValue(request.Data.ID, out Component? existingComponent))
             {
                 return Task.CompletedTask;

@@ -53,7 +53,7 @@ internal sealed class LiveSendMaterialState
     public ConcurrentDictionary<string, Task<CreatedMaterialAsset>> CommonMaterialCreationTasks { get; } = new(StringComparer.Ordinal);
 }
 
-internal sealed class LiveSendExecutionRun
+internal sealed class LiveSendExecutionState
 {
     public required LiveSendExecutionContext Context { get; init; }
 

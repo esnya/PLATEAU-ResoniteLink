@@ -6,7 +6,7 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
-internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstrapCoordinator
+internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstrapInterpreter
 {
     private const string LicenseComponentType = "[FrooxEngine]FrooxEngine.License";
     private const string StaticTextureComponentType = "[FrooxEngine]FrooxEngine.StaticTexture2D";
@@ -14,16 +14,16 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
     private const float DefaultBundledHeightScale = 0.002f;
 
     private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync;
-    private readonly Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync;
+    private readonly ResoniteComponentUpdateInterpreter componentUpdateInterpreter;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 
-    internal ResoniteSceneBootstrapCoordinator(
+    internal ResoniteSceneBootstrapInterpreter(
         Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync,
-        Func<IResoniteLinkClient, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task> updateComponentAsync,
+        ResoniteComponentUpdateInterpreter componentUpdateInterpreter,
         IResoniteSceneAnchorResolver? sceneAnchorResolver = null)
     {
         this.tryGetDatasetRootAsync = tryGetDatasetRootAsync;
-        this.updateComponentAsync = updateComponentAsync;
+        this.componentUpdateInterpreter = componentUpdateInterpreter;
         this.sceneAnchorResolver = sceneAnchorResolver ?? new ResoniteSceneAnchorResolver();
     }
 
@@ -160,7 +160,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
 
         if (!string.IsNullOrWhiteSpace(existingLicenseComponentId))
         {
-            await updateComponentAsync(
+            await componentUpdateInterpreter.ApplyAsync(
                 setupClient,
                 existingLicenseComponentId,
                 datasetLicenseMembers,
@@ -196,7 +196,6 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         string datasetRootSlotId,
         ResoniteLicenseComponentMetadata license,
         string? existingComponentId,
-        bool allowUpdateExisting,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(setupClient);
@@ -206,7 +205,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         IReadOnlyDictionary<string, Member> members = CreateDatasetLicenseMembers(license);
         if (!string.IsNullOrWhiteSpace(existingComponentId))
         {
-            await updateComponentAsync(
+            await componentUpdateInterpreter.ApplyAsync(
                 setupClient,
                 existingComponentId,
                 members,

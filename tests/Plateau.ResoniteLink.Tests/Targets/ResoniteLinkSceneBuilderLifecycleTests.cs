@@ -165,6 +165,41 @@ public sealed class ResoniteLinkSceneBuilderLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_UsesDirectComponentUpdatesForDatasetLicenseRefresh()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            new ResoniteLinkSceneBuilderDependencies(
+                session,
+                new TerrainTextureAssetGenerator()));
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+
+        _ = await builder.ExecuteAsync(
+            ResoniteLinkSceneBuilderTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
+            CreateImportedCityObjects(
+                CreateCityObject("first-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
+        _ = await builder.ExecuteAsync(
+            ResoniteLinkSceneBuilderTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
+            CreateImportedCityObjects(
+                CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
+
+        Assert.NotEmpty(routedClient.UpdatedComponents);
+        Assert.DoesNotContain(
+            routedClient.Batches.SelectMany(static operations => operations),
+            static operation => operation is UpdateComponent);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ResetsSessionAfterFailedRunBeforeRetry()
     {
         using TemporaryDirectory datasetDirectory = new();
