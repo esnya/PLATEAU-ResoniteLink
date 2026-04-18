@@ -1,80 +1,75 @@
 ---
 name: resonite-live-send-debug
-description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink の live-send 再現と調査を行う skill。simulated test ではなく machine-level の検証が必要なときに使い、listener discovery、run cleanup、log 採取、生成された Resonite world state の確認を扱います。
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, run cleanup, log capture, and inspection of the resulting Resonite world state.
 ---
 
 # Resonite Live Send Debug
 
-この skill は実際の ResoniteLink run にだけ使ってください。まず local test を優先し、論点が live session、destructive cleanup cycle、または生成された Resonite world state に依存するときだけこの skill に切り替えます。
+この skill は real ResoniteLink run でのみ使います。まず local test を優先し、論点が live session、destructive cleanup cycle、または結果としての Resonite world state に依存するときだけこの skill に切り替えます。
 
-この file は、この repository における live-send workflow の Coding Agent entrypoint であり、public helper command surface に対する authoritative な live-send workflow reference です。詳細な運用 guidance は [references/workflow.md](./references/workflow.md) に集約し、この file には trigger、guardrail、output contract を残します。
+この file は repository における live-send workflow の Coding Agent entrypoint であり、public operator surface の authoritative reference です。詳細な運用手順は [references/workflow.md](./references/workflow.md) に置き、この file では trigger、guardrail、output contract に集中します。
 
 ## When To Use
 
-- 実際の ResoniteLink listener に対する live-send 再現。
-- log、process state、または live world の結果を観測しないと成立しない検証。
-- headless session 起動、session cleanup、root dump を含む検証ループ。
+- actual ResoniteLink listener に対する real live-send reproduction。
+- log、process state、または結果の live world 観測が必要な検証。
+- verification loop の一部としての session cleanup、root dump、headless-session bring-up。
 
 ## When Not To Use
 
 - code-only review、static log 読み、documentation 作業。
 - live session なしで十分に証明できる local/unit/integration test。
-- 現在の dataset root を破壊できない task。
+- current dataset root の destructive cleanup を許容できない task。
 
 ## Guardrails
 
-- cleanup は destructive として扱う。live dataset root を消し、この repo から起動した matching live-send CLI process を止め、local runtime artifact を削除しうる。
-- 自分で live send を実行できるなら、user に代行させない。
-- 比較対象の dataset root について cleanup が確認できるまでは run を比較しない。
-- successful な最終 `DatasetRoot` は、明示的な cleanup 指示がない限り残す。
-- interrupted / partial run の結論は、cleanup と post-run state の両方が確認できるまでは provisional とする。
-- exact runtime behavior、fixture、environment selection、reference value が重要なときは、仮定を転記せず [references/workflow.md](./references/workflow.md) を使う。
+- cleanup は destructive とみなします。live dataset root を削除し、`runtime/windows/resonite` 配下の local runtime artifact も消し得ます。
+- 自分で直接 live send を実行できるなら、user に実行を依頼しません。
+- relevant dataset root の cleanup が検証されるまで、run 同士を比較しません。
+- cleanup が明示的に要求されない限り、最後に成功した `DatasetRoot` は残します。
+- cleanup と post-run state の両方が検証されるまで、中断 run や partial run は provisional とみなします。
+- operator surface は direct `dotnet run --project ...` command に限定します。thin wrapper script を再導入しません。
+- `--start-headless` も direct tool surface の一部ですが、actual headless launcher path 自体は Windows-only のままになり得ます。unsupported environment は tool に明示的に拒否させ、WSL から Windows へ橋渡しする helper は使いません。
 
 ## Guide Surface
 
-- canonical guide: [references/workflow.md](./references/workflow.md)
+- Canonical guide: [references/workflow.md](./references/workflow.md)
 - Japanese mirror: [references/workflow.ja.md](./references/workflow.ja.md)
 
-guide は次の用途で使います。
+次の内容は guide を使います。
 
-- 推奨 dataset と fixture 値
-- 環境依存の実行判断
+- recommended dataset と fixture value
 - fixed run worksheet と comparison checklist
-- component discovery と BoxCollider inspection 手順
-- version-scoped な readback limitation と reference artifact
+- component discovery と BoxCollider inspection procedure
+- version-scoped readback limit と reference artifact
+- CLI / session tool の direct command example
 
-## Public Helper Commands
+## Operator Surface
 
-operator-facing な helper script として直接使うのは次の 7 本だけです。
+operator-facing direct command は次だけを使います。
 
-- `scripts/discover-session.ps1`
-- `scripts/start-headless-session.ps1`
-- `scripts/stop-headless-session.ps1`
-- `scripts/cleanup-session.ps1`
-- `scripts/dump-root-session.ps1`
-- `scripts/run-live-send.ps1`
-- `scripts/run-live-send-monitored.ps1`
+- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --remove-slot ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless ...`
 
-shared な Windows build resolver は internal helper であり、operator-facing command surface には含めません。
-
-public helper script を自分で実行するときは次を守ります。
-
-- Windows PowerShell 5.1 より `pwsh.exe -NoProfile -File ...` による PowerShell 7 を優先します。
-- Windows execution policy により script 実行が止まる場合は、ad hoc command に切り替えるのではなく explicit な許可 execution mode で helper を再実行します。
-- sandbox 付き環境では、helper script が CLI や session tool の `dotnet restore` を引くことがあります。.NET first-use や permission 制約に当たったら、workflow を書き換えず helper 自体を必要な sandbox escalation 付きで再実行します。
+sandboxed environment では、これらの direct command でも restore/build の escalation が必要になることがあります。`dotnet restore` や `dotnet run` が .NET first-use や permission setup で失敗したら、ad hoc workflow に置き換えず、同じ direct command を必要な sandbox escalation 付きで再実行します。
 
 ## Required Outputs
 
-各 live run は次で要約してください。
+各 live run は次を要約します。
 
 - listener endpoint
 - cleanup verification result
 - process status と exit code
-- exact な mode と mesh code
+- exact mode と mesh code
 - 最後の timestamped `import` line
 - 最後の timestamped `live` line
 - `stderr` が空だったか
 - world snapshot summary
 - root dump path
-- 観測 timestamp
-- 結論が valid か contaminated か
+- observation timestamp
+- conclusion が valid か contaminated か

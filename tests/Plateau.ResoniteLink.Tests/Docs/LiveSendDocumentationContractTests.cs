@@ -4,7 +4,7 @@ namespace Plateau.ResoniteLink.Tests.Docs;
 
 public sealed partial class LiveSendDocumentationContractTests
 {
-    private static readonly string[] PublicHelperScripts =
+    private static readonly string[] DeprecatedHelperScripts =
     [
         "discover-session.ps1",
         "start-headless-session.ps1",
@@ -12,6 +12,8 @@ public sealed partial class LiveSendDocumentationContractTests
         "cleanup-session.ps1",
         "dump-root-session.ps1",
         "run-live-send.ps1",
+        "run-live-send-monitored.ps1",
+        "windows-build-tools.ps1",
     ];
 
     private static readonly string[] FixtureOnlyStrings =
@@ -47,22 +49,23 @@ public sealed partial class LiveSendDocumentationContractTests
     }
 
     [Fact]
-    public void SkillStaysAsEntryPointWhileWorkflowOwnsFixtures()
+    public void SkillDefinesDirectCliAndToolSurfaceOnly()
     {
         string skill = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "SKILL.md"));
         string skillJa = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "SKILL.ja.md"));
 
         Assert.Contains("references/workflow.md", skill, StringComparison.Ordinal);
         Assert.Contains("references/workflow.md", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session", skillJa, StringComparison.Ordinal);
 
-        foreach (string helper in PublicHelperScripts)
+        foreach (string deprecated in DeprecatedHelperScripts)
         {
-            Assert.Contains(helper, skill, StringComparison.Ordinal);
-            Assert.Contains(helper, skillJa, StringComparison.Ordinal);
+            Assert.DoesNotContain(deprecated, skill, StringComparison.Ordinal);
+            Assert.DoesNotContain(deprecated, skillJa, StringComparison.Ordinal);
         }
-
-        Assert.DoesNotContain("windows-build-tools.ps1", skill, StringComparison.Ordinal);
-        Assert.DoesNotContain("windows-build-tools.ps1", skillJa, StringComparison.Ordinal);
 
         foreach (string fixtureOnlyString in FixtureOnlyStrings)
         {
@@ -72,22 +75,27 @@ public sealed partial class LiveSendDocumentationContractTests
     }
 
     [Fact]
-    public void WorkflowOwnsFixtureEnvironmentAndReferenceGuidance()
+    public void WorkflowOwnsFixtureReferenceAndDirectCommandGuidance()
     {
         string workflow = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "references", "workflow.md"));
         string workflowJa = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "references", "workflow.ja.md"));
 
         Assert.Contains("## Defaults", workflow, StringComparison.Ordinal);
-        Assert.Contains("## Environment Selection", workflow, StringComparison.Ordinal);
+        Assert.Contains("## Agent Guardrails", workflow, StringComparison.Ordinal);
         Assert.Contains("## Fixed Run Worksheet", workflow, StringComparison.Ordinal);
+        Assert.Contains("## Direct Command Surface", workflow, StringComparison.Ordinal);
         Assert.Contains("## Matsumoto Reference Values", workflow, StringComparison.Ordinal);
-        Assert.Contains("## Public Helper Commands", workflow, StringComparison.Ordinal);
 
         Assert.Contains("## Defaults", workflowJa, StringComparison.Ordinal);
-        Assert.Contains("## Environment Selection", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("## Agent Guardrails", workflowJa, StringComparison.Ordinal);
         Assert.Contains("## Fixed Run Worksheet", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("## Direct Command Surface", workflowJa, StringComparison.Ordinal);
         Assert.Contains("## Matsumoto Reference Values", workflowJa, StringComparison.Ordinal);
-        Assert.Contains("## Public Helper Commands", workflowJa, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("## Environment Selection", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("## Environment Selection", workflowJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("Run helpers from Windows when", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("WSL-driven sender is valid", workflow, StringComparison.Ordinal);
 
         foreach (string fixtureOnlyString in FixtureOnlyStrings)
         {
@@ -95,22 +103,18 @@ public sealed partial class LiveSendDocumentationContractTests
             Assert.Contains(fixtureOnlyString, workflowJa, StringComparison.Ordinal);
         }
 
-        foreach (string helper in PublicHelperScripts)
-        {
-            Assert.Contains(helper, workflow, StringComparison.Ordinal);
-            Assert.Contains(helper, workflowJa, StringComparison.Ordinal);
-        }
-
-        Assert.DoesNotContain("- `scripts/windows-build-tools.ps1`", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("- `scripts/windows-build-tools.ps1`", workflowJa, StringComparison.Ordinal);
-        Assert.Contains("internal shared helper", workflow, StringComparison.Ordinal);
-        Assert.Contains("internal shared helper", workflowJa, StringComparison.Ordinal);
-        Assert.DoesNotContain("ResoniteAdmin", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("ResoniteAdmin", workflowJa, StringComparison.Ordinal);
         Assert.Contains("ResoniteSessionTool.csproj", workflow, StringComparison.Ordinal);
         Assert.Contains("ResoniteSessionTool.csproj", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("Plateau.ResoniteLink.Cli.csproj", workflow, StringComparison.Ordinal);
+        Assert.Contains("Plateau.ResoniteLink.Cli.csproj", workflowJa, StringComparison.Ordinal);
         Assert.Contains("`jq` is optional convenience", workflow, StringComparison.Ordinal);
         Assert.Contains("`jq` は post-dump inspection", workflowJa, StringComparison.Ordinal);
+
+        foreach (string deprecated in DeprecatedHelperScripts)
+        {
+            Assert.DoesNotContain(deprecated, workflow, StringComparison.Ordinal);
+            Assert.DoesNotContain(deprecated, workflowJa, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -126,18 +130,15 @@ public sealed partial class LiveSendDocumentationContractTests
     }
 
     [Fact]
-    public void FixtureStringsDoNotLeakIntoHelperScripts()
+    public void DeprecatedHelperScriptsAreRemovedFromSkillScriptsDirectory()
     {
         string scriptsRoot = TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "scripts");
-        string combinedScripts = string.Join(
-            Environment.NewLine,
-            Directory.GetFiles(scriptsRoot, "*.ps1", SearchOption.TopDirectoryOnly)
-                .Select(File.ReadAllText));
-
-        foreach (string fixtureOnlyString in FixtureOnlyStrings)
+        if (!Directory.Exists(scriptsRoot))
         {
-            Assert.DoesNotContain(fixtureOnlyString, combinedScripts, StringComparison.Ordinal);
+            return;
         }
+
+        Assert.Empty(Directory.GetFiles(scriptsRoot, "*.ps1", SearchOption.TopDirectoryOnly));
     }
 
     private static string[] GetHeadings(string markdown)

@@ -2,7 +2,7 @@
 
 Use this guide after `SKILL.md` triggers.
 
-This file is the single operational guide surface for the repo-local live-send skill. Keep fixture values, environment-dependent choices, comparison worksheets, and version-scoped runtime notes here instead of duplicating them in `SKILL.md`.
+This file is the single operational guide surface for the repo-local live-send skill. Keep fixture values, comparison worksheets, and version-scoped runtime notes here instead of duplicating them in `SKILL.md`.
 
 ## Defaults
 
@@ -11,26 +11,14 @@ This file is the single operational guide surface for the repo-local live-send s
 - Treat those defaults as selectors, not as a promise about cache paths. Confirm the actual resolved local source path before cleanup or send.
 - Before destructive steps, confirm that the requested dataset root exists locally and that the requested mesh is supported by current local evidence or fixtures.
 
-## Environment Selection
-
-- Use bundled helper scripts instead of ad hoc commands.
-- Prefer PowerShell 7 helper execution with `pwsh.exe -NoProfile -File ...`.
-- Avoid Windows PowerShell 5.1 for the helper scripts when PowerShell 7 is available. The current helper surface relies on behaviors such as `ConvertFrom-Json -Depth` that are smoother on PowerShell 7, and current Windows execution-policy defaults can block direct `.ps1` invocation.
-- Run helpers from Windows when the target listener is not reachable from WSL through `localhost`.
-- A WSL-driven sender is valid when the listener is same-host and actual `localhost` reachability from WSL has been confirmed.
-- If a reverse proxy or bridge rewrites the route to an acceptable host for the listener, an IP-based path can be valid when reachability and session identity are both confirmed.
-- Decide by observed reachability and observed session identity. Do not hardcode a Windows-only or WSL-only rule into the workflow.
-- Root dumps and destructive cleanup use the bundled repo-local session tool, not the official REPL prompt loop.
-- Keep explicit `ws://host:port/` endpoints in automation paths whenever the session target is already known.
-- In sandboxed Codex environments, the helpers can require elevated execution because they restore or build the CLI or session tool. If a helper fails on .NET first-use or permission setup, rerun the helper with sandbox escalation instead of replacing it with an ad hoc command sequence.
-
 ## Agent Guardrails
 
 - Re-run listener discovery before each comparison rerun and record `sessionName`, `sessionID`, and `linkPort`.
-- Do not guess listener port, process ID, log path, or session identity. Use discovery output, helper stdout, and CLI logs.
-- Treat cleanup as destructive. It can remove dataset roots, stop matching live-send CLI processes, and delete local runtime artifacts.
+- Do not guess listener port, process ID, log path, or session identity. Use discovery output, direct command stdout, and CLI logs.
+- Treat cleanup as destructive. It can remove dataset roots and delete local runtime artifacts.
 - Keep the final successful `DatasetRoot` in place unless the user explicitly requests cleanup.
 - Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
+- Use direct `dotnet run --project ...` commands as the public operator surface. Do not recreate `.ps1` wrappers or WSL-to-Windows bridge guidance.
 
 ## Fixed Run Worksheet
 
@@ -50,23 +38,21 @@ Keep these facts fixed or explicitly updated between comparison runs:
 
 For disposable headless validation, prefer this operator sequence:
 
-1. `start-headless-session.ps1`
-2. `dump-root-session.ps1 -Label baseline`
-3. `cleanup-session.ps1`
-4. `run-live-send.ps1`
-5. `dump-root-session.ps1 -Label after-send`
-6. `stop-headless-session.ps1`
+1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless --repo-path <repo> --headless-path <headless>`
+2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root --repo-path <repo> --label baseline`
+3. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
+4. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
+5. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label after-send`
+6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
 
-Use `run-live-send-monitored.ps1` instead of `run-live-send.ps1` when the main operator need is to wait through a long run while surfacing the latest `import` / `live` lines, fail fast on obvious log errors, or kill the process when a memory cap is exceeded.
+For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the direct commands in this order:
 
-For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the helpers directly in this order:
-
-1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
-2. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-baseappend-baseline`
-3. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372778 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-base-heightmap-19001`
-4. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-base-heightmap-after-send`
-5. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372788 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-append-heightmap-19001`
-6. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-append-heightmap-after-send`
+1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
+2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-baseappend-baseline`
+3. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
+4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-base-heightmap-after-send`
+5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372788 --resonitelink-connections 1`
+6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-append-heightmap-after-send`
 
 ## Component Type Discovery
 
@@ -158,32 +144,31 @@ For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`
 
 ## Required Artifacts
 
-Expect these bundled files under this skill:
+Expect these tracked files under this skill:
 
 - `tools/ResoniteSessionTool/ResoniteSessionTool.csproj`
+- `src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj`
 
-The helper scripts rebuild the thin session tool or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
+Direct `dotnet run --project ...` execution rebuilds the session tool or CLI on demand. Fresh local build output is part of the expected execution path for dump, cleanup, headless, and live-send commands.
 
 ## Read-Only Inspection
 
-- Treat the JSON written by `dump-root-session.ps1` as the primary read artifact.
+- Treat the JSON written by `--dump-root` as the primary read artifact.
 - `jq` is optional convenience for post-dump inspection only. Do not make cleanup convergence or slot selection depend on `jq`.
 - Example:
   `jq '.Root.Children[] | { id: .ID, name: .Name.Value }' runtime/windows/resonite/root-dumps/<dump>.json`
 
-## Public Helper Commands
+## Direct Command Surface
 
-- `scripts/discover-session.ps1`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session`
   Capture live ResoniteLink announcements from UDP `12512`.
-- `scripts/start-headless-session.ps1`
-  Launch a disposable Windows headless session directly and verify its announced ResoniteLink port.
-- `scripts/stop-headless-session.ps1`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless --repo-path <repo> --headless-path <headless>`
+  Launch a disposable headless session directly and verify its announced ResoniteLink port. The command surface is platform-independent, but the underlying headless binary can still require Windows.
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
   Stop the tracked headless PID launched for the experiment, or an explicit PID.
-- `scripts/dump-root-session.ps1`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:<port>/ --repo-path <repo> --label <label>`
   Capture a recursive Root snapshot from the tracked or explicitly addressed session.
-- `scripts/cleanup-session.ps1`
-  Remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
-- `scripts/run-live-send.ps1`
-  Launch one Windows-side live send with explicit logs.
-
-`scripts/windows-build-tools.ps1` remains an internal shared helper and is not part of the operator-facing command surface.
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:<port>/ <dataset> --repo-path <repo>`
+  Remove dataset roots from the live world and clear local runtime artifacts after convergence.
+- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --source local --local-source-path <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --mesh-code <mesh> --resonitelink-connections <n>`
+  Launch one direct live send with explicit logs under `runtime/windows/resonite`.

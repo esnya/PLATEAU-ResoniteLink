@@ -7,7 +7,7 @@ description: Run and debug PLATEAU-ResoniteLink live-send reproductions against 
 
 Use this skill only for real ResoniteLink runs. Prefer local tests first, then switch to this skill when the question depends on a live session, a destructive cleanup cycle, or the resulting Resonite world state.
 
-This file is the Coding Agent entrypoint for the live-send workflow in this repository and the authoritative live-send workflow reference for the public helper command surface. Keep detailed operational guidance in [references/workflow.md](./references/workflow.md) and use this file for trigger, guardrail, and output contracts.
+This file is the Coding Agent entrypoint for the live-send workflow in this repository and the authoritative live-send workflow reference for the public operator surface. Keep detailed operational guidance in [references/workflow.md](./references/workflow.md) and keep this file focused on trigger, guardrail, and output contracts.
 
 ## When To Use
 
@@ -23,12 +23,13 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 
 ## Guardrails
 
-- Treat cleanup as destructive. It can remove live dataset roots, stop matching live-send CLI processes from this repo, and delete local runtime artifacts.
+- Treat cleanup as destructive. It can remove live dataset roots and delete local runtime artifacts under `runtime/windows/resonite`.
 - Do not ask the user to run the live send if you can run it directly.
 - Do not compare runs until cleanup has been verified for the relevant dataset root.
 - Keep the final successful `DatasetRoot` in place unless cleanup is explicitly requested.
 - Treat interrupted or partial runs as provisional unless cleanup and post-run state were both verified.
-- When exact runtime behavior, fixtures, environment selection, or reference values matter, use [references/workflow.md](./references/workflow.md) instead of copying assumptions into the run.
+- Use direct `dotnet run --project ...` commands as the operator surface. Do not recreate thin wrapper scripts.
+- `--start-headless` is part of the direct tool surface, but the actual headless launcher path can still be Windows-only. Let the tool reject unsupported environments explicitly instead of routing through WSL-to-Windows helpers.
 
 ## Guide Surface
 
@@ -38,30 +39,24 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 Use the guide for:
 
 - recommended datasets and fixture values
-- environment-dependent execution choices
 - fixed run worksheets and comparison checklists
 - component discovery and BoxCollider inspection procedures
 - version-scoped readback limits and reference artifacts
+- direct command examples for the CLI and session tool
 
-## Public Helper Commands
+## Operator Surface
 
-Use only these operator-facing helper scripts directly:
+Use only these operator-facing direct commands:
 
-- `scripts/discover-session.ps1`
-- `scripts/start-headless-session.ps1`
-- `scripts/stop-headless-session.ps1`
-- `scripts/cleanup-session.ps1`
-- `scripts/dump-root-session.ps1`
-- `scripts/run-live-send.ps1`
-- `scripts/run-live-send-monitored.ps1`
+- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --remove-slot ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless ...`
+- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless ...`
 
-The shared Windows build resolver remains internal and is not part of the operator-facing command surface.
-
-When executing the public helper scripts yourself:
-
-- Prefer PowerShell 7 with `pwsh.exe -NoProfile -File ...` over Windows PowerShell 5.1.
-- If script execution is blocked by Windows execution policy, rerun with an explicit allowed execution mode instead of switching to ad hoc commands.
-- In sandboxed environments, expect the helper scripts to trigger `dotnet restore` for the CLI or session tool. If that hits first-use or permission restrictions, rerun the helper with the required sandbox escalation rather than rewriting the workflow.
+In sandboxed environments, these direct commands can still require restore/build escalation. If `dotnet restore` or `dotnet run` fails on .NET first-use or permission setup, rerun the same direct command with the required sandbox escalation instead of replacing it with an ad hoc workflow.
 
 ## Required Outputs
 
