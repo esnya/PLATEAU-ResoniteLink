@@ -1,5 +1,7 @@
 using ResoniteSessionTool;
 
+using System.Text.Json;
+
 namespace Plateau.ResoniteLink.Tests.Tools;
 
 public sealed class ResoniteSessionToolCommandLineParserTests
@@ -138,5 +140,85 @@ public sealed class ResoniteSessionToolCommandLineParserTests
         Assert.False(success);
         Assert.Null(options);
         Assert.Equal("Unknown stop-headless option '--bogus'.", error);
+    }
+
+    [Fact]
+    public void RootDumpCleanupTargetsFindsLowercaseDatasetRoot()
+    {
+        RootDump dump = CreateRootDump(
+            """
+            {
+              "children": [
+                {
+                  "id": "Reso_A",
+                  "name": {
+                    "value": "PLATEAU plateau-20202-matsumoto-shi-2020"
+                  }
+                },
+                {
+                  "id": "Reso_B",
+                  "name": {
+                    "value": "Controllers"
+                  }
+                }
+              ]
+            }
+            """);
+
+        List<SlotSummary> targets = RootDumpCleanupTargets.FindDatasetRootTargets(
+            dump,
+            "PLATEAU plateau-20202-matsumoto-shi-2020");
+
+        Assert.Single(targets);
+        Assert.Equal("Reso_A", targets[0].Id);
+        Assert.Equal("PLATEAU plateau-20202-matsumoto-shi-2020", targets[0].Name);
+    }
+
+    [Fact]
+    public void RootDumpCleanupTargetsDoesNotTreatSharedAssetsOrDatasetAssetsAsDatasetRoot()
+    {
+        RootDump dump = CreateRootDump(
+            """
+            {
+              "children": [
+                {
+                  "id": "Reso_A",
+                  "name": {
+                    "value": "PLATEAU tokyo23ku - Assets"
+                  }
+                },
+                {
+                  "id": "Reso_B",
+                  "name": {
+                    "value": "PLATEAU Shared Assets"
+                  }
+                },
+                {
+                  "id": "Reso_C",
+                  "name": {
+                    "value": "PLATEAU tokyo23ku"
+                  }
+                }
+              ]
+            }
+            """);
+
+        List<SlotSummary> targets = RootDumpCleanupTargets.FindDatasetRootTargets(
+            dump,
+            "PLATEAU tokyo23ku");
+
+        Assert.Single(targets);
+        Assert.Equal("Reso_C", targets[0].Id);
+    }
+
+    private static RootDump CreateRootDump(string rootJson)
+    {
+        using JsonDocument document = JsonDocument.Parse(rootJson);
+        return new RootDump(
+            "ws://localhost:17136/",
+            DateTimeOffset.UtcNow,
+            1,
+            IncludeComponentData: false,
+            Root: document.RootElement.Clone());
     }
 }

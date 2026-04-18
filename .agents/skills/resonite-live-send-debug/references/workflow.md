@@ -16,9 +16,11 @@ This file is the single operational guide surface for the repo-local live-send s
 - Re-run listener discovery before each comparison rerun and record `sessionName`, `sessionID`, and `linkPort`.
 - Do not guess listener port, process ID, log path, or session identity. Use discovery output, direct command stdout, and CLI logs.
 - Treat cleanup as destructive. It can remove dataset roots and delete local runtime artifacts.
+- Treat `--cleanup-dataset-root` as exact-match dataset-root cleanup only. It removes the matched dataset root subtree. The current `YellowDogMan.ResoniteLink 0.13.1` `RemoveSlot` surface does not expose Resonite's asset-preserving delete mode, so this command cannot preserve in-world assets while deleting the dataset root. It does not prove that stale content outside those direct root matches is gone.
 - Keep the final successful `DatasetRoot` in place unless the user explicitly requests cleanup.
 - Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
 - Use direct `dotnet run --project ...` commands as the public operator surface. Do not recreate `.ps1` wrappers or WSL-to-Windows bridge guidance.
+- Before any resend that is supposed to start from a clean base, capture a post-cleanup pre-send root dump and treat the run as contaminated if that dump still shows stale dataset content.
 
 ## Fixed Run Worksheet
 
@@ -41,14 +43,15 @@ For disposable headless validation, prefer this operator sequence:
 1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless --repo-path <repo> --headless-path <headless>`
 2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root --repo-path <repo> --label baseline`
 3. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
-4. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
-5. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label after-send`
-6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
+4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label post-cleanup-pre-send`
+5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
+6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label after-send`
+7. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
 
 For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the direct commands in this order:
 
 1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
-2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-baseappend-baseline`
+2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-post-cleanup-pre-send`
 3. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
 4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-base-heightmap-after-send`
 5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372788 --resonitelink-connections 1`
@@ -169,6 +172,6 @@ Direct `dotnet run --project ...` execution rebuilds the session tool or CLI on 
 - `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:<port>/ --repo-path <repo> --label <label>`
   Capture a recursive Root snapshot from the tracked or explicitly addressed session.
 - `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:<port>/ <dataset> --repo-path <repo>`
-  Remove dataset roots from the live world and clear local runtime artifacts after convergence.
+  Clean up exact-match dataset roots from the live world and clear local runtime artifacts after convergence. Current `YellowDogMan.ResoniteLink 0.13.1` `RemoveSlot` calls cannot request Resonite's asset-preserving delete mode.
 - `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --source local --local-source-path <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --mesh-code <mesh> --resonitelink-connections <n>`
   Launch one direct live send with explicit logs under `runtime/windows/resonite`.

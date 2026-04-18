@@ -149,7 +149,7 @@ internal static partial class SessionToolApplication
         {
             RootDump initialDump = await FetchRootDumpAsync(options.Endpoint!, 1, includeComponentData: false, link);
             await WriteJsonFileAsync(verificationDumpPath, initialDump);
-            List<SlotSummary> initialTargets = FindDatasetRootTargets(initialDump, datasetRootName);
+            List<SlotSummary> initialTargets = RootDumpCleanupTargets.FindDatasetRootTargets(initialDump, datasetRootName);
             await Console.Out.WriteLineAsync($"Found {initialTargets.Count} dataset root slot(s) named '{datasetRootName}'.");
 
             foreach (SlotSummary target in initialTargets)
@@ -174,12 +174,12 @@ internal static partial class SessionToolApplication
         {
             latestDump = await FetchRootDumpAsync(options.Endpoint!, 1, includeComponentData: false, link);
             await WriteJsonFileAsync(verificationDumpPath, latestDump);
-            remainingTargets = FindDatasetRootTargets(latestDump, datasetRootName);
+            remainingTargets = RootDumpCleanupTargets.FindDatasetRootTargets(latestDump, datasetRootName);
             await Console.Out.WriteLineAsync($"Found {remainingTargets.Count} dataset root slot(s) named '{datasetRootName}'.");
 
             if ((remainingTargets.Count == 0) && options.ListOnly)
             {
-                foreach (SlotSummary child in EnumerateRootChildren(latestDump))
+                foreach (SlotSummary child in RootDumpCleanupTargets.EnumerateRootChildren(latestDump))
                 {
                     await Console.Out.WriteLineAsync($"Root child: {child.Id} :: {child.Name}");
                 }
@@ -456,6 +456,16 @@ internal static partial class SessionToolApplication
         bool includeComponentData,
         LinkInterface? existingLink = null)
     {
+        return await FetchSlotDumpAsync(endpoint, "Root", depth, includeComponentData, existingLink);
+    }
+
+    private static async Task<RootDump> FetchSlotDumpAsync(
+        Uri endpoint,
+        string slotId,
+        int depth,
+        bool includeComponentData,
+        LinkInterface? existingLink = null)
+    {
         bool ownsLink = existingLink is null;
         using LinkInterface? ownedLink = ownsLink ? new LinkInterface() : null;
         LinkInterface link = existingLink ?? ownedLink!;
@@ -469,7 +479,7 @@ internal static partial class SessionToolApplication
         SlotData root = await link.GetSlotData(
             new GetSlot
             {
-                SlotID = "Root",
+                SlotID = slotId,
                 Depth = depth,
                 IncludeComponentData = includeComponentData,
             });
@@ -477,8 +487,8 @@ internal static partial class SessionToolApplication
         if (!root.Success)
         {
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(root.ErrorInfo)
-                ? "GetSlot Root failed."
-                : $"GetSlot Root failed: {root.ErrorInfo}");
+                ? $"GetSlot '{slotId}' failed."
+                : $"GetSlot '{slotId}' failed: {root.ErrorInfo}");
         }
 
         return new RootDump(
@@ -487,63 +497,6 @@ internal static partial class SessionToolApplication
             depth,
             includeComponentData,
             root.Data);
-    }
-
-    private static List<SlotSummary> FindDatasetRootTargets(RootDump dump, string datasetRootName)
-    {
-        return EnumerateRootChildren(dump)
-            .Where(child => string.Equals(child.Name, datasetRootName, StringComparison.Ordinal))
-            .ToList();
-    }
-
-    private static IEnumerable<SlotSummary> EnumerateRootChildren(RootDump dump)
-    {
-        IEnumerable<object?> children = ExtractChildren(dump.Root);
-        foreach (object? child in children)
-        {
-            JsonElement element = JsonSerializer.SerializeToElement(child, JsonOptions);
-            string? id = TryReadNestedString(element, "ID");
-            string? name = TryReadNestedString(element, "Name", "Value");
-
-            if (!string.IsNullOrWhiteSpace(id))
-            {
-                yield return new SlotSummary(id, name ?? string.Empty);
-            }
-        }
-    }
-
-    private static IEnumerable<object?> ExtractChildren(object? root)
-    {
-        if (root is null)
-        {
-            return Array.Empty<object?>();
-        }
-
-        JsonElement rootElement = JsonSerializer.SerializeToElement(root, JsonOptions);
-        if (!rootElement.TryGetProperty("Children", out JsonElement childrenElement) || (childrenElement.ValueKind != JsonValueKind.Array))
-        {
-            return Array.Empty<object?>();
-        }
-
-        return childrenElement.EnumerateArray().Select(static child => (object?)child);
-    }
-
-    private static string? TryReadNestedString(JsonElement element, params string[] propertyPath)
-    {
-        JsonElement current = element;
-        foreach (string property in propertyPath)
-        {
-            if ((current.ValueKind != JsonValueKind.Object) || !current.TryGetProperty(property, out JsonElement nested))
-            {
-                return null;
-            }
-
-            current = nested;
-        }
-
-        return current.ValueKind == JsonValueKind.String
-            ? current.GetString()
-            : current.ToString();
     }
 
     private static async Task<IReadOnlyList<DiscoveryAnnouncement>> CaptureAnnouncementsAsync(

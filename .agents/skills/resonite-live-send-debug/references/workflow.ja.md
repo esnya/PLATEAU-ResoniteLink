@@ -16,9 +16,11 @@
 - comparison rerun ごとに listener discovery をやり直し、`sessionName`、`sessionID`、`linkPort` を記録します。
 - listener port、process ID、log path、session identity を推測しません。discovery output、direct command の stdout、CLI log を使います。
 - cleanup は destructive とみなします。dataset root を除去し、local runtime artifact も削除し得ます。
+- `--cleanup-dataset-root` は exact-match の dataset root cleanup に過ぎません。一致した dataset root subtree を除去します。current `YellowDogMan.ResoniteLink 0.13.1` の `RemoveSlot` surface には Resonite の asset-preserving delete mode が出ていないため、この command では in-world asset を退避したまま dataset root を消すことはできません。direct root match の外側にある stale content が消えた証明にはなりません。
 - user が明示的に cleanup を要求しない限り、最後に成功した `DatasetRoot` は残します。
 - `stdout` を解釈する前に `stderr` を確認します。`stderr` が空でも stalled と判断する前に timestamp 付き log read を少なくとも 2 回取ります。
 - public operator surface は direct `dotnet run --project ...` command に限定します。.ps1 wrapper や WSL から Windows への bridge guidance は再導入しません。
+- clean base から resend するつもりの run では、cleanup の直後に pre-send root dump を取り、その dump に stale dataset content が残っていれば contaminated run と扱います。
 
 ## Fixed Run Worksheet
 
@@ -41,14 +43,15 @@ disposable な headless validation では、次の operator sequence を優先�
 1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless --repo-path <repo> --headless-path <headless>`
 2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root --repo-path <repo> --label baseline`
 3. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
-4. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
-5. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label after-send`
-6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
+4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label post-cleanup-pre-send`
+5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
+6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label after-send`
+7. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
 
 固定 Matsumoto `54372778 -> 54372788` の base/append validation を `19001` で行うときは、direct command をこの順で実行します。
 
 1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
-2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-baseappend-baseline`
+2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-post-cleanup-pre-send`
 3. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
 4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-base-heightmap-after-send`
 5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372788 --resonitelink-connections 1`
@@ -169,6 +172,6 @@ direct `dotnet run --project ...` 実行では、session tool や CLI が on dem
 - `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:<port>/ --repo-path <repo> --label <label>`
   tracked された session、または明示 endpoint の session から recursive Root snapshot を取得します。
 - `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:<port>/ <dataset> --repo-path <repo>`
-  live world から dataset root を除去し、convergence 後に local runtime artifact を削除します。
+  exact-match の dataset root を live world から cleanup し、convergence 後に local runtime artifact を削除します。current `YellowDogMan.ResoniteLink 0.13.1` の `RemoveSlot` 呼び出しでは、Resonite の asset-preserving delete mode は要求できません。
 - `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --source local --local-source-path <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --mesh-code <mesh> --resonitelink-connections <n>`
   `runtime/windows/resonite` 配下へ explicit log を出しながら、direct live send を 1 回実行します。
