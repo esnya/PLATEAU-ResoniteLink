@@ -14,6 +14,11 @@ internal static class ResoniteSceneMaterialConventions
     {
         ArgumentNullException.ThrowIfNull(material);
 
+        if (useCommonMaterialAssets)
+        {
+            return CreateCommonMaterialSlotName(material);
+        }
+
         string componentKind = material.MaterialType switch
         {
             ResoniteMaterialType.Standard => material.Projection switch
@@ -112,6 +117,34 @@ internal static class ResoniteSceneMaterialConventions
         };
     }
 
+    public static bool TryNormalizeCommonBaseMaterialBinding(
+        ResoniteMaterialBinding material,
+        out ResoniteMaterialBinding normalizedMaterial)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        normalizedMaterial = material;
+        if (material.AssetScope != ResoniteMaterialAssetScope.Common
+            || material.MaterialType != ResoniteMaterialType.Standard
+            || material.Projection != ResoniteMaterialProjection.Uv
+            || material.DepthOffset is not null
+            || material.TextureOffset is not null
+            || !IsWhiteBaseColor(material.BaseColor))
+        {
+            return false;
+        }
+
+        ResoniteMaterialBinding commonBaseCandidate = material with
+        {
+            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload = null,
+            TerrainOverlay = null,
+            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+        };
+        normalizedMaterial = NormalizeCommonMaterialBinding(commonBaseCandidate);
+        return normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common;
+    }
+
     public static string CreateCanonicalCommonMaterialKey(
         string family,
         int bundledVariantIndex,
@@ -154,6 +187,32 @@ internal static class ResoniteSceneMaterialConventions
             $"{color.R:0.###}-{color.G:0.###}-{color.B:0.###}-{color.A:0.###}");
     }
 
+    private static string CreateCommonMaterialSlotName(ResoniteMaterialBinding material)
+    {
+        string projectionName = material.Projection switch
+        {
+            ResoniteMaterialProjection.Uv => "uv",
+            ResoniteMaterialProjection.Triplanar => "triplanar",
+            _ => material.Projection.ToString().ToLowerInvariant(),
+        };
+        int variantIndex = material.BundledVariantIndex ?? 0;
+        ResoniteFloat2? defaultTextureScale = TryGetBundledDefaultScale(material);
+        ResoniteFloat2? materialTextureScale = material.TextureScale;
+        bool hasNonDefaultScale = materialTextureScale is not null
+            && (defaultTextureScale is null
+                || Math.Abs(materialTextureScale.X - defaultTextureScale.X) > 1e-9
+                || Math.Abs(materialTextureScale.Y - defaultTextureScale.Y) > 1e-9);
+        string scaleToken = hasNonDefaultScale
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"_scale_{materialTextureScale!.X:0.######}x{materialTextureScale.Y:0.######}")
+            : string.Empty;
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"shared_{projectionName}_variant_{variantIndex}{scaleToken}");
+    }
+
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainTextureOverlay)
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
@@ -171,5 +230,24 @@ internal static class ResoniteSceneMaterialConventions
     {
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant();
+    }
+
+    private static ResoniteFloat2? TryGetBundledDefaultScale(ResoniteMaterialBinding material)
+    {
+        if (string.IsNullOrWhiteSpace(material.Family))
+        {
+            return null;
+        }
+
+        string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
+        return BundledDefaultMaterialProfiles.GetTilesPerMeter(bundledVariantPath);
+    }
+
+    private static bool IsWhiteBaseColor(ResoniteColor color)
+    {
+        return Math.Abs(color.R - 1.0) < 1e-9
+            && Math.Abs(color.G - 1.0) < 1e-9
+            && Math.Abs(color.B - 1.0) < 1e-9
+            && Math.Abs(color.A - 1.0) < 1e-9;
     }
 }

@@ -99,6 +99,11 @@ internal sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgr
         IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
         IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
     {
+        if (string.IsNullOrWhiteSpace(targetId))
+        {
+            return targetId;
+        }
+
         if (pendingSlotsByPlanId.TryGetValue(targetId, out PendingBatchSlot pendingSlot))
         {
             return pendingSlot.LocalId;
