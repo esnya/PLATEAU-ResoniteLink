@@ -7,6 +7,7 @@ public sealed record BuildCommandOptions(
     string WorkRoot,
     Uri? ResoniteLinkUri,
     int ResoniteLinkConnectionCount,
+    PlateauImportMemoryProfile MemoryProfile,
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,
