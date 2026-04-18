@@ -91,6 +91,37 @@ internal static class ResoniteMaterialPlanning
         return textures.FirstOrDefault(texture => string.Equals(texture.Identity.Value, role, StringComparison.Ordinal))?.AssetUri;
     }
 
+    public static async Task<PlannedTextureAsset?> PlanMainTextureOverrideAsync(
+        IResoniteLinkClient importClient,
+        ResoniteMaterialBinding material,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
+        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(importClient);
+        ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(preparedTextureDataByIdentity);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
+
+        ResoniteTextureImport? textureImport = material.TexturePayload is not null
+            && !string.IsNullOrWhiteSpace(material.TexturePayload.Identity)
+            && preparedTextureDataByIdentity.TryGetValue(material.TexturePayload.Identity, out ResoniteTextureImport? directTextureImport)
+                ? directTextureImport
+            : material.TerrainOverlay is not null
+            && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out ResoniteTextureImport? terrainOverlayTextureImport)
+                ? terrainOverlayTextureImport
+            : null;
+        if (textureImport is null)
+        {
+            return null;
+        }
+
+        Uri? textureUri = await ImportOptionalTextureAsync(importClient, textureImport, cancellationToken);
+        return textureUri is null
+            ? null
+            : new PlannedTextureAsset(new TextureIdentity($"main-texture-override:{material.MaterialKey}"), textureUri);
+    }
+
     public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(
         IResoniteLinkClient client,
         PlannedDedicatedMaterialAsset plannedMaterial,

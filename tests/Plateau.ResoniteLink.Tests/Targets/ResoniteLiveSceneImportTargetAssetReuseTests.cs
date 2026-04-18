@@ -69,7 +69,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncDemotesPayloadTexturesToDedicatedMaterials()
+    public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
@@ -95,16 +95,18 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             .Select(static request => request.Data.ID)
             .Where(static id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
+        string firstPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-one");
+        string secondPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-two");
 
-        Assert.NotEqual(firstMaterialId, secondMaterialId);
-        Assert.DoesNotContain(firstMaterialId, commonMaterialIds);
-        Assert.DoesNotContain(secondMaterialId, commonMaterialIds);
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.Contains(firstMaterialId, commonMaterialIds);
+        Assert.NotEqual(firstPropertyBlockId, secondPropertyBlockId);
         Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/albedo-one.png");
         Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/albedo-two.png");
     }
 
     [Fact]
-    public async Task BuildAsyncPreservesMixedCommonAndDedicatedMaterialOrder()
+    public async Task BuildAsyncPreservesMixedCommonAndOverrideMaterialOrder()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
@@ -127,10 +129,12 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             .Select(static request => request.Data.ID)
             .Where(static id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
+        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject mixed-material-order");
 
-        Assert.NotEqual(materialIds[0], materialIds[1]);
         Assert.Contains(materialIds[0], commonMaterialIds);
-        Assert.DoesNotContain(materialIds[1], commonMaterialIds);
+        Assert.Contains(materialIds[1], commonMaterialIds);
+        Assert.Null(propertyBlockIds[0]);
+        Assert.NotNull(propertyBlockIds[1]);
         Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/mixed-albedo.png");
     }
 
@@ -884,6 +888,30 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 .Select(static request => request.Data));
         SyncList materials = Assert.IsType<SyncList>(renderer.Members["Materials"]);
         return materials.Elements
+            .Select(Assert.IsType<Reference>)
+            .Select(static reference => reference.TargetID)
+            .ToArray();
+    }
+
+    private static string GetRendererMaterialPropertyBlockReferenceTarget(
+        SceneBuilderRecordingClient client,
+        string slotName)
+    {
+        string? targetId = Assert.Single(GetRendererMaterialPropertyBlockReferenceTargets(client, slotName));
+        return Assert.IsType<string>(targetId);
+    }
+
+    private static string?[] GetRendererMaterialPropertyBlockReferenceTargets(
+        SceneBuilderRecordingClient client,
+        string slotName)
+    {
+        Component renderer = Assert.Single(
+            client.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, slotName, StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        SyncList propertyBlocks = Assert.IsType<SyncList>(renderer.Members["MaterialPropertyBlocks"]);
+        return propertyBlocks.Elements
             .Select(Assert.IsType<Reference>)
             .Select(static reference => reference.TargetID)
             .ToArray();

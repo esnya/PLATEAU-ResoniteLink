@@ -91,7 +91,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             ],
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
-                [new MaterialIdentity("reusable"), dedicatedMaterial.Identity]),
+                [
+                    new PlannedDirectRendererMaterialBinding(new MaterialIdentity("reusable")),
+                    new PlannedDirectRendererMaterialBinding(dedicatedMaterial.Identity),
+                ]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),
                 false));
@@ -161,7 +164,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             [dedicatedMaterial],
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
-                [dedicatedMaterial.Identity]),
+                [new PlannedDirectRendererMaterialBinding(dedicatedMaterial.Identity)]),
             new PlannedCollider(
                 new GeometryIdentity("geom"),
                 true));
@@ -205,5 +208,55 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(texturesByUri["resdb:///texture/metallic"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["MetallicMap"]).TargetID);
         Assert.Equal(texturesByUri["resdb:///texture/metallic"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["OcclusionMap"]).TargetID);
         Assert.Equal(texturesByUri["resdb:///texture/emission"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["EmissiveMap"]).TargetID);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_UsesMainTexturePropertyBlockForRendererOverride()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot("asset-lod-slot", "Asset LOD"),
+            new CreatedSlot("lod-slot", "LOD"),
+            "Triangle Object",
+            new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            null);
+        PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), "shared-material-id");
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTriangleMeshGeometryAsset(
+                new GeometryIdentity("geom"),
+                "Triangle Object",
+                new Uri("resdb:///mesh/triangle")),
+            [reusableMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [
+                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                        reusableMaterial.Identity,
+                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override"))),
+                ]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                false));
+
+        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission meshRenderer = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+        SyncList rendererMaterials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
+        SyncList rendererPropertyBlocks = Assert.IsType<SyncList>(meshRenderer.Members["MaterialPropertyBlocks"]);
+        Reference materialReference = Assert.IsType<Reference>(Assert.Single(rendererMaterials.Elements));
+        Reference propertyBlockReference = Assert.IsType<Reference>(Assert.Single(rendererPropertyBlocks.Elements));
+        PlannedBatchComponentEmission propertyBlockComponent = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        PlannedBatchComponentEmission overrideTexture = Assert.Single(
+            batchPlan.ComponentEmissions,
+            component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && string.Equals(component.ContainerId, meshRenderer.ContainerId, StringComparison.Ordinal));
+
+        Assert.Equal("shared-material-id", materialReference.TargetID);
+        Assert.Equal(propertyBlockComponent.Identity.Value, propertyBlockReference.TargetID);
+        Assert.Equal(propertyBlockComponent.ContainerId, meshRenderer.ContainerId);
+        Assert.Equal(overrideTexture.Identity.Value, Assert.IsType<Reference>(propertyBlockComponent.Members["Texture"]).TargetID);
     }
 }

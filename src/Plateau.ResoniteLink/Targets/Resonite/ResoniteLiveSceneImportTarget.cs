@@ -1084,7 +1084,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         Stopwatch geometryStopwatch = new();
-        Task<IReadOnlyList<PlannedMaterialAsset>> materialPlanningTask = PlanMaterialAssetsAsync(
+        Task<PlannedSceneMaterialPlan> materialPlanningTask = PlanSceneMaterialPlanAsync(
             state,
             routedClient,
             cityObject,
@@ -1096,11 +1096,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             cityObject,
             preparedCityObject,
             buildStepCancellation.Token);
-        IReadOnlyList<PlannedMaterialAsset> plannedMaterialAssets;
+        PlannedSceneMaterialPlan plannedMaterials;
         PlannedGeometryAsset plannedGeometryAsset;
         try
         {
-            plannedMaterialAssets = await materialPlanningTask;
+            plannedMaterials = await materialPlanningTask;
             materialStopwatch.Stop();
 
             ReportBuildStep(cityObject, $"Preparing geometry assets ({DescribePreparedGeometry(preparedCityObject.Geometry)}).");
@@ -1117,10 +1117,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
         PlannedSceneObjectEmission emissionPlan = new(
             plannedGeometryAsset,
-            plannedMaterialAssets,
+            plannedMaterials.MaterialAssets,
             new PlannedRenderer(
                 plannedGeometryAsset.Identity,
-                plannedMaterialAssets.Select(static asset => asset.Identity).ToArray()),
+                plannedMaterials.RendererMaterialBindings),
             new PlannedCollider(
                 plannedGeometryAsset.Identity,
                 cityObject.CollisionEnabled));
@@ -1311,7 +1311,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             + $"material_bindings=[{materialSummary}]");
     }
 
-    private async Task<IReadOnlyList<PlannedMaterialAsset>> PlanMaterialAssetsAsync(
+    private async Task<PlannedSceneMaterialPlan> PlanSceneMaterialPlanAsync(
         LiveSendRunState state,
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
@@ -1319,7 +1319,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
-        Task<PlannedMaterialAsset>[] plannedMaterialTasks = new Task<PlannedMaterialAsset>[cityObject.Materials.Count];
+        Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
+            = new Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[cityObject.Materials.Count];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
             ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
@@ -1328,65 +1329,112 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
             if (material.AssetScope == ResoniteMaterialAssetScope.Common)
             {
-                material = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-                if (material.AssetScope != ResoniteMaterialAssetScope.Common)
-                {
-                    plannedMaterialTasks[materialIndex] = WrapDedicatedMaterialPlanningTask(
-                        ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
-                            importClient,
-                            material,
-                            materialIndex,
-                            cityObject.PackageName,
-                            preparedTextureDataByIdentity,
-                            preparedTerrainTextureDataByOverlay,
-                            preserveDedicatedMaterialSlot: IsDemPackage(cityObject.PackageName),
-                            cancellationToken));
-                    continue;
-                }
-
-                string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
-                if (state.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(family, out Task? familyWarmupTask))
-                {
-                    await familyWarmupTask.WaitAsync(cancellationToken);
-                }
-
-                string materialKey = ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
-                    family,
-                    material.BundledVariantIndex ?? 0,
-                    material.Projection,
-                    material.TextureScale);
-                if (!state.Materials.CommonMaterialCreationTasks.TryGetValue(materialKey, out Task<CreatedMaterialAsset>? materialCreationTask))
-                {
-                    throw new InvalidOperationException(
-                        $"Bootstrap did not produce common material '{materialKey}'.");
-                }
-
-                CreatedMaterialAsset existingMaterialAsset = await materialCreationTask.WaitAsync(cancellationToken);
-                plannedMaterialTasks[materialIndex] = Task.FromResult<PlannedMaterialAsset>(
-                    new PlannedReusableMaterialAsset(
-                        new MaterialIdentity(materialKey),
-                        existingMaterialAsset.MaterialComponentId));
-            }
-            else
-            {
-                plannedMaterialTasks[materialIndex] = WrapDedicatedMaterialPlanningTask(
-                    ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
+                if (TryCreateSharedCommonRendererMaterialPlanTask(
+                        state,
                         importClient,
                         material,
-                        materialIndex,
-                        cityObject.PackageName,
                         preparedTextureDataByIdentity,
                         preparedTerrainTextureDataByOverlay,
-                        preserveDedicatedMaterialSlot: IsDemPackage(cityObject.PackageName),
-                        cancellationToken));
+                        cancellationToken,
+                        out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedCommonPlanTask))
+                {
+                    materialPlanTasks[materialIndex] = sharedCommonPlanTask
+                        ?? throw new InvalidOperationException("Shared common renderer material planning task was not created.");
+                    continue;
+                }
             }
+
+            materialPlanTasks[materialIndex] = WrapDedicatedMaterialPlanningTask(
+                ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
+                    importClient,
+                    material,
+                    materialIndex,
+                    cityObject.PackageName,
+                    preparedTextureDataByIdentity,
+                    preparedTerrainTextureDataByOverlay,
+                    preserveDedicatedMaterialSlot: IsDemPackage(cityObject.PackageName),
+                    cancellationToken));
         }
 
-        return await Task.WhenAll(plannedMaterialTasks);
+        (PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)[] materialPlans = await Task.WhenAll(materialPlanTasks);
+        return new PlannedSceneMaterialPlan(
+            materialPlans.Select(static plan => plan.MaterialAsset).ToArray(),
+            materialPlans.Select(static plan => plan.RendererBinding).ToArray());
 
-        static async Task<PlannedMaterialAsset> WrapDedicatedMaterialPlanningTask(Task<PlannedDedicatedMaterialAsset> task)
+        bool TryCreateSharedCommonRendererMaterialPlanTask(
+            LiveSendRunState runState,
+            IResoniteLinkClient client,
+            ResoniteMaterialBinding sourceMaterial,
+            IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturesByIdentity,
+            IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTexturesByOverlay,
+            CancellationToken ct,
+            out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedPlanTask)
         {
-            return await task;
+            sharedPlanTask = null;
+            if (!ResoniteSceneMaterialConventions.TryNormalizeCommonBaseMaterialBinding(
+                    sourceMaterial,
+                    out ResoniteMaterialBinding normalizedCommonMaterial))
+            {
+                return false;
+            }
+
+            string family = normalizedCommonMaterial.Family ?? BundledDefaultMaterialFamilies.Other;
+            string materialKey = normalizedCommonMaterial.MaterialKey;
+            sharedPlanTask = PlanSharedCommonRendererMaterialAsync(
+                runState,
+                client,
+                sourceMaterial,
+                normalizedCommonMaterial,
+                family,
+                materialKey,
+                preparedTexturesByIdentity,
+                preparedTexturesByOverlay,
+                ct);
+            return true;
+        }
+
+        async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> PlanSharedCommonRendererMaterialAsync(
+            LiveSendRunState runState,
+            IResoniteLinkClient client,
+            ResoniteMaterialBinding sourceMaterial,
+            ResoniteMaterialBinding normalizedCommonMaterial,
+            string family,
+            string materialKey,
+            IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturesByIdentity,
+            IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTexturesByOverlay,
+            CancellationToken ct)
+        {
+            if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(family, out Task? familyWarmupTask))
+            {
+                await familyWarmupTask.WaitAsync(ct);
+            }
+
+            if (!runState.Materials.CommonMaterialCreationTasks.TryGetValue(materialKey, out Task<CreatedMaterialAsset>? materialCreationTask))
+            {
+                throw new InvalidOperationException(
+                    $"Bootstrap did not produce common material '{materialKey}'.");
+            }
+
+            CreatedMaterialAsset existingMaterialAsset = await materialCreationTask.WaitAsync(ct);
+            PlannedReusableMaterialAsset sharedMaterialAsset = new(
+                new MaterialIdentity(materialKey),
+                existingMaterialAsset.MaterialComponentId);
+            PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+                client,
+                sourceMaterial,
+                preparedTexturesByIdentity,
+                preparedTexturesByOverlay,
+                ct);
+            PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
+                ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset.Identity)
+                : new PlannedMainTextureOverrideRendererMaterialBinding(sharedMaterialAsset.Identity, mainTextureOverride);
+            return (sharedMaterialAsset, rendererBinding);
+        }
+
+        static async Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)> WrapDedicatedMaterialPlanningTask(Task<PlannedDedicatedMaterialAsset> task)
+        {
+            PlannedDedicatedMaterialAsset plannedMaterial = await task;
+            return (plannedMaterial, new PlannedDirectRendererMaterialBinding(plannedMaterial.Identity));
         }
     }
 
@@ -1603,6 +1651,36 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             objectSlots.CityObjectRotation));
         slotResolutionTargets.Add(presentationSlotId);
 
+        SyncList rendererMaterials = new()
+        {
+            Elements = emissionPlan.Renderer.MaterialBindings
+                .Select(binding => (Member)new Reference
+                {
+                    TargetID = emittedMaterialTargets[binding.MaterialIdentity],
+                })
+                .ToList(),
+        };
+        SyncList rendererMaterialPropertyBlocks = new()
+        {
+            Elements = [],
+        };
+        bool hasMaterialPropertyBlockOverride = false;
+        foreach (PlannedRendererMaterialBinding materialBinding in emissionPlan.Renderer.MaterialBindings)
+        {
+            if (materialBinding is PlannedMainTextureOverrideRendererMaterialBinding mainTextureOverrideBinding)
+            {
+                hasMaterialPropertyBlockOverride = true;
+                rendererMaterialPropertyBlocks.Elements.Add(
+                    CreateMainTexturePropertyBlockReference(componentEmissions, presentationSlotId.Value, mainTextureOverrideBinding));
+                continue;
+            }
+
+            rendererMaterialPropertyBlocks.Elements.Add(new Reference
+            {
+                TargetID = null,
+            });
+        }
+
         componentEmissions.Add(new PlannedBatchComponentEmission(
             CreateBatchPlanEntityId("mesh-renderer-component"),
             presentationSlotId.Value,
@@ -1613,15 +1691,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 {
                     TargetID = geometryComponentId.Value,
                 },
-                ["Materials"] = new SyncList
-                {
-                    Elements = emissionPlan.Renderer.MaterialIdentities
-                        .Select(materialIdentity => (Member)new Reference
-                        {
-                            TargetID = emittedMaterialTargets[materialIdentity],
-                        })
-                        .ToList(),
-                },
+                ["Materials"] = rendererMaterials,
+                ["MaterialPropertyBlocks"] = hasMaterialPropertyBlockOverride
+                    ? rendererMaterialPropertyBlocks
+                    : new SyncList { Elements = [] },
             }));
         componentEmissions.Add(new PlannedBatchComponentEmission(
             CreateBatchPlanEntityId("mesh-collider-component"),
@@ -1648,6 +1721,37 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             componentEmissions,
             slotResolutionTargets,
             componentResolutionTargets);
+    }
+
+    private static Reference CreateMainTexturePropertyBlockReference(
+        List<PlannedBatchComponentEmission> componentEmissions,
+        string presentationSlotId,
+        PlannedMainTextureOverrideRendererMaterialBinding binding)
+    {
+        BatchPlanEntityId textureId = CreateBatchPlanEntityId($"renderer-texture:{binding.MaterialIdentity.Value}");
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            textureId,
+            presentationSlotId,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(binding.MainTexture.AssetUri)));
+
+        BatchPlanEntityId propertyBlockId = CreateBatchPlanEntityId($"renderer-main-texture-property-block:{binding.MaterialIdentity.Value}");
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            propertyBlockId,
+            presentationSlotId,
+            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
+            new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["Texture"] = new Reference
+                {
+                    TargetID = textureId.Value,
+                },
+            }));
+
+        return new Reference
+        {
+            TargetID = propertyBlockId.Value,
+        };
     }
 
     private static long EstimateBatchPayloadBytes(int operationCount)
