@@ -544,9 +544,19 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 ]);
         }
 
+        Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            client,
+            $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(SecondarySourceFile)}");
         Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "CityObject append-run");
+        ResoniteFloat3 expectedRootOffset = ComputeMeshCodeOffset(MeshCode, SecondaryMeshCode);
+        ResoniteFloat3 expectedAccumulatedPosition = new(
+            expectedRootOffset.X + secondRunLocalPosition.X,
+            secondRunLocalPosition.Y,
+            expectedRootOffset.Z + secondRunLocalPosition.Z);
 
+        AssertNear(expectedRootOffset, GetSlotPosition(sourceFileRoot), 0.2);
         AssertNear(secondRunLocalPosition, GetSlotPosition(objectSlot), 0.2);
+        AssertNear(expectedAccumulatedPosition, GetAccumulatedPosition(client, objectSlot), 0.2);
     }
 
     [Fact]

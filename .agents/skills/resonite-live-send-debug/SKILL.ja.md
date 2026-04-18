@@ -57,6 +57,12 @@ operator-facing な helper script として直接使うのは次の 7 本だけ�
 
 shared な Windows build resolver は internal helper であり、operator-facing command surface には含めません。
 
+public helper script を自分で実行するときは次を守ります。
+
+- Windows PowerShell 5.1 より `pwsh.exe -NoProfile -File ...` による PowerShell 7 を優先します。
+- Windows execution policy により script 実行が止まる場合は、ad hoc command に切り替えるのではなく explicit な許可 execution mode で helper を再実行します。
+- sandbox 付き環境では、helper script が CLI や session tool の `dotnet restore` を引くことがあります。.NET first-use や permission 制約に当たったら、workflow を書き換えず helper 自体を必要な sandbox escalation 付きで再実行します。
+
 ## Required Outputs
 
 各 live run は次で要約してください。

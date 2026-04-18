@@ -14,12 +14,15 @@ This file is the single operational guide surface for the repo-local live-send s
 ## Environment Selection
 
 - Use bundled helper scripts instead of ad hoc commands.
+- Prefer PowerShell 7 helper execution with `pwsh.exe -NoProfile -File ...`.
+- Avoid Windows PowerShell 5.1 for the helper scripts when PowerShell 7 is available. The current helper surface relies on behaviors such as `ConvertFrom-Json -Depth` that are smoother on PowerShell 7, and current Windows execution-policy defaults can block direct `.ps1` invocation.
 - Run helpers from Windows when the target listener is not reachable from WSL through `localhost`.
 - A WSL-driven sender is valid when the listener is same-host and actual `localhost` reachability from WSL has been confirmed.
 - If a reverse proxy or bridge rewrites the route to an acceptable host for the listener, an IP-based path can be valid when reachability and session identity are both confirmed.
 - Decide by observed reachability and observed session identity. Do not hardcode a Windows-only or WSL-only rule into the workflow.
 - Root dumps and destructive cleanup use the bundled repo-local session tool, not the official REPL prompt loop.
 - Keep explicit `ws://host:port/` endpoints in automation paths whenever the session target is already known.
+- In sandboxed Codex environments, the helpers can require elevated execution because they restore or build the CLI or session tool. If a helper fails on .NET first-use or permission setup, rerun the helper with sandbox escalation instead of replacing it with an ad hoc command sequence.
 
 ## Agent Guardrails
 

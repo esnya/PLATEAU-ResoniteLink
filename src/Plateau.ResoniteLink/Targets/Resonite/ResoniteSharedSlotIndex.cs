@@ -99,14 +99,11 @@ internal sealed class ResoniteSharedSlotIndex(
         string cityGmlScopeKey = ResonitePlacementPolicy.ResolveCityGmlScopeKey(cityObject);
         string cityGmlSlotName = ResonitePlacementPolicy.ResolveCityGmlSlotName(cityObject, cityGmlScopeKey, cityGmlSlotNamesByRelativePath);
         string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(cityGmlSlotName, cityObject.ActualMeshCode);
-        ResoniteFloat3 plannedRootPosition = ResonitePlacementPolicy.ResolveMeshRootPosition(
-            requestLocalOrigin,
-            rootMeshCode,
-            ResolveMeshCodeRootPosition(rootMeshCode).Y);
         CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
             new CanonicalParentScopeKey(cityGmlScopeKey, rootMeshCode, cityObject.LodLevel),
             ct => CreateCanonicalParentScopeAsync(client, cityGmlSlotName, rootMeshCode, cityObject.LodLevel, ct),
             cancellationToken);
+        ResoniteFloat3 plannedRootPosition = ResolvePlannedRootPosition(rootMeshCode);
         ResoniteFloat3 resolvedRootPosition = TryGetObservedSlotPosition(parentScope.CityGmlSlot.SlotId) ?? plannedRootPosition;
 
         return new ObjectSlotHierarchy(
@@ -129,10 +126,7 @@ internal sealed class ResoniteSharedSlotIndex(
         CancellationToken cancellationToken)
     {
         string lodSlotName = ResonitePlacementPolicy.FormatLodSlotName(lodLevel);
-        ResoniteFloat3 rootPosition = ResonitePlacementPolicy.ResolveMeshRootPosition(
-            requestLocalOrigin,
-            rootMeshCode,
-            ResolveMeshCodeRootPosition(rootMeshCode).Y);
+        ResoniteFloat3 rootPosition = ResolvePlannedRootPosition(rootMeshCode);
         CreatedSlot cityGmlSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
             datasetRootSlot.SlotId,
@@ -287,6 +281,44 @@ internal sealed class ResoniteSharedSlotIndex(
         return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
     }
 
+    private ResoniteFloat3 ResolvePlannedRootPosition(string rootMeshCode)
+    {
+        SceneAnchor? anchor = SceneAnchor;
+        if (anchor is null)
+        {
+            return ResonitePlacementPolicy.ResolveMeshRootPosition(requestLocalOrigin, rootMeshCode);
+        }
+
+        if (TryResolveReferenceSourceFileRootPosition(anchor.Value, rootMeshCode, out ResoniteFloat3 referenceRootPosition))
+        {
+            return referenceRootPosition;
+        }
+
+        return ResolveMeshCodeRootPosition(rootMeshCode);
+    }
+
+    private bool TryResolveReferenceSourceFileRootPosition(
+        SceneAnchor anchor,
+        string rootMeshCode,
+        out ResoniteFloat3 position)
+    {
+        position = new ResoniteFloat3(0.0, 0.0, 0.0);
+        if (string.IsNullOrWhiteSpace(anchor.ReferenceSourceFileRootId)
+            || !observedSlotSnapshotsById.TryGetValue(anchor.ReferenceSourceFileRootId, out Slot? referenceSlot)
+            || !ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(referenceSlot.Name?.Value ?? string.Empty, out string referenceMeshCode))
+        {
+            return false;
+        }
+
+        ResoniteFloat3 referencePosition = GetSlotPositionOrDefault(referenceSlot);
+        position = string.Equals(referenceMeshCode, rootMeshCode, StringComparison.Ordinal)
+            ? referencePosition
+            : ResonitePlacementPolicy.Add(
+                referencePosition,
+                ResonitePlacementPolicy.ComputeMeshCodeOffset(referenceMeshCode, rootMeshCode));
+        return true;
+    }
+
     private static string CreateSharedSlotIndexKey(string parentId, string slotName)
     {
         return string.Create(CultureInfo.InvariantCulture, $"{parentId}\n{slotName}");
@@ -303,6 +335,16 @@ internal sealed class ResoniteSharedSlotIndex(
                 z = (float)value.Z,
             },
         };
+    }
+
+    private static ResoniteFloat3 GetSlotPositionOrDefault(Slot slot)
+    {
+        if (slot.Position is not Field_float3 position)
+        {
+            return new ResoniteFloat3(0.0, 0.0, 0.0);
+        }
+
+        return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
     }
 
     internal sealed record ObjectSlotHierarchy(

@@ -57,6 +57,12 @@ Use only these operator-facing helper scripts directly:
 
 The shared Windows build resolver remains internal and is not part of the operator-facing command surface.
 
+When executing the public helper scripts yourself:
+
+- Prefer PowerShell 7 with `pwsh.exe -NoProfile -File ...` over Windows PowerShell 5.1.
+- If script execution is blocked by Windows execution policy, rerun with an explicit allowed execution mode instead of switching to ad hoc commands.
+- In sandboxed environments, expect the helper scripts to trigger `dotnet restore` for the CLI or session tool. If that hits first-use or permission restrictions, rerun the helper with the required sandbox escalation rather than rewriting the workflow.
+
 ## Required Outputs
 
 Summarize each live run with:

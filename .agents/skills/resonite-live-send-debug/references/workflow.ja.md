@@ -14,12 +14,15 @@
 ## Environment Selection
 
 - ad hoc command ではなく bundled helper script を使います。
+- helper 実行は `pwsh.exe -NoProfile -File ...` による PowerShell 7 を優先します。
+- PowerShell 7 が使えるなら helper script に Windows PowerShell 5.1 を使いません。現在の helper surface は `ConvertFrom-Json -Depth` のような PowerShell 7 で安定する挙動に依存しており、現行の Windows execution policy では `.ps1` の直接実行が止まることがあります。
 - target listener が WSL から `localhost` で到達できない場合は Windows 側で helper を実行します。
 - listener が同一ホストで、WSL から `localhost` 到達が実測で確認できているなら WSL 起点 sender も有効です。
 - reverse proxy や bridge が listener 目線で許容可能な host に変換するなら、到達性と session identity の両方が確認できた IP 経路も有効です。
 - Windows-only / WSL-only の固定ルールにはせず、実測の reachability と session identity で判断します。
 - root dump と destructive cleanup は、official REPL prompt loop ではなく bundled な repo-local session tool を使います。
 - session target が既知の自動化経路では、`ws://host:port/` の explicit endpoint を優先します。
+- sandbox 付きの Codex 環境では、helper が CLI や session tool の restore / build を行うため昇格実行が必要になることがあります。.NET first-use や permission setup で helper が失敗した場合は、ad hoc command へ置き換えるのではなく helper 自体を昇格付きで再実行します。
 
 ## Agent Guardrails
 
