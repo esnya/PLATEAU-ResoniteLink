@@ -45,7 +45,7 @@ guide は次の用途で使います。
 
 ## Public Helper Commands
 
-operator-facing な helper script として直接使うのは次の 6 本だけです。
+operator-facing な helper script として直接使うのは次の 7 本だけです。
 
 - `scripts/discover-session.ps1`
 - `scripts/start-headless-session.ps1`
@@ -53,6 +53,7 @@ operator-facing な helper script として直接使うのは次の 6 本だけ�
 - `scripts/cleanup-session.ps1`
 - `scripts/dump-root-session.ps1`
 - `scripts/run-live-send.ps1`
+- `scripts/run-live-send-monitored.ps1`
 
 shared な Windows build resolver は internal helper であり、operator-facing command surface には含めません。
 

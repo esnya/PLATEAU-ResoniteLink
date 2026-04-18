@@ -18,6 +18,8 @@
 - listener が同一ホストで、WSL から `localhost` 到達が実測で確認できているなら WSL 起点 sender も有効です。
 - reverse proxy や bridge が listener 目線で許容可能な host に変換するなら、到達性と session identity の両方が確認できた IP 経路も有効です。
 - Windows-only / WSL-only の固定ルールにはせず、実測の reachability と session identity で判断します。
+- root dump と destructive cleanup は、official REPL prompt loop ではなく bundled な repo-local session tool を使います。
+- session target が既知の自動化経路では、`ws://host:port/` の explicit endpoint を優先します。
 
 ## Agent Guardrails
 
@@ -153,9 +155,16 @@ disposable な headless validation では、次の operator sequence を優先�
 
 この skill 配下に次の file がある前提です。
 
-- `tools/ResoniteAdmin/ResoniteAdmin.csproj`
+- `tools/ResoniteSessionTool/ResoniteSessionTool.csproj`
 
-helper script は admin utility や CLI binary を必要に応じて build します。dump / cleanup helper では fresh な Windows build output が expected execution path の一部です。
+helper script は thin な session tool や CLI binary を必要に応じて build します。dump / cleanup helper では fresh な Windows build output が expected execution path の一部です。
+
+## Read-Only Inspection
+
+- `dump-root-session.ps1` が書き出す JSON を primary な read artifact として扱います。
+- `jq` は post-dump inspection のための optional convenience に限定します。cleanup convergence や slot 選択を `jq` 必須にしません。
+- 例:
+  `jq '.Root.Children[] | { id: .ID, name: .Name.Value }' runtime/windows/resonite/root-dumps/<dump>.json`
 
 ## Public Helper Commands
 

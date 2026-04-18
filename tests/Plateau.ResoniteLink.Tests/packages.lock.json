@@ -381,7 +381,7 @@
           "Plateau.ResoniteLink": "[1.0.0, )"
         }
       },
-      "resoniteadmin": {
+      "resonitesessiontool": {
         "type": "Project",
         "dependencies": {
           "YellowDogMan.ResoniteLink": "[0.13.1, )"

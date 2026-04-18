@@ -143,21 +143,21 @@ function Ensure-WindowsBuildOutput {
     return (Get-Item -LiteralPath $ExpectedDllPath)
 }
 
-function Resolve-ResoniteAdminOutputPaths {
+function Resolve-ResoniteSessionToolOutputPaths {
     param(
         [Parameter(Mandatory = $true)]
         [string]$RepoRoot,
         [string]$Configuration = 'Release'
     )
 
-    $outputRoot = Join-Path $RepoRoot ("artifacts\build\windows\bin\ResoniteAdmin\{0}\net10.0" -f $Configuration)
+    $outputRoot = Join-Path $RepoRoot ("artifacts\build\windows\bin\ResoniteSessionTool\{0}\net10.0" -f $Configuration)
     [pscustomobject]@{
-        DllPath = (Join-Path $outputRoot 'ResoniteAdmin.dll')
-        ExePath = (Join-Path $outputRoot 'ResoniteAdmin.exe')
+        DllPath = (Join-Path $outputRoot 'ResoniteSessionTool.dll')
+        ExePath = (Join-Path $outputRoot 'ResoniteSessionTool.exe')
     }
 }
 
-function Ensure-ResoniteAdminBuildOutput {
+function Ensure-ResoniteSessionToolBuildOutput {
     param(
         [Parameter(Mandatory = $true)]
         [string]$DotNetPath,
@@ -167,12 +167,12 @@ function Ensure-ResoniteAdminBuildOutput {
         [string]$RepoRoot
     )
 
-    $paths = Resolve-ResoniteAdminOutputPaths -RepoRoot $RepoRoot
+    $paths = Resolve-ResoniteSessionToolOutputPaths -RepoRoot $RepoRoot
     $dll = Ensure-WindowsBuildOutput `
         -DotNetPath $DotNetPath `
         -ProjectPath $ProjectPath `
         -ExpectedDllPath $paths.DllPath `
-        -ToolName 'ResoniteAdmin'
+        -ToolName 'ResoniteSessionTool'
 
     [pscustomobject]@{
         DllPath          = $dll.FullName
@@ -183,6 +183,29 @@ function Ensure-ResoniteAdminBuildOutput {
         else {
             $null
         }
+    }
+}
+
+function Get-BuiltDotNetToolLaunchSpec {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DotNetPath,
+        [Parameter(Mandatory = $true)]
+        [psobject]$ToolBuild,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ToolBuild.ExePath)) {
+        return [pscustomobject]@{
+            FilePath = $ToolBuild.ExePath
+            Arguments = $Arguments
+        }
+    }
+
+    return [pscustomobject]@{
+        FilePath = $DotNetPath
+        Arguments = @($ToolBuild.DllPath) + $Arguments
     }
 }
 

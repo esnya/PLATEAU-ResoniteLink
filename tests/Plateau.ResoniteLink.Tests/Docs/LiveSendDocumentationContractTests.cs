@@ -105,6 +105,12 @@ public sealed partial class LiveSendDocumentationContractTests
         Assert.DoesNotContain("- `scripts/windows-build-tools.ps1`", workflowJa, StringComparison.Ordinal);
         Assert.Contains("internal shared helper", workflow, StringComparison.Ordinal);
         Assert.Contains("internal shared helper", workflowJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteAdmin", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteAdmin", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("ResoniteSessionTool.csproj", workflow, StringComparison.Ordinal);
+        Assert.Contains("ResoniteSessionTool.csproj", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("`jq` is optional convenience", workflow, StringComparison.Ordinal);
+        Assert.Contains("`jq` は post-dump inspection", workflowJa, StringComparison.Ordinal);
     }
 
     [Fact]

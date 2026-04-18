@@ -20,7 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Plateau.ResoniteLink\Plateau.ResoniteLink.csproj" />
     <ProjectReference Include="..\..\src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj" />
-    <ProjectReference Include="..\..\.agents\skills\resonite-live-send-debug\tools\ResoniteAdmin\ResoniteAdmin.csproj" />
+    <ProjectReference Include="..\..\.agents\skills\resonite-live-send-debug\tools\ResoniteSessionTool\ResoniteSessionTool.csproj" />
   </ItemGroup>
 
 </Project>

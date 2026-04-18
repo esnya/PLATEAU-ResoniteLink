@@ -53,6 +53,7 @@ Use only these operator-facing helper scripts directly:
 - `scripts/cleanup-session.ps1`
 - `scripts/dump-root-session.ps1`
 - `scripts/run-live-send.ps1`
+- `scripts/run-live-send-monitored.ps1`
 
 The shared Windows build resolver remains internal and is not part of the operator-facing command surface.
 

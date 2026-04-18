@@ -18,6 +18,8 @@ This file is the single operational guide surface for the repo-local live-send s
 - A WSL-driven sender is valid when the listener is same-host and actual `localhost` reachability from WSL has been confirmed.
 - If a reverse proxy or bridge rewrites the route to an acceptable host for the listener, an IP-based path can be valid when reachability and session identity are both confirmed.
 - Decide by observed reachability and observed session identity. Do not hardcode a Windows-only or WSL-only rule into the workflow.
+- Root dumps and destructive cleanup use the bundled repo-local session tool, not the official REPL prompt loop.
+- Keep explicit `ws://host:port/` endpoints in automation paths whenever the session target is already known.
 
 ## Agent Guardrails
 
@@ -153,9 +155,16 @@ For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`
 
 Expect these bundled files under this skill:
 
-- `tools/ResoniteAdmin/ResoniteAdmin.csproj`
+- `tools/ResoniteSessionTool/ResoniteSessionTool.csproj`
 
-The helper scripts rebuild the admin utility or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
+The helper scripts rebuild the thin session tool or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
+
+## Read-Only Inspection
+
+- Treat the JSON written by `dump-root-session.ps1` as the primary read artifact.
+- `jq` is optional convenience for post-dump inspection only. Do not make cleanup convergence or slot selection depend on `jq`.
+- Example:
+  `jq '.Root.Children[] | { id: .ID, name: .Name.Value }' runtime/windows/resonite/root-dumps/<dump>.json`
 
 ## Public Helper Commands
 

@@ -63,9 +63,9 @@ $resolvedOutputPath = Resolve-OutputPath -ConfiguredOutputPath $OutputPath -Repo
 $dotnet = Resolve-DotNetCommandPath
 $adminRuntimeRoot = Resolve-ResoniteRuntimeRoot -RepoRoot $repoRoot
 $runtimeRoot = Join-Path $adminRuntimeRoot 'root-dumps'
-$adminProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteAdmin\ResoniteAdmin.csproj'
+$sessionToolProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteSessionTool\ResoniteSessionTool.csproj'
 
-$adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $repoRoot
+$sessionToolBuild = Ensure-ResoniteSessionToolBuildOutput -DotNetPath $dotnet -ProjectPath $sessionToolProject -RepoRoot $repoRoot
 
 $arguments = @(
     '--dump-root',
@@ -84,19 +84,18 @@ else {
 }
 
 New-Item -ItemType Directory -Force -Path $runtimeRoot, $adminRuntimeRoot | Out-Null
-$stdoutPath = Join-Path $adminRuntimeRoot 'resonite-admin-dump.stdout.log'
-$stderrPath = Join-Path $adminRuntimeRoot 'resonite-admin-dump.stderr.log'
+$stdoutPath = Join-Path $adminRuntimeRoot 'resonite-session-tool-dump.stdout.log'
+$stderrPath = Join-Path $adminRuntimeRoot 'resonite-session-tool-dump.stderr.log'
 foreach ($path in @($stdoutPath, $stderrPath)) {
     if (Test-Path -LiteralPath $path) {
         Remove-Item -LiteralPath $path -Force
     }
 }
 
-$launcherPath = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $adminBuild.ExePath } else { $dotnet }
-$launcherArguments = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $arguments } else { @($adminBuild.DllPath) + $arguments }
+$launchSpec = Get-BuiltDotNetToolLaunchSpec -DotNetPath $dotnet -ToolBuild $sessionToolBuild -Arguments $arguments
 $process = Start-Process `
-    -FilePath $launcherPath `
-    -ArgumentList $launcherArguments `
+    -FilePath $launchSpec.FilePath `
+    -ArgumentList $launchSpec.Arguments `
     -WorkingDirectory $repoRoot `
     -Wait `
     -PassThru `
@@ -110,7 +109,7 @@ if (-not [string]::IsNullOrWhiteSpace($stdoutText)) {
 }
 
 if ($process.ExitCode -ne 0) {
-    throw "ResoniteAdmin dump-root failed. ExitCode=$($process.ExitCode)`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
+    throw "ResoniteSessionTool dump-root failed. ExitCode=$($process.ExitCode)`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
 }
 
 if (-not (Test-Path -LiteralPath $resolvedOutputPath -PathType Leaf)) {
@@ -118,10 +117,10 @@ if (-not (Test-Path -LiteralPath $resolvedOutputPath -PathType Leaf)) {
 }
 
 [pscustomobject]@{
-    Endpoint              = $resolvedEndpoint
-    OutputPath            = (Resolve-Path -LiteralPath $resolvedOutputPath).Path
-    Depth                 = $Depth
-    IncludeComponentData  = $IncludeComponentData
-    AdminDllPath          = $adminBuild.DllPath
-    AdminDllLastWriteTime = $adminBuild.DllLastWriteTime
+    Endpoint                    = $resolvedEndpoint
+    OutputPath                  = (Resolve-Path -LiteralPath $resolvedOutputPath).Path
+    Depth                       = $Depth
+    IncludeComponentData        = $IncludeComponentData
+    SessionToolDllPath          = $sessionToolBuild.DllPath
+    SessionToolDllLastWriteTime = $sessionToolBuild.DllLastWriteTime
 }
