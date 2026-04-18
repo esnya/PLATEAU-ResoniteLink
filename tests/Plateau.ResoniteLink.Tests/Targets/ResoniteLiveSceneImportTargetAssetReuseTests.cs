@@ -43,7 +43,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Assert.Equal(firstMaterialId, secondMaterialId);
         Assert.StartsWith(
-            $"PLATEAU {DatasetName}/Assets/Common/",
+            "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[commonMaterialContainerSlotId],
             StringComparison.Ordinal);
     }
@@ -91,7 +91,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-two");
         HashSet<string> commonMaterialIds = client.AddedComponents
             .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("/Assets/Common/", StringComparison.Ordinal))
+                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
             .Select(static request => request.Data.ID)
             .Where(static id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
@@ -123,7 +123,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(2, materialIds.Length);
         HashSet<string> commonMaterialIds = client.AddedComponents
             .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("/Assets/Common/", StringComparison.Ordinal))
+                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
             .Select(static request => request.Data.ID)
             .Where(static id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
@@ -149,14 +149,16 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, $"PLATEAU {DatasetName}");
         Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}/Assets");
-        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}/Assets/Common");
+        Slot sharedAssetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets");
+        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
 
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, $"PLATEAU {DatasetName}", StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal)
             && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common", StringComparison.Ordinal)
-            && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
-        Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, assetsRoot.ID));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU Shared Assets", StringComparison.Ordinal)));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common Materials", StringComparison.Ordinal)
+            && string.Equals(slot.Parent?.TargetID, sharedAssetsRoot.ID, StringComparison.Ordinal)));
+        Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, sharedAssetsRoot.ID));
         Assert.True(client.ImportedMeshes.Count >= 2);
     }
 

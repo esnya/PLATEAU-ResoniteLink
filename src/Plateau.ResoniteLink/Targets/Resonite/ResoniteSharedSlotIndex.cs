@@ -36,7 +36,6 @@ internal sealed class ResoniteSharedSlotIndex(
         }
 
         IndexCreatedSharedSlot(bootstrapState.DatasetRootSlot.SlotId, bootstrapState.DatasetAssetsRootSlot);
-        IndexCreatedSharedSlot(bootstrapState.DatasetAssetsRootSlot.SlotId, bootstrapState.CommonAssetsRootSlot);
     }
 
     public Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(
