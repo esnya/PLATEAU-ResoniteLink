@@ -17,6 +17,7 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public static partial class LocalCityGmlObjectProjection
 {
+    public const double DefaultFacadeFloorHeightMeters = 3.25;
     public const string DefaultDemTerrainTexturePath = "dem/plateau-ortho";
     public const string DefaultDemTerrainTextureUrlTemplate = "https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png";
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
@@ -69,6 +70,8 @@ public static partial class LocalCityGmlObjectProjection
             sharedAcrossMeshCodes && string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? ResolveConcreteActualMeshCode(displayName!, objectId, actualMeshCode)
                 : actualMeshCode;
+        int? floorsAboveGround = TryParseStoreysAboveGround(cityObjectElement);
+        double? measuredHeightMeters = TryParseMeasuredHeightMeters(cityObjectElement);
 
         // Detect if this is a Marking object
         bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
@@ -134,7 +137,9 @@ public static partial class LocalCityGmlObjectProjection
             relativeSourceFile,
             sourceUnitIdentity,
             sourceIdentity,
-            SharedAcrossMeshCodes: sharedAcrossMeshCodes);
+            SharedAcrossMeshCodes: sharedAcrossMeshCodes,
+            FloorsAboveGround: floorsAboveGround,
+            MeasuredHeightMeters: measuredHeightMeters);
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
@@ -1701,7 +1706,9 @@ public static partial class LocalCityGmlObjectProjection
             && surface.TexturePayload is null
             && material.Projection == ResoniteMaterialProjection.Uv
                 ? CreateGeneratedSurfaceUvProjection(
+                    cityObject,
                     surface,
+                    material,
                     cityObject.PackageName,
                     cityObjectOrigin,
                     cityObjectCartesian)
@@ -2006,7 +2013,9 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     private static SurfaceUvProjection? CreateGeneratedSurfaceUvProjection(
+        ParsedCityObject cityObject,
         ParsedSurface surface,
+        ResolvedMaterial material,
         string packageName,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
@@ -2032,7 +2041,10 @@ public static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        return new SurfaceUvProjection(surfaceAxes.AxisU, surfaceAxes.AxisV);
+        return new SurfaceUvProjection(
+            surfaceAxes.AxisU,
+            surfaceAxes.AxisV,
+            TryCreateFacadeRepeatPlan(cityObject, surface, material, cityObjectOrigin, cityObjectCartesian));
     }
 
     private static ResoniteFloat2 CreateGeneratedSurfaceUv(
@@ -2043,8 +2055,56 @@ public static partial class LocalCityGmlObjectProjection
     {
         ResoniteFloat3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
         double u = Dot(position, projection.AxisU);
-        double v = Dot(position, projection.AxisV);
+        double v = projection.FacadeRepeatPlan is null
+            ? Dot(position, projection.AxisV)
+            : projection.FacadeRepeatPlan.Value.CreateVerticalUv(position.Y);
         return new ResoniteFloat2(u, v);
+    }
+
+    private static FacadeRepeatPlan? TryCreateFacadeRepeatPlan(
+        ParsedCityObject cityObject,
+        ParsedSurface surface,
+        ResolvedMaterial material,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(cityObject.PackageName)
+            || surface.Semantic is not ParsedSurfaceSemantic.Wall
+            || material.AssetScope != ResoniteMaterialAssetScope.Common
+            || material.MaterialType != ResoniteMaterialType.Standard
+            || material.Projection != ResoniteMaterialProjection.Uv
+            || !string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        ResoniteFloat3[] allPositions = cityObject.Surfaces
+            .SelectMany(static parsedSurface => parsedSurface.Vertices)
+            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        if (allPositions.Length == 0)
+        {
+            return null;
+        }
+
+        double minY = allPositions.Min(static position => position.Y);
+        double maxY = allPositions.Max(static position => position.Y);
+        double geometryHeight = maxY - minY;
+        if (geometryHeight <= 1e-6)
+        {
+            return null;
+        }
+
+        double referenceHeight = cityObject.MeasuredHeightMeters is > 1e-6
+            ? cityObject.MeasuredHeightMeters.Value
+            : geometryHeight;
+        int effectiveFloorCount = cityObject.FloorsAboveGround is > 0
+            ? cityObject.FloorsAboveGround.Value
+            : Math.Max(
+                1,
+                (int)Math.Round(referenceHeight / DefaultFacadeFloorHeightMeters, MidpointRounding.AwayFromZero));
+
+        return new FacadeRepeatPlan(minY, geometryHeight, effectiveFloorCount, DefaultFacadeFloorHeightMeters);
     }
 
     private static SurfaceUvAxes? TryCreateSurfaceUvAxes(ResoniteFloat3 normal)
@@ -2551,6 +2611,34 @@ public static partial class LocalCityGmlObjectProjection
     private static string? GetAttribute(XElement element, XName attributeName)
     {
         return element.Attribute(attributeName)?.Value;
+    }
+
+    private static int? TryParseStoreysAboveGround(XElement cityObjectElement)
+    {
+        XElement? element = cityObjectElement.Elements()
+            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "storeysAboveGround", StringComparison.Ordinal));
+        if (element is null)
+        {
+            return null;
+        }
+
+        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value) && value >= 0
+            ? value
+            : null;
+    }
+
+    private static double? TryParseMeasuredHeightMeters(XElement cityObjectElement)
+    {
+        XElement? element = cityObjectElement.Elements()
+            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "measuredHeight", StringComparison.Ordinal));
+        if (element is null)
+        {
+            return null;
+        }
+
+        return double.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out double value) && value > 0.0
+            ? value
+            : null;
     }
 
     private static double[] ParseDoubles(string value)
@@ -3718,7 +3806,9 @@ public static partial class LocalCityGmlObjectProjection
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
-        GeodeticPoint? OriginOverride = null);
+        GeodeticPoint? OriginOverride = null,
+        int? FloorsAboveGround = null,
+        double? MeasuredHeightMeters = null);
 
     internal sealed record SourceFileDescriptor(
         string RelativePath,
@@ -3945,7 +4035,21 @@ public static partial class LocalCityGmlObjectProjection
 
     private sealed record SurfaceUvProjection(
         ResoniteFloat3 AxisU,
-        ResoniteFloat3 AxisV);
+        ResoniteFloat3 AxisV,
+        FacadeRepeatPlan? FacadeRepeatPlan = null);
+
+    private readonly record struct FacadeRepeatPlan(
+        double BaseY,
+        double GeometryHeight,
+        int EffectiveFloorCount,
+        double CanonicalFloorHeightMeters)
+    {
+        public double CreateVerticalUv(double y)
+        {
+            double normalizedY = Math.Clamp((y - BaseY) / GeometryHeight, 0.0, 1.0);
+            return normalizedY * EffectiveFloorCount * CanonicalFloorHeightMeters;
+        }
+    }
 
     private readonly record struct DemUvProjection(
         double West,

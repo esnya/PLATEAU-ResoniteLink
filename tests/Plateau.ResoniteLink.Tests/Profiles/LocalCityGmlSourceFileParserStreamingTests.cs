@@ -95,6 +95,71 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         Assert.Equal("Building Two", enumerator.Current.DisplayName);
     }
 
+    [Fact]
+    public async Task SourceFilePipeline_StreamParsedCityObjectsAsync_PreservesFloorMetadata()
+    {
+        string xml =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0100 12</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-1">
+                  <gml:name>Building One</gml:name>
+                  <bldg:measuredHeight uom="m">11.8</bldg:measuredHeight>
+                  <bldg:storeysAboveGround>4</bldg:storeysAboveGround>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <bldg:WallSurface>
+                          <gml:Polygon gml:id="poly-1">
+                            <gml:exterior>
+                              <gml:LinearRing gml:id="ring-1">
+                                <gml:posList>35.0000 139.0000 0 35.0000 139.0010 0 35.0000 139.0010 12 35.0000 139.0000 12 35.0000 139.0000 0</gml:posList>
+                              </gml:LinearRing>
+                            </gml:exterior>
+                          </gml:Polygon>
+                        </bldg:WallSurface>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+        InMemoryDatasetContentSource datasetSource = new(Encoding.UTF8.GetBytes(xml));
+        SourceFileDescriptor sourceFile = new(
+            "udx/bldg/53394525/metadata.gml",
+            "bldg",
+            "53394525",
+            RequiresMeshAreaFilter: false);
+
+        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
+            [sourceFile],
+            datasetSource,
+            [],
+            progressReporter: null,
+            new LodFilteringStrategy(),
+            CancellationToken.None);
+
+        BootstrapParsedCityObject? parsedCityObject = null;
+        await foreach (BootstrapParsedCityObject cityObject in pipelines.Single().StreamParsedCityObjectsAsync())
+        {
+            parsedCityObject = cityObject;
+            break;
+        }
+
+        Assert.NotNull(parsedCityObject);
+        Assert.Equal(4, parsedCityObject.FloorsAboveGround);
+        Assert.NotNull(parsedCityObject.MeasuredHeightMeters);
+        Assert.InRange(parsedCityObject.MeasuredHeightMeters!.Value, 11.799999, 11.800001);
+    }
+
     private sealed class GateableDatasetContentSource(byte[] payload, int gateOffset) : IPlateauDatasetContentSource
     {
         private readonly TaskCompletionSource releaseSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -134,6 +199,40 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         public void Release()
         {
             releaseSignal.TrySetResult();
+        }
+    }
+
+    private sealed class InMemoryDatasetContentSource(byte[] payload) : IPlateauDatasetContentSource
+    {
+        public string SourcePath => "/tmp/streaming";
+
+        public IReadOnlyList<string> EnumerateFiles()
+        {
+            return ["udx/bldg/53394525/metadata.gml"];
+        }
+
+        public bool FileExists(string relativePath)
+        {
+            return true;
+        }
+
+        [SuppressMessage(
+            "Reliability",
+            "CA2000:Dispose objects before losing scope",
+            Justification = "Ownership is transferred to the caller as a Stream result.")]
+        public ValueTask<Stream> OpenReadAsync(
+            string relativePath,
+            CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<Stream>(new MemoryStream(payload, writable: false));
+        }
+
+        public Task<string> MaterializeFileAsync(
+            string relativePath,
+            string outputRoot,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 

@@ -244,6 +244,66 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Equal("53394525", demCityObject.DisplayName);
     }
 
+    [Fact]
+    public async Task BuildingFacadeUvUsesExplicitStoreyCountForVerticalRepeats()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeFacadeBuildingFixture(datasetRoot.Path, measuredHeightMeters: 11.8, floorsAboveGround: 4);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["bldg"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject cityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static importedCityObject => importedCityObject.PackageName == "bldg");
+        MaterialBinding material = Assert.Single(cityObject.Materials);
+
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.NotNull(material.TextureScale);
+        Assert.Equal(1.0 / 13.0, material.TextureScale!.X, 6);
+        Assert.Equal(1.0 / LocalCityGmlObjectProjection.DefaultFacadeFloorHeightMeters, material.TextureScale!.Y, 6);
+
+        AssertVerticalRepeatCount(cityObject, material, expectedRepeats: 4.0);
+    }
+
+    [Fact]
+    public async Task BuildingFacadeUvEstimatesNearestFloorCountFromBuildingHeight()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeFacadeBuildingFixture(datasetRoot.Path, measuredHeightMeters: null, floorsAboveGround: null);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["bldg"],
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject cityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static importedCityObject => importedCityObject.PackageName == "bldg");
+        MaterialBinding material = Assert.Single(cityObject.Materials);
+
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        AssertVerticalRepeatCount(cityObject, material, expectedRepeats: 3.0);
+    }
+
     private static void CreateRuntimeMixedSurfaceDemFixture(string datasetRoot)
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
@@ -367,6 +427,60 @@ public sealed class LocalCityGmlObjectProjectionTests
             """;
 
         File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_dem_53394525_chunk.gml"), xml);
+    }
+
+    private static void CreateRuntimeFacadeBuildingFixture(
+        string datasetRoot,
+        double? measuredHeightMeters,
+        int? floorsAboveGround)
+    {
+        string packageDirectory = Path.Combine(datasetRoot, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        string measuredHeightElement = measuredHeightMeters is null
+            ? string.Empty
+            : $"<bldg:measuredHeight uom=\"m\">{measuredHeightMeters.Value.ToString("F2", CultureInfo.InvariantCulture)}</bldg:measuredHeight>";
+        string floorsElement = floorsAboveGround is null
+            ? string.Empty
+            : $"<bldg:storeysAboveGround>{floorsAboveGround.Value}</bldg:storeysAboveGround>";
+        string xml =
+            $$"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:bldg="http://www.opengis.net/citygml/building/2.0">
+              <gml:boundedBy>
+                <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
+                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
+                  <gml:upperCorner>35.0100 139.0100 12</gml:upperCorner>
+                </gml:Envelope>
+              </gml:boundedBy>
+              <core:cityObjectMember>
+                <bldg:Building gml:id="bldg-facade">
+                  <gml:name>Facade Building</gml:name>
+                  {{measuredHeightElement}}
+                  {{floorsElement}}
+                  <bldg:boundedBy>
+                    <bldg:WallSurface>
+                      <bldg:lod2MultiSurface>
+                        <gml:MultiSurface>
+                          <gml:surfaceMember>
+                            <gml:Polygon gml:id="wall-1">
+                              <gml:exterior>
+                                <gml:LinearRing gml:id="wall-1-ring">
+                                  <gml:posList>35.0000 139.0000 0 35.0000 139.0010 0 35.0000 139.0010 10 35.0000 139.0000 10 35.0000 139.0000 0</gml:posList>
+                                </gml:LinearRing>
+                              </gml:exterior>
+                            </gml:Polygon>
+                          </gml:surfaceMember>
+                        </gml:MultiSurface>
+                      </bldg:lod2MultiSurface>
+                    </bldg:WallSurface>
+                  </bldg:boundedBy>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """;
+
+        File.WriteAllText(Path.Combine(packageDirectory, "plateau_tokyo23ku_bldg_53394525_facade.gml"), xml);
     }
 
     private static void CreateRuntimeParentMeshDemFixture(string datasetRoot, string requestedMeshCode, string adjacentMeshCode)
@@ -562,6 +676,16 @@ public sealed class LocalCityGmlObjectProjectionTests
                 longitude0.ToString("F8", CultureInfo.InvariantCulture),
                 heightA.ToString("F3", CultureInfo.InvariantCulture),
             ]);
+    }
+
+    private static void AssertVerticalRepeatCount(ImportedCityObject cityObject, MaterialBinding material, double expectedRepeats)
+    {
+        double minV = cityObject.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        double maxV = cityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
+        double repeatedFloors = (maxV - minV) * material.TextureScale!.Y;
+
+        Assert.InRange(minV * material.TextureScale!.Y, 0.0, 0.01);
+        Assert.InRange(repeatedFloors, expectedRepeats - 0.01, expectedRepeats + 0.01);
     }
 
     private sealed class StubSceneBuilder : ISceneImportTarget
