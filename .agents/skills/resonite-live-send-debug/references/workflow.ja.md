@@ -57,6 +57,8 @@ disposable な headless validation では、次の operator sequence を優先�
 5. `dump-root-session.ps1 -Label after-send`
 6. `stop-headless-session.ps1`
 
+長時間 run を待ちながら最新の `import` / `live` 行を見たい、明白な log error で早く失敗させたい、または memory cap 超過で kill したい場合は、`run-live-send.ps1` の代わりに `run-live-send-monitored.ps1` を使います。
+
 `19001` で Matsumoto `54372778 -> 54372788` の fixed base/append validation を行う場合は、次の順で helper を実行します。
 
 1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
