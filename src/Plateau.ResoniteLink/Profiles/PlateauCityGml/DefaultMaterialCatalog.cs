@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
@@ -109,7 +112,9 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
     private static int SelectBundledVariantIndex(string family, string variantSelectionKey)
     {
         IReadOnlyList<string> variants = BundledDefaultMaterialFamilies.GetVariants(family);
-        int hashCode = StringComparer.Ordinal.GetHashCode(variantSelectionKey) & int.MaxValue;
+        byte[] keyBytes = Encoding.UTF8.GetBytes(variantSelectionKey);
+        byte[] hashBytes = SHA256.HashData(keyBytes);
+        int hashCode = BitConverter.ToInt32(hashBytes, 0) & int.MaxValue;
         return hashCode % variants.Count;
     }
 }

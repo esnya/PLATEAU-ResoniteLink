@@ -101,4 +101,22 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.Road, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
     }
+
+    [Fact]
+    public void ResolveMaterialUsesStableBundledVariantSelection()
+    {
+        ResolvedMaterial material = resolver.ResolveMaterial(
+            packageName: "bldg",
+            texturePayload: null,
+            preferUvProjection: true,
+            familyOverride: null,
+            variantSelectionKey: "bldg:uv");
+
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.Equal(2, material.BundledVariantIndex);
+        Assert.Equal(
+            BundledDefaultMaterialProfiles.GetTilesPerMeter(
+                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 2)),
+            material.TextureScale);
+    }
 }

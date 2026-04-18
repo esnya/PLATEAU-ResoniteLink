@@ -213,7 +213,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         Dictionary<MaterialIdentity, ResoniteMaterialBinding> materialByIdentity = [];
 
         foreach (ResoniteConstructionCityObject cityObject in buffer.CityObjects
-                     .OrderBy(static candidate => candidate.SlotKey, StringComparer.Ordinal))
+                     .OrderBy(static candidate => candidate.SlotKey, StringComparer.Ordinal)
+                     .ThenBy(static candidate => candidate.SourceObjectKey, StringComparer.Ordinal)
+                     .ThenBy(static candidate => candidate.DisplayName, StringComparer.Ordinal))
         {
             int vertexOffset = vertices.Count;
             ResoniteFloat3 positionOffset = Subtract(cityObject.Transform.Position, bakeOrigin);
@@ -252,6 +254,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             }
         }
 
+        // Keep the merged LOD1 mesh as a pure concatenation of source vertices and
+        // triangles with only per-object position offsets applied. Reindexing or
+        // vertex dedup here regressed Resonite StaticMesh import in live runs.
         List<ResoniteMaterialBinding> materials = [];
         List<ResoniteMeshSubmesh> submeshes = [];
         foreach (MaterialIdentity identity in trianglesByMaterial.Keys.OrderBy(static identity => identity, MaterialIdentityComparer.Instance))
@@ -274,6 +279,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}:LOD{(cellKey.LodLevel.HasValue ? cellKey.LodLevel.Value.ToString(CultureInfo.InvariantCulture) : "none")}' produced no materialized submesh.");
         }
 
+        ValidateBakedMesh(buffer.CityObjects, vertices, submeshes, materials, cellKey);
+
         BakedOutputCityObjectCount++;
         return new ResoniteConstructionCityObject(
             SlotKey: CreateBatchSlotKey(cellKey, flushSequence),
@@ -288,6 +295,194 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             SourceObjectKey: CreateBatchSourceObjectKey(cellKey, flushSequence),
             SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static void ValidateBakedMesh(
+        IReadOnlyList<ResoniteConstructionCityObject> sourceCityObjects,
+        List<ResoniteMeshVertex> bakedVertices,
+        List<ResoniteMeshSubmesh> bakedSubmeshes,
+        List<ResoniteMaterialBinding> bakedMaterials,
+        CellKey cellKey)
+    {
+        int expectedVertexCount = sourceCityObjects.Sum(static cityObject => cityObject.Mesh.Vertices.Count);
+        if (expectedVertexCount != bakedVertices.Count)
+        {
+            throw new InvalidOperationException(
+                $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' changed vertex count "
+                + $"from {expectedVertexCount} to {bakedVertices.Count}.");
+        }
+
+        int expectedTriangleIndexCount = sourceCityObjects
+            .SelectMany(static cityObject => cityObject.Mesh.Submeshes)
+            .Sum(static submesh => submesh.TriangleVertexIndices.Count);
+        int actualTriangleIndexCount = bakedSubmeshes.Sum(static submesh => submesh.TriangleVertexIndices.Count);
+        if (expectedTriangleIndexCount != actualTriangleIndexCount)
+        {
+            throw new InvalidOperationException(
+                $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' changed triangle index count "
+                + $"from {expectedTriangleIndexCount} to {actualTriangleIndexCount}.");
+        }
+
+        int expectedMaterialCount = sourceCityObjects
+            .SelectMany(static cityObject => cityObject.Materials)
+            .Select(MaterialIdentity.From)
+            .Distinct()
+            .Count();
+        if (expectedMaterialCount != bakedMaterials.Count)
+        {
+            throw new InvalidOperationException(
+                $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' changed material group count "
+                + $"from {expectedMaterialCount} to {bakedMaterials.Count}.");
+        }
+
+        Dictionary<MaterialIdentity, int> expectedTriangleIndexCountByMaterial = SummarizeSourceTriangleIndicesByMaterial(sourceCityObjects);
+        Dictionary<MaterialIdentity, int> actualTriangleIndexCountByMaterial = SummarizeBakedTriangleIndicesByMaterial(
+            bakedSubmeshes,
+            bakedMaterials);
+        if (expectedTriangleIndexCountByMaterial.Count != actualTriangleIndexCountByMaterial.Count)
+        {
+            throw new InvalidOperationException(
+                $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' changed materialized submesh count "
+                + $"from {expectedTriangleIndexCountByMaterial.Count} to {actualTriangleIndexCountByMaterial.Count}.");
+        }
+
+        foreach ((MaterialIdentity identity, int expectedIndexCount) in expectedTriangleIndexCountByMaterial)
+        {
+            if (!actualTriangleIndexCountByMaterial.TryGetValue(identity, out int actualIndexCount))
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' lost materialized submesh for '{identity.MaterialKey}'.");
+            }
+
+            if (expectedIndexCount != actualIndexCount)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' changed triangle index count for material "
+                    + $"'{identity.MaterialKey}' from {expectedIndexCount} to {actualIndexCount}.");
+            }
+        }
+
+        if (bakedSubmeshes.Count != bakedMaterials.Count)
+        {
+            throw new InvalidOperationException(
+                $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' created {bakedSubmeshes.Count} submeshes for {bakedMaterials.Count} materials.");
+        }
+
+        Dictionary<int, string> materialKeyBySubmeshIndex = [];
+        foreach (ResoniteMaterialBinding material in bakedMaterials)
+        {
+            if (material.SubmeshIndices.Count != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' material '{material.MaterialKey}' targeted {material.SubmeshIndices.Count} submeshes.");
+            }
+
+            int submeshIndex = material.SubmeshIndices[0];
+            if ((uint)submeshIndex >= (uint)bakedSubmeshes.Count)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' material '{material.MaterialKey}' targeted missing submesh index {submeshIndex}.");
+            }
+
+            if (!materialKeyBySubmeshIndex.TryAdd(submeshIndex, material.MaterialKey))
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' assigned submesh index {submeshIndex} multiple times.");
+            }
+
+            if (!string.Equals(bakedSubmeshes[submeshIndex].MaterialKey, material.MaterialKey, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' mismatched material key '{material.MaterialKey}' and submesh key '{bakedSubmeshes[submeshIndex].MaterialKey}' at submesh index {submeshIndex}.");
+            }
+        }
+
+        for (int submeshIndex = 0; submeshIndex < bakedSubmeshes.Count; submeshIndex++)
+        {
+            if (!materialKeyBySubmeshIndex.ContainsKey(submeshIndex))
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' left submesh index {submeshIndex} without a material assignment.");
+            }
+        }
+
+        for (int submeshIndex = 0; submeshIndex < bakedSubmeshes.Count; submeshIndex++)
+        {
+            ResoniteMeshSubmesh submesh = bakedSubmeshes[submeshIndex];
+            if (submesh.TriangleVertexIndices.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' produced empty submesh index {submeshIndex}.");
+            }
+
+            if (submesh.TriangleVertexIndices.Count % 3 != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' produced submesh index {submeshIndex} with {submesh.TriangleVertexIndices.Count} indices, which is not divisible by three.");
+            }
+
+            foreach (int vertexIndex in submesh.TriangleVertexIndices)
+            {
+                if ((uint)vertexIndex >= (uint)bakedVertices.Count)
+                {
+                    throw new InvalidOperationException(
+                        $"Buffered mesh bake batch '{cellKey.PackageName}:{cellKey.ActualMeshCode}' produced submesh index {submeshIndex} with out-of-range vertex index {vertexIndex}, vertex_count={bakedVertices.Count}.");
+                }
+            }
+        }
+    }
+
+    private static Dictionary<MaterialIdentity, int> SummarizeSourceTriangleIndicesByMaterial(
+        IReadOnlyList<ResoniteConstructionCityObject> sourceCityObjects)
+    {
+        Dictionary<MaterialIdentity, int> counts = [];
+        foreach (ResoniteConstructionCityObject cityObject in sourceCityObjects)
+        {
+            Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex = cityObject.Materials
+                .SelectMany(material => material.SubmeshIndices.Select(submeshIndex => (submeshIndex, material)))
+                .ToDictionary(static pair => pair.submeshIndex, static pair => pair.material);
+
+            foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes)
+            {
+                if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
+                {
+                    throw new InvalidOperationException(
+                        $"Buffered mesh bake source city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
+                }
+
+                MaterialIdentity identity = MaterialIdentity.From(material);
+                counts[identity] = counts.GetValueOrDefault(identity) + submesh.TriangleVertexIndices.Count;
+            }
+        }
+
+        return counts;
+    }
+
+    private static Dictionary<MaterialIdentity, int> SummarizeBakedTriangleIndicesByMaterial(
+        List<ResoniteMeshSubmesh> bakedSubmeshes,
+        List<ResoniteMaterialBinding> bakedMaterials)
+    {
+        Dictionary<MaterialIdentity, int> counts = [];
+        foreach (ResoniteMaterialBinding material in bakedMaterials)
+        {
+            if (material.SubmeshIndices.Count != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake material '{material.MaterialKey}' targeted {material.SubmeshIndices.Count} submeshes.");
+            }
+
+            int submeshIndex = material.SubmeshIndices[0];
+            if ((uint)submeshIndex >= (uint)bakedSubmeshes.Count)
+            {
+                throw new InvalidOperationException(
+                    $"Buffered mesh bake material '{material.MaterialKey}' targeted missing submesh index {submeshIndex}.");
+            }
+
+            MaterialIdentity identity = MaterialIdentity.From(material);
+            counts[identity] = bakedSubmeshes[submeshIndex].TriangleVertexIndices.Count;
+        }
+
+        return counts;
     }
 
     private static string? GetMergedSourceUnitKey(IEnumerable<ResoniteConstructionCityObject> cityObjects)
@@ -669,4 +864,5 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                     $"{overlay.PackageName}|{overlay.GeographicBounds.MinLatitude:R}|{overlay.GeographicBounds.MinLongitude:R}|{overlay.GeographicBounds.MaxLatitude:R}|{overlay.GeographicBounds.MaxLongitude:R}|{overlay.ZoomLevel}|{overlay.MaxTextureSize}");
         }
     }
+
 }

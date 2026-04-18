@@ -1200,7 +1200,19 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
         {
-            ValidateTriangleMeshBindings(cityObject, triangleGeometry.Mesh);
+            try
+            {
+                ValidateTriangleMeshBindings(cityObject, triangleGeometry.Mesh);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
+            {
+                throw new ResoniteMeshValidationException(
+                    $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
+                    + $"{CreateTriangleMeshDiagnosticSummary(cityObject, triangleGeometry.Mesh)} "
+                    + $"Reason: {exception.Message}",
+                    exception);
+            }
+
         }
 
         TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
@@ -1220,7 +1232,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
         {
             ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedTriangleMeshGeometry(ResoniteMeshImportFactory.Create(triangleMesh.Mesh)),
+                () => PrepareTriangleMeshGeometry(cityObject, triangleMesh.Mesh),
                 cancellationToken),
             ResoniteHeightMapGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
                 () => new PreparedHeightMapGridGeometry(heightMap, PrepareHeightMapTexture(heightMap)),
@@ -1666,6 +1678,43 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                     $"Triangle mesh '{cityObject.DisplayName}' left submesh index {submeshIndex} without a material assignment.");
             }
         }
+    }
+
+    private static PreparedTriangleMeshGeometry PrepareTriangleMeshGeometry(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteImportedMesh mesh)
+    {
+        try
+        {
+            return new PreparedTriangleMeshGeometry(ResoniteMeshImportFactory.Create(mesh));
+        }
+        catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
+        {
+            throw new ResoniteMeshValidationException(
+                $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
+                + $"{CreateTriangleMeshDiagnosticSummary(cityObject, mesh)} "
+                + $"Reason: {exception.Message}",
+                exception);
+        }
+    }
+
+    private static string CreateTriangleMeshDiagnosticSummary(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteImportedMesh mesh)
+    {
+        int[] submeshIndices = mesh.Submeshes
+            .Select(static submesh => submesh.Index)
+            .OrderBy(static index => index)
+            .ToArray();
+        string materialSummary = string.Join(
+            ", ",
+            cityObject.Materials.Select(static material =>
+                $"{material.MaterialKey}[{string.Join("/", material.SubmeshIndices.OrderBy(static index => index))}]"));
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"mesh_code={cityObject.ActualMeshCode}, vertices={mesh.Vertices.Count}, submeshes={mesh.Submeshes.Count}, "
+            + $"submesh_indices=[{string.Join(", ", submeshIndices)}], materials={cityObject.Materials.Count}, "
+            + $"material_bindings=[{materialSummary}]");
     }
 
     private static string CreateCityObjectIdentityTag(ResoniteConstructionCityObject cityObject)

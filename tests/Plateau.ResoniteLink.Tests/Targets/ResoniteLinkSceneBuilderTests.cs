@@ -354,7 +354,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
-    public async Task BuildAsyncRejectsOutOfRangeMaterialSubmeshAssignment()
+    public async Task BuildAsyncFailsFastOnOutOfRangeMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -390,14 +390,15 @@ public sealed class ResoniteLinkSceneBuilderTests
             ],
             SourceObjectKey: "invalid-submesh-range");
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("material_bindings=[only-submesh[1]]", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncRejectsDuplicateMaterialSubmeshAssignment()
+    public async Task BuildAsyncFailsFastOnDuplicateMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -442,14 +443,15 @@ public sealed class ResoniteLinkSceneBuilderTests
             ],
             SourceObjectKey: "invalid-submesh-duplicate");
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncRejectsUnassignedMeshSubmesh()
+    public async Task BuildAsyncFailsFastOnUnassignedMeshSubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -485,14 +487,15 @@ public sealed class ResoniteLinkSceneBuilderTests
             ],
             SourceObjectKey: "invalid-submesh-unassigned");
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("materials=1", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task BuildAsyncRejectsTriangleMeshWithoutAnySubmesh()
+    public async Task BuildAsyncFailsFastOnTriangleMeshWithoutAnySubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -544,10 +547,11 @@ public sealed class ResoniteLinkSceneBuilderTests
             ],
             SourceObjectKey: "invalid-empty-submesh");
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("submeshes=0", exception.Message, StringComparison.Ordinal);
     }
 
     private static ResoniteImportedMesh CreateTwoSubmeshMesh()

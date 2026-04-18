@@ -125,6 +125,72 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void FlushAllProducesDeterministicMeshForEquivalentBufferedOrderings()
+    {
+        FixedCellCityObjectMeshBaker forward = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        FixedCellCityObjectMeshBaker reverse = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        ResoniteConstructionCityObject first = CreateTriangleBuilding("first", x: 10.0, z: 12.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "common.gml");
+        ResoniteConstructionCityObject second = CreateTriangleBuilding("second", x: 18.0, z: 20.0, sourceUnitKey: "unit-b", sourceFileRelativePath: "common.gml");
+
+        Assert.True(forward.TryBuffer(first, out _));
+        Assert.True(forward.TryBuffer(second, out _));
+        Assert.True(reverse.TryBuffer(second, out _));
+        Assert.True(reverse.TryBuffer(first, out _));
+
+        ResoniteConstructionCityObject bakedForward = Assert.Single(forward.FlushAll());
+        ResoniteConstructionCityObject bakedReverse = Assert.Single(reverse.FlushAll());
+        Assert.Equal(bakedForward.Mesh.Vertices, bakedReverse.Mesh.Vertices);
+        Assert.Equal(bakedForward.Mesh.Submeshes.Count, bakedReverse.Mesh.Submeshes.Count);
+        for (int submeshIndex = 0; submeshIndex < bakedForward.Mesh.Submeshes.Count; submeshIndex++)
+        {
+            Assert.Equal(
+                bakedForward.Mesh.Submeshes[submeshIndex].TriangleVertexIndices,
+                bakedReverse.Mesh.Submeshes[submeshIndex].TriangleVertexIndices);
+        }
+        Assert.Equal(bakedForward.Materials.Count, bakedReverse.Materials.Count);
+        for (int materialIndex = 0; materialIndex < bakedForward.Materials.Count; materialIndex++)
+        {
+            Assert.Equal(bakedForward.Materials[materialIndex].MaterialKey, bakedReverse.Materials[materialIndex].MaterialKey);
+            Assert.Equal(bakedForward.Materials[materialIndex].SubmeshIndices, bakedReverse.Materials[materialIndex].SubmeshIndices);
+        }
+    }
+
+    [Fact]
+    public void FlushAllPreservesConcatenatedVertexAndIndexTopology()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("first", x: 10.0, z: 12.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "common.gml"), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("second", x: 18.0, z: 20.0, sourceUnitKey: "unit-b", sourceFileRelativePath: "common.gml"), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        Assert.Equal(6, baked.Mesh.Vertices.Count);
+        Assert.Single(baked.Mesh.Submeshes);
+        Assert.Equal([0, 1, 2, 3, 4, 5], baked.Mesh.Submeshes[0].TriangleVertexIndices);
+    }
+
+    [Fact]
+    public void FlushAllPreservesSourceWorldBounds()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("first", x: 10.0, z: 12.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "common.gml"), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("second", x: 18.0, z: 20.0, sourceUnitKey: "unit-b", sourceFileRelativePath: "common.gml"), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+        double originX = baked.Transform.Position.X;
+        double originZ = baked.Transform.Position.Z;
+        double minX = baked.Mesh.Vertices.Min(vertex => vertex.Position.X + originX);
+        double minZ = baked.Mesh.Vertices.Min(vertex => vertex.Position.Z + originZ);
+        double maxX = baked.Mesh.Vertices.Max(vertex => vertex.Position.X + originX);
+        double maxZ = baked.Mesh.Vertices.Max(vertex => vertex.Position.Z + originZ);
+
+        Assert.Equal(10.0, minX, 6);
+        Assert.Equal(12.0, minZ, 6);
+        Assert.Equal(19.0, maxX, 6);
+        Assert.Equal(21.0, maxZ, 6);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,

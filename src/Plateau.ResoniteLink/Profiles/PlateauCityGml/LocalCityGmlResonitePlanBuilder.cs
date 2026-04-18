@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -95,7 +97,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .Where(static surface => surface is not null)
             .Select(static surface => surface!)
             .Select(surface => ApplyPackageSurfaceDefaults(packageName, surface))
-            .OrderBy(static surface => surface.PolygonId, StringComparer.Ordinal)
+            .OrderBy(static surface => CreateStableSurfaceSortKey(surface), StringComparer.Ordinal)
             .ToArray();
 
         if (surfaces.Length == 0)
@@ -353,6 +355,59 @@ public static partial class LocalCityGmlResonitePlanBuilder
     {
         meshCodeArea = MeshCodeArea.TryParse(meshCode);
         return meshCodeArea is not null;
+    }
+
+    private static string CreateStableElementId(string prefix, XElement element)
+    {
+        byte[] payload = Encoding.UTF8.GetBytes(element.ToString(SaveOptions.DisableFormatting));
+        byte[] hash = SHA256.HashData(payload);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{prefix}_{Convert.ToHexString(hash.AsSpan(0, 12)).ToLowerInvariant()}");
+    }
+
+    private static string CreateStableSurfaceSortKey(ParsedSurface surface)
+    {
+        using MemoryStream stream = new();
+        using (BinaryWriter writer = new(stream, Encoding.UTF8, leaveOpen: true))
+        {
+            writer.Write(surface.PolygonId);
+            writer.Write((int)surface.Semantic);
+            WriteRing(writer, surface.ExteriorRing);
+            writer.Write(surface.InteriorRings.Length);
+            foreach (ParsedRing ring in surface.InteriorRings.OrderBy(static ring => ring.RingId, StringComparer.Ordinal))
+            {
+                WriteRing(writer, ring);
+            }
+        }
+
+        byte[] hash = SHA256.HashData(stream.GetBuffer().AsSpan(0, checked((int)stream.Length)));
+        return Convert.ToHexString(hash.AsSpan(0, 16)).ToLowerInvariant();
+
+        static void WriteRing(BinaryWriter writer, ParsedRing ring)
+        {
+            writer.Write(ring.RingId);
+            writer.Write(ring.Vertices.Length);
+            foreach (GeodeticPoint vertex in ring.Vertices)
+            {
+                writer.Write(vertex.Latitude);
+                writer.Write(vertex.Longitude);
+                writer.Write(vertex.Altitude);
+            }
+
+            IReadOnlyList<ResoniteFloat2>? uvs = ring.UVs;
+            writer.Write(uvs?.Count ?? -1);
+            if (uvs is null)
+            {
+                return;
+            }
+
+            foreach (ResoniteFloat2 uv in uvs)
+            {
+                writer.Write(uv.X);
+                writer.Write(uv.Y);
+            }
+        }
     }
 
     private static (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) GetBounds(
@@ -1029,7 +1084,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             return null;
         }
 
-        string polygonId = GetAttribute(polygonElement, Gml + "id") ?? Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+        string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
         SurfaceAppearance appearance = appearanceLibrary.Resolve(polygonId);
         ParsedRing? exteriorParsedRing = ParseRing(
             exteriorRing,
@@ -1071,7 +1126,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
         string ringId = GetAttribute(ringElement, Gml + "id")
             ?? fallbackRingId
-            ?? Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
+            ?? CreateStableElementId("ring", ringElement);
         GeodeticPoint[] vertices = ParseRingPoints(ringElement);
         if (vertices.Length < 3)
         {
@@ -1221,7 +1276,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
             List<int> indices = [];
 
             foreach (MaterializedSurface materializedSurface in materialGroup
-                         .OrderBy(static surface => surface.Surface.PolygonId, StringComparer.Ordinal))
+                         .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
             {
                 TriangulateSurface(
                     cityObject,
@@ -1638,6 +1693,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         List<ResoniteMeshVertex> vertices,
         List<int> indices)
     {
+        List<(ResoniteMeshVertex First, ResoniteMeshVertex Second, ResoniteMeshVertex Third, string SortKey)> triangles = [];
         bool useVertexColors = material.MaterialType == ResoniteMaterialType.VertexColor;
         DemUvProjection? generatedDemUvProjection = surface.UsesGeneratedDemTexture ? demUvProjection : null;
         bool useGeneratedDemUv = generatedDemUvProjection is not null;
@@ -1749,15 +1805,75 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 }
             }
 
-            int baseIndex = vertices.Count;
-            vertices.Add(new ResoniteMeshVertex(position0, resoniteNormal, uv0, color0));
-            vertices.Add(new ResoniteMeshVertex(position1, resoniteNormal, uv1, color1));
-            vertices.Add(new ResoniteMeshVertex(position2, resoniteNormal, uv2, color2));
+            (ResoniteMeshVertex first, ResoniteMeshVertex second, ResoniteMeshVertex third, string sortKey) =
+                CreateCanonicalSurfaceTriangle(
+                    new ResoniteMeshVertex(position0, resoniteNormal, uv0, color0),
+                    new ResoniteMeshVertex(position1, resoniteNormal, uv1, color1),
+                    new ResoniteMeshVertex(position2, resoniteNormal, uv2, color2));
+            triangles.Add((first, second, third, sortKey));
+        }
 
+        triangles.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.SortKey, right.SortKey));
+        foreach ((ResoniteMeshVertex first, ResoniteMeshVertex second, ResoniteMeshVertex third, _) in triangles)
+        {
+            int baseIndex = vertices.Count;
+            vertices.Add(first);
+            vertices.Add(second);
+            vertices.Add(third);
             indices.Add(baseIndex);
             indices.Add(baseIndex + 2);
             indices.Add(baseIndex + 1);
         }
+    }
+
+    private static (
+        ResoniteMeshVertex First,
+        ResoniteMeshVertex Second,
+        ResoniteMeshVertex Third,
+        string SortKey) CreateCanonicalSurfaceTriangle(
+        ResoniteMeshVertex first,
+        ResoniteMeshVertex second,
+        ResoniteMeshVertex third)
+    {
+        (ResoniteMeshVertex First, ResoniteMeshVertex Second, ResoniteMeshVertex Third) best = (first, second, third);
+        string bestKey = CreateTriangleSortKey(first, second, third);
+
+        string rotatedLeftKey = CreateTriangleSortKey(second, third, first);
+        if (StringComparer.Ordinal.Compare(rotatedLeftKey, bestKey) < 0)
+        {
+            best = (second, third, first);
+            bestKey = rotatedLeftKey;
+        }
+
+        string rotatedRightKey = CreateTriangleSortKey(third, first, second);
+        if (StringComparer.Ordinal.Compare(rotatedRightKey, bestKey) < 0)
+        {
+            best = (third, first, second);
+            bestKey = rotatedRightKey;
+        }
+
+        return (best.First, best.Second, best.Third, bestKey);
+    }
+
+    private static string CreateTriangleSortKey(
+        ResoniteMeshVertex first,
+        ResoniteMeshVertex second,
+        ResoniteMeshVertex third)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{CreateVertexSortKey(first)}|{CreateVertexSortKey(second)}|{CreateVertexSortKey(third)}");
+    }
+
+    private static string CreateVertexSortKey(ResoniteMeshVertex vertex)
+    {
+        ResoniteColor? color = vertex.Color;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{vertex.Position.X:R},{vertex.Position.Y:R},{vertex.Position.Z:R}|"
+            + $"{vertex.Normal.X:R},{vertex.Normal.Y:R},{vertex.Normal.Z:R}|"
+            + $"{vertex.UV0.X:R},{vertex.UV0.Y:R}|"
+            + $"{color?.R ?? double.NaN:R},{color?.G ?? double.NaN:R},{color?.B ?? double.NaN:R},{color?.A ?? double.NaN:R}");
     }
 
     private static List<TessellatedRing> CreateSurfaceTessellatedRings(
