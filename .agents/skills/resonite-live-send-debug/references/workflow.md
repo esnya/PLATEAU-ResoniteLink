@@ -28,6 +28,48 @@ This file stays agent-facing on purpose. Use it as supplemental notes after `SKI
 - If reflection is unavailable or returns no useful data, inspect existing `componentType` values in root dumps as a fallback evidence source.
 - Distinguish UI labels from runtime type strings. A picker label like `Texture2D Metadata` is not sufficient proof of the exact `AddComponent` type name.
 
+## BoxCollider Bounds Inspection
+
+- Use this procedure when the user wants to estimate rendered occupancy or compare likely position or mesh regressions by attaching a BoxCollider probe to an imported slot and reading back the resulting bounds.
+- Start from a successful live send plus a post-send root dump. Do not attempt the bounds inspection on a failed or partial run.
+- First confirm the target slot already exists in the dump and record its identity: dataset root name, slot name, slot tag, slot transform, and any existing collider evidence already attached to that slot.
+- In the currently observed Matsumoto runs, imported slots carried `[FrooxEngine]FrooxEngine.MeshCollider`, and imported slots were also able to accept `[FrooxEngine]FrooxEngine.BoxCollider` probes. Treat that as current evidence, not as a timeless guarantee.
+- If the target slot already has a collider shape that is sufficient for the regression question, prefer dump-based evidence first. Only mutate the world when the user explicitly wants a BoxCollider-based bounds probe.
+- When a BoxCollider probe is required, connect through the official REPL or an equivalent reflection-capable ResoniteLink client and resolve the accepted BoxCollider runtime type before adding anything:
+  1. Query `GetComponentTypeList` with the narrowest collider-oriented filter the session supports.
+  2. Run `GetComponentDefinition` on the candidate runtime types and record the exact type string that the session accepts.
+- After the runtime type is confirmed, add the BoxCollider probe to the target slot and inspect the callable or member surface exposed by the session for bounds-derived update paths.
+- Prefer `SetFromLocalBounds` or `SetFromLocalBoundsPrecise` for the probe step. Treat those as the primary bounds-capture path unless the user explicitly wants a world-space comparison.
+- Do not assume that a global-bounds helper is the correct default. Record the exact callable path that was used and keep `SetFromGlobalBounds` as an explicit alternative, not the baseline procedure.
+- After the local-bounds update runs, capture the BoxCollider state together with the slot transform. Treat the `Size` and `Offset` values as slot-local occupancy and combine them with the slot transform only when a world-space interpretation is needed.
+- Standard procedure: remove the BoxCollider probe after readback so the inspected world returns to its pre-probe state. If a probe is intentionally left in place for manual follow-up, record that deviation explicitly in the run notes.
+- The currently observed workspace session contains intentionally retained BoxCollider probes from exploratory validation. Treat those as temporary evidence, not as the baseline cleanup policy.
+- If the session does not expose a usable local-bounds update path, stop and report that the current session did not prove an automatic BoxCollider-based bounds readback workflow.
+- If reflection yields no useful component type or callable surface, fall back to the root-dump evidence and treat the BoxCollider bounds path as unverified rather than filling in guessed type or method names.
+
+## Bounds Regression Checklist
+
+- Use the checklist below to decide what to inspect after a BoxCollider readback. Do not reduce the procedure to `Size` alone.
+- Identity check:
+  record dataset, mesh code, slot tag, slot name, and whether the inspected slot is DEM, atlas bake, mesh bake, or another emitted category.
+- Structural check:
+  confirm the expected slot exists under the expected dataset branch, and confirm whether the expected renderer and collider components are present before adding the probe.
+- Local occupancy check:
+  record BoxCollider `Size` and `Offset` after `SetFromLocalBounds` or `SetFromLocalBoundsPrecise`.
+- Placement check:
+  record the slot transform together with the BoxCollider local values so later comparisons can distinguish slot misplacement from geometry extent changes.
+- Rotation check:
+  record the slot rotation whenever the slot is not identity-aligned. Bounds regressions on rotated slots cannot be interpreted from collider values alone.
+- Category comparison:
+  compare like with like. DEM should be compared against DEM, atlas-baked building slots against atlas-baked building slots, and mesh-baked slots against mesh-baked slots.
+- Expected-shape check:
+  for DEM, watch for near-zero thickness, implausibly large vertical extent, or sudden XY shrink/stretch.
+  for buildings, watch for sudden collapse to unit-scale, large offset drift relative to the slot origin, or a major swap between horizontal footprint and height.
+- Run-to-run comparison:
+  compare the same slot tag across runs first. Only fall back to name-based matching when the tag is unavailable.
+- Cleanup check:
+  after recording the readback, remove the probe component unless the run is intentionally being preserved for manual inspection.
+
 ## RawOutput Readback Limits
 
 - In the currently observed combination of `Resonite 2026.4.16.1327` and `ResoniteLink 0.13.1.0`, `RawOutput` members on metadata components did not produce readable values through Link even when the target asset reference was set correctly and the component was polled again later.
