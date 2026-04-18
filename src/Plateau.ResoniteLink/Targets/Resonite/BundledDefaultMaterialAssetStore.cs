@@ -13,7 +13,8 @@ internal static class BundledDefaultMaterialAssetStore
     private static readonly string DefaultExtractionRoot = Path.Combine(
         Path.GetTempPath(),
         "Plateau.ResoniteLink",
-        "default-materials");
+        "default-materials",
+        Assembly.ManifestModule.ModuleVersionId.ToString("N"));
 
     public static string GetAbsolutePath(string logicalPath)
     {

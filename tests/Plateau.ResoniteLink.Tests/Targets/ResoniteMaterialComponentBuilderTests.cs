@@ -2,6 +2,9 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Plateau.ResoniteLink.Tests.Targets;
 
 public sealed class ResoniteMaterialComponentBuilderTests
@@ -151,5 +154,40 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Assert.True(resolved);
         Assert.EndsWith("Plaster002_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
         Assert.True(File.Exists(absolutePath));
+    }
+
+    [Fact]
+    public void BundledDefaultCityFurnitureAlbedoStaysNearNeutralWhite()
+    {
+        string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
+        Assert.True(BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath));
+
+        using Image<Rgba32> image = Image.Load<Rgba32>(absolutePath);
+        double totalR = 0.0;
+        double totalG = 0.0;
+        double totalB = 0.0;
+        int sampleCount = 0;
+
+        for (int y = 0; y < image.Height; y += 32)
+        {
+            for (int x = 0; x < image.Width; x += 32)
+            {
+                Rgba32 pixel = image[x, y];
+                totalR += pixel.R;
+                totalG += pixel.G;
+                totalB += pixel.B;
+                sampleCount++;
+            }
+        }
+
+        double averageR = totalR / sampleCount;
+        double averageG = totalG / sampleCount;
+        double averageB = totalB / sampleCount;
+
+        Assert.InRange(averageR, 210.0, 255.0);
+        Assert.InRange(averageG, 210.0, 255.0);
+        Assert.InRange(averageB, 210.0, 255.0);
+        Assert.True(averageR - averageB <= 3.5, $"Expected city-furniture albedo to stay near neutral white, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
+        Assert.True(averageG - averageB <= 3.5, $"Expected city-furniture albedo to stay near neutral white, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
     }
 }
