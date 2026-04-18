@@ -1,119 +1,73 @@
 ---
 name: resonite-live-send-debug
-description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, DatasetRoot cleanup between runs, alternating `heightmap` and `mesh` comparisons, log capture, and inspection of the generated Resonite world state.
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, run cleanup, log capture, and inspection of the resulting Resonite world state.
 ---
 
 # Resonite Live Send Debug
 
-Use this skill only for real ResoniteLink runs. Prefer local tests first, then switch to this skill when the failure depends on a live session or on the resulting Resonite world state.
+Use this skill only for real ResoniteLink runs. Prefer local tests first, then switch to this skill when the question depends on a live session, a destructive cleanup cycle, or the resulting Resonite world state.
 
-Warning: cleanup in this workflow can destroy live world results in the current Resonite session and stop matching live-send CLI processes launched from the same repo. Use it only in an explicitly disposable experiment session, or after the user has clearly approved destroying the current `DatasetRoot` and related results.
+This file is the Coding Agent entrypoint for the live-send workflow in this repository and the authoritative live-send workflow reference for the public helper command surface. Keep detailed operational guidance in [references/workflow.md](./references/workflow.md) and use this file for trigger, guardrail, and output contracts.
 
-Do not use this skill for code-only review or static log reading. Use it only when the user wants a real live send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
+## When To Use
 
-Use this file as the Coding Agent execution playbook and the authoritative live-send workflow reference for this repository.
+- Real live-send reproduction against an actual ResoniteLink listener.
+- Validation that requires observing logs, process state, or the resulting live world.
+- Session cleanup, root dumps, or headless-session bring-up as part of the verification loop.
 
-## Dataset Defaults
+## When Not To Use
 
-Treat the dataset and mesh choices in this section as recommended starting-point parameters, not as procedural requirements.
+- Code-only review, static log reading, or documentation work.
+- Local/unit/integration tests that already prove the issue without a live session.
+- Any task where destructive cleanup of the current dataset root is not acceptable.
 
-Unless the user asks for a different target, use the Matsumoto dataset `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` for document-backed reproductions and comparisons. Those two meshes are the default fixtures because this repo already contains successful live-send evidence for `54372778`, and the current workspace dataset sample includes detailed-building source files for both meshes.
+## Guardrails
 
-When the task specifically needs `frn` or city-furniture content, use Yokohama mesh `53391530` instead. This repo already contains successful Yokohama live-send logs for that mesh, and the current workspace dataset sample includes the needed `frn` source there, while the Matsumoto default pair above is for building-focused checks.
+- Treat cleanup as destructive. It can remove live dataset roots, stop matching live-send CLI processes from this repo, and delete local runtime artifacts.
+- Do not ask the user to run the live send if you can run it directly.
+- Do not compare runs until cleanup has been verified for the relevant dataset root.
+- Keep the final successful `DatasetRoot` in place unless cleanup is explicitly requested.
+- Treat interrupted or partial runs as provisional unless cleanup and post-run state were both verified.
+- When exact runtime behavior, fixtures, environment selection, or reference values matter, use [references/workflow.md](./references/workflow.md) instead of copying assumptions into the run.
 
-Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actual local source path from the current dataset resolver behavior, confirm that the dataset root exists on disk, and use prior live-send evidence or repo fixtures to confirm that the requested dataset and mesh resolve before running destructive steps.
+## Guide Surface
 
-## Canonical Procedure
+- Canonical guide: [references/workflow.md](./references/workflow.md)
+- Japanese mirror: [references/workflow.ja.md](./references/workflow.ja.md)
 
-Use the bundled helper scripts directly. This file keeps the workflow, guardrails, defaults, and the run worksheet, while [references/workflow.md](./references/workflow.md) keeps supplemental agent-oriented guidance.
+Use the guide for:
 
-Execution heuristics for sender placement:
+- recommended datasets and fixture values
+- environment-dependent execution choices
+- fixed run worksheets and comparison checklists
+- component discovery and BoxCollider inspection procedures
+- version-scoped readback limits and reference artifacts
 
-- When the target listener is not reachable from WSL via `localhost`, run wrapped helpers from Windows.
-- If sender and listener are same-host and reachable from WSL via `localhost`, a WSL-driven run is valid.
-- If a reverse proxy or bridge rewrites to an acceptable host for the listener, an IP route can be used when observed reachability and session identity are valid.
-- Decide by actual reachability and observed listener behavior; avoid hardcoding Windows-only or WSL-only assumptions.
+## Public Helper Commands
 
-For disposable headless validation, prefer this operator sequence:
-
-1. `start-headless-session.ps1`
-2. `dump-root-session.ps1 -Label baseline`
-3. `cleanup-session.ps1`
-4. `run-live-send.ps1`
-5. `dump-root-session.ps1 -Label after-send`
-6. `stop-headless-session.ps1`
-
-For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the helpers directly in this order:
-
-1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
-2. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-baseappend-baseline`
-3. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372778 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-base-heightmap-19001`
-4. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-base-heightmap-after-send`
-5. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372788 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-append-heightmap-19001`
-6. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-append-heightmap-after-send`
-
-## Run Worksheet
-
-Keep these facts fixed or explicitly updated between comparison runs:
-
-- dataset
-- mesh code
-- local source path
-- listener port
-- session name
-- session id
-- connection count
-- mode
-- log prefix
-- launched PID
-- launched CLI binary path and last write time
-
-## Rules
-
-- Do not ask the user to run the live send when you can run it directly.
-- Do not compare runs unless world-side cleanup was verified after the previous run.
-- Do not treat a redirected stdout gap as a hang until you have ruled out source parsing or other work still advancing in the same process.
-- Do not hard-code a ResoniteLink port into source control or into the skill.
-- Do not present a conclusion from a `-NoWait` run as final until you have either observed process exit or explicitly labeled the conclusion provisional.
-- Keep successful final `DatasetRoot` artifacts in place by default for visual inspection unless cleanup is explicitly requested.
-- Do not assume root-only cleanup proves the absence of all orphaned descendants; if orphan contamination is plausible, say so explicitly.
-- Do not treat structure-level conclusions after a failed or interrupted run as fully clean; mark them provisional unless you have an orphan audit beyond root removal.
-- When a task requires adding or inspecting a Resonite component by name, treat exact type resolution as a required step. Use ResoniteLink reflection APIs such as `GetComponentTypeList` and `GetComponentDefinition` before guessing a type string for `AddComponent`.
-- If a component picker label in Resonite UI does not match an `AddComponent` type string, record both the UI label and the resolved runtime type in the run notes.
-- If `GetComponentTypeList("*")` or narrower category queries return no useful entries in the current session, say that explicitly and fall back to evidence from existing world data such as `componentType` values in root dumps. Do not silently invent a type name.
-
-## Bundled Scripts
+Use only these operator-facing helper scripts directly:
 
 - `scripts/discover-session.ps1`
-Use to capture live ResoniteLink announcements from UDP `12512`.
 - `scripts/start-headless-session.ps1`
-Use to launch a disposable Windows headless session directly and verify the announced ResoniteLink port.
 - `scripts/stop-headless-session.ps1`
-Use to stop the tracked headless PID launched for the experiment, or an explicit PID.
-- `scripts/dump-root-session.ps1`
-Use to capture a recursive Root snapshot from the tracked or explicitly addressed session.
 - `scripts/cleanup-session.ps1`
-Use to remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
+- `scripts/dump-root-session.ps1`
 - `scripts/run-live-send.ps1`
-Use to launch one live send with explicit logs.
-- `scripts/windows-build-tools.ps1`
-Use as the shared helper that resolves Windows-side `dotnet` and ResoniteAdmin build output for the other scripts.
 
-All seven paths above are relative to `.agents/skills/resonite-live-send-debug/`.
+The shared Windows build resolver remains internal and is not part of the operator-facing command surface.
 
-## Outputs
+## Required Outputs
 
-- Keep the per-run stdout and stderr logs under the repo runtime directory with distinct names.
-- Treat the CLI stdout/stderr logs and direct helper stdout as the observation surface. Do not require ad-hoc wrapper return objects to decide whether a run is valid.
-- Summarize each run with:
-  - listener endpoint
-  - cleanup verification result
-  - process status and exit code
-  - exact mode and mesh code
-  - last timestamped `import` line
-  - last timestamped `live` line
-  - whether `stderr` was empty
-  - world snapshot: dataset root count, top-level child slot names, suspicious slot component counts
-  - root dump paths for any baseline or post-send snapshots
-  - sampling times for log and world-state observations
-  - whether the conclusion is valid or contaminated
+Summarize each live run with:
+
+- listener endpoint
+- cleanup verification result
+- process status and exit code
+- exact mode and mesh code
+- last timestamped `import` line
+- last timestamped `live` line
+- whether `stderr` was empty
+- world snapshot summary
+- root dump paths
+- observation timestamps
+- whether the conclusion is valid or contaminated

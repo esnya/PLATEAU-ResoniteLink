@@ -12,18 +12,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Resolve-StatePath {
-    param(
-        [string]$ConfiguredStatePath,
-        [string]$RuntimeRootPath
-    )
-
-    if (-not [string]::IsNullOrWhiteSpace($ConfiguredStatePath)) {
-        return $ConfiguredStatePath
-    }
-
-    return (Join-Path $RuntimeRootPath 'active-session.json')
-}
+$helperPath = Join-Path $PSScriptRoot 'windows-build-tools.ps1'
+. $helperPath
 
 function Resolve-Endpoint {
     param(
@@ -64,17 +54,15 @@ function Resolve-OutputPath {
     return (Join-Path $dumpRoot ("{0}-{1}.json" -f $ResolvedLabel, $timestamp))
 }
 
-$repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
-$headlessRuntimeRoot = Join-Path $repoRoot 'runtime\windows\headless'
+$repoRoot = Resolve-RepoRoot -RepoPath $RepoPath
+$headlessRuntimeRoot = Resolve-HeadlessRuntimeRoot -RepoRoot $repoRoot
 $resolvedStatePath = Resolve-StatePath -ConfiguredStatePath $StatePath -RuntimeRootPath $headlessRuntimeRoot
 $resolvedEndpoint = Resolve-Endpoint -ConfiguredEndpoint $Endpoint -ResolvedStatePath $resolvedStatePath
 $resolvedOutputPath = Resolve-OutputPath -ConfiguredOutputPath $OutputPath -RepoRootPath $repoRoot -ResolvedLabel $Label
 
-. (Join-Path $PSScriptRoot 'windows-build-tools.ps1')
-
 $dotnet = Resolve-DotNetCommandPath
-$runtimeRoot = Join-Path $repoRoot 'runtime\windows\resonite\root-dumps'
-$adminRuntimeRoot = Join-Path $repoRoot 'runtime\windows\resonite'
+$adminRuntimeRoot = Resolve-ResoniteRuntimeRoot -RepoRoot $repoRoot
+$runtimeRoot = Join-Path $adminRuntimeRoot 'root-dumps'
 $adminProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteAdmin\ResoniteAdmin.csproj'
 
 $adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $repoRoot

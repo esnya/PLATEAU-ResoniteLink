@@ -1,24 +1,65 @@
 # Workflow
 
-Use this reference after `SKILL.md` triggers.
+Use this guide after `SKILL.md` triggers.
 
-This file stays agent-facing on purpose. Use it as supplemental notes after `SKILL.md`; do not depend on removed tracked live-testing documents.
+This file is the single operational guide surface for the repo-local live-send skill. Keep fixture values, environment-dependent choices, comparison worksheets, and version-scoped runtime notes here instead of duplicating them in `SKILL.md`.
 
 ## Defaults
 
 - Use `plateau-20202-matsumoto-shi-2020` with meshes `54372778` and `54372788` unless the task needs a different fixture.
-- Switch to Yokohama mesh `53391530` only for `frn` validation.
+- Switch to Yokohama mesh `53391530` only for `frn` or city-furniture validation.
 - Treat those defaults as selectors, not as a promise about cache paths. Confirm the actual resolved local source path before cleanup or send.
+- Before destructive steps, confirm that the requested dataset root exists locally and that the requested mesh is supported by current local evidence or fixtures.
+
+## Environment Selection
+
+- Use bundled helper scripts instead of ad hoc commands.
+- Run helpers from Windows when the target listener is not reachable from WSL through `localhost`.
+- A WSL-driven sender is valid when the listener is same-host and actual `localhost` reachability from WSL has been confirmed.
+- If a reverse proxy or bridge rewrites the route to an acceptable host for the listener, an IP-based path can be valid when reachability and session identity are both confirmed.
+- Decide by observed reachability and observed session identity. Do not hardcode a Windows-only or WSL-only rule into the workflow.
 
 ## Agent Guardrails
 
-- Prefer the bundled helper scripts under `.agents/skills/resonite-live-send-debug/scripts/` instead of ad hoc commands.
-- Use Windows-side helper scripts when WSL cannot reach the listener through `localhost`.
-- Re-run listener discovery before each comparison rerun and keep `sessionName`, `sessionID`, and `linkPort` in the run notes.
-- Do not guess the listener port, process ID, log path, or session identity. Use discovery output, helper stdout, and CLI logs.
+- Re-run listener discovery before each comparison rerun and record `sessionName`, `sessionID`, and `linkPort`.
+- Do not guess listener port, process ID, log path, or session identity. Use discovery output, helper stdout, and CLI logs.
 - Treat cleanup as destructive. It can remove dataset roots, stop matching live-send CLI processes, and delete local runtime artifacts.
-- Keep the final `DatasetRoot` in place after a successful validation unless the user explicitly requests cleanup.
+- Keep the final successful `DatasetRoot` in place unless the user explicitly requests cleanup.
 - Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
+
+## Fixed Run Worksheet
+
+Keep these facts fixed or explicitly updated between comparison runs:
+
+- dataset
+- mesh code
+- local source path
+- listener port
+- session name
+- session id
+- connection count
+- mode
+- log prefix
+- launched PID
+- launched CLI binary path and last write time
+
+For disposable headless validation, prefer this operator sequence:
+
+1. `start-headless-session.ps1`
+2. `dump-root-session.ps1 -Label baseline`
+3. `cleanup-session.ps1`
+4. `run-live-send.ps1`
+5. `dump-root-session.ps1 -Label after-send`
+6. `stop-headless-session.ps1`
+
+For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the helpers directly in this order:
+
+1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
+2. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-baseappend-baseline`
+3. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372778 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-base-heightmap-19001`
+4. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-base-heightmap-after-send`
+5. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372788 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-append-heightmap-19001`
+6. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-append-heightmap-after-send`
 
 ## Component Type Discovery
 
@@ -49,7 +90,6 @@ This file stays agent-facing on purpose. Use it as supplemental notes after `SKI
 
 ## Bounds Regression Checklist
 
-- Use the checklist below to decide what to inspect after a BoxCollider readback. Do not reduce the procedure to `Size` alone.
 - Identity check:
   record dataset, mesh code, slot tag, slot name, and whether the inspected slot is DEM, atlas bake, mesh bake, or another emitted category.
 - Structural check:
@@ -64,7 +104,7 @@ This file stays agent-facing on purpose. Use it as supplemental notes after `SKI
   compare like with like. DEM should be compared against DEM, atlas-baked building slots against atlas-baked building slots, and mesh-baked slots against mesh-baked slots.
 - Expected-shape check:
   for DEM, watch for near-zero thickness, implausibly large vertical extent, or sudden XY shrink/stretch.
-  for buildings, watch for sudden collapse to unit-scale, large offset drift relative to the slot origin, or a major swap between horizontal footprint and height.
+  for buildings, watch for sudden collapse to unit scale, large offset drift relative to the slot origin, or a major swap between horizontal footprint and height.
 - Run-to-run comparison:
   compare the same slot tag across runs first. Only fall back to name-based matching when the tag is unavailable.
 - Cleanup check:
@@ -117,7 +157,7 @@ Expect these bundled files under this skill:
 
 The helper scripts rebuild the admin utility or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
 
-## Script Inventory
+## Public Helper Commands
 
 - `scripts/discover-session.ps1`
   Capture live ResoniteLink announcements from UDP `12512`.
@@ -131,5 +171,5 @@ The helper scripts rebuild the admin utility or CLI binaries on demand. Fresh Wi
   Remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`
   Launch one Windows-side live send with explicit logs.
-- `scripts/windows-build-tools.ps1`
-  Resolve Windows-side `dotnet` and shared ResoniteAdmin build paths for the other helper scripts.
+
+`scripts/windows-build-tools.ps1` remains an internal shared helper and is not part of the operator-facing command surface.

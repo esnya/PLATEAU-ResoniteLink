@@ -17,9 +17,9 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'windows-build-tools.ps1')
 
-$repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
+$repoRoot = Resolve-RepoRoot -RepoPath $RepoPath
 $dotnet = Resolve-DotNetCommandPath
-$runtimeRoot = Join-Path $repoRoot 'runtime\windows\resonite'
+$runtimeRoot = Resolve-ResoniteRuntimeRoot -RepoRoot $repoRoot
 $adminProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteAdmin\ResoniteAdmin.csproj'
 
 $stoppedProcessIds = @()

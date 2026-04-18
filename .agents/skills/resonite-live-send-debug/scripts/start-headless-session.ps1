@@ -17,60 +17,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
+$helperPath = Join-Path $PSScriptRoot 'windows-build-tools.ps1'
+. $helperPath
+
+$repoRoot = Resolve-RepoRoot -RepoPath $RepoPath
 $discoverScript = Join-Path $PSScriptRoot 'discover-session.ps1'
-$runtimeRoot = Join-Path $repoRoot 'runtime\windows\headless'
-
-function Resolve-StatePath {
-    param(
-        [string]$ConfiguredStatePath,
-        [string]$RuntimeRootPath
-    )
-
-    if (-not [string]::IsNullOrWhiteSpace($ConfiguredStatePath)) {
-        return $ConfiguredStatePath
-    }
-
-    return (Join-Path $RuntimeRootPath 'active-session.json')
-}
-
-function Resolve-DotNetExePath {
-    $candidates = @()
-
-    if (-not [string]::IsNullOrWhiteSpace($env:DOTNET_EXE)) {
-        $candidates += $env:DOTNET_EXE
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:DOTNET_HOST_PATH)) {
-        $candidates += $env:DOTNET_HOST_PATH
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:DOTNET_ROOT)) {
-        $candidates += (Join-Path $env:DOTNET_ROOT 'dotnet.exe')
-    }
-
-    $command = Get-Command -Name dotnet.exe -CommandType Application -ErrorAction SilentlyContinue
-    if ($command) {
-        return $command.Source
-    }
-
-    $command = Get-Command -Name dotnet -CommandType Application -ErrorAction SilentlyContinue
-    if ($command) {
-        return $command.Source
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
-        $candidates += (Join-Path $env:ProgramFiles 'dotnet\dotnet.exe')
-    }
-
-    foreach ($candidate in $candidates) {
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
-            return $candidate
-        }
-    }
-
-    throw 'Unable to locate dotnet.exe. Set DOTNET_EXE, DOTNET_HOST_PATH, or DOTNET_ROOT, or ensure dotnet is available on PATH.'
-}
+$runtimeRoot = Resolve-HeadlessRuntimeRoot -RepoRoot $repoRoot
 
 function Resolve-HeadlessLauncher {
     param(
@@ -118,8 +70,9 @@ function Get-LogTail {
     return ((Get-Content -LiteralPath $Path -Tail $LineCount) -join [Environment]::NewLine)
 }
 
+$resolvedStatePath = Resolve-StatePath -ConfiguredStatePath $StatePath -RuntimeRootPath $runtimeRoot
 $launcher = Resolve-HeadlessLauncher -ConfiguredHeadlessPath $HeadlessPath
-$dotNetExePath = Resolve-DotNetExePath
+$dotNetCommandPath = Resolve-DotNetCommandPath
 $sessionRoot = Join-Path $runtimeRoot $LogPrefix
 $stdoutLog = Join-Path $runtimeRoot ("{0}.stdout.log" -f $LogPrefix)
 $stderrLog = Join-Path $runtimeRoot ("{0}.stderr.log" -f $LogPrefix)
@@ -173,7 +126,7 @@ else {
     @('-HeadlessConfig', $configPath)
 }
 
-$filePath = if ($launcher.RequiresDotNetHost) { $dotNetExePath } else { $launcher.LauncherPath }
+$filePath = if ($launcher.RequiresDotNetHost) { $dotNetCommandPath } else { $launcher.LauncherPath }
 $process = Start-Process `
     -FilePath $filePath `
     -WorkingDirectory $launcher.WorkingDirectory `
@@ -299,7 +252,6 @@ else {
     }
 }
 
-$resolvedStatePath = Resolve-StatePath -ConfiguredStatePath $StatePath -RuntimeRootPath $runtimeRoot
 $stateDirectory = Split-Path -Parent $resolvedStatePath
 if (-not [string]::IsNullOrWhiteSpace($stateDirectory)) {
     New-Item -ItemType Directory -Force -Path $stateDirectory | Out-Null
