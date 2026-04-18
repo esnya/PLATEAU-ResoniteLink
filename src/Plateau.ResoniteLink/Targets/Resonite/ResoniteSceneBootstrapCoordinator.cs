@@ -310,7 +310,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         {
             string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
             commonMaterialFamilies.Add(family);
-            string materialSlotName = ResoniteLinkSceneBuilder.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+            string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
             Slot? existingMaterialSlot = commonSlotSnapshot is null
                 ? null
                 : GetReusableChildSlot(commonSlotSnapshot, materialSlotName, commonSlot!.ID!);
@@ -360,7 +360,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
         Dictionary<string, ResoniteMaterialBinding> canonicalMaterialsByKey = new(StringComparer.Ordinal);
         foreach (ResoniteMaterialBinding material in commonMaterials)
         {
-            ResoniteMaterialBinding normalizedMaterial = ResoniteLinkSceneBuilder.NormalizeCommonMaterialBinding(material);
+            ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
             if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
             {
                 continue;
@@ -393,7 +393,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             operations.Add(CreateAddComponentOperation(
                 materialContainerId,
                 StaticTextureComponentType,
-                ResoniteLinkSceneBuilder.CreateTextureMembers(albedoTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(albedoTextureUri),
                 albedoTexture));
             materialMembers["AlbedoTexture"] = new Reference
             {
@@ -411,7 +411,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             operations.Add(CreateAddComponentOperation(
                 materialContainerId,
                 StaticTextureComponentType,
-                ResoniteLinkSceneBuilder.CreateTextureMembers(normalTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(normalTextureUri),
                 normalTexture));
             materialMembers["NormalMap"] = new Reference
             {
@@ -433,7 +433,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             operations.Add(CreateAddComponentOperation(
                 materialContainerId,
                 StaticTextureComponentType,
-                ResoniteLinkSceneBuilder.CreateTextureMembers(heightTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(heightTextureUri),
                 heightTexture));
             materialMembers["HeightMap"] = new Reference
             {
@@ -455,7 +455,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             operations.Add(CreateAddComponentOperation(
                 materialContainerId,
                 StaticTextureComponentType,
-                ResoniteLinkSceneBuilder.CreateTextureMembers(metallicTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(metallicTextureUri),
                 metallicTexture));
             materialMembers["MetallicMap"] = new Reference
             {
@@ -477,7 +477,7 @@ internal sealed class ResoniteSceneBootstrapCoordinator : IResoniteSceneBootstra
             operations.Add(CreateAddComponentOperation(
                 materialContainerId,
                 StaticTextureComponentType,
-                ResoniteLinkSceneBuilder.CreateTextureMembers(emissionTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(emissionTextureUri),
                 emissionTexture));
             materialMembers["EmissiveMap"] = new Reference
             {

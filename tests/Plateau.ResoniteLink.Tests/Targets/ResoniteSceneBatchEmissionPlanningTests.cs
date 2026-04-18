@@ -8,11 +8,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_CreatesHeightMapGridPlanWithPlannedTextureReference()
     {
-        ResoniteLinkSceneBuilder.ObjectSlotHierarchy objectSlots = new(
+        ResoniteScenePlacementSession.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot("asset-lod-slot", "Asset LOD"),
             new CreatedSlot("lod-slot", "LOD"),
             "HeightMap Object",
-            "heightmap-tag",
             new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedSceneObjectEmission emissionPlan = new(
@@ -62,11 +61,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesReusableTargetsAndPlansDedicatedMaterialComponents()
     {
-        ResoniteLinkSceneBuilder.ObjectSlotHierarchy objectSlots = new(
+        ResoniteScenePlacementSession.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot("asset-lod-slot", "Asset LOD"),
             new CreatedSlot("lod-slot", "LOD"),
             "Triangle Object",
-            "triangle-tag",
             new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
@@ -125,5 +123,87 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(dedicatedMaterialSlot.Identity.Value, dedicatedMaterialComponent.ContainerId);
         Reference albedoReference = Assert.IsType<Reference>(dedicatedMaterialComponent.Members["AlbedoTexture"]);
         Assert.Equal(albedoTexture.Identity.Value, albedoReference.TargetID);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_UsesMeshAssetContainerWhenDedicatedMaterialSlotIsNotPreserved()
+    {
+        ResoniteScenePlacementSession.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot("asset-lod-slot", "Asset LOD"),
+            new CreatedSlot("lod-slot", "LOD"),
+            "Triangle Object",
+            new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            null);
+        PlannedDedicatedMaterialAsset dedicatedMaterial = new(
+            new MaterialIdentity("dedicated"),
+            new Plateau.ResoniteLink.Domain.Importing.ResoniteMaterialBinding(
+                MaterialKey: "dedicated-material",
+                BaseColor: new Plateau.ResoniteLink.Domain.Importing.ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: Plateau.ResoniteLink.Domain.Importing.ResoniteMaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: Plateau.ResoniteLink.Domain.Importing.ResoniteTextureSourceKind.Bundled,
+                Projection: Plateau.ResoniteLink.Domain.Importing.ResoniteMaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]),
+            [
+                new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo")),
+                new PlannedTextureAsset(new TextureIdentity("normal"), new Uri("resdb:///texture/normal")),
+                new PlannedTextureAsset(new TextureIdentity("height"), new Uri("resdb:///texture/height")),
+                new PlannedTextureAsset(new TextureIdentity("metallic"), new Uri("resdb:///texture/metallic")),
+                new PlannedTextureAsset(new TextureIdentity("emission"), new Uri("resdb:///texture/emission")),
+            ],
+            PreserveDedicatedMaterialSlot: false);
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTriangleMeshGeometryAsset(
+                new GeometryIdentity("geom"),
+                "Triangle Object",
+                new Uri("resdb:///mesh/triangle")),
+            [dedicatedMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [dedicatedMaterial.Identity]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                true));
+
+        PlannedBatchEmission batchPlan = ResoniteLinkSceneBuilder.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+
+        PlannedBatchSlotEmission meshAssetSlot = Assert.Single(
+            batchPlan.SlotEmissions,
+            static slot => string.Equals(slot.SlotName, "Triangle Object", StringComparison.Ordinal)
+                && string.Equals(slot.ParentId, "asset-lod-slot", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            batchPlan.SlotEmissions,
+            slot => string.Equals(slot.ParentId, meshAssetSlot.Identity.Value, StringComparison.Ordinal)
+                && !string.Equals(slot.SlotName, "Triangle Object", StringComparison.Ordinal));
+
+        PlannedBatchComponentEmission materialComponent = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
+        Assert.Equal(meshAssetSlot.Identity.Value, materialComponent.ContainerId);
+        PlannedBatchComponentEmission meshRenderer = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
+        SyncList rendererMaterials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
+        Reference materialReference = Assert.IsType<Reference>(Assert.Single(rendererMaterials.Elements));
+        Assert.Equal(materialComponent.Identity.Value, materialReference.TargetID);
+
+        PlannedBatchComponentEmission[] materialTextures = batchPlan.ComponentEmissions
+            .Where(component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(5, materialTextures.Length);
+        Assert.All(materialTextures, texture => Assert.Equal(meshAssetSlot.Identity.Value, texture.ContainerId));
+
+        IReadOnlyDictionary<string, PlannedBatchComponentEmission> texturesByUri = materialTextures.ToDictionary(
+            static texture => ((Field_Uri)texture.Members["URL"]).Value.ToString(),
+            static texture => texture,
+            StringComparer.Ordinal);
+
+        Assert.Equal(texturesByUri["resdb:///texture/albedo"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["AlbedoTexture"]).TargetID);
+        Assert.Equal(texturesByUri["resdb:///texture/normal"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["NormalMap"]).TargetID);
+        Assert.Equal(texturesByUri["resdb:///texture/height"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["HeightMap"]).TargetID);
+        Assert.Equal(texturesByUri["resdb:///texture/metallic"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["MetallicMap"]).TargetID);
+        Assert.Equal(texturesByUri["resdb:///texture/metallic"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["OcclusionMap"]).TargetID);
+        Assert.Equal(texturesByUri["resdb:///texture/emission"].Identity.Value, Assert.IsType<Reference>(materialComponent.Members["EmissiveMap"]).TargetID);
     }
 }

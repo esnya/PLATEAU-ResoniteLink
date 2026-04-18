@@ -200,6 +200,59 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncResolvesPlannedIdsBeforeBatchExecution()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "planned-id-check",
+            DisplayName: "Planned Id Check",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    Family: BundledDefaultMaterialFamilies.Road),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "payload-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLinkSceneBuilderTestSupport.CreateSolidColorPayload(255, 0, 0, "payload/albedo"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "tag-source",
+            SourceFileRelativePath: sourceFile);
+
+        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false);
+
+        Assert.All(client.SlotsById.Values, static slot => AssertNoPlannedIds(slot));
+        Assert.All(client.ComponentsById.Values, static component => AssertNoPlannedReferences(component.Members.Values));
+    }
+
+    [Fact]
     public async Task BuildAsyncPlacesObjectUnderLodHierarchy()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -571,5 +624,28 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new ResoniteMeshSubmesh(0, "first-material", [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, "second-material", [3, 4, 5]),
             ]);
+    }
+
+    private static void AssertNoPlannedIds(Slot slot)
+    {
+        Assert.False((slot.ID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+        Assert.False((slot.Parent?.TargetID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+        Assert.False((slot.Tag?.Value ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+    }
+
+    private static void AssertNoPlannedReferences(IEnumerable<Member> members)
+    {
+        foreach (Member member in members)
+        {
+            switch (member)
+            {
+                case Reference reference:
+                    Assert.False((reference.TargetID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+                    break;
+                case SyncList syncList:
+                    AssertNoPlannedReferences(syncList.Elements);
+                    break;
+            }
+        }
     }
 }

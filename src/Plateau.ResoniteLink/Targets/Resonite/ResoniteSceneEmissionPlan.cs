@@ -65,8 +65,7 @@ internal sealed record PlannedBatchSlotEmission(
     string ParentId,
     string SlotName,
     ResoniteFloat3? Position,
-    ResoniteFloatQ? Rotation,
-    string? SlotTag = null);
+    ResoniteFloatQ? Rotation);
 
 internal sealed record PlannedBatchComponentEmission(
     BatchPlanEntityId Identity,

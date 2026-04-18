@@ -77,6 +77,52 @@ public sealed class ResoniteLinkSceneBuilderLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_RejectsConcurrentRunsBeforeBootstrapCompletes()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory firstWorkDirectory = new();
+        using TemporaryDirectory secondWorkDirectory = new();
+        TaskCompletionSource enteredEnsureConnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseEnsureConnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(
+            routedClient,
+            async (_, cancellationToken) =>
+            {
+                enteredEnsureConnected.TrySetResult();
+                await releaseEnsureConnected.Task.WaitAsync(cancellationToken);
+            });
+        await using ResoniteLinkSceneBuilder builder = new(
+            new Uri("ws://localhost:12345/"),
+            1,
+            ResoniteLinkSendDiagnostics.Disabled,
+            new ResoniteLinkSceneBuilderDependencies(
+                session,
+                new TerrainTextureAssetGenerator()));
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+
+        Task<SceneImportExecutionResult> firstRun = builder.ExecuteAsync(
+            ResoniteLinkSceneBuilderTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
+            EmptyImportedCityObjects());
+
+        await enteredEnsureConnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => builder.ExecuteAsync(
+                ResoniteLinkSceneBuilderTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
+                EmptyImportedCityObjects()));
+
+        Assert.Equal("A live scene build run is already active on this scene builder instance.", exception.Message);
+        Assert.Equal(1, session.EnsureConnectedCallCount);
+
+        releaseEnsureConnected.TrySetResult();
+        _ = await firstRun;
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ClearsRunLocalStateBetweenSequentialRunsOnTheSameBuilder()
     {
         using TemporaryDirectory datasetDirectory = new();
