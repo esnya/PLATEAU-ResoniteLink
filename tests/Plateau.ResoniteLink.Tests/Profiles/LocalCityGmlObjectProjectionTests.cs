@@ -9,7 +9,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
-public sealed class LocalCityGmlResonitePlanBuilderTests
+public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
@@ -40,8 +40,8 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
             LocalSourcePath: fixturePath,
             ServerUri: null);
 
-        IResoniteConstructionSource asyncSource = await LocalCityGmlResonitePlanBuilder.CreateConstructionSourceAsync(request);
-        IResoniteConstructionSource syncSource = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
+        IResoniteConstructionSource asyncSource = await PlateauCityGmlConstructionSources.CreateAsync(request);
+        IResoniteConstructionSource syncSource = PlateauCityGmlConstructionSources.Create(request);
 
         Assert.Equal(asyncSource.Metadata.SchemaVersion, syncSource.Metadata.SchemaVersion);
         Assert.Equal(asyncSource.Metadata.WorldName, syncSource.Metadata.WorldName);
@@ -568,35 +568,19 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 
-        public Task EnsureConnectedAsync(
-            PlateauImportRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task BeginAsync(
-            SceneBuildRequest request,
+        public async Task<SceneImportExecutionResult> ExecuteAsync(
+            SceneImportExecutionPlan plan,
+            IAsyncEnumerable<ImportedCityObject> cityObjects,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _ = request;
-            return Task.CompletedTask;
-        }
+            _ = plan;
+            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            {
+                CityObjects.Add(cityObject);
+            }
 
-        public Task ProcessCityObjectAsync(
-            ImportedCityObject cityObject,
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            CityObjects.Add(cityObject);
-            return Task.CompletedTask;
-        }
-
-        public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<IReadOnlyList<string>>(["stub://resonite"]);
+            return new SceneImportExecutionResult(["stub://resonite"], CityObjects.Count);
         }
 
         public ValueTask DisposeAsync()

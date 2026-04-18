@@ -17,10 +17,45 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'windows-build-tools.ps1')
 
-$repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
+$repoRoot = Resolve-RepoRoot -RepoPath $RepoPath
 $dotnet = Resolve-DotNetCommandPath
-$runtimeRoot = Join-Path $repoRoot 'runtime\windows\resonite'
-$adminProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteAdmin\ResoniteAdmin.csproj'
+$runtimeRoot = Resolve-ResoniteRuntimeRoot -RepoRoot $repoRoot
+$sessionToolProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteSessionTool\ResoniteSessionTool.csproj'
+
+function Invoke-SessionTool {
+    param(
+        [string[]]$Arguments
+    )
+
+    $launchSpec = Get-BuiltDotNetToolLaunchSpec -DotNetPath $dotnet -ToolBuild $sessionToolBuild -Arguments $Arguments
+    $launchArguments = @($launchSpec.Arguments)
+    $output = & $launchSpec.FilePath @launchArguments 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $renderedOutput = ($output | Out-String)
+        throw "ResoniteSessionTool failed. ExitCode=$LASTEXITCODE`nOutput:`n$renderedOutput"
+    }
+
+    return $output
+}
+
+function Get-DatasetRootTargets {
+    param(
+        [string]$DumpPath,
+        [string]$DatasetRootName
+    )
+
+    if (-not (Test-Path -LiteralPath $DumpPath -PathType Leaf)) {
+        throw "Dataset root dump was not created: $DumpPath"
+    }
+
+    $dump = Get-Content -LiteralPath $DumpPath -Raw | ConvertFrom-Json -Depth 100
+    return @(
+        $dump.Root.Children |
+            Where-Object {
+                $_.Name.Value -eq $DatasetRootName
+            }
+    )
+}
 
 $stoppedProcessIds = @()
 if (-not $ListOnly) {
@@ -37,38 +72,76 @@ if (-not $ListOnly) {
         }
 }
 
-$adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $repoRoot
+$sessionToolBuild = Ensure-ResoniteSessionToolBuildOutput -DotNetPath $dotnet -ProjectPath $sessionToolProject -RepoRoot $repoRoot
 
 if ($stoppedProcessIds.Count -gt 0) {
     Write-Output ("Stopped stale sender PID(s): {0}" -f ($stoppedProcessIds -join ', '))
 }
 
-Write-Output ("AdminDllPath={0}" -f $adminBuild.DllPath)
-Write-Output ("AdminDllLastWriteTime={0:o}" -f $adminBuild.DllLastWriteTime)
+Write-Output ("SessionToolDllPath={0}" -f $sessionToolBuild.DllPath)
+Write-Output ("SessionToolDllLastWriteTime={0:o}" -f $sessionToolBuild.DllLastWriteTime)
+
+$datasetRootName = "PLATEAU $Dataset"
+New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
+$verificationDumpPath = Join-Path $runtimeRoot 'cleanup-dataset-root-scan.json'
 
 if (-not $ListOnly) {
-    $cleanupOutput = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) {
-        & $adminBuild.ExePath $Endpoint $Dataset 2>&1
+    $initialDumpOutput = Invoke-SessionTool -Arguments @(
+        '--dump-root',
+        $Endpoint,
+        '--output',
+        $verificationDumpPath,
+        '--depth',
+        '1',
+        '--exclude-component-data'
+    )
+    $initialDumpOutput | Out-Host
+
+    $targets = Get-DatasetRootTargets -DumpPath $verificationDumpPath -DatasetRootName $datasetRootName
+    Write-Output ("Found {0} dataset root slot(s) named '{1}'." -f $targets.Count, $datasetRootName)
+
+    foreach ($target in $targets) {
+        if ([string]::IsNullOrWhiteSpace($target.ID)) {
+            Write-Output "Skipping unnamed-id slot match."
+            continue
+        }
+
+        Write-Output "Warning: removing this slot destroys the matching dataset root in the current live Resonite session."
+        Write-Output ("Removing slot '{0}' ({1})." -f $target.ID, $target.Name.Value)
+        $removeOutput = Invoke-SessionTool -Arguments @(
+            '--remove-slot',
+            $Endpoint,
+            [string]$target.ID
+        )
+        $removeOutput | Out-Host
     }
-    else {
-        & "$dotnet" $adminBuild.DllPath $Endpoint $Dataset 2>&1
-    }
-    $cleanupOutput | Out-Host
 }
 
 $verification = @()
 $deadline = (Get-Date).AddSeconds($VerificationTimeoutSeconds)
 
 do {
-    $verification = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) {
-        & $adminBuild.ExePath $Endpoint $Dataset --list-only
-    }
-    else {
-        & "$dotnet" $adminBuild.DllPath $Endpoint $Dataset --list-only
-    }
+    $verification = Invoke-SessionTool -Arguments @(
+        '--dump-root',
+        $Endpoint,
+        '--output',
+        $verificationDumpPath,
+        '--depth',
+        '1',
+        '--exclude-component-data'
+    )
     $verification | Out-Host
 
-    if ($verification -match "Found 0 dataset root slot\(s\)") {
+    $targets = Get-DatasetRootTargets -DumpPath $verificationDumpPath -DatasetRootName $datasetRootName
+    Write-Output ("Found {0} dataset root slot(s) named '{1}'." -f $targets.Count, $datasetRootName)
+    if (($targets.Count -eq 0) -and $ListOnly) {
+        $dump = Get-Content -LiteralPath $verificationDumpPath -Raw | ConvertFrom-Json -Depth 100
+        foreach ($child in @($dump.Root.Children)) {
+            Write-Output ("Root child: {0} :: {1}" -f $child.ID, $child.Name.Value)
+        }
+    }
+
+    if ($targets.Count -eq 0) {
         break
     }
 
@@ -84,7 +157,7 @@ if ($ListOnly) {
     return
 }
 
-if ($verification -match "Found 0 dataset root slot\(s\)") {
+if ($targets.Count -eq 0) {
     foreach ($path in @(
         (Join-Path $runtimeRoot '.generated-assets'),
         (Join-Path $runtimeRoot 'resonite-live-asset-state.json'),

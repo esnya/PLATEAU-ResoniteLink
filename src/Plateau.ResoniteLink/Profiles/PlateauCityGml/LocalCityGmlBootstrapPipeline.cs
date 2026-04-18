@@ -31,8 +31,8 @@ internal static class LocalCityGmlBootstrapPipeline
         IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
             localSource.LocalSourcePath!,
             cancellationToken);
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? requestedMeshArea =
-            LocalCityGmlResonitePlanBuilder.MeshCodeArea.TryParse(request.MeshCode);
+        MeshCodeBounds? requestedMeshArea =
+            MeshCodeBounds.TryParse(request.MeshCode);
         Stopwatch totalStopwatch = Stopwatch.StartNew();
         Stopwatch scanStopwatch = Stopwatch.StartNew();
         LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
@@ -40,18 +40,18 @@ internal static class LocalCityGmlBootstrapPipeline
             request.MeshCode,
             request.PackageNames);
         IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles = discoveryResult.SourceFiles;
-        LocalCityGmlResonitePlanBuilder.SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
-            .Select(static descriptor => new LocalCityGmlResonitePlanBuilder.SourceFileDescriptor(
+        LocalCityGmlObjectProjection.SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
+            .Select(static descriptor => new LocalCityGmlObjectProjection.SourceFileDescriptor(
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
                 descriptor.RequiresMeshAreaFilter))
             .ToArray();
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea[] requestedMeshAreas = requestedMeshArea is null
-            ? LocalCityGmlResonitePlanBuilder.MeshCodeArea.CreateManyFromRequestedMeshCodes(discoveryResult.RequestedMeshCodes)
+        MeshCodeBounds[] requestedMeshAreas = requestedMeshArea is null
+            ? MeshCodeBounds.CreateManyFromRequestedMeshCodes(discoveryResult.RequestedMeshCodes)
             : [requestedMeshArea];
-        LocalCityGmlResonitePlanBuilder.MeshCodeArea? effectiveRequestedMeshArea =
-            LocalCityGmlResonitePlanBuilder.MeshCodeArea.TryMerge(requestedMeshAreas);
+        MeshCodeBounds? effectiveRequestedMeshArea =
+            MeshCodeBounds.TryMerge(requestedMeshAreas);
         scanStopwatch.Stop();
         progressReporter?.Invoke(
             PlateauLog.Info("import", $"Scanned {sourceFiles.Length} matching CityGML files in {scanStopwatch.Elapsed.TotalSeconds:F3}s."));
@@ -68,27 +68,35 @@ internal static class LocalCityGmlBootstrapPipeline
             packagePatterns: request.PackagePatterns,
             includeMarkingAlways: request.IncludeMarkingAlways);
 
-        LocalCityGmlResonitePlanBuilder.SourceFilePipeline[] sourceFilePipelines =
-            await LocalCityGmlResonitePlanBuilder.CreateSourceFilePipelinesAsync(
+        LocalCityGmlObjectProjection.SourceFilePipeline[] sourceFilePipelines =
+            await LocalCityGmlObjectProjection.CreateSourceFilePipelinesAsync(
                 sourceFiles,
                 datasetSource,
                 requestedMeshAreas,
                 progressReporter,
                 lodFilteringStrategy,
                 cancellationToken);
+        ParsedSourceFileResult[] demParsedSourceFiles = (await Task.WhenAll(
+            sourceFilePipelines
+                .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+                .Select(static pipeline => pipeline.GetParseTask())))
+            .Select(ParsedSourceFileResult.FromLegacy)
+            .ToArray();
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
+        TerrainTextureOverlay[] terrainTextureOverlays =
+            CreateBootstrapTerrainTextureOverlays(demParsedSourceFiles, discoveryResult.RequestedMeshCodes);
 
         ResoniteLocalOrigin? resolvedLocalOrigin =
-            LocalCityGmlResonitePlanBuilder.ResolveLocalOrigin(effectiveRequestedMeshArea);
+            LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
         if (resolvedLocalOrigin is null)
         {
             throw new PlateauImportValidationException(
                 [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint globalOriginPoint = new(
+        LocalCityGmlObjectProjection.GeodeticPoint globalOriginPoint = new(
             resolvedLocalOrigin.Latitude,
             resolvedLocalOrigin.Longitude,
             0.0);
@@ -105,13 +113,35 @@ internal static class LocalCityGmlBootstrapPipeline
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
-            [],
+            terrainTextureOverlays,
             discoveryResult.RequestedMeshCodes,
             sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
             [],
             referenceSystem: null,
             GeodeticPoint.FromLegacy(globalOriginPoint),
             terrainHeightSampler: null);
+    }
+
+    private static TerrainTextureOverlay[] CreateBootstrapTerrainTextureOverlays(
+        ParsedSourceFileResult[] demParsedSourceFiles,
+        IReadOnlyList<string> requestedMeshCodes)
+    {
+        if (demParsedSourceFiles.Length == 0)
+        {
+            return [];
+        }
+
+        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+            demParsedSourceFiles,
+            fallbackBounds: null);
+        if (demBounds is null)
+        {
+            return [];
+        }
+
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            demBounds,
+            requestedMeshCodes);
     }
 
     private static void ValidateCompatibleReferenceSystem(

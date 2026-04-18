@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
@@ -49,12 +50,6 @@ public sealed class PlateauImportService(
             ReportProgress(
                 PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-            Stopwatch connectStopwatch = Stopwatch.StartNew();
-            await sceneBuilder.EnsureConnectedAsync(normalizedRequest, cancellationToken);
-            connectStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Debug("import", $"Scene builder connection check completed in {connectStopwatch.Elapsed.TotalSeconds:F3}s."));
-
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
@@ -65,50 +60,54 @@ public sealed class PlateauImportService(
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
             ConstructionMetadata metadata = SceneImportContractMapper.ToContract(source.Metadata);
-            SceneBuildRequest sceneBuildRequest = CreateSceneBuildRequest(metadata, documentSet.DatasetSource, datasetWorkRoot);
+            SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
+                normalizedRequest,
+                metadata,
+                documentSet.DatasetSource,
+                datasetWorkRoot);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
                     $"Starting live scene initialization ({metadata.SourceDataset.PackageNames.Count} package-scoped common material families)."));
 
-            Stopwatch beginStopwatch = Stopwatch.StartNew();
-            await sceneBuilder.BeginAsync(sceneBuildRequest, cancellationToken);
-            beginStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Debug("import", $"Scene builder initialization completed in {beginStopwatch.Elapsed.TotalSeconds:F3}s."));
             ReportProgress(PlateauLog.Info("import", "Starting city object streaming."));
 
-            bool processedAnyCityObject = false;
-            int processedCityObjectCount = 0;
-            Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-            await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync(cancellationToken))
-            {
-                processedAnyCityObject = true;
-                await sceneBuilder.ProcessCityObjectAsync(SceneImportContractMapper.ToContract(cityObject), cancellationToken);
-                processedCityObjectCount++;
-            }
-
-            cityObjectStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Info("import", $"Streamed {processedCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
-            ReportProgress(
-                PlateauLog.Debug(
-                    "import",
-                    $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after prewarm started."));
-
-            if (!processedAnyCityObject)
+            await using IAsyncEnumerator<ResoniteConstructionCityObject> cityObjectEnumerator =
+                source.ReadCityObjectsAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+            if (!await cityObjectEnumerator.MoveNextAsync())
             {
                 throw new PlateauImportValidationException(
                     [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
             }
 
-            Stopwatch completeStopwatch = Stopwatch.StartNew();
-            ReportProgress(PlateauLog.Info("import", "Starting live scene completion."));
-            IReadOnlyList<string> destinations = await sceneBuilder.CompleteAsync(cancellationToken);
-            completeStopwatch.Stop();
+            int sourceCityObjectCount = 1;
+            Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
+            SceneImportExecutionResult executionResult = await sceneBuilder.ExecuteAsync(
+                executionPlan,
+                ReadImportedCityObjectsAsync(
+                    cityObjectEnumerator.Current,
+                    cityObjectEnumerator,
+                    () => sourceCityObjectCount++,
+                    cancellationToken),
+                cancellationToken);
+
+            cityObjectStopwatch.Stop();
             ReportProgress(
-                PlateauLog.Debug("import", $"Scene builder completion finished in {completeStopwatch.Elapsed.TotalSeconds:F3}s."));
-            return new ImportExecutionResult(metadata, destinations);
+                PlateauLog.Info("import", $"Streamed {sourceCityObjectCount} city objects in {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s."));
+            ReportProgress(
+                PlateauLog.Debug(
+                    "import",
+                    $"City object streaming elapsed {cityObjectStopwatch.Elapsed.TotalSeconds:F3}s after prewarm started."));
+
+            if (executionResult.ProcessedCityObjectCount == 0
+                && executionResult.FailedCityObjectCount > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Live send failed for all {sourceCityObjectCount} city objects "
+                    + $"(failed={executionResult.FailedCityObjectCount}).");
+            }
+
+            return new ImportExecutionResult(metadata, executionResult.Destinations);
         }
         finally
         {
@@ -116,23 +115,25 @@ public sealed class PlateauImportService(
         }
     }
 
-    private static SceneBuildRequest CreateSceneBuildRequest(
-        ConstructionMetadata metadata,
-        IPlateauDatasetContentSource datasetContentSource,
-        string workRoot)
-    {
-        ArgumentNullException.ThrowIfNull(metadata);
-        ArgumentNullException.ThrowIfNull(datasetContentSource);
-        ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
-
-        return new SceneBuildRequest(
-            metadata,
-            datasetContentSource,
-            workRoot);
-    }
-
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);
+    }
+
+    private static async IAsyncEnumerable<ImportedCityObject> ReadImportedCityObjectsAsync(
+        ResoniteConstructionCityObject firstCityObject,
+        IAsyncEnumerator<ResoniteConstructionCityObject> remainingCityObjects,
+        Action onReadAdditionalCityObject,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        yield return SceneImportContractMapper.ToContract(firstCityObject);
+
+        while (await remainingCityObjects.MoveNextAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            onReadAdditionalCityObject();
+            yield return SceneImportContractMapper.ToContract(remainingCityObjects.Current);
+        }
     }
 }

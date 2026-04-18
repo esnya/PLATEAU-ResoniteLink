@@ -32,10 +32,68 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
         Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-        Assert.Equal(1, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.True(result.Options.EnableMeshBake);
+        Assert.Null(result.Options.TerrainTileCacheRoot);
+        Assert.False(result.Options.DisableTerrainTileCache);
         Assert.False(result.Options.EnableSendMetrics);
         Assert.False(result.Options.VerboseLogging);
+    }
+
+    [Fact]
+    public void ParseParsesSearchCommand()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "search",
+                "--local-source-path",
+                "/data/plateau.zip",
+                "--mesh-code",
+                "5339452[56]",
+                "--packages",
+                "bldg,tran",
+                "--format",
+                "json",
+            ]);
+
+        Assert.Null(result.Error);
+        SearchCommandOptions command = Assert.IsType<SearchCommandOptions>(result.Command);
+        Assert.Equal("/data/plateau.zip", command.LocalSourcePath);
+        Assert.Equal("5339452[56]", command.MeshCode);
+        Assert.Equal(["bldg", "tran"], command.PackageNames);
+        Assert.Equal(CliOutputFormat.Json, command.OutputFormat);
+    }
+
+    [Fact]
+    public void ParseParsesStatsCommand()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "stats",
+                "--local-source-path",
+                "/data/plateau",
+                "--packages",
+                "dem,bldg",
+            ]);
+
+        Assert.Null(result.Error);
+        StatsCommandOptions command = Assert.IsType<StatsCommandOptions>(result.Command);
+        Assert.Equal("/data/plateau", command.LocalSourcePath);
+        Assert.Equal(["dem", "bldg"], command.PackageNames);
+        Assert.Equal(CliOutputFormat.Text, command.OutputFormat);
+    }
+
+    [Fact]
+    public void ParseRejectsMissingMeshCodeForSearch()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "search",
+                "--local-source-path",
+                "/data/plateau",
+            ]);
+
+        Assert.Equal("Specify --mesh-code.", result.Error);
     }
 
     [Fact]
@@ -299,6 +357,30 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseClearsPackageSpecificLodExclusionsWhenNoneIsSpecifiedLater()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--exclude-lod-for-package",
+                "tran:1,tran:none",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.NotNull(result.Options!.Request.ExcludeLodLevelsByPackage);
+        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("tran", out IReadOnlySet<int>? tranLods));
+        Assert.Empty(tranLods);
+    }
+
+    [Fact]
     public void ParseParsesResoniteLinkPort()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -343,6 +425,30 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesTerrainTileCacheOptions()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--terrain-tile-cache-root",
+                "/data/cache",
+                "--disable-terrain-tile-cache",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal("/data/cache", result.Options!.TerrainTileCacheRoot);
+        Assert.True(result.Options.DisableTerrainTileCache);
+    }
+
+    [Fact]
     public void ParseRejectsInvalidResoniteLinkConnectionCount()
     {
         CliParseResult result = CliArgumentsParser.Parse(
@@ -367,7 +473,28 @@ public sealed class CliArgumentsParserTests
     public void HelpTextDocumentsParallelResoniteLinkConnections()
     {
         Assert.Contains(
-            "Parallel ResoniteLink connection count for live sends. Default: 1.",
+            "Parallel ResoniteLink connection count for live sends. Default: 4.",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--terrain-tile-cache-root <path>",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--disable-terrain-tile-cache",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HelpTextDocumentsInspectionCommands()
+    {
+        Assert.Contains(
+            "plateau-resonitelink search --local-source-path <path> --mesh-code <mesh-code> [options]",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "--format <text|json>   Optional. Output format. Default: text.",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
     }

@@ -123,6 +123,21 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         return EnsureConnectedAsync(request, cancellationToken);
     }
 
+    public async ValueTask ResetClientsAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+
+        await initializationGate.WaitAsync(cancellationToken);
+        try
+        {
+            DisposeConnectedClients();
+        }
+        finally
+        {
+            initializationGate.Release();
+        }
+    }
+
     public void DisposeClients()
     {
         Dispose();
@@ -135,6 +150,12 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
             return;
         }
 
+        DisposeConnectedClients();
+        initializationGate.Dispose();
+    }
+
+    private void DisposeConnectedClients()
+    {
         RoutedClient?.Dispose();
         RoutedClient = null;
         if (ConnectedClients is not null)
@@ -146,7 +167,6 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         }
 
         ConnectedClients = null;
-        initializationGate.Dispose();
     }
 
     private async Task ConnectClientAsync(

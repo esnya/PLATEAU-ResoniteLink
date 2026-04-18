@@ -35,12 +35,6 @@ internal static class WorkRootLayout
         return $"{archivePath}.meta.json";
     }
 
-    public static string CreateRunRoot(string datasetRoot)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
-        return Path.Combine(Path.GetFullPath(datasetRoot), "run", Guid.NewGuid().ToString("N"));
-    }
-
     public static string GetMaterializedArchiveRoot(string outputRoot, string archivePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);

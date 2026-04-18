@@ -144,16 +144,16 @@ internal static class LocalCityGmlDemBootstrapSupport
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
-            UrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate,
-            FallbackUrlTemplate: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate,
-            ZoomLevel: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel,
+            UrlTemplate: LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+            FallbackUrlTemplate: LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+            ZoomLevel: LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel,
             GeographicBounds: new GeographicRectangle(
                 MinLatitude: bounds.SouthLatitude,
                 MaxLatitude: bounds.NorthLatitude,
                 MinLongitude: bounds.WestLongitude,
                 MaxLongitude: bounds.EastLongitude),
-            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize,
-            LicenseMode: TerrainTextureLicenseMode.Unknown);
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
     }
 
     private static IEnumerable<string> ExpandToThirdMeshCodes(IEnumerable<string> requestedMeshCodes)

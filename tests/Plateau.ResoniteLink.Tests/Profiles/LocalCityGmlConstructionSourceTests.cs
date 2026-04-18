@@ -38,13 +38,54 @@ public sealed class LocalCityGmlConstructionSourceTests
             LocalCityGmlConstructionSource.MaxConcurrentCityObjectProducers);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(PlateauImportRequest request)
+    [Fact]
+    public async Task ReadCityObjectsAsyncPassesBootstrapDemOverlaysOnlyToDemSourceFiles()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null,
+            PackageNames: ["bldg", "dem"]);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
+            MaxTextureSize: 1024,
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        OverlayRecordingGeometryProjector geometryProjector = new();
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request, [overlay]),
+            request,
+            CreateDocumentSet(
+                [
+                    new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
+                ]),
+            geometryProjector);
+
+        List<ResoniteConstructionCityObject> cityObjects = [];
+        await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+        {
+            cityObjects.Add(cityObject);
+        }
+
+        Assert.Equal(2, cityObjects.Count);
+        Assert.Equal(0, geometryProjector.OverlayCountsByPackage["bldg"]);
+        Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+    }
+
+    private static ResoniteConstructionMetadata CreateMetadata(
+        PlateauImportRequest request,
+        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
         return new ResoniteConstructionMetadata(
             SchemaVersion: "3.0",
             WorldName: "test-world",
             Request: request,
-            SourceDataset: new PlateauSourceDataset([], [], [], []),
+            SourceDataset: new PlateauSourceDataset([], [], terrainTextureOverlays ?? [], []),
             Attribution: new ResoniteAttribution(
                 new ResoniteLicenseComponentMetadata(
                     RequireCredit: true,
@@ -57,14 +98,26 @@ public sealed class LocalCityGmlConstructionSourceTests
 
     private static LocalCityGmlDocumentSet CreateDocumentSet(int sourceFileCount)
     {
+        SourceFileDescriptor[] sourceFiles = Enumerable.Range(0, sourceFileCount)
+            .Select(index => new SourceFileDescriptor(
+                $"udx/bldg/file-{index:000}.gml",
+                "bldg",
+                "57402736",
+                RequiresMeshAreaFilter: false))
+            .ToArray();
+        return CreateDocumentSet(sourceFiles);
+    }
+
+    private static LocalCityGmlDocumentSet CreateDocumentSet(IReadOnlyList<SourceFileDescriptor> sourceFiles)
+    {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        SourceFilePipeline[] sourceFiles = Enumerable.Range(0, sourceFileCount)
-            .Select(index => new SourceFilePipeline(
-                new SourceFileDescriptor($"udx/bldg/file-{index:000}.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
+        SourceFilePipeline[] pipelines = sourceFiles
+            .Select((sourceFile, index) => new SourceFilePipeline(
+                sourceFile,
                 () => Task.FromResult(
                     new ParsedSourceFileResult(
-                        new SourceFileDescriptor($"udx/bldg/file-{index:000}.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
-                        [CreateParsedCityObject(index, referenceSystem)],
+                        sourceFile,
+                        [CreateParsedCityObject(index, sourceFile, referenceSystem)],
                         referenceSystem,
                         [],
                         TimeSpan.Zero))))
@@ -72,30 +125,33 @@ public sealed class LocalCityGmlConstructionSourceTests
 
         return new LocalCityGmlDocumentSet(
             new EmptyDatasetContentSource(),
-            sourceFiles.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
-            ["bldg"],
+            pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
+            pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
             [],
             ["57402736"],
-            sourceFiles,
+            pipelines,
             [],
             referenceSystem,
             new GeodeticPoint(35.0, 139.0, 0.0),
             terrainHeightSampler: null);
     }
 
-    private static BootstrapParsedCityObject CreateParsedCityObject(int index, CoordinateReferenceSystem referenceSystem)
+    private static BootstrapParsedCityObject CreateParsedCityObject(
+        int index,
+        SourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem)
     {
         return new BootstrapParsedCityObject(
             SlotKey: $"slot-{index:000}",
             DisplayName: $"slot-{index:000}",
-            PackageName: "bldg",
-            ActualMeshCode: "57402736",
+            PackageName: sourceFile.PackageName,
+            ActualMeshCode: sourceFile.MatchedMeshCode,
             LodLevel: 1,
             Surfaces: [],
             ReferenceSystem: referenceSystem,
-            SourceFileRelativePath: $"udx/bldg/file-{index:000}.gml",
+            SourceFileRelativePath: sourceFile.RelativePath,
             SourceUnitIdentity: "test-unit",
-            SourceIdentity: $"test-unit:slot-{index:000}",
+            SourceIdentity: $"{sourceFile.PackageName}:slot-{index:000}",
             SharedAcrossMeshCodes: false);
     }
 
@@ -118,7 +174,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             GeodeticPoint globalOriginPoint,
             GeographicLib.LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
+            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {
@@ -170,6 +226,48 @@ public sealed class LocalCityGmlConstructionSourceTests
                     return;
                 }
             }
+        }
+    }
+
+    private sealed class OverlayRecordingGeometryProjector : ICityGmlGeometryProjector
+    {
+        public Dictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
+
+        public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+            CachedSourceFileDescriptor sourceFile,
+            CoordinateReferenceSystem referenceSystem,
+            GeodeticPoint globalOriginPoint,
+            GeographicLib.LocalCartesian? globalCartesian,
+            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+            PlateauImportRequest request,
+            Func<BootstrapParsedCityObject, bool>? predicate = null)
+        {
+            _ = referenceSystem;
+            _ = globalOriginPoint;
+            _ = globalCartesian;
+            _ = requestedMeshAreas;
+            _ = request;
+
+            BootstrapParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
+            if (predicate is not null && !predicate(parsedCityObject))
+            {
+                yield break;
+            }
+
+            OverlayCountsByPackage[parsedCityObject.PackageName] = demTerrainTextureOverlays.Count;
+            yield return new ResoniteConstructionCityObject(
+                SlotKey: parsedCityObject.SlotKey,
+                DisplayName: parsedCityObject.DisplayName,
+                PackageName: parsedCityObject.PackageName,
+                ActualMeshCode: parsedCityObject.ActualMeshCode,
+                LodLevel: parsedCityObject.LodLevel,
+                Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+                Mesh: new ResoniteImportedMesh([], []),
+                Materials: [],
+                SourceObjectKey: parsedCityObject.SourceIdentity,
+                SourceUnitKey: parsedCityObject.SourceUnitIdentity,
+                SourceFileRelativePath: sourceFile.RelativePath);
         }
     }
 

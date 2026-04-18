@@ -53,8 +53,10 @@ public sealed class ImportServiceFactoryTests
             request,
             "local",
             new Uri("ws://localhost:12345/"),
-            1,
+            4,
             enableMeshBake,
+            TerrainTileCacheRoot: null,
+            DisableTerrainTileCache: false,
             EnableSendMetrics: false,
             VerboseLogging: false);
     }
@@ -100,24 +102,18 @@ public sealed class ImportServiceFactoryTests
     {
         public int DisposeCallCount { get; private set; }
 
-        public Task EnsureConnectedAsync(PlateauImportRequest request, CancellationToken cancellationToken = default)
+        public async Task<SceneImportExecutionResult> ExecuteAsync(
+            SceneImportExecutionPlan plan,
+            IAsyncEnumerable<ImportedCityObject> cityObjects,
+            CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
-        }
+            _ = plan;
+            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            {
+                _ = cityObject;
+            }
 
-        public Task BeginAsync(SceneBuildRequest request, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task ProcessCityObjectAsync(ImportedCityObject cityObject, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<IReadOnlyList<string>>(["stub://resonite/location"]);
+            return new SceneImportExecutionResult(["stub://resonite/location"], 1);
         }
 
         public ValueTask DisposeAsync()

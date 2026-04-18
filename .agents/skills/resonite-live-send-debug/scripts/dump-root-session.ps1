@@ -12,18 +12,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Resolve-StatePath {
-    param(
-        [string]$ConfiguredStatePath,
-        [string]$RuntimeRootPath
-    )
-
-    if (-not [string]::IsNullOrWhiteSpace($ConfiguredStatePath)) {
-        return $ConfiguredStatePath
-    }
-
-    return (Join-Path $RuntimeRootPath 'active-session.json')
-}
+$helperPath = Join-Path $PSScriptRoot 'windows-build-tools.ps1'
+. $helperPath
 
 function Resolve-Endpoint {
     param(
@@ -64,20 +54,18 @@ function Resolve-OutputPath {
     return (Join-Path $dumpRoot ("{0}-{1}.json" -f $ResolvedLabel, $timestamp))
 }
 
-$repoRoot = (Resolve-Path -LiteralPath $RepoPath).Path
-$headlessRuntimeRoot = Join-Path $repoRoot 'runtime\windows\headless'
+$repoRoot = Resolve-RepoRoot -RepoPath $RepoPath
+$headlessRuntimeRoot = Resolve-HeadlessRuntimeRoot -RepoRoot $repoRoot
 $resolvedStatePath = Resolve-StatePath -ConfiguredStatePath $StatePath -RuntimeRootPath $headlessRuntimeRoot
 $resolvedEndpoint = Resolve-Endpoint -ConfiguredEndpoint $Endpoint -ResolvedStatePath $resolvedStatePath
 $resolvedOutputPath = Resolve-OutputPath -ConfiguredOutputPath $OutputPath -RepoRootPath $repoRoot -ResolvedLabel $Label
 
-. (Join-Path $PSScriptRoot 'windows-build-tools.ps1')
-
 $dotnet = Resolve-DotNetCommandPath
-$runtimeRoot = Join-Path $repoRoot 'runtime\windows\resonite\root-dumps'
-$adminRuntimeRoot = Join-Path $repoRoot 'runtime\windows\resonite'
-$adminProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteAdmin\ResoniteAdmin.csproj'
+$adminRuntimeRoot = Resolve-ResoniteRuntimeRoot -RepoRoot $repoRoot
+$runtimeRoot = Join-Path $adminRuntimeRoot 'root-dumps'
+$sessionToolProject = Join-Path (Split-Path -Parent $PSScriptRoot) 'tools\ResoniteSessionTool\ResoniteSessionTool.csproj'
 
-$adminBuild = Ensure-ResoniteAdminBuildOutput -DotNetPath $dotnet -ProjectPath $adminProject -RepoRoot $repoRoot
+$sessionToolBuild = Ensure-ResoniteSessionToolBuildOutput -DotNetPath $dotnet -ProjectPath $sessionToolProject -RepoRoot $repoRoot
 
 $arguments = @(
     '--dump-root',
@@ -96,19 +84,18 @@ else {
 }
 
 New-Item -ItemType Directory -Force -Path $runtimeRoot, $adminRuntimeRoot | Out-Null
-$stdoutPath = Join-Path $adminRuntimeRoot 'resonite-admin-dump.stdout.log'
-$stderrPath = Join-Path $adminRuntimeRoot 'resonite-admin-dump.stderr.log'
+$stdoutPath = Join-Path $adminRuntimeRoot 'resonite-session-tool-dump.stdout.log'
+$stderrPath = Join-Path $adminRuntimeRoot 'resonite-session-tool-dump.stderr.log'
 foreach ($path in @($stdoutPath, $stderrPath)) {
     if (Test-Path -LiteralPath $path) {
         Remove-Item -LiteralPath $path -Force
     }
 }
 
-$launcherPath = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $adminBuild.ExePath } else { $dotnet }
-$launcherArguments = if (-not [string]::IsNullOrWhiteSpace($adminBuild.ExePath)) { $arguments } else { @($adminBuild.DllPath) + $arguments }
+$launchSpec = Get-BuiltDotNetToolLaunchSpec -DotNetPath $dotnet -ToolBuild $sessionToolBuild -Arguments $arguments
 $process = Start-Process `
-    -FilePath $launcherPath `
-    -ArgumentList $launcherArguments `
+    -FilePath $launchSpec.FilePath `
+    -ArgumentList $launchSpec.Arguments `
     -WorkingDirectory $repoRoot `
     -Wait `
     -PassThru `
@@ -122,7 +109,7 @@ if (-not [string]::IsNullOrWhiteSpace($stdoutText)) {
 }
 
 if ($process.ExitCode -ne 0) {
-    throw "ResoniteAdmin dump-root failed. ExitCode=$($process.ExitCode)`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
+    throw "ResoniteSessionTool dump-root failed. ExitCode=$($process.ExitCode)`nSTDOUT:`n$stdoutText`nSTDERR:`n$stderrText"
 }
 
 if (-not (Test-Path -LiteralPath $resolvedOutputPath -PathType Leaf)) {
@@ -130,10 +117,10 @@ if (-not (Test-Path -LiteralPath $resolvedOutputPath -PathType Leaf)) {
 }
 
 [pscustomobject]@{
-    Endpoint              = $resolvedEndpoint
-    OutputPath            = (Resolve-Path -LiteralPath $resolvedOutputPath).Path
-    Depth                 = $Depth
-    IncludeComponentData  = $IncludeComponentData
-    AdminDllPath          = $adminBuild.DllPath
-    AdminDllLastWriteTime = $adminBuild.DllLastWriteTime
+    Endpoint                    = $resolvedEndpoint
+    OutputPath                  = (Resolve-Path -LiteralPath $resolvedOutputPath).Path
+    Depth                       = $Depth
+    IncludeComponentData        = $IncludeComponentData
+    SessionToolDllPath          = $sessionToolBuild.DllPath
+    SessionToolDllLastWriteTime = $sessionToolBuild.DllLastWriteTime
 }

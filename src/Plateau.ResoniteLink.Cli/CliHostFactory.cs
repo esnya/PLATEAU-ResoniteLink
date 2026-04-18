@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Targets.Resonite;
@@ -14,6 +15,7 @@ internal static class CliHostFactory
     public static IHost Create(string[]? args = null)
     {
         HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+        builder.Logging.ClearProviders();
         builder.Services.AddCliServices(Console.Out, Console.Error);
         return builder.Build();
     }
@@ -35,13 +37,15 @@ internal static class CliServiceCollectionExtensions
 
         services.AddPlateauCityGmlImportServices();
 
+        services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
         services.AddSingleton<ISceneImportTargetFactory, DefaultSceneImportTargetFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
-            _.GetRequiredService<IImportServiceFactory>()));
+            _.GetRequiredService<IImportServiceFactory>(),
+            _.GetRequiredService<DatasetInspectionService>()));
 
         return services;
     }
@@ -107,6 +111,8 @@ internal sealed class DefaultSceneImportTargetFactory(IHttpClientFactory httpCli
             options.ResoniteLinkConnectionCount,
             options.EnableSendMetrics,
             options.EnableMeshBake,
+            options.TerrainTileCacheRoot,
+            options.DisableTerrainTileCache,
             httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName),
             progressReporter);
     }

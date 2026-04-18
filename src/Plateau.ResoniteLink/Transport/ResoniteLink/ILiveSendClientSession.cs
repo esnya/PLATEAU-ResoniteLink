@@ -19,5 +19,7 @@ internal interface ILiveSendClientSession
         return EnsureConnectedAsync(request, cancellationToken);
     }
 
+    ValueTask ResetClientsAsync(CancellationToken cancellationToken = default);
+
     void DisposeClients();
 }

@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
-using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
@@ -187,32 +186,18 @@ public sealed class CliApplicationTests
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 
-        public Task EnsureConnectedAsync(
-            PlateauImportRequest request,
+        public async Task<SceneImportExecutionResult> ExecuteAsync(
+            SceneImportExecutionPlan plan,
+            IAsyncEnumerable<ImportedCityObject> cityObjects,
             CancellationToken cancellationToken = default)
         {
-            return Task.CompletedTask;
-        }
+            _ = plan;
+            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            {
+                CityObjects.Add(cityObject);
+            }
 
-        public Task BeginAsync(
-            SceneBuildRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            _ = request;
-            return Task.CompletedTask;
-        }
-
-        public Task ProcessCityObjectAsync(
-            ImportedCityObject cityObject,
-            CancellationToken cancellationToken = default)
-        {
-            CityObjects.Add(cityObject);
-            return Task.CompletedTask;
-        }
-
-        public Task<IReadOnlyList<string>> CompleteAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<IReadOnlyList<string>>(["stub://resonite/location"]);
+            return new SceneImportExecutionResult(["stub://resonite/location"], CityObjects.Count);
         }
 
         public ValueTask DisposeAsync()

@@ -8,15 +8,15 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesSourceWinding()
     {
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = new(
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
             PolygonId: "dem-surface",
-            Semantic: LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new LocalCityGmlResonitePlanBuilder.ParsedRing(
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
                 "ring-1",
                 [
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 10.0),
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 20.0),
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200, 30.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 10.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 20.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200, 30.0),
                 ],
                 UVs: null),
             InteriorRings: [],
@@ -32,9 +32,9 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxLatitude: 35.0100,
                 MinLongitude: 139.0040,
                 MaxLongitude: 139.0120),
-            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize);
 
-        (LocalCityGmlResonitePlanBuilder.ParsedSurface clippedSurface, _) = Assert.Single(
+        (LocalCityGmlObjectProjection.ParsedSurface clippedSurface, _) = Assert.Single(
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
 
         double sourceSignedArea = ComputeSignedArea(surface.ExteriorRing.Vertices);
@@ -48,15 +48,15 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesAreaAcrossBoundarySplit()
     {
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = new(
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
             PolygonId: "dem-surface-area",
-            Semantic: LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new LocalCityGmlResonitePlanBuilder.ParsedRing(
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
                 "ring-area",
                 [
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 10.0),
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 20.0),
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200, 30.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 10.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 20.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200, 30.0),
                 ],
                 UVs: null),
             InteriorRings: [],
@@ -70,16 +70,16 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
                 ZoomLevel: 18,
                 GeographicBounds: new GeographicRectangle(35.0000, 35.0100, 139.0000, 139.0100),
-                MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize),
+                MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize),
             new(
                 PackageName: "dem",
                 UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
                 ZoomLevel: 18,
                 GeographicBounds: new GeographicRectangle(35.0000, 35.0100, 139.0100, 139.0200),
-                MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize),
+                MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize),
         ];
 
-        IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
+        IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, overlays);
 
         Assert.Equal(2, clipped.Count);
@@ -91,15 +91,15 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
     [Fact]
     public void ClipGeneratedSurfaceToOverlaysPreservesClockwiseSourceWinding()
     {
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = new(
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
             PolygonId: "dem-surface-clockwise",
-            Semantic: LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new LocalCityGmlResonitePlanBuilder.ParsedRing(
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
                 "ring-clockwise",
                 [
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200, 30.0),
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 20.0),
-                    new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 10.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200, 30.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 20.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 10.0),
                 ],
                 UVs: null),
             InteriorRings: [],
@@ -115,9 +115,9 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 MaxLatitude: 35.0100,
                 MinLongitude: 139.0040,
                 MaxLongitude: 139.0120),
-            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize);
 
-        (LocalCityGmlResonitePlanBuilder.ParsedSurface clippedSurface, _) = Assert.Single(
+        (LocalCityGmlObjectProjection.ParsedSurface clippedSurface, _) = Assert.Single(
             DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
 
         Assert.Equal(
@@ -125,20 +125,20 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
             Math.Sign(ComputeSignedArea(clippedSurface.ExteriorRing.Vertices)));
     }
 
-    private static double ComputeSignedArea(LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
+    private static double ComputeSignedArea(LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
         double signedArea = 0.0;
         for (int index = 0; index < vertices.Length; index++)
         {
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint current = vertices[index];
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint next = vertices[(index + 1) % vertices.Length];
+            LocalCityGmlObjectProjection.GeodeticPoint current = vertices[index];
+            LocalCityGmlObjectProjection.GeodeticPoint next = vertices[(index + 1) % vertices.Length];
             signedArea += (current.Longitude * next.Latitude) - (next.Longitude * current.Latitude);
         }
 
         return signedArea * 0.5;
     }
 
-    private static double ComputeApproximateArea(LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
+    private static double ComputeApproximateArea(LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
         if (vertices.Length < 3)
         {
@@ -151,8 +151,8 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         double signedArea = 0.0;
         for (int index = 0; index < vertices.Length; index++)
         {
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint current = vertices[index];
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint next = vertices[(index + 1) % vertices.Length];
+            LocalCityGmlObjectProjection.GeodeticPoint current = vertices[index];
+            LocalCityGmlObjectProjection.GeodeticPoint next = vertices[(index + 1) % vertices.Length];
             double currentX = current.Longitude * metersPerLongitudeDegree;
             double currentY = current.Latitude * metersPerLatitudeDegree;
             double nextX = next.Longitude * metersPerLongitudeDegree;

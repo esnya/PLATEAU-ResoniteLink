@@ -1,6 +1,6 @@
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
-internal sealed record ResoniteLinkSceneBuilderDependencies(
+internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
     ITerrainTextureAssetGenerator TerrainTextureAssetGenerator)
 {

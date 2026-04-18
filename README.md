@@ -10,10 +10,13 @@ This README is the canonical human-readable scope statement for the current `bet
 
 Shipped:
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
-- Treat `--resonitelink-connections` as a shipped live-send option.
+- Inspect local dataset directories or local ZIP/7z archives with built-in `search` and `stats` commands before import.
+- Treat `--resonitelink-connections` as a shipped live-send option, with a default live-send pool size of 4.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
+- When multiple source files match a requested area, order them from the requested center outward instead of prioritizing DEM globally.
 - Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
+- Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
 
 Pending:
 - Target-agnostic IR extraction and the deeper `Targets.Resonite` versus `Transport.ResoniteLink` split are internal follow-up work, not completed guarantees of this release.
@@ -69,9 +72,26 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 
 `--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search.
 
+Local inspection examples:
+
+```bash
+dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+  search \
+  --local-source-path /path/to/plateau-or-archive.zip \
+  --mesh-code 5437277.
+```
+
+```bash
+dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+  stats \
+  --local-source-path /path/to/plateau-or-archive.zip
+```
+
+`search` and `stats` inspect local dataset directories and local `.zip` / `.7z` archives. Remote import still requires an explicit direct archive URL.
+
 By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
 
-When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`.
+When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`. Terrain tile downloads are cached separately under the local app-data cache root by default; override that path with `--terrain-tile-cache-root` or disable cross-run tile caching with `--disable-terrain-tile-cache`.
 
 ## Further Reading
 

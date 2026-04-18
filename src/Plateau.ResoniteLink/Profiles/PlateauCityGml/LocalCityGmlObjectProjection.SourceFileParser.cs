@@ -7,10 +7,10 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public static partial class LocalCityGmlResonitePlanBuilder
+public static partial class LocalCityGmlObjectProjection
 {
     internal static ResoniteLocalOrigin? ResolveLocalOrigin(
-        MeshCodeArea? requestedMeshArea)
+        MeshCodeBounds? requestedMeshArea)
     {
         return requestedMeshArea?.GetCenter();
     }
@@ -29,7 +29,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     internal static Task<global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(
         IReadOnlyList<global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
@@ -58,7 +58,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     internal static async Task<global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult> ParseSourceFileCoreAsync(
         global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
@@ -111,7 +111,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     private static async IAsyncEnumerable<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamBootstrapParsedCityObjectsCoreAsync(
         global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -130,7 +130,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     internal static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsCoreAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -223,7 +223,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         Stream stream,
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
@@ -320,7 +320,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)

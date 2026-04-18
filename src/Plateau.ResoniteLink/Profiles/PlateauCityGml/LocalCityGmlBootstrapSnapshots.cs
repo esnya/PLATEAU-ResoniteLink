@@ -19,13 +19,13 @@ public sealed record LocalCityGmlCachedSourceFileSnapshot(
     int CityObjectCount)
 {
     internal LocalCityGmlCachedSourceFileSnapshot(
-        LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor legacy)
+        LocalCityGmlObjectProjection.CachedSourceFileDescriptor legacy)
         : this(new LocalCityGmlSourceFileSnapshot(legacy.SourceFile), legacy.CityObjects.Length)
     {
         Legacy = legacy;
     }
 
-    internal LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor? Legacy { get; }
+    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor? Legacy { get; }
 }
 
 public sealed record LocalCityGmlSourceFileSnapshot(
@@ -35,7 +35,7 @@ public sealed record LocalCityGmlSourceFileSnapshot(
     bool RequiresMeshAreaFilter)
 {
     internal LocalCityGmlSourceFileSnapshot(
-        LocalCityGmlResonitePlanBuilder.SourceFileDescriptor legacy)
+        LocalCityGmlObjectProjection.SourceFileDescriptor legacy)
         : this(
             legacy.RelativePath,
             legacy.PackageName,
@@ -45,7 +45,7 @@ public sealed record LocalCityGmlSourceFileSnapshot(
         Legacy = legacy;
     }
 
-    internal LocalCityGmlResonitePlanBuilder.SourceFileDescriptor? Legacy { get; }
+    internal LocalCityGmlObjectProjection.SourceFileDescriptor? Legacy { get; }
 }
 
 public sealed record LocalCityGmlReferenceSystemSnapshot(
@@ -54,13 +54,13 @@ public sealed record LocalCityGmlReferenceSystemSnapshot(
     string CompatibilityKey)
 {
     internal LocalCityGmlReferenceSystemSnapshot(
-        LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem legacy)
+        LocalCityGmlObjectProjection.CoordinateReferenceSystem legacy)
         : this(legacy.SrsName, legacy.IsGeographic, legacy.CompatibilityKey)
     {
         Legacy = legacy;
     }
 
-    internal LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem? Legacy { get; }
+    internal LocalCityGmlObjectProjection.CoordinateReferenceSystem? Legacy { get; }
 }
 
 public sealed record LocalCityGmlGeodeticPointSnapshot(
@@ -69,24 +69,24 @@ public sealed record LocalCityGmlGeodeticPointSnapshot(
     double Altitude)
 {
     internal LocalCityGmlGeodeticPointSnapshot(
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint legacy)
+        LocalCityGmlObjectProjection.GeodeticPoint legacy)
         : this(legacy.Latitude, legacy.Longitude, legacy.Altitude)
     {
         Legacy = legacy;
     }
 
-    internal LocalCityGmlResonitePlanBuilder.GeodeticPoint? Legacy { get; }
+    internal LocalCityGmlObjectProjection.GeodeticPoint? Legacy { get; }
 }
 
 public sealed record LocalCityGmlTerrainHeightSamplerSnapshot
 {
     internal LocalCityGmlTerrainHeightSamplerSnapshot(
-        LocalCityGmlResonitePlanBuilder.TerrainHeightSampler legacy)
+        LocalCityGmlObjectProjection.TerrainHeightSampler legacy)
     {
         Legacy = legacy;
     }
 
-    internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? Legacy { get; }
+    internal LocalCityGmlObjectProjection.TerrainHeightSampler? Legacy { get; }
 }
 
 public sealed record LocalCityGmlGeometryProjectionContext(

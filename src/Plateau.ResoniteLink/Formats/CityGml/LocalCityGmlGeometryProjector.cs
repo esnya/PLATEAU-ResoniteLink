@@ -14,11 +14,11 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
-        return LocalCityGmlResonitePlanBuilder.MaterializeCityObjects(
+        return LocalCityGmlObjectProjection.MaterializeCityObjects(
             sourceFile.ToLegacy(),
             referenceSystem.ToLegacy(),
             globalOriginPoint.ToLegacy(),

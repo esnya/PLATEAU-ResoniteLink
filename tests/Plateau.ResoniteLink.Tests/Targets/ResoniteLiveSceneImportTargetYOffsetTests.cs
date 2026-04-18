@@ -5,7 +5,7 @@ using ResoniteLink;
 namespace Plateau.ResoniteLink.Tests.Targets;
 
 [Trait("Category", "Slow")]
-public sealed class ResoniteLinkSceneBuilderYOffsetTests
+public sealed class ResoniteLiveSceneImportTargetYOffsetTests
 {
     private const string DatasetName = "tokyo23ku";
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
@@ -22,7 +22,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             worldPosition: new ResoniteFloat3(1.0, 15.5, 2.5));
         using SceneBuilderRecordingClient client = new();
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         Slot datasetSlot = FindNonAssetSlotByName(client, $"PLATEAU {DatasetName}");
         Slot objectSlot = FindNonAssetSlotByName(client, "Height Test Building");
@@ -36,7 +36,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
         string meshCode,
         IReadOnlyList<string>? requestedMeshCodes = null)
     {
-        return ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        return ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             meshCode,
             fixturePath,
@@ -63,7 +63,7 @@ public sealed class ResoniteLinkSceneBuilderYOffsetTests
             ActualMeshCode: actualMeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(worldPosition),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("wireframe-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
             Materials: [CreateWireframeMaterial()],
             SourceObjectKey: sourceObjectKey);
     }

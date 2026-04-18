@@ -1,0 +1,10 @@
+namespace Plateau.ResoniteLink.Application.Importing;
+
+/// <summary>
+/// Target-side execution summary for one scene import run.
+/// ProcessedCityObjectCount represents successful sends, not source-side geometry availability.
+/// </summary>
+public sealed record SceneImportExecutionResult(
+    IReadOnlyList<string> Destinations,
+    int ProcessedCityObjectCount,
+    int FailedCityObjectCount = 0);

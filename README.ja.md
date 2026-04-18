@@ -10,10 +10,13 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 
 Shipped:
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
-- `--resonitelink-connections` は shipped な live-send option として扱う。
+- import 前に、ローカルの dataset directory またはローカル ZIP/7z archive を組み込みの `search` / `stats` command で inspection できる。
+- `--resonitelink-connections` は shipped な live-send option として扱い、既定の live-send pool size は 4 とする。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
+- 複数の source file が要求領域に一致する場合、DEM 全体優先ではなく、要求中心から外側へ向かう順で処理する。
 - LOD1 mesh bake と LOD2 atlas bake は CityGML scope、package、LOD、bake policy をキーにまとめ、emit される bake payload が cityObject の到着順に依存しないように保つ。
+- DEM terrain imagery tile は既定で local cache に永続化し、再実行時に PLATEAU Ortho や fallback の GSI tile を再利用できるようにする。
 
 Pending:
 - target-agnostic IR の抽出と、`Targets.Resonite` / `Transport.ResoniteLink` の深い責務分離は、この release では完了済み保証に含めない内部 follow-up です。
@@ -67,11 +70,28 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要で、組み込みの dataset search は行いません。
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要です。
+
+ローカル inspection の例:
+
+```bash
+dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+  search \
+  --local-source-path /path/to/plateau-or-archive.zip \
+  --mesh-code 5437277.
+```
+
+```bash
+dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+  stats \
+  --local-source-path /path/to/plateau-or-archive.zip
+```
+
+`search` と `stats` は、ローカルの dataset directory とローカル `.zip` / `.7z` archive を inspection します。remote import 自体は引き続き explicit な direct archive URL が必要です。
 
 CLI は既定でマイルストーン級の進捗だけを表示し、file ごとの詳細や live-send trace は隠します。debug レベルの import / ResoniteLink trace が必要なときは `--verbose` を付けてください。
 
-`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。
+`--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。terrain tile download は別に local app-data 配下へ既定 cache され、`--terrain-tile-cache-root` で上書き、`--disable-terrain-tile-cache` で cross-run cache を無効化できます。
 
 ## 参考資料
 

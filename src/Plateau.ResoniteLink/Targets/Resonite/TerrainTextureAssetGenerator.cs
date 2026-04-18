@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -11,18 +14,18 @@ internal interface ITerrainTextureAssetGenerator
     Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken);
-
-    void ResetUsageTracking();
-
-    ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense);
 }
 
-internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null) : ITerrainTextureAssetGenerator
+internal sealed class TerrainTextureAssetGenerator(
+    HttpClient? httpClient = null,
+    string? persistentCacheRoot = null,
+    bool disablePersistentCache = false) : ITerrainTextureAssetGenerator
 {
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, CachedTerrainTexture> cachedTextures = new();
-    private int usedTerrainTileCount;
-    private int fallbackTileUseCount;
+    private readonly PersistentTerrainTileCache? persistentTileCache = disablePersistentCache
+        ? null
+        : new PersistentTerrainTileCache(persistentCacheRoot);
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -34,45 +37,7 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
             terrainTextureOverlay,
             ct => CreateTextureAsync(terrainTextureOverlay, ct),
             cancellationToken);
-        _ = Interlocked.Add(ref usedTerrainTileCount, cachedTexture.UsedTerrainTileCount);
-        _ = Interlocked.Add(ref fallbackTileUseCount, cachedTexture.FallbackTileUseCount);
         return cachedTexture.TextureImport;
-    }
-
-    public void ResetUsageTracking()
-    {
-        Interlocked.Exchange(ref usedTerrainTileCount, 0);
-        Interlocked.Exchange(ref fallbackTileUseCount, 0);
-    }
-
-    public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
-    {
-        ArgumentNullException.ThrowIfNull(baseLicense);
-
-        int usedTerrainTiles = Interlocked.Exchange(ref usedTerrainTileCount, 0);
-        int fallbackTerrainTiles = Interlocked.Exchange(ref fallbackTileUseCount, 0);
-
-        if (usedTerrainTiles == 0)
-        {
-            return baseLicense;
-        }
-
-        if (fallbackTerrainTiles == 0)
-        {
-            return baseLicense with
-            {
-                CreditText = $"{baseLicense.CreditText} DEM terrain imagery used Project PLATEAU Ortho xyz tiles.",
-                LicenseName = "PLATEAU Open Data Terms + Project PLATEAU Site Policy",
-                LicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/",
-            };
-        }
-
-        return baseLicense with
-        {
-            CreditText = $"{baseLicense.CreditText} DEM terrain imagery used Project PLATEAU Ortho xyz tiles with fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage was unavailable.",
-            LicenseName = "PLATEAU Open Data Terms + GSI Maps Terms",
-            LicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html",
-        };
     }
 
     private async Task<CachedTerrainTexture> CreateTextureAsync(
@@ -200,6 +165,30 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         CancellationToken cancellationToken)
     {
         string tileUrl = WebMercatorTileMath.FormatTileUrl(urlTemplate, zoomLevel, tileX, tileY);
+        if (persistentTileCache is not null)
+        {
+            byte[]? cachedBytes = await persistentTileCache.TryReadTileBytesAsync(
+                urlTemplate,
+                zoomLevel,
+                tileX,
+                tileY,
+                cancellationToken);
+            if (cachedBytes is not null)
+            {
+                try
+                {
+                    return await LoadTileImageAsync(cachedBytes, cancellationToken);
+                }
+                catch (SixLabors.ImageSharp.UnknownImageFormatException)
+                {
+                    // Corrupt persistent cache entries should behave like a cache miss.
+                }
+                catch (SixLabors.ImageSharp.InvalidImageContentException)
+                {
+                    // Corrupt persistent cache entries should behave like a cache miss.
+                }
+            }
+        }
 
         try
         {
@@ -212,13 +201,67 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
                 return null;
             }
 
-            await using Stream responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            return await Image.LoadAsync<Rgba32>(responseStream, cancellationToken);
+            byte[] encodedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (persistentTileCache is not null)
+            {
+                await TryWritePersistentTileBytesAsync(
+                    urlTemplate,
+                    zoomLevel,
+                    tileX,
+                    tileY,
+                    encodedBytes,
+                    cancellationToken);
+            }
+
+            return await LoadTileImageAsync(encodedBytes, cancellationToken);
         }
         catch (HttpRequestException)
         {
             return null;
         }
+    }
+
+    private async Task TryWritePersistentTileBytesAsync(
+        string urlTemplate,
+        int zoomLevel,
+        int tileX,
+        int tileY,
+        byte[] encodedBytes,
+        CancellationToken cancellationToken)
+    {
+        if (persistentTileCache is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await persistentTileCache.WriteTileBytesAsync(
+                urlTemplate,
+                zoomLevel,
+                tileX,
+                tileY,
+                encodedBytes,
+                cancellationToken);
+        }
+        catch (IOException)
+        {
+            // Persistent tile caching is an optimization. A local cache write failure
+            // must not discard a tile that was already downloaded successfully.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Persistent tile caching is an optimization. A local cache write failure
+            // must not discard a tile that was already downloaded successfully.
+        }
+    }
+
+    private static async Task<Image<Rgba32>> LoadTileImageAsync(
+        byte[] encodedBytes,
+        CancellationToken cancellationToken)
+    {
+        using MemoryStream stream = new(encodedBytes, writable: false);
+        return await Image.LoadAsync<Rgba32>(stream, cancellationToken);
     }
 
     private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image, string identity)
@@ -242,4 +285,90 @@ internal sealed class TerrainTextureAssetGenerator(HttpClient? httpClient = null
         Image<Rgba32> Image,
         int UsedTerrainTileCount,
         int FallbackTileUseCount);
+}
+
+internal sealed class PersistentTerrainTileCache
+{
+    private readonly string cacheRoot;
+
+    public PersistentTerrainTileCache(string? cacheRoot)
+    {
+        this.cacheRoot = Path.GetFullPath(cacheRoot ?? GetDefaultCacheRoot());
+    }
+
+    public async Task<byte[]?> TryReadTileBytesAsync(
+        string urlTemplate,
+        int zoomLevel,
+        int tileX,
+        int tileY,
+        CancellationToken cancellationToken)
+    {
+        string cachePath = GetCachePath(urlTemplate, zoomLevel, tileX, tileY);
+        if (!File.Exists(cachePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await File.ReadAllBytesAsync(cachePath, cancellationToken);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    public async Task WriteTileBytesAsync(
+        string urlTemplate,
+        int zoomLevel,
+        int tileX,
+        int tileY,
+        byte[] encodedBytes,
+        CancellationToken cancellationToken)
+    {
+        string cachePath = GetCachePath(urlTemplate, zoomLevel, tileX, tileY);
+        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+
+        string temporaryPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(temporaryPath, encodedBytes, cancellationToken);
+            File.Move(temporaryPath, cachePath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+
+            throw;
+        }
+    }
+
+    private string GetCachePath(string urlTemplate, int zoomLevel, int tileX, int tileY)
+    {
+        string templateDigest = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(urlTemplate)))
+            .ToLowerInvariant();
+        return Path.Combine(
+            cacheRoot,
+            templateDigest,
+            zoomLevel.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            tileX.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            $"{tileY.ToString(System.Globalization.CultureInfo.InvariantCulture)}.tile");
+    }
+
+    private static string GetDefaultCacheRoot()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Plateau.ResoniteLink",
+            "terrain-tile-cache");
+    }
 }

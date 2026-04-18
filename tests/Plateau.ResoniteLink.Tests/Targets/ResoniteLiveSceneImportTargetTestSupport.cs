@@ -1,12 +1,13 @@
 using System.Globalization;
 
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Targets;
 
-internal static class ResoniteLinkSceneBuilderTestSupport
+internal static class ResoniteLiveSceneImportTargetTestSupport
 {
     public static async Task BuildSceneAsync(
         ResoniteConstructionMetadata metadata,
@@ -15,19 +16,13 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true)
     {
-        await using ResoniteLinkSceneBuilder builder = CreateBuilder(
+        await using ResoniteLiveSceneImportTarget builder = CreateBuilder(
             client,
             terrainTextureAssetGenerator,
             enableMeshBake);
 
         using TemporaryDirectory workDirectory = new();
-        await builder.BeginAsync(metadata, workDirectory.Path);
-        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
-        {
-            await builder.ProcessCityObjectAsync(cityObject);
-        }
-
-        _ = await builder.CompleteAsync();
+        _ = await ExecuteSceneAsync(builder, metadata, workDirectory.Path, cityObjects);
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -106,28 +101,42 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         SceneBuilderRecordingClient client)
     {
         using TemporaryDirectory firstWorkDirectory = new();
-        await using (ResoniteLinkSceneBuilder builder = CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
         {
-            await builder.BeginAsync(metadata, firstWorkDirectory.Path);
-            foreach (ResoniteConstructionCityObject cityObject in firstRunCityObjects)
-            {
-                await builder.ProcessCityObjectAsync(cityObject);
-            }
-
-            _ = await builder.CompleteAsync();
+            _ = await ExecuteSceneAsync(builder, metadata, firstWorkDirectory.Path, firstRunCityObjects);
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
-        await using (ResoniteLinkSceneBuilder builder = CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
         {
-            await builder.BeginAsync(metadata, secondWorkDirectory.Path);
-            foreach (ResoniteConstructionCityObject cityObject in secondRunCityObjects)
-            {
-                await builder.ProcessCityObjectAsync(cityObject);
-            }
-
-            _ = await builder.CompleteAsync();
+            _ = await ExecuteSceneAsync(builder, metadata, secondWorkDirectory.Path, secondRunCityObjects);
         }
+    }
+
+    public static Task<SceneImportExecutionResult> ExecuteSceneAsync(
+        ResoniteLiveSceneImportTarget builder,
+        ResoniteConstructionMetadata metadata,
+        string workDirectory,
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
+        CancellationToken cancellationToken = default)
+    {
+        return builder.ExecuteAsync(
+            CreateExecutionPlan(metadata, workDirectory),
+            CreateImportedCityObjectsAsync(cityObjects, cancellationToken),
+            cancellationToken);
+    }
+
+    public static SceneImportExecutionPlan CreateExecutionPlan(
+        ResoniteConstructionMetadata metadata,
+        string workDirectory,
+        PlateauImportRequest? normalizedRequest = null,
+        IPlateauDatasetContentSource? datasetContentSource = null)
+    {
+        return SceneImportExecutionPlan.Create(
+            normalizedRequest ?? metadata.Request,
+            SceneImportContractMapper.ToContract(metadata),
+            datasetContentSource ?? new TestDatasetContentSource(metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata))),
+            workDirectory);
     }
 
     public static Slot FindUniqueSlotByPathSuffix(SceneBuilderRecordingClient client, string suffix)
@@ -136,6 +145,15 @@ internal static class ResoniteLinkSceneBuilderTestSupport
             client.SlotsById.Values,
             slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
                 && path.EndsWith(suffix, StringComparison.Ordinal));
+    }
+
+    public static Slot[] FindSlotsByPathSuffix(SceneBuilderRecordingClient client, string suffix)
+    {
+        return client.SlotsById.Values
+            .Where(slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
+                && path.EndsWith(suffix, StringComparison.Ordinal))
+            .OrderBy(slot => GetSyntheticSlotSequence(slot.ID), Comparer<int>.Default)
+            .ToArray();
     }
 
     public static Slot FindUniqueSlotByNameOutsideAssets(SceneBuilderRecordingClient client, string name)
@@ -165,21 +183,46 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         return false;
     }
 
-    public static ResoniteLinkSceneBuilder CreateBuilder(
+    public static ResoniteLiveSceneImportTarget CreateBuilder(
         IResoniteLinkClient routedClient,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
         DelegatingClientSession? session = null)
     {
-        return new ResoniteLinkSceneBuilder(
+        return new ResoniteLiveSceneImportTarget(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLinkSceneBuilderDependencies(
+            new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
             enableMeshBake,
             progressReporter: null);
+    }
+
+    private static async IAsyncEnumerable<ImportedCityObject> CreateImportedCityObjectsAsync(
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return SceneImportContractMapper.ToContract(cityObject);
+        }
+    }
+
+    private static int GetSyntheticSlotSequence(string? slotId)
+    {
+        if (string.IsNullOrWhiteSpace(slotId))
+        {
+            return int.MinValue;
+        }
+
+        const string prefix = "srv_slot_";
+        return slotId.StartsWith(prefix, StringComparison.Ordinal)
+            && int.TryParse(slotId[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out int sequence)
+                ? sequence
+                : int.MinValue;
     }
 }
 
@@ -200,6 +243,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
     public List<ResoniteRawHdrTextureImport> ImportedRawHdrTextures { get; } = [];
 
     public List<IReadOnlyList<DataModelOperation>> Batches { get; } = [];
+
+    public List<UpdateComponent> UpdatedComponents { get; } = [];
 
     public Dictionary<string, Component> ComponentsById { get; } = new(StringComparer.Ordinal);
 
@@ -384,6 +429,17 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
         {
+            UpdatedComponents.Add(new UpdateComponent
+            {
+                Data = new Component
+                {
+                    ID = request.Data.ID,
+                    Members = request.Data.Members.ToDictionary(
+                        static pair => pair.Key,
+                        static pair => pair.Value,
+                        StringComparer.Ordinal),
+                },
+            });
             if (!ComponentsById.TryGetValue(request.Data.ID, out Component? existingComponent))
             {
                 return Task.CompletedTask;
@@ -534,8 +590,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 }
 
 internal sealed class RecordingTerrainTextureAssetGenerator(
-    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory,
-    ResoniteLicenseComponentMetadata? resolvedLicense = null) : ITerrainTextureAssetGenerator
+    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory) : ITerrainTextureAssetGenerator
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
@@ -547,21 +602,14 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
         RequestedOverlays.Add(terrainTextureOverlay);
         return Task.FromResult(textureFactory(terrainTextureOverlay));
     }
-
-    public void ResetUsageTracking()
-    {
-    }
-
-    public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
-    {
-        return resolvedLicense ?? baseLicense;
-    }
 }
 
 internal sealed class DelegatingClientSession(
     IResoniteLinkClient? routedClient = null,
     Func<PlateauImportRequest, CancellationToken, Task>? ensureConnectedAsync = null) : ILiveSendClientSession
 {
+    private readonly IResoniteLinkClient? defaultRoutedClient = routedClient;
+
     public IResoniteLinkClient? RoutedClient { get; set; } = routedClient;
 
     public int BeginWorkerClientTrackingCallCount { get; private set; }
@@ -569,6 +617,8 @@ internal sealed class DelegatingClientSession(
     public int EnsureConnectedCallCount { get; private set; }
 
     public int DisposeClientsCallCount { get; private set; }
+
+    public int ResetClientsCallCount { get; private set; }
 
     public List<PlateauImportRequest> EnsureConnectedRequests { get; } = [];
 
@@ -583,14 +633,52 @@ internal sealed class DelegatingClientSession(
     {
         EnsureConnectedCallCount++;
         EnsureConnectedRequests.Add(request);
+        RoutedClient ??= defaultRoutedClient;
         return ensureConnectedAsync is null
             ? Task.CompletedTask
             : ensureConnectedAsync(request, cancellationToken);
     }
 
+    public ValueTask ResetClientsAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ResetClientsCallCount++;
+        RoutedClient = null;
+        return ValueTask.CompletedTask;
+    }
+
     public void DisposeClients()
     {
         DisposeClientsCallCount++;
+        RoutedClient = null;
+    }
+}
+
+internal sealed class TestDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
+{
+    public string SourcePath { get; } = sourcePath;
+
+    public IReadOnlyList<string> EnumerateFiles()
+    {
+        return [];
+    }
+
+    public bool FileExists(string relativePath)
+    {
+        return false;
+    }
+
+    public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
+    }
+
+    public Task<string> MaterializeFileAsync(
+        string relativePath,
+        string outputRoot,
+        CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException();
     }
 }
 

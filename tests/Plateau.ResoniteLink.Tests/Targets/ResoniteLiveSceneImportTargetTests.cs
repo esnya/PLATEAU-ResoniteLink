@@ -6,7 +6,7 @@ namespace Plateau.ResoniteLink.Tests.Targets;
 
 [Collection(BundledCompanionTextureIsolationGroup.Name)]
 [Trait("Category", "Slow")]
-public sealed class ResoniteLinkSceneBuilderTests
+public sealed class ResoniteLiveSceneImportTargetTests
 {
     private const string DatasetName = "scene-test";
     private const string MeshCode = "53394525";
@@ -30,7 +30,7 @@ public sealed class ResoniteLinkSceneBuilderTests
                 ResoniteTextureColorProfiles.Srgb,
                 new byte[16],
                 $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"));
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -48,7 +48,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("dem-overlay-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -64,7 +64,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ],
             SourceObjectKey: "dem-overlay-source");
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -89,7 +89,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -127,7 +127,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ],
             SourceObjectKey: "heightmap-source");
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         ResoniteRawHdrTextureImport importedTexture = Assert.Single(client.ImportedRawHdrTextures);
         Assert.Equal(2, importedTexture.Width);
@@ -152,7 +152,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -169,7 +169,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("wireframe-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -185,7 +185,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             CollisionEnabled: false,
             SourceObjectKey: "no-collision-source");
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         Component collider = Assert.Single(
             client.AddedComponents.Where(request =>
@@ -200,12 +200,65 @@ public sealed class ResoniteLinkSceneBuilderTests
     }
 
     [Fact]
+    public async Task BuildAsyncResolvesPlannedIdsBeforeBatchExecution()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "planned-id-check",
+            DisplayName: "Planned Id Check",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    Family: BundledDefaultMaterialFamilies.Road),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "payload-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "payload/albedo"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1]),
+            ],
+            SourceObjectKey: "tag-source",
+            SourceFileRelativePath: sourceFile);
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false);
+
+        Assert.All(client.SlotsById.Values, static slot => AssertNoPlannedIds(slot));
+        Assert.All(client.ComponentsById.Values, static component => AssertNoPlannedReferences(component.Members.Values));
+    }
+
+    [Fact]
     public async Task BuildAsyncPlacesObjectUnderLodHierarchy()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -219,7 +272,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ActualMeshCode: MeshCode,
             LodLevel: 2,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("hierarchy-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("hierarchy-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -235,7 +288,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "hierarchy-source",
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         AddComponent meshRendererRequest = Assert.Single(
             client.AddedComponents,
@@ -253,7 +306,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -267,7 +320,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ActualMeshCode: MeshCode,
             LodLevel: 2,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("placeholder-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("placeholder-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -283,7 +336,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "placeholder-source",
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         Slot datasetRoot = Assert.Single(
             client.SlotsById.Values,
@@ -305,7 +358,7 @@ public sealed class ResoniteLinkSceneBuilderTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -320,7 +373,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ActualMeshCode: MeshCode,
             LodLevel: 1,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("non-baked-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("non-baked-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -336,7 +389,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "non-baked-source",
             SourceFileRelativePath: sourceFile);
 
-        await ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
             [cityObject],
             client,
@@ -358,7 +411,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -375,7 +428,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLinkSceneBuilderTestSupport.CreateTriangleMesh("only-submesh"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("only-submesh"),
             Materials:
             [
                 new ResoniteMaterialBinding(
@@ -391,7 +444,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "invalid-submesh-range");
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("targeted missing submesh index 1", exception.Message, StringComparison.Ordinal);
         Assert.Contains("material_bindings=[only-submesh[1]]", exception.Message, StringComparison.Ordinal);
@@ -402,7 +455,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -444,7 +497,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "invalid-submesh-duplicate");
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
@@ -455,7 +508,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -488,7 +541,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "invalid-submesh-unassigned");
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("left submesh index 1 without a material assignment", exception.Message, StringComparison.Ordinal);
         Assert.Contains("materials=1", exception.Message, StringComparison.Ordinal);
@@ -499,7 +552,7 @@ public sealed class ResoniteLinkSceneBuilderTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLinkSceneBuilderTestSupport.CreateMetadata(
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -548,7 +601,7 @@ public sealed class ResoniteLinkSceneBuilderTests
             SourceObjectKey: "invalid-empty-submesh");
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
-            () => ResoniteLinkSceneBuilderTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
         Assert.Contains("submeshes=0", exception.Message, StringComparison.Ordinal);
@@ -571,5 +624,28 @@ public sealed class ResoniteLinkSceneBuilderTests
                 new ResoniteMeshSubmesh(0, "first-material", [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, "second-material", [3, 4, 5]),
             ]);
+    }
+
+    private static void AssertNoPlannedIds(Slot slot)
+    {
+        Assert.False((slot.ID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+        Assert.False((slot.Parent?.TargetID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+        Assert.False((slot.Tag?.Value ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+    }
+
+    private static void AssertNoPlannedReferences(IEnumerable<Member> members)
+    {
+        foreach (Member member in members)
+        {
+            switch (member)
+            {
+                case Reference reference:
+                    Assert.False((reference.TargetID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+                    break;
+                case SyncList syncList:
+                    AssertNoPlannedReferences(syncList.Elements);
+                    break;
+            }
+        }
     }
 }

@@ -8,20 +8,20 @@ internal static class DemTerrainOverlaySurfaceClipper
 {
     private static readonly GeometryFactory GeometryFactory = new();
 
-    public static IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface,
+    public static IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
         IReadOnlyList<TerrainTextureOverlay> overlays)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(overlays);
 
-        List<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> results = [];
+        List<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> results = [];
         foreach (TerrainTextureOverlay overlay in overlays)
         {
             int polygonIndex = 0;
             foreach (Polygon polygon in ClipToOverlay(surface, overlay.GeographicBounds))
             {
-                LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices = polygon.Coordinates
+                LocalCityGmlObjectProjection.GeodeticPoint[] vertices = polygon.Coordinates
                     .Take(Math.Max(polygon.Coordinates.Length - 1, 0))
                     .Select(coordinate => ResolveSurfacePoint(surface, coordinate))
                     .Distinct()
@@ -37,7 +37,7 @@ internal static class DemTerrainOverlaySurfaceClipper
                     surface with
                     {
                         PolygonId = $"{surface.PolygonId}_{suffix}",
-                        ExteriorRing = new LocalCityGmlResonitePlanBuilder.ParsedRing(
+                        ExteriorRing = new LocalCityGmlObjectProjection.ParsedRing(
                             $"{surface.ExteriorRing.RingId}_{suffix}",
                             vertices,
                             UVs: null),
@@ -52,7 +52,7 @@ internal static class DemTerrainOverlaySurfaceClipper
     }
 
     private static IEnumerable<Polygon> ClipToOverlay(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface,
+        LocalCityGmlObjectProjection.ParsedSurface surface,
         GeographicRectangle rectangle)
     {
         if (surface.InteriorRings.Length != 0 || surface.ExteriorRing.Vertices.Length < 3)
@@ -105,7 +105,7 @@ internal static class DemTerrainOverlaySurfaceClipper
         }
     }
 
-    private static Coordinate[] ToClosedCoordinates(LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
+    private static Coordinate[] ToClosedCoordinates(LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
         Coordinate[] coordinates = new Coordinate[vertices.Length + 1];
         for (int index = 0; index < vertices.Length; index++)
@@ -117,11 +117,11 @@ internal static class DemTerrainOverlaySurfaceClipper
         return coordinates;
     }
 
-    private static LocalCityGmlResonitePlanBuilder.GeodeticPoint ResolveSurfacePoint(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface,
+    private static LocalCityGmlObjectProjection.GeodeticPoint ResolveSurfacePoint(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
         Coordinate coordinate)
     {
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
         for (int index = 0; index < vertices.Length; index++)
         {
             if (Approximately(vertices[index].Longitude, coordinate.X)
@@ -131,7 +131,7 @@ internal static class DemTerrainOverlaySurfaceClipper
             }
         }
 
-        if (TryResolveEdgePoint(vertices, coordinate, out LocalCityGmlResonitePlanBuilder.GeodeticPoint edgePoint))
+        if (TryResolveEdgePoint(vertices, coordinate, out LocalCityGmlObjectProjection.GeodeticPoint edgePoint))
         {
             return edgePoint;
         }
@@ -140,14 +140,14 @@ internal static class DemTerrainOverlaySurfaceClipper
     }
 
     private static bool TryResolveEdgePoint(
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices,
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices,
         Coordinate coordinate,
-        out LocalCityGmlResonitePlanBuilder.GeodeticPoint point)
+        out LocalCityGmlObjectProjection.GeodeticPoint point)
     {
         for (int index = 0; index < vertices.Length; index++)
         {
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint start = vertices[index];
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint end = vertices[(index + 1) % vertices.Length];
+            LocalCityGmlObjectProjection.GeodeticPoint start = vertices[index];
+            LocalCityGmlObjectProjection.GeodeticPoint end = vertices[(index + 1) % vertices.Length];
             double deltaLongitude = end.Longitude - start.Longitude;
             double deltaLatitude = end.Latitude - start.Latitude;
             double edgeLengthSquared = (deltaLongitude * deltaLongitude) + (deltaLatitude * deltaLatitude);
@@ -170,7 +170,7 @@ internal static class DemTerrainOverlaySurfaceClipper
             }
 
             ratio = Math.Clamp(ratio, 0.0, 1.0);
-            point = new LocalCityGmlResonitePlanBuilder.GeodeticPoint(
+            point = new LocalCityGmlObjectProjection.GeodeticPoint(
                 coordinate.Y,
                 coordinate.X,
                 start.Altitude + ((end.Altitude - start.Altitude) * ratio));
@@ -181,25 +181,25 @@ internal static class DemTerrainOverlaySurfaceClipper
         return false;
     }
 
-    private static LocalCityGmlResonitePlanBuilder.GeodeticPoint ResolvePlanarPoint(
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices,
+    private static LocalCityGmlObjectProjection.GeodeticPoint ResolvePlanarPoint(
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices,
         Coordinate coordinate)
     {
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint origin = vertices[0];
+        LocalCityGmlObjectProjection.GeodeticPoint origin = vertices[0];
         for (int index = 1; index + 1 < vertices.Length; index++)
         {
-            if (TryResolveTrianglePoint(origin, vertices[index], vertices[index + 1], coordinate, out LocalCityGmlResonitePlanBuilder.GeodeticPoint point))
+            if (TryResolveTrianglePoint(origin, vertices[index], vertices[index + 1], coordinate, out LocalCityGmlObjectProjection.GeodeticPoint point))
             {
                 return point;
             }
         }
 
-        return new LocalCityGmlResonitePlanBuilder.GeodeticPoint(coordinate.Y, coordinate.X, origin.Altitude);
+        return new LocalCityGmlObjectProjection.GeodeticPoint(coordinate.Y, coordinate.X, origin.Altitude);
     }
 
-    private static LocalCityGmlResonitePlanBuilder.GeodeticPoint[] PreserveSurfaceWinding(
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] sourceVertices,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] clippedVertices)
+    private static LocalCityGmlObjectProjection.GeodeticPoint[] PreserveSurfaceWinding(
+        LocalCityGmlObjectProjection.GeodeticPoint[] sourceVertices,
+        LocalCityGmlObjectProjection.GeodeticPoint[] clippedVertices)
     {
         if (clippedVertices.Length < 3)
         {
@@ -218,12 +218,12 @@ internal static class DemTerrainOverlaySurfaceClipper
             return clippedVertices;
         }
 
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] reversed = (LocalCityGmlResonitePlanBuilder.GeodeticPoint[])clippedVertices.Clone();
+        LocalCityGmlObjectProjection.GeodeticPoint[] reversed = (LocalCityGmlObjectProjection.GeodeticPoint[])clippedVertices.Clone();
         Array.Reverse(reversed);
         return reversed;
     }
 
-    private static double ComputeSignedArea(LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
+    private static double ComputeSignedArea(LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
         if (vertices.Length < 3)
         {
@@ -233,8 +233,8 @@ internal static class DemTerrainOverlaySurfaceClipper
         double signedArea = 0.0;
         for (int index = 0; index < vertices.Length; index++)
         {
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint current = vertices[index];
-            LocalCityGmlResonitePlanBuilder.GeodeticPoint next = vertices[(index + 1) % vertices.Length];
+            LocalCityGmlObjectProjection.GeodeticPoint current = vertices[index];
+            LocalCityGmlObjectProjection.GeodeticPoint next = vertices[(index + 1) % vertices.Length];
             signedArea += (current.Longitude * next.Latitude) - (next.Longitude * current.Latitude);
         }
 
@@ -242,11 +242,11 @@ internal static class DemTerrainOverlaySurfaceClipper
     }
 
     private static bool TryResolveTrianglePoint(
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint a,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint b,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint c,
+        LocalCityGmlObjectProjection.GeodeticPoint a,
+        LocalCityGmlObjectProjection.GeodeticPoint b,
+        LocalCityGmlObjectProjection.GeodeticPoint c,
         Coordinate coordinate,
-        out LocalCityGmlResonitePlanBuilder.GeodeticPoint point)
+        out LocalCityGmlObjectProjection.GeodeticPoint point)
     {
         double denominator =
             ((b.Latitude - c.Latitude) * (a.Longitude - c.Longitude))
@@ -274,7 +274,7 @@ internal static class DemTerrainOverlaySurfaceClipper
         }
 
         double altitude = (a.Altitude * weightA) + (b.Altitude * weightB) + (c.Altitude * weightC);
-        point = new LocalCityGmlResonitePlanBuilder.GeodeticPoint(coordinate.Y, coordinate.X, altitude);
+        point = new LocalCityGmlObjectProjection.GeodeticPoint(coordinate.Y, coordinate.X, altitude);
         return true;
     }
 

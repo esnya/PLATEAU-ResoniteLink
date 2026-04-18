@@ -28,7 +28,7 @@ public static class LocalCityGmlSourceFileDiscovery
                 PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames),
                 StringComparer.OrdinalIgnoreCase);
 
-        CandidateSourceFile[] candidates = Directory
+        LocalCityGmlDatasetSourceFileCandidate[] candidates = Directory
             .EnumerateFiles(datasetRoot, "*.gml", SearchOption.AllDirectories)
             .Select(path => CreateCandidateSourceFile(datasetRoot, path, requestedPackageNames))
             .Where(static candidate => candidate is not null)
@@ -47,20 +47,29 @@ public static class LocalCityGmlSourceFileDiscovery
         ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
         MeshCodeRequestMatcher matcher = CreateMatcher(meshCode);
+        LocalCityGmlDatasetSourceFileCandidate[] candidates = EnumerateCandidates(relativePaths, packageNames).ToArray();
+
+        return CreateSourceFileDiscoveryResult(candidates, matcher);
+    }
+
+    internal static IReadOnlyList<LocalCityGmlDatasetSourceFileCandidate> EnumerateCandidates(
+        IEnumerable<string> relativePaths,
+        IReadOnlyList<string>? packageNames)
+    {
+        ArgumentNullException.ThrowIfNull(relativePaths);
+
         HashSet<string>? requestedPackageNames = packageNames is null
             ? null
             : new HashSet<string>(
                 PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames),
                 StringComparer.OrdinalIgnoreCase);
 
-        CandidateSourceFile[] candidates = relativePaths
+        return relativePaths
             .Where(path => path.EndsWith(".gml", StringComparison.OrdinalIgnoreCase))
             .Select(path => CreateCandidateSourceFileFromRelativePath(path, requestedPackageNames))
             .Where(static candidate => candidate is not null)
             .Select(static candidate => candidate!)
             .ToArray();
-
-        return CreateSourceFileDiscoveryResult(candidates, matcher);
     }
 
     private static MeshCodeRequestMatcher CreateMatcher(string meshCode)
@@ -81,7 +90,7 @@ public static class LocalCityGmlSourceFileDiscovery
     }
 
     private static LocalCityGmlSourceFileDiscoveryResult CreateSourceFileDiscoveryResult(
-        CandidateSourceFile[] candidates,
+        LocalCityGmlDatasetSourceFileCandidate[] candidates,
         MeshCodeRequestMatcher matcher)
     {
         string[] requestedMeshCodes = candidates
@@ -92,6 +101,7 @@ public static class LocalCityGmlSourceFileDiscovery
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
             .ToArray();
+        ResoniteLocalOrigin? requestedCenter = TryResolveRequestedCenter(matcher.Input, requestedMeshCodes);
         HashSet<string> requestedMeshCodeSet = requestedMeshCodes.ToHashSet(StringComparer.Ordinal);
         HashSet<string> parentMeshCodes = requestedMeshCodes
             .Where(static matchedMeshCode => matchedMeshCode.Length == 8)
@@ -102,14 +112,14 @@ public static class LocalCityGmlSourceFileDiscovery
             .Select(candidate => CreateSourceFileDescriptor(candidate, matcher, requestedMeshCodeSet, parentMeshCodes))
             .Where(static descriptor => descriptor is not null)
             .Select(static descriptor => descriptor!)
-            .OrderBy(static descriptor => GetPackageSendPriority(descriptor.PackageName))
+            .OrderBy(descriptor => GetMeshCodeCenterDistanceSquared(descriptor, requestedCenter))
             .ThenBy(static descriptor => descriptor.RelativePath, StringComparer.Ordinal)
             .ToArray();
 
         return new LocalCityGmlSourceFileDiscoveryResult(sourceFiles, requestedMeshCodes);
     }
 
-    private static CandidateSourceFile? CreateCandidateSourceFile(
+    private static LocalCityGmlDatasetSourceFileCandidate? CreateCandidateSourceFile(
         string datasetRoot,
         string path,
         HashSet<string>? requestedPackageNames)
@@ -118,7 +128,7 @@ public static class LocalCityGmlSourceFileDiscovery
         return CreateCandidateSourceFileCore(path, relativePath, requestedPackageNames);
     }
 
-    private static CandidateSourceFile? CreateCandidateSourceFileFromRelativePath(
+    private static LocalCityGmlDatasetSourceFileCandidate? CreateCandidateSourceFileFromRelativePath(
         string relativePath,
         HashSet<string>? requestedPackageNames)
     {
@@ -126,7 +136,7 @@ public static class LocalCityGmlSourceFileDiscovery
         return CreateCandidateSourceFileCore(normalizedPath, normalizedPath, requestedPackageNames);
     }
 
-    private static CandidateSourceFile? CreateCandidateSourceFileCore(
+    private static LocalCityGmlDatasetSourceFileCandidate? CreateCandidateSourceFileCore(
         string absolutePath,
         string relativePath,
         HashSet<string>? requestedPackageNames)
@@ -155,7 +165,7 @@ public static class LocalCityGmlSourceFileDiscovery
             return null;
         }
 
-        return new CandidateSourceFile(
+        return new LocalCityGmlDatasetSourceFileCandidate(
             absolutePath,
             relativePath,
             packageName,
@@ -165,7 +175,7 @@ public static class LocalCityGmlSourceFileDiscovery
     }
 
     private static LocalCityGmlSourceFileDescriptor? CreateSourceFileDescriptor(
-        CandidateSourceFile candidate,
+        LocalCityGmlDatasetSourceFileCandidate candidate,
         MeshCodeRequestMatcher matcher,
         IReadOnlySet<string> requestedMeshCodes,
         IReadOnlySet<string> parentMeshCodes)
@@ -215,11 +225,55 @@ public static class LocalCityGmlSourceFileDiscovery
             .ToArray();
     }
 
-    private static int GetPackageSendPriority(string packageName)
+    private static ResoniteLocalOrigin? TryResolveRequestedCenter(
+        string inputMeshCode,
+        IReadOnlyList<string> requestedMeshCodes)
     {
-        return string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? 0
-            : 1;
+        if (PlateauMeshCode.TryGetCenter(inputMeshCode, out ResoniteLocalOrigin literalCenter))
+        {
+            return literalCenter;
+        }
+
+        List<(double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude)> bounds = [];
+        foreach (string requestedMeshCode in requestedMeshCodes)
+        {
+            if (PlateauMeshCode.TryGetBounds(
+                    requestedMeshCode,
+                    out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) resolvedBounds))
+            {
+                bounds.Add(resolvedBounds);
+            }
+        }
+
+        if (bounds.Count == 0)
+        {
+            return null;
+        }
+
+        double southLatitude = bounds.Min(static bound => bound.SouthLatitude);
+        double northLatitude = bounds.Max(static bound => bound.NorthLatitude);
+        double westLongitude = bounds.Min(static bound => bound.WestLongitude);
+        double eastLongitude = bounds.Max(static bound => bound.EastLongitude);
+
+        return new ResoniteLocalOrigin(
+            Latitude: (southLatitude + northLatitude) / 2.0,
+            Longitude: (westLongitude + eastLongitude) / 2.0,
+            Altitude: 0.0);
+    }
+
+    private static double GetMeshCodeCenterDistanceSquared(
+        LocalCityGmlSourceFileDescriptor descriptor,
+        ResoniteLocalOrigin? requestedCenter)
+    {
+        if (requestedCenter is null
+            || !PlateauMeshCode.TryGetCenter(descriptor.MatchedMeshCode, out ResoniteLocalOrigin meshCenter))
+        {
+            return double.PositiveInfinity;
+        }
+
+        double latitudeDelta = meshCenter.Latitude - requestedCenter.Latitude;
+        double longitudeDelta = meshCenter.Longitude - requestedCenter.Longitude;
+        return (latitudeDelta * latitudeDelta) + (longitudeDelta * longitudeDelta);
     }
 
     private static string NormalizePath(string path)
@@ -237,14 +291,6 @@ public static class LocalCityGmlSourceFileDiscovery
             }
         }
     }
-
-    private sealed record CandidateSourceFile(
-        string AbsolutePath,
-        string RelativePath,
-        string PackageName,
-        bool IsRequestedPackage,
-        string[] FileMeshCodes,
-        string[] DirectoryMeshCodes);
 
     private sealed class MeshCodeRequestMatcher
     {
@@ -333,6 +379,14 @@ public static class LocalCityGmlSourceFileDiscovery
         }
     }
 }
+
+internal sealed record LocalCityGmlDatasetSourceFileCandidate(
+    string AbsolutePath,
+    string RelativePath,
+    string PackageName,
+    bool IsRequestedPackage,
+    string[] FileMeshCodes,
+    string[] DirectoryMeshCodes);
 
 public sealed record LocalCityGmlSourceFileDescriptor(
     string AbsolutePath,

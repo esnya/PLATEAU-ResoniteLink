@@ -1,32 +1,13 @@
 using Plateau.ResoniteLink.Domain.Importing;
-using Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public static partial class LocalCityGmlResonitePlanBuilder
+public static partial class LocalCityGmlObjectProjection
 {
-    public static Task<IResoniteConstructionSource> CreateConstructionSourceAsync(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        return PlateauCityGmlComposition.CreateConstructionSourceFactory().CreateAsync(
-            request,
-            progressReporter,
-            cancellationToken);
-    }
-
-    public static IResoniteConstructionSource CreateConstructionSource(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null)
-    {
-        return CreateConstructionSourceAsync(request, progressReporter).GetAwaiter().GetResult();
-    }
-
     internal static async Task<SourceFilePipeline[]> CreateSourceFilePipelinesAsync(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
@@ -45,7 +26,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     internal static Task<ParsedSourceFileResult> ParseSourceFileAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
         CancellationToken cancellationToken)
@@ -67,7 +48,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     internal static IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsAsync(
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
         CancellationToken cancellationToken = default)
     {

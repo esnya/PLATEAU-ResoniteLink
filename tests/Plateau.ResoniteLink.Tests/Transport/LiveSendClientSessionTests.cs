@@ -134,6 +134,33 @@ public sealed class LiveSendClientSessionTests
             () => session.EnsureConnectedAsync(request, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ResetClientsAsyncDisposesConnectedRoutesAndAllowsFreshReconnect()
+    {
+        RecordingClientFactory clientFactory = new([new(true), new(true), new(true), new(true)]);
+        using LiveSendClientSession session = new(
+            clientFactory.Create,
+            new Uri("ws://localhost:12345/"),
+            connectionCount: 2,
+            progressReporter: null);
+
+        PlateauImportRequest request = CreateRequest();
+
+        await session.EnsureConnectedAsync(request, CancellationToken.None);
+        RecordingResoniteLinkClient[] firstClients = clientFactory.CreatedClients.ToArray();
+
+        await session.ResetClientsAsync(CancellationToken.None);
+
+        Assert.Null(session.RoutedClient);
+        Assert.All(firstClients, client => Assert.True(client.Disposed));
+
+        await session.EnsureConnectedAsync(request, CancellationToken.None);
+
+        Assert.Equal(4, clientFactory.CreatedClients.Count);
+        Assert.NotNull(session.RoutedClient);
+        Assert.All(clientFactory.CreatedClients.Skip(2), client => Assert.Equal(1, client.ConnectCallCount));
+    }
+
     private static PlateauImportRequest CreateRequest()
     {
         return new PlateauImportRequest(

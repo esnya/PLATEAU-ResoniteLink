@@ -8,20 +8,11 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$runtimeRoot = Join-Path (Resolve-Path -LiteralPath $RepoPath).Path 'runtime\windows\headless'
+$helperPath = Join-Path $PSScriptRoot 'windows-build-tools.ps1'
+. $helperPath
 
-function Resolve-StatePath {
-    param(
-        [string]$ConfiguredStatePath,
-        [string]$RuntimeRootPath
-    )
-
-    if (-not [string]::IsNullOrWhiteSpace($ConfiguredStatePath)) {
-        return $ConfiguredStatePath
-    }
-
-    return (Join-Path $RuntimeRootPath 'active-session.json')
-}
+$repoRoot = Resolve-RepoRoot -RepoPath $RepoPath
+$runtimeRoot = Resolve-HeadlessRuntimeRoot -RepoRoot $repoRoot
 
 function Resolve-TrackedProcessId {
     param(

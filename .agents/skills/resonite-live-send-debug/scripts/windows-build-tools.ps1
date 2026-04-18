@@ -1,3 +1,44 @@
+function Resolve-RepoRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath
+    )
+
+    return (Resolve-Path -LiteralPath $RepoPath).Path
+}
+
+function Resolve-HeadlessRuntimeRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    return (Join-Path $RepoRoot 'runtime\windows\headless')
+}
+
+function Resolve-ResoniteRuntimeRoot {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    return (Join-Path $RepoRoot 'runtime\windows\resonite')
+}
+
+function Resolve-StatePath {
+    param(
+        [string]$ConfiguredStatePath,
+        [Parameter(Mandatory = $true)]
+        [string]$RuntimeRootPath
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ConfiguredStatePath)) {
+        return $ConfiguredStatePath
+    }
+
+    return (Join-Path $RuntimeRootPath 'active-session.json')
+}
+
 function Resolve-DotNetCommandPath {
     $candidates = @()
 
@@ -38,54 +79,60 @@ function Resolve-DotNetCommandPath {
 
 function Ensure-WindowsBuildOutput {
     param(
+        [Parameter(Mandatory = $true)]
         [string]$DotNetPath,
+        [Parameter(Mandatory = $true)]
         [string]$ProjectPath,
+        [Parameter(Mandatory = $true)]
         [string]$ExpectedDllPath,
-        [string]$ToolName = 'Windows build'
+        [string]$ToolName = 'Windows build',
+        [switch]$SkipBuild
     )
 
-    foreach ($commandSpec in @(
-        @{
-            Kind      = 'restore'
-            Arguments = @('restore', $ProjectPath, '-p:RepositoryHostOs=windows', '--force-evaluate', '-v', 'minimal')
-        },
-        @{
-            Kind      = 'build'
-            Arguments = @('build', $ProjectPath, '-c', 'Release', '-p:RepositoryHostOs=windows', '--no-restore')
-        }
-    )) {
-        $stdoutPath = [System.IO.Path]::GetTempFileName()
-        $stderrPath = [System.IO.Path]::GetTempFileName()
-
-        try {
-            $process = Start-Process `
-                -FilePath $DotNetPath `
-                -ArgumentList $commandSpec.Arguments `
-                -Wait `
-                -PassThru `
-                -RedirectStandardOutput $stdoutPath `
-                -RedirectStandardError $stderrPath
-
-            if (Test-Path -LiteralPath $stdoutPath) {
-                Get-Content -LiteralPath $stdoutPath | Out-Host
+    if (-not $SkipBuild) {
+        foreach ($commandSpec in @(
+            @{
+                Kind      = 'restore'
+                Arguments = @('restore', $ProjectPath, '-p:RepositoryHostOs=windows', '--force-evaluate', '-v', 'minimal')
+            },
+            @{
+                Kind      = 'build'
+                Arguments = @('build', $ProjectPath, '-c', 'Release', '-p:RepositoryHostOs=windows', '--no-restore')
             }
+        )) {
+            $stdoutPath = [System.IO.Path]::GetTempFileName()
+            $stderrPath = [System.IO.Path]::GetTempFileName()
 
-            if (Test-Path -LiteralPath $stderrPath) {
-                Get-Content -LiteralPath $stderrPath | Out-Host
+            try {
+                $process = Start-Process `
+                    -FilePath $DotNetPath `
+                    -ArgumentList $commandSpec.Arguments `
+                    -Wait `
+                    -PassThru `
+                    -RedirectStandardOutput $stdoutPath `
+                    -RedirectStandardError $stderrPath
+
+                if (Test-Path -LiteralPath $stdoutPath) {
+                    Get-Content -LiteralPath $stdoutPath | Out-Host
+                }
+
+                if (Test-Path -LiteralPath $stderrPath) {
+                    Get-Content -LiteralPath $stderrPath | Out-Host
+                }
+
+                $exitCode = $process.ExitCode
             }
-
-            $exitCode = $process.ExitCode
-        }
-        finally {
-            foreach ($tempPath in @($stdoutPath, $stderrPath)) {
-                if (Test-Path -LiteralPath $tempPath) {
-                    Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+            finally {
+                foreach ($tempPath in @($stdoutPath, $stderrPath)) {
+                    if (Test-Path -LiteralPath $tempPath) {
+                        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+                    }
                 }
             }
-        }
 
-        if ($exitCode -ne 0) {
-            throw "$ToolName $($commandSpec.Kind) failed before launch. ExitCode=$exitCode"
+            if ($exitCode -ne 0) {
+                throw "$ToolName $($commandSpec.Kind) failed before launch. ExitCode=$exitCode"
+            }
         }
     }
 
@@ -96,32 +143,104 @@ function Ensure-WindowsBuildOutput {
     return (Get-Item -LiteralPath $ExpectedDllPath)
 }
 
-function Resolve-ResoniteAdminOutputPaths {
+function Resolve-ResoniteSessionToolOutputPaths {
     param(
+        [Parameter(Mandatory = $true)]
         [string]$RepoRoot,
         [string]$Configuration = 'Release'
     )
 
-    $outputRoot = Join-Path $RepoRoot ("artifacts\build\windows\bin\ResoniteAdmin\{0}\net10.0" -f $Configuration)
+    $outputRoot = Join-Path $RepoRoot ("artifacts\build\windows\bin\ResoniteSessionTool\{0}\net10.0" -f $Configuration)
     [pscustomobject]@{
-        DllPath = (Join-Path $outputRoot 'ResoniteAdmin.dll')
-        ExePath = (Join-Path $outputRoot 'ResoniteAdmin.exe')
+        DllPath = (Join-Path $outputRoot 'ResoniteSessionTool.dll')
+        ExePath = (Join-Path $outputRoot 'ResoniteSessionTool.exe')
     }
 }
 
-function Ensure-ResoniteAdminBuildOutput {
+function Ensure-ResoniteSessionToolBuildOutput {
     param(
+        [Parameter(Mandatory = $true)]
         [string]$DotNetPath,
+        [Parameter(Mandatory = $true)]
         [string]$ProjectPath,
+        [Parameter(Mandatory = $true)]
         [string]$RepoRoot
     )
 
-    $paths = Resolve-ResoniteAdminOutputPaths -RepoRoot $RepoRoot
+    $paths = Resolve-ResoniteSessionToolOutputPaths -RepoRoot $RepoRoot
     $dll = Ensure-WindowsBuildOutput `
         -DotNetPath $DotNetPath `
         -ProjectPath $ProjectPath `
         -ExpectedDllPath $paths.DllPath `
-        -ToolName 'ResoniteAdmin'
+        -ToolName 'ResoniteSessionTool'
+
+    [pscustomobject]@{
+        DllPath          = $dll.FullName
+        DllLastWriteTime = $dll.LastWriteTime
+        ExePath          = if (Test-Path -LiteralPath $paths.ExePath -PathType Leaf) {
+            (Get-Item -LiteralPath $paths.ExePath).FullName
+        }
+        else {
+            $null
+        }
+    }
+}
+
+function Get-BuiltDotNetToolLaunchSpec {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DotNetPath,
+        [Parameter(Mandatory = $true)]
+        [psobject]$ToolBuild,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ToolBuild.ExePath)) {
+        return [pscustomobject]@{
+            FilePath = $ToolBuild.ExePath
+            Arguments = $Arguments
+        }
+    }
+
+    return [pscustomobject]@{
+        FilePath = $DotNetPath
+        Arguments = @($ToolBuild.DllPath) + $Arguments
+    }
+}
+
+function Resolve-LiveSendCliOutputPaths {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+        [string]$Configuration = 'Release'
+    )
+
+    $outputRoot = Join-Path $RepoRoot ("artifacts\build\windows\bin\Plateau.ResoniteLink.Cli\{0}\net10.0" -f $Configuration)
+    [pscustomobject]@{
+        DllPath = (Join-Path $outputRoot 'Plateau.ResoniteLink.Cli.dll')
+        ExePath = (Join-Path $outputRoot 'Plateau.ResoniteLink.Cli.exe')
+    }
+}
+
+function Ensure-LiveSendCliBuildOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DotNetPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPath,
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+        [switch]$SkipBuild
+    )
+
+    $paths = Resolve-LiveSendCliOutputPaths -RepoRoot $RepoRoot
+    $dll = Ensure-WindowsBuildOutput `
+        -DotNetPath $DotNetPath `
+        -ProjectPath $ProjectPath `
+        -ExpectedDllPath $paths.DllPath `
+        -ToolName 'PLATEAU-ResoniteLink CLI' `
+        -SkipBuild:$SkipBuild
 
     [pscustomobject]@{
         DllPath          = $dll.FullName
