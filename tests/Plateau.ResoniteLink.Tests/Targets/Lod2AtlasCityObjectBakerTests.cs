@@ -74,6 +74,35 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncPreservesDetectedBackgroundColorInTransparentTilePixels()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-transparent",
+                CreatePayload(
+                    "textures/transparent-edge.png",
+                    [
+                        new Rgba32(255, 0, 0, 255),
+                        new Rgba32(0, 0, 0, 0),
+                    ],
+                    2,
+                    1),
+                0,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+
+        Assert.Equal(2, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 0), ReadPixel(atlasPayload, 1, 0));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncKeepsCommonMaterialsAsSeparateSubmeshesWhileAtlasingDedicatedMaterials()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -193,6 +222,21 @@ public sealed class Lod2AtlasCityObjectBakerTests
     private static ResoniteTexturePayload CreatePayload(string identity, Rgba32 color, int width, int height)
     {
         using Image<Rgba32> image = new(width, height, color);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private static ResoniteTexturePayload CreatePayload(string identity, IReadOnlyList<Rgba32> pixels, int width, int height)
+    {
+        Assert.Equal(width * height, pixels.Count);
+        using Image<Rgba32> image = new(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                image[x, y] = pixels[(y * width) + x];
+            }
+        }
+
         return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
     }
 
