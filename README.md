@@ -14,6 +14,7 @@ Shipped:
 - Treat `--resonitelink-connections` as a shipped live-send option.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
+- When multiple source files match a requested area, order them from the requested center outward instead of prioritizing DEM globally.
 - Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
 
 Pending:
