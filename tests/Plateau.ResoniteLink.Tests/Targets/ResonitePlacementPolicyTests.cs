@@ -40,12 +40,20 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
-    public void NormalizeMeshRootPosition_PreservesVerticalOffset()
+    public void ResolveMeshRootPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
-        Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3 normalized = Plateau.ResoniteLink.Targets.Resonite.ResonitePlacementPolicy.NormalizeMeshRootPosition(
-            new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(10.0, 5.0, -3.0));
+        Plateau.ResoniteLink.Domain.Importing.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        Plateau.ResoniteLink.Domain.Importing.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3 resolved = Plateau.ResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(
+            requestOrigin,
+            "53394525",
+            observedRootHeight: 5.0);
+        Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3 expectedOffset =
+            Plateau.ResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
 
-        Assert.Equal(new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(10.0, 5.0, -3.0), normalized);
+        Assert.Equal(expectedOffset.X, resolved.X, 6);
+        Assert.Equal(5.0, resolved.Y, 6);
+        Assert.Equal(expectedOffset.Z, resolved.Z, 6);
     }
 
     [Fact]

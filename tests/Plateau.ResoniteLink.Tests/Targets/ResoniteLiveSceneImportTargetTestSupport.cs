@@ -147,6 +147,15 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 && path.EndsWith(suffix, StringComparison.Ordinal));
     }
 
+    public static Slot[] FindSlotsByPathSuffix(SceneBuilderRecordingClient client, string suffix)
+    {
+        return client.SlotsById.Values
+            .Where(slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
+                && path.EndsWith(suffix, StringComparison.Ordinal))
+            .OrderBy(slot => GetSyntheticSlotSequence(slot.ID), Comparer<int>.Default)
+            .ToArray();
+    }
+
     public static Slot FindUniqueSlotByNameOutsideAssets(SceneBuilderRecordingClient client, string name)
     {
         return Assert.Single(
@@ -200,6 +209,20 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             cancellationToken.ThrowIfCancellationRequested();
             yield return SceneImportContractMapper.ToContract(cityObject);
         }
+    }
+
+    private static int GetSyntheticSlotSequence(string? slotId)
+    {
+        if (string.IsNullOrWhiteSpace(slotId))
+        {
+            return int.MinValue;
+        }
+
+        const string prefix = "srv_slot_";
+        return slotId.StartsWith(prefix, StringComparison.Ordinal)
+            && int.TryParse(slotId[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out int sequence)
+                ? sequence
+                : int.MinValue;
     }
 }
 

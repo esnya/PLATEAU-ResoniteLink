@@ -139,9 +139,21 @@ internal static class ResonitePlacementPolicy
         return Subtract(cityObjectPosition, rootPosition);
     }
 
-    public static ResoniteFloat3 NormalizeMeshRootPosition(ResoniteFloat3 position)
+    public static ResoniteFloat3 ResolveMeshRootPosition(
+        ResoniteLocalOrigin requestOrigin,
+        string rootMeshCode,
+        double? observedRootHeight = null)
     {
-        return position;
+        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
+        {
+            return new ResoniteFloat3(0.0, observedRootHeight ?? 0.0, 0.0);
+        }
+
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        return new ResoniteFloat3(
+            rootOffsetFromRequest.X,
+            observedRootHeight ?? rootOffsetFromRequest.Y,
+            rootOffsetFromRequest.Z);
     }
 
     public static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
