@@ -10,6 +10,7 @@ This README is the canonical human-readable scope statement for the current `bet
 
 Shipped:
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
+- Inspect local dataset directories or local ZIP/7z archives with built-in `search` and `stats` commands before import.
 - Treat `--resonitelink-connections` as a shipped live-send option.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
@@ -68,6 +69,23 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 ```
 
 `--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search.
+
+Local inspection examples:
+
+```bash
+dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+  search \
+  --local-source-path /path/to/plateau-or-archive.zip \
+  --mesh-code 5437277.
+```
+
+```bash
+dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+  stats \
+  --local-source-path /path/to/plateau-or-archive.zip
+```
+
+`search` and `stats` inspect local dataset directories and local `.zip` / `.7z` archives. Remote import still requires an explicit direct archive URL.
 
 By default, the CLI prints milestone-level progress and keeps detailed per-file and live-send trace logs hidden. Add `--verbose` when you need the debug-level import and ResoniteLink trace output.
 

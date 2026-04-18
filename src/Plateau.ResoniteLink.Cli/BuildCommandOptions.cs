@@ -9,4 +9,4 @@ public sealed record BuildCommandOptions(
     int ResoniteLinkConnectionCount,
     bool EnableMeshBake,
     bool EnableSendMetrics,
-    bool VerboseLogging);
+    bool VerboseLogging) : CliCommandOptions;

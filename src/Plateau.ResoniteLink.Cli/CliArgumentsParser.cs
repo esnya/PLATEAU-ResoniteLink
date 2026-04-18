@@ -12,8 +12,10 @@ public static class CliArgumentsParser
 
         Usage:
           plateau-resonitelink build --dataset <dataset> --mesh-code <mesh-code> [options]
+          plateau-resonitelink search --local-source-path <path> --mesh-code <mesh-code> [options]
+          plateau-resonitelink stats --local-source-path <path> [options]
 
-        Options:
+        Build options:
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
@@ -34,16 +36,24 @@ public static class CliArgumentsParser
           --dem-heightmap-max-resolution <value>
                                 Optional. Maximum heightmap resolution per DEM chunk. Default: 1024.
           --local-source-path <path>
-                               Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
+                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
           --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
           --work-root <path>     Optional. Parent directory for dataset-local archive storage and live temporary files. Default: local.
           --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
-                                                             Optional. Parallel ResoniteLink connection count for live sends. Default: 1.
-          --no-mesh-bake       Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
+                                Optional. Parallel ResoniteLink connection count for live sends. Default: 1.
+          --no-mesh-bake         Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.
+
+        Search/stats options:
+          --local-source-path <path>
+                                Required. Local dataset directory or .zip/.7z archive to inspect.
+          --mesh-code <value>    Required for search. PLATEAU mesh code or regex to search within the dataset source.
+          --packages <csv>       Optional. Restrict inspection to specific PLATEAU packages.
+          --format <text|json>   Optional. Output format. Default: text.
+
           -h, --help             Show this help text.
         """;
 
@@ -56,11 +66,17 @@ public static class CliArgumentsParser
             return CliParseResult.Help();
         }
 
-        if (!string.Equals(args[0], "build", StringComparison.OrdinalIgnoreCase))
+        return args[0].ToLowerInvariant() switch
         {
-            return CliParseResult.Failure($"Unknown command '{args[0]}'.");
-        }
+            "build" => ParseBuild(args),
+            "search" => ParseSearch(args),
+            "stats" => ParseStats(args),
+            _ => CliParseResult.Failure($"Unknown command '{args[0]}'."),
+        };
+    }
 
+    private static CliParseResult ParseBuild(string[] args)
+    {
         string? dataset = null;
         string? meshCode = null;
         string? localSourcePath = null;
@@ -290,7 +306,7 @@ public static class CliArgumentsParser
                         {
                             if (TryParsePackagePatternOption(token, args, ref index, out string? packageName, out string? patternValue))
                             {
-                                packagePatterns ??= new();
+                                packagePatterns ??= new(StringComparer.OrdinalIgnoreCase);
                                 packagePatterns[packageName!] = patternValue!;
                                 break;
                             }
@@ -348,6 +364,153 @@ public static class CliArgumentsParser
                 enableMeshBake,
                 enableSendMetrics,
                 verboseLogging));
+    }
+
+    private static CliParseResult ParseSearch(string[] args)
+    {
+        string? localSourcePath = null;
+        string? meshCode = null;
+        IReadOnlyList<string>? packageNames = null;
+        CliOutputFormat outputFormat = CliOutputFormat.Text;
+
+        try
+        {
+            for (int index = 1; index < args.Length; index++)
+            {
+                string token = args[index];
+                switch (token)
+                {
+                    case "-h":
+                    case "--help":
+                        return CliParseResult.Help();
+                    case "--local-source-path":
+                        localSourcePath = ReadValue(args, ref index, token);
+                        break;
+                    case "--mesh-code":
+                        meshCode = ReadValue(args, ref index, token);
+                        break;
+                    case "--packages":
+                        {
+                            string packageValue = ReadValue(args, ref index, token);
+                            packageNames = ParsePackageNames(packageValue, out string? packageError);
+                            if (packageError is not null)
+                            {
+                                return CliParseResult.Failure(packageError);
+                            }
+
+                            break;
+                        }
+                    case "--format":
+                        {
+                            string formatValue = ReadValue(args, ref index, token);
+                            if (!TryParseOutputFormat(formatValue, out outputFormat))
+                            {
+                                return CliParseResult.Failure(
+                                    $"Unsupported output format '{formatValue}'. Use 'text' or 'json'.");
+                            }
+
+                            break;
+                        }
+                    default:
+                        return CliParseResult.Failure($"Unknown option '{token}'.");
+                }
+            }
+        }
+        catch (ArgumentException exception)
+        {
+            return CliParseResult.Failure(exception.Message);
+        }
+
+        if (string.IsNullOrWhiteSpace(localSourcePath))
+        {
+            return CliParseResult.Failure("Specify --local-source-path.");
+        }
+
+        if (string.IsNullOrWhiteSpace(meshCode))
+        {
+            return CliParseResult.Failure("Specify --mesh-code.");
+        }
+
+        return CliParseResult.Success(
+            new SearchCommandOptions(localSourcePath, meshCode, packageNames, outputFormat));
+    }
+
+    private static CliParseResult ParseStats(string[] args)
+    {
+        string? localSourcePath = null;
+        IReadOnlyList<string>? packageNames = null;
+        CliOutputFormat outputFormat = CliOutputFormat.Text;
+
+        try
+        {
+            for (int index = 1; index < args.Length; index++)
+            {
+                string token = args[index];
+                switch (token)
+                {
+                    case "-h":
+                    case "--help":
+                        return CliParseResult.Help();
+                    case "--local-source-path":
+                        localSourcePath = ReadValue(args, ref index, token);
+                        break;
+                    case "--packages":
+                        {
+                            string packageValue = ReadValue(args, ref index, token);
+                            packageNames = ParsePackageNames(packageValue, out string? packageError);
+                            if (packageError is not null)
+                            {
+                                return CliParseResult.Failure(packageError);
+                            }
+
+                            break;
+                        }
+                    case "--format":
+                        {
+                            string formatValue = ReadValue(args, ref index, token);
+                            if (!TryParseOutputFormat(formatValue, out outputFormat))
+                            {
+                                return CliParseResult.Failure(
+                                    $"Unsupported output format '{formatValue}'. Use 'text' or 'json'.");
+                            }
+
+                            break;
+                        }
+                    default:
+                        return CliParseResult.Failure($"Unknown option '{token}'.");
+                }
+            }
+        }
+        catch (ArgumentException exception)
+        {
+            return CliParseResult.Failure(exception.Message);
+        }
+
+        if (string.IsNullOrWhiteSpace(localSourcePath))
+        {
+            return CliParseResult.Failure("Specify --local-source-path.");
+        }
+
+        return CliParseResult.Success(
+            new StatsCommandOptions(localSourcePath, packageNames, outputFormat));
+    }
+
+    private static bool TryParseOutputFormat(string value, out CliOutputFormat outputFormat)
+    {
+        if (string.Equals(value, "text", StringComparison.OrdinalIgnoreCase))
+        {
+            outputFormat = CliOutputFormat.Text;
+            return true;
+        }
+
+        if (string.Equals(value, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            outputFormat = CliOutputFormat.Json;
+            return true;
+        }
+
+        outputFormat = default;
+        return false;
     }
 
     private static string ReadValue(
@@ -422,7 +585,7 @@ public static class CliArgumentsParser
         string[] values = csvValue
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        HashSet<int> parsedLods = new();
+        HashSet<int> parsedLods = [];
 
         foreach (string value in values)
         {
@@ -455,7 +618,7 @@ public static class CliArgumentsParser
         string[] pairs = csvValue
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        Dictionary<string, HashSet<int>> map = new();
+        Dictionary<string, HashSet<int>> map = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (string pair in pairs)
         {
@@ -472,14 +635,13 @@ public static class CliArgumentsParser
 
             if (!map.TryGetValue(packageName, out HashSet<int>? lodSet))
             {
-                lodSet = new HashSet<int>();
+                lodSet = [];
                 map[packageName] = lodSet;
             }
 
             if (string.IsNullOrWhiteSpace(lodStr)
                 || string.Equals(lodStr, "none", StringComparison.OrdinalIgnoreCase))
             {
-                lodSet.Clear();
                 continue;
             }
 
@@ -492,13 +654,10 @@ public static class CliArgumentsParser
             lodSet.Add(lod);
         }
 
-        Dictionary<string, IReadOnlySet<int>> normalizedMap = map
-            .ToDictionary(
-                static pair => pair.Key,
-                static pair => (IReadOnlySet<int>)pair.Value,
-                StringComparer.OrdinalIgnoreCase);
-
-        exclusionMap = normalizedMap.Count > 0 ? normalizedMap : null;
+        exclusionMap = map.ToDictionary(
+            static pair => pair.Key,
+            static pair => (IReadOnlySet<int>)pair.Value,
+            StringComparer.OrdinalIgnoreCase);
         return true;
     }
 
@@ -512,14 +671,15 @@ public static class CliArgumentsParser
         packageName = null;
         patternValue = null;
 
-        const string suffix = "-pattern";
         if (!token.StartsWith("--", StringComparison.Ordinal)
-            || !token.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            || !token.EndsWith("-pattern", StringComparison.Ordinal)
+            || token.Length <= "--".Length + "-pattern".Length)
         {
             return false;
         }
 
-        packageName = token[2..^suffix.Length];
+        string requestedPackageName = token["--".Length..^"-pattern".Length];
+        packageName = requestedPackageName;
         patternValue = ReadValue(args, ref index, token);
         return true;
     }
