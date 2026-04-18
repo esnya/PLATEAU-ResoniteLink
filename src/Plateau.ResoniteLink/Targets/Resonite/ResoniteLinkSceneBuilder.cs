@@ -1384,14 +1384,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             new PlannedCollider(
                 plannedGeometryAsset.Identity,
                 cityObject.CollisionEnabled));
+        PlannedBatchEmission batchEmission = CreatePlannedBatchEmission(objectSlots, emissionPlan);
 
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await CreateCityObjectBatchAsync(
+        await new PlannedBatchEmissionInterpreter(ReportProgress).ExecuteAsync(
             routedClient,
-            objectSlots,
             cityObject,
-            emissionPlan,
+            batchEmission,
             cancellationToken);
         batchStopwatch.Stop();
 
@@ -2081,27 +2081,34 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         };
     }
 
-    private async Task CreateCityObjectBatchAsync(
-        IResoniteLinkClient client,
+    internal static PlannedBatchEmission CreatePlannedBatchEmission(
         ObjectSlotHierarchy objectSlots,
-        ResoniteConstructionCityObject cityObject,
-        PlannedSceneObjectEmission emissionPlan,
-        CancellationToken cancellationToken)
+        PlannedSceneObjectEmission emissionPlan)
     {
-        CityObjectBatchBuilder batchBuilder = new();
-        PendingBatchSlot meshAssetSlot = batchBuilder.AddSlot(
+        ArgumentNullException.ThrowIfNull(objectSlots);
+        ArgumentNullException.ThrowIfNull(emissionPlan);
+
+        List<PlannedBatchSlotEmission> slotEmissions = [];
+        List<PlannedBatchComponentEmission> componentEmissions = [];
+        List<BatchPlanEntityId> slotResolutionTargets = [];
+        List<BatchPlanEntityId> componentResolutionTargets = [];
+
+        BatchPlanEntityId meshAssetSlotId = CreateBatchPlanEntityId("mesh-asset-slot");
+        slotEmissions.Add(new PlannedBatchSlotEmission(
+            meshAssetSlotId,
             objectSlots.AssetLodSlot.SlotId,
             emissionPlan.GeometryAsset.MeshAssetSlotName,
             null,
-            null);
-        PendingBatchSlot? heightMapAssetSlot = null;
-        PendingBatchComponent geometryComponent;
+            null));
+        slotResolutionTargets.Add(meshAssetSlotId);
 
+        BatchPlanEntityId geometryComponentId = CreateBatchPlanEntityId("geometry-component");
         switch (emissionPlan.GeometryAsset)
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
-                geometryComponent = batchBuilder.AddComponent(
-                    meshAssetSlot.LocalId,
+                componentEmissions.Add(new PlannedBatchComponentEmission(
+                    geometryComponentId,
+                    meshAssetSlotId.Value,
                     "[FrooxEngine]FrooxEngine.StaticMesh",
                     new Dictionary<string, Member>(StringComparer.Ordinal)
                     {
@@ -2109,24 +2116,27 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                         {
                             Value = triangleMesh.MeshUri,
                         },
-                    });
+                    }));
                 break;
             case PlannedHeightMapGridGeometryAsset heightMap:
-                heightMapAssetSlot = batchBuilder.AddSlot(
+                BatchPlanEntityId heightMapAssetSlotId = CreateBatchPlanEntityId("heightmap-asset-slot");
+                BatchPlanEntityId heightTextureComponentId = CreateBatchPlanEntityId("height-texture-component");
+                slotEmissions.Add(new PlannedBatchSlotEmission(
+                    heightMapAssetSlotId,
                     objectSlots.AssetLodSlot.SlotId,
                     heightMap.HeightMapAssetSlotName,
                     null,
-                    null);
-                PendingBatchComponent heightTexture = batchBuilder.AddComponent(
-                    heightMapAssetSlot.Value.LocalId,
+                    null));
+                slotResolutionTargets.Add(heightMapAssetSlotId);
+                componentEmissions.Add(new PlannedBatchComponentEmission(
+                    heightTextureComponentId,
+                    heightMapAssetSlotId.Value,
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri));
+                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)));
                 double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
-                ReportProgress(
-                    $"[live] HeightMap texture ready. Creating GridMesh "
-                    + $"({heightMap.Geometry.Width}x{heightMap.Geometry.Height}, displacement={displacementMagnitude:F3}).");
-                geometryComponent = batchBuilder.AddComponent(
-                    meshAssetSlot.LocalId,
+                componentEmissions.Add(new PlannedBatchComponentEmission(
+                    geometryComponentId,
+                    meshAssetSlotId.Value,
                     "[FrooxEngine]FrooxEngine.GridMesh",
                     new Dictionary<string, Member>(StringComparer.Ordinal)
                     {
@@ -2152,14 +2162,15 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                         },
                         ["DisplacementTexture"] = new Reference
                         {
-                            TargetID = heightTexture.LocalId,
+                            TargetID = heightTextureComponentId.Value,
                         },
-                    });
+                    }));
                 break;
             default:
                 throw new InvalidOperationException(
                     $"Unsupported planned geometry asset type '{emissionPlan.GeometryAsset.GetType().Name}'.");
         }
+        componentResolutionTargets.Add(geometryComponentId);
 
         Dictionary<MaterialIdentity, string> emittedMaterialTargets = new();
         foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
@@ -2170,12 +2181,12 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                     emittedMaterialTargets[reusableMaterial.Identity] = reusableMaterial.TargetId;
                     break;
                 case PlannedDedicatedMaterialAsset dedicatedMaterial:
-                    PendingBatchComponent emittedMaterial = AddDedicatedMaterialOperations(
-                        batchBuilder,
-                        meshAssetSlot.LocalId,
-                        dedicatedMaterial,
-                        cancellationToken);
-                    emittedMaterialTargets[dedicatedMaterial.Identity] = emittedMaterial.LocalId;
+                    string emittedMaterialTarget = AddPlannedDedicatedMaterialEmissions(
+                        slotEmissions,
+                        componentEmissions,
+                        meshAssetSlotId.Value,
+                        dedicatedMaterial);
+                    emittedMaterialTargets[dedicatedMaterial.Identity] = emittedMaterialTarget;
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -2183,35 +2194,39 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             }
         }
 
-        Dictionary<string, Member> meshRendererMembers = new(StringComparer.Ordinal)
-        {
-            ["Mesh"] = new Reference
-            {
-                TargetID = geometryComponent.LocalId,
-            },
-            ["Materials"] = new SyncList
-            {
-                Elements = emissionPlan.Renderer.MaterialIdentities
-                    .Select(materialIdentity => (Member)new Reference
-                    {
-                        TargetID = emittedMaterialTargets[materialIdentity],
-                    })
-                    .ToList(),
-            },
-        };
-
-        PendingBatchSlot presentationSlot = batchBuilder.AddSlot(
+        BatchPlanEntityId presentationSlotId = CreateBatchPlanEntityId("presentation-slot");
+        slotEmissions.Add(new PlannedBatchSlotEmission(
+            presentationSlotId,
             objectSlots.LodSlot.SlotId,
             objectSlots.CityObjectSlotName,
             objectSlots.CityObjectLocalPosition,
             objectSlots.CityObjectRotation,
-            objectSlots.CityObjectIdentityTag);
-        batchBuilder.AddComponent(
-            presentationSlot.LocalId,
+            objectSlots.CityObjectIdentityTag));
+        slotResolutionTargets.Add(presentationSlotId);
+
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            CreateBatchPlanEntityId("mesh-renderer-component"),
+            presentationSlotId.Value,
             "[FrooxEngine]FrooxEngine.MeshRenderer",
-            meshRendererMembers);
-        batchBuilder.AddComponent(
-            presentationSlot.LocalId,
+            new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["Mesh"] = new Reference
+                {
+                    TargetID = geometryComponentId.Value,
+                },
+                ["Materials"] = new SyncList
+                {
+                    Elements = emissionPlan.Renderer.MaterialIdentities
+                        .Select(materialIdentity => (Member)new Reference
+                        {
+                            TargetID = emittedMaterialTargets[materialIdentity],
+                        })
+                        .ToList(),
+                },
+            }));
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            CreateBatchPlanEntityId("mesh-collider-component"),
+            presentationSlotId.Value,
             "[FrooxEngine]FrooxEngine.MeshCollider",
             new Dictionary<string, Member>(StringComparer.Ordinal)
             {
@@ -2225,29 +2240,15 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 },
                 ["Mesh"] = new Reference
                 {
-                    TargetID = geometryComponent.LocalId,
+                    TargetID = geometryComponentId.Value,
                 },
-            });
+            }));
 
-        int operationCount = batchBuilder.Operations.Count;
-        Stopwatch batchStopwatch = Stopwatch.StartNew();
-        BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
-        batchStopwatch.Stop();
-        ReportProgress(
-            PlateauLog.Debug(
-                "live",
-                $"City object '{cityObject.DisplayName}' batch completed in {batchStopwatch.Elapsed.TotalSeconds:F3}s "
-                + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
-
-        CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
-        canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingOperations);
-        _ = canonicalBatchEntityMap.ResolveSlot(meshAssetSlot);
-        _ = canonicalBatchEntityMap.ResolveComponent(geometryComponent);
-        _ = canonicalBatchEntityMap.ResolveSlot(presentationSlot);
-        if (heightMapAssetSlot is not null)
-        {
-            _ = canonicalBatchEntityMap.ResolveSlot(heightMapAssetSlot.Value);
-        }
+        return new PlannedBatchEmission(
+            slotEmissions,
+            componentEmissions,
+            slotResolutionTargets,
+            componentResolutionTargets);
     }
 
     private static long EstimateBatchPayloadBytes(int operationCount)
@@ -2255,23 +2256,25 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         return Math.Max(1L, operationCount) * 1024L;
     }
 
-    private static PendingBatchComponent AddDedicatedMaterialOperations(
-        CityObjectBatchBuilder batchBuilder,
-        string meshAssetSlotLocalId,
-        PlannedDedicatedMaterialAsset plannedMaterial,
-        CancellationToken cancellationToken)
+    private static string AddPlannedDedicatedMaterialEmissions(
+        List<PlannedBatchSlotEmission> slotEmissions,
+        List<PlannedBatchComponentEmission> componentEmissions,
+        string meshAssetSlotTargetId,
+        PlannedDedicatedMaterialAsset plannedMaterial)
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;
-        string materialContainerLocalId = meshAssetSlotLocalId;
+        string materialContainerId = meshAssetSlotTargetId;
         if (plannedMaterial.PreserveDedicatedMaterialSlot)
         {
+            BatchPlanEntityId materialSlotId = CreateBatchPlanEntityId($"material-slot:{plannedMaterial.Identity.Value}");
             string materialSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: false);
-            PendingBatchSlot materialSlot = batchBuilder.AddSlot(
-                meshAssetSlotLocalId,
+            slotEmissions.Add(new PlannedBatchSlotEmission(
+                materialSlotId,
+                meshAssetSlotTargetId,
                 materialSlotName,
                 null,
-                null);
-            materialContainerLocalId = materialSlot.LocalId;
+                null));
+            materialContainerId = materialSlotId.Value;
         }
 
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
@@ -2279,26 +2282,30 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
         if (albedoTextureUri is not null)
         {
-            PendingBatchComponent albedoTexture = batchBuilder.AddComponent(
-                materialContainerLocalId,
+            BatchPlanEntityId albedoTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:albedo");
+            componentEmissions.Add(new PlannedBatchComponentEmission(
+                albedoTextureId,
+                materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                CreateTextureMembers(albedoTextureUri));
+                CreateTextureMembers(albedoTextureUri)));
             materialMembers["AlbedoTexture"] = new Reference
             {
-                TargetID = albedoTexture.LocalId,
+                TargetID = albedoTextureId.Value,
             };
         }
 
         Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
         if (normalTextureUri is not null)
         {
-            PendingBatchComponent normalTexture = batchBuilder.AddComponent(
-                materialContainerLocalId,
+            BatchPlanEntityId normalTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:normal");
+            componentEmissions.Add(new PlannedBatchComponentEmission(
+                normalTextureId,
+                materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                CreateTextureMembers(normalTextureUri));
+                CreateTextureMembers(normalTextureUri)));
             materialMembers["NormalMap"] = new Reference
             {
-                TargetID = normalTexture.LocalId,
+                TargetID = normalTextureId.Value,
             };
             materialMembers["NormalScale"] = new Field_float
             {
@@ -2309,13 +2316,15 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
         if (heightTextureUri is not null)
         {
-            PendingBatchComponent heightTexture = batchBuilder.AddComponent(
-                materialContainerLocalId,
+            BatchPlanEntityId heightTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:height");
+            componentEmissions.Add(new PlannedBatchComponentEmission(
+                heightTextureId,
+                materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                CreateTextureMembers(heightTextureUri));
+                CreateTextureMembers(heightTextureUri)));
             materialMembers["HeightMap"] = new Reference
             {
-                TargetID = heightTexture.LocalId,
+                TargetID = heightTextureId.Value,
             };
             materialMembers["HeightScale"] = new Field_float
             {
@@ -2326,40 +2335,46 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
         if (metallicTextureUri is not null)
         {
-            PendingBatchComponent metallicTexture = batchBuilder.AddComponent(
-                materialContainerLocalId,
+            BatchPlanEntityId metallicTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:metallic");
+            componentEmissions.Add(new PlannedBatchComponentEmission(
+                metallicTextureId,
+                materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                CreateTextureMembers(metallicTextureUri));
+                CreateTextureMembers(metallicTextureUri)));
             materialMembers["MetallicMap"] = new Reference
             {
-                TargetID = metallicTexture.LocalId,
+                TargetID = metallicTextureId.Value,
             };
             materialMembers["OcclusionMap"] = new Reference
             {
-                TargetID = metallicTexture.LocalId,
+                TargetID = metallicTextureId.Value,
             };
         }
 
         Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
         if (emissionTextureUri is not null)
         {
-            PendingBatchComponent emissionTexture = batchBuilder.AddComponent(
-                materialContainerLocalId,
+            BatchPlanEntityId emissionTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:emission");
+            componentEmissions.Add(new PlannedBatchComponentEmission(
+                emissionTextureId,
+                materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                CreateTextureMembers(emissionTextureUri));
+                CreateTextureMembers(emissionTextureUri)));
             materialMembers["EmissiveMap"] = new Reference
             {
-                TargetID = emissionTexture.LocalId,
+                TargetID = emissionTextureId.Value,
             };
             materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        return batchBuilder.AddComponent(
-            materialContainerLocalId,
+        BatchPlanEntityId materialComponentId = CreateBatchPlanEntityId($"material-component:{plannedMaterial.Identity.Value}");
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            materialComponentId,
+            materialContainerId,
             ResoniteMaterialComponentBuilder.GetComponentType(material),
-            materialMembers);
+            materialMembers));
+        return materialComponentId.Value;
     }
 
     private Task<Uri?> ImportOptionalTextureAsync(
@@ -2909,6 +2924,12 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
     }
 
+    private static BatchPlanEntityId CreateBatchPlanEntityId(string suffix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
+        return new BatchPlanEntityId($"plan:{suffix}");
+    }
+
     private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
     {
         ResoniteConstructionMetadata metadata = SceneImportContractMapper.ToInternal(request.Metadata);
@@ -3059,8 +3080,137 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         }
     }
 
+    private sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgress)
+    {
+        public Task ExecuteAsync(
+            IResoniteLinkClient client,
+            ResoniteConstructionCityObject cityObject,
+            PlannedBatchEmission batchEmission,
+            CancellationToken cancellationToken)
+        {
+            return ExecuteCoreAsync(client, cityObject, batchEmission, cancellationToken);
+        }
 
-    private sealed record ObjectSlotHierarchy(
+        private async Task ExecuteCoreAsync(
+            IResoniteLinkClient client,
+            ResoniteConstructionCityObject cityObject,
+            PlannedBatchEmission batchEmission,
+            CancellationToken cancellationToken)
+        {
+            CityObjectBatchBuilder batchBuilder = new();
+            Dictionary<string, PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
+            Dictionary<string, PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
+
+            foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
+            {
+                PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
+                    ResolveTargetId(slotEmission.ParentId, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                    slotEmission.SlotName,
+                    slotEmission.Position,
+                    slotEmission.Rotation,
+                    slotEmission.SlotTag);
+                pendingSlotsByPlanId[slotEmission.Identity.Value] = pendingSlot;
+            }
+
+            foreach (PlannedBatchComponentEmission componentEmission in batchEmission.ComponentEmissions)
+            {
+                Dictionary<string, Member> translatedMembers = TranslateMembers(
+                    componentEmission.Members,
+                    pendingSlotsByPlanId,
+                    pendingComponentsByPlanId);
+                if (string.Equals(componentEmission.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal)
+                    && translatedMembers.TryGetValue("Points", out Member? pointsMember)
+                    && translatedMembers.TryGetValue("DisplacementMagnitude", out Member? displacementMember)
+                    && pointsMember is Field_int2 points
+                    && displacementMember is Field_float displacement)
+                {
+                    reportProgress(
+                        $"[live] HeightMap texture ready. Creating GridMesh "
+                        + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3}).");
+                }
+
+                PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
+                    ResolveTargetId(componentEmission.ContainerId, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                    componentEmission.ComponentType,
+                    translatedMembers);
+                pendingComponentsByPlanId[componentEmission.Identity.Value] = pendingComponent;
+            }
+
+            int operationCount = batchBuilder.Operations.Count;
+            Stopwatch batchStopwatch = Stopwatch.StartNew();
+            BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+            batchStopwatch.Stop();
+            reportProgress(
+                PlateauLog.Debug(
+                    "live",
+                    $"City object '{cityObject.DisplayName}' batch completed in {batchStopwatch.Elapsed.TotalSeconds:F3}s "
+                    + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
+
+            CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
+            canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingOperations);
+            foreach (BatchPlanEntityId slotResolutionTarget in batchEmission.SlotResolutionTargets)
+            {
+                _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget.Value]);
+            }
+
+            foreach (BatchPlanEntityId componentResolutionTarget in batchEmission.ComponentResolutionTargets)
+            {
+                _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget.Value]);
+            }
+        }
+
+        private static string ResolveTargetId(
+            string targetId,
+            IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
+            IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
+        {
+            if (pendingSlotsByPlanId.TryGetValue(targetId, out PendingBatchSlot pendingSlot))
+            {
+                return pendingSlot.LocalId;
+            }
+
+            if (pendingComponentsByPlanId.TryGetValue(targetId, out PendingBatchComponent pendingComponent))
+            {
+                return pendingComponent.LocalId;
+            }
+
+            return targetId;
+        }
+
+        private static Dictionary<string, Member> TranslateMembers(
+            IReadOnlyDictionary<string, Member> members,
+            IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
+            IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
+        {
+            return members.ToDictionary(
+                static pair => pair.Key,
+                pair => TranslateMember(pair.Value, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                StringComparer.Ordinal);
+        }
+
+        private static Member TranslateMember(
+            Member member,
+            IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
+            IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
+        {
+            return member switch
+            {
+                Reference reference => new Reference
+                {
+                    TargetID = ResolveTargetId(reference.TargetID, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                },
+                SyncList syncList => new SyncList
+                {
+                    Elements = syncList.Elements
+                        .Select(element => TranslateMember(element, pendingSlotsByPlanId, pendingComponentsByPlanId))
+                        .ToList(),
+                },
+                _ => member,
+            };
+        }
+    }
+
+    internal sealed record ObjectSlotHierarchy(
         CreatedSlot AssetLodSlot,
         CreatedSlot LodSlot,
         string CityObjectSlotName,

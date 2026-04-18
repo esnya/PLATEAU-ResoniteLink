@@ -1,5 +1,7 @@
 using Plateau.ResoniteLink.Domain.Importing;
 
+using ResoniteLink;
+
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal readonly record struct GeometryIdentity(string Value);
@@ -55,3 +57,25 @@ internal sealed record PlannedSceneObjectEmission(
     IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
     PlannedRenderer Renderer,
     PlannedCollider Collider);
+
+internal readonly record struct BatchPlanEntityId(string Value);
+
+internal sealed record PlannedBatchSlotEmission(
+    BatchPlanEntityId Identity,
+    string ParentId,
+    string SlotName,
+    ResoniteFloat3? Position,
+    ResoniteFloatQ? Rotation,
+    string? SlotTag = null);
+
+internal sealed record PlannedBatchComponentEmission(
+    BatchPlanEntityId Identity,
+    string ContainerId,
+    string ComponentType,
+    IReadOnlyDictionary<string, Member> Members);
+
+internal sealed record PlannedBatchEmission(
+    IReadOnlyList<PlannedBatchSlotEmission> SlotEmissions,
+    IReadOnlyList<PlannedBatchComponentEmission> ComponentEmissions,
+    IReadOnlyList<BatchPlanEntityId> SlotResolutionTargets,
+    IReadOnlyList<BatchPlanEntityId> ComponentResolutionTargets);
