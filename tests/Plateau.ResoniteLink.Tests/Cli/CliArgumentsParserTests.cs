@@ -32,7 +32,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
         Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-        Assert.Equal(1, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
         Assert.True(result.Options.EnableMeshBake);
         Assert.False(result.Options.EnableSendMetrics);
         Assert.False(result.Options.VerboseLogging);
@@ -423,7 +423,7 @@ public sealed class CliArgumentsParserTests
     public void HelpTextDocumentsParallelResoniteLinkConnections()
     {
         Assert.Contains(
-            "Parallel ResoniteLink connection count for live sends. Default: 1.",
+            "Parallel ResoniteLink connection count for live sends. Default: 4.",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
     }

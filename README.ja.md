@@ -11,7 +11,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 Shipped:
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
 - import 前に、ローカルの dataset directory またはローカル ZIP/7z archive を組み込みの `search` / `stats` command で inspection できる。
-- `--resonitelink-connections` は shipped な live-send option として扱う。
+- `--resonitelink-connections` は shipped な live-send option として扱い、既定の live-send pool size は 4 とする。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - 複数の source file が要求領域に一致する場合、DEM 全体優先ではなく、要求中心から外側へ向かう順で処理する。

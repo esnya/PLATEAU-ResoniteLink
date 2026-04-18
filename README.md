@@ -11,7 +11,7 @@ This README is the canonical human-readable scope statement for the current `bet
 Shipped:
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
 - Inspect local dataset directories or local ZIP/7z archives with built-in `search` and `stats` commands before import.
-- Treat `--resonitelink-connections` as a shipped live-send option.
+- Treat `--resonitelink-connections` as a shipped live-send option, with a default live-send pool size of 4.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 - When multiple source files match a requested area, order them from the requested center outward instead of prioritizing DEM globally.
