@@ -98,28 +98,10 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         set => GetMutableRunState().ImportedTextureUriCache = value;
     }
 
-    private Channel<QueuedCityObject>? cityObjectChannel
+    private LiveSendExecutionRuntime? processingRuntime
     {
-        get => activeRunState?.CityObjectChannel;
-        set => GetMutableRunState().CityObjectChannel = value;
-    }
-
-    private Task[]? processingTasks
-    {
-        get => activeRunState?.ProcessingTasks;
-        set => GetMutableRunState().ProcessingTasks = value;
-    }
-
-    private CancellationTokenSource? processingCancellationSource
-    {
-        get => activeRunState?.ProcessingCancellationSource;
-        set => GetMutableRunState().ProcessingCancellationSource = value;
-    }
-
-    private TaskCompletionSource<Exception>? firstProcessingFailureSource
-    {
-        get => activeRunState?.FirstProcessingFailureSource;
-        set => GetMutableRunState().FirstProcessingFailureSource = value;
+        get => activeRunState?.ProcessingRuntime;
+        set => GetMutableRunState().ProcessingRuntime = value;
     }
 
     private CompositeCityObjectBaker? cityObjectBaker
@@ -128,23 +110,11 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         set => GetMutableRunState().CityObjectBaker = value;
     }
 
-    private AsyncWeightedGate? cityObjectMemoryGate
-    {
-        get => activeRunState?.CityObjectMemoryGate;
-        set => GetMutableRunState().CityObjectMemoryGate = value;
-    }
-
     private ref int attemptedCityObjectCount => ref GetMutableRunState().AttemptedCityObjectCount;
 
     private ref int processedCityObjectCount => ref GetMutableRunState().ProcessedCityObjectCount;
 
     private ref int failedCityObjectCount => ref GetMutableRunState().FailedCityObjectCount;
-
-    private Stopwatch? sceneBuildStopwatch
-    {
-        get => activeRunState?.SceneBuildStopwatch;
-        set => GetMutableRunState().SceneBuildStopwatch = value;
-    }
 
     private ref int firstQueuedCityObjectLogged => ref GetMutableRunState().FirstQueuedCityObjectLogged;
 
@@ -377,7 +347,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             throw new InvalidOperationException("Live scene run state must be initialized before starting execution.");
         }
 
-        if (this.bootstrapInfo is not null || processingTasks is not null)
+        if (this.bootstrapInfo is not null || processingRuntime is not null)
         {
             throw new InvalidOperationException("A live scene build run is already active on this scene builder instance.");
         }
@@ -505,21 +475,15 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 $"Dataset metadata/license phase complete during bootstrap. "
                 + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
         clientSession.BeginWorkerClientTracking();
+        LiveSendRuntimePlan runtimePlan = CreateLiveSendRuntimePlan();
         ReportProgress(
             PlateauLog.Info(
                 "live",
                 $"Starting routed send workers (connection_pool={connectionCount})."));
-        cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
-            new BoundedChannelOptions(Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount))
-            {
-                SingleReader = false,
-                SingleWriter = false,
-                FullMode = BoundedChannelFullMode.Wait,
-            });
+        processingRuntime = new LiveSendExecutionRuntime(runtimePlan, cancellationToken);
         processedCityObjectCount = 0;
         attemptedCityObjectCount = 0;
         failedCityObjectCount = 0;
-        sceneBuildStopwatch = Stopwatch.StartNew();
         firstQueuedCityObjectLogged = 0;
         firstPreparedCityObjectLogged = 0;
         firstBuiltCityObjectLogged = 0;
@@ -533,19 +497,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 new FixedCellCityObjectMeshBaker())
             : null;
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
-        cityObjectMemoryGate = new AsyncWeightedGate(
-            Math.Max(
-                MaxInFlightCityObjectWorkingSetBytesFloor,
-                connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane));
         diagnostics.StartSendWindow(connectionCount);
-        processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        processingTasks = CreateProcessingTasks(bootstrapInfo, processingCancellationSource.Token);
+        processingRuntime.Start(CreateProcessingTasks(bootstrapInfo, processingRuntime));
         ReportProgress(
             PlateauLog.Info(
                 "live",
                 $"Send lane tasks launched (connection budget={connectionCount}, "
-                + $"queue_capacity_total={Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount)})."));
+                + $"queue_capacity_total={runtimePlan.QueueCapacity}, "
+                + $"memory_budget_bytes={runtimePlan.MemoryBudgetBytes})."));
         laneStartStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -625,21 +584,29 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             : null;
     }
 
+    private LiveSendRuntimePlan CreateLiveSendRuntimePlan()
+    {
+        return new LiveSendRuntimePlan(
+            connectionCount,
+            Math.Max(MaxQueuedCityObjects * connectionCount, connectionCount),
+            Math.Max(
+                MaxInFlightCityObjectWorkingSetBytesFloor,
+                connectionCount * MaxInFlightCityObjectWorkingSetBytesPerLane));
+    }
+
     private Task[] CreateProcessingTasks(
         SceneBootstrapInfo bootstrapInfo,
-        CancellationToken cancellationToken)
+        LiveSendExecutionRuntime runtime)
     {
-        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
-
         Task[] tasks = new Task[connectionCount];
         for (int laneIndex = 0; laneIndex < connectionCount; laneIndex++)
         {
             int capturedLaneIndex = laneIndex;
             tasks[capturedLaneIndex] = ProcessQueuedCityObjectsOnLaneAsync(
-                cityObjectChannel.Reader,
+                runtime.Reader,
                 bootstrapInfo,
                 capturedLaneIndex,
-                cancellationToken);
+                runtime.ProcessingCancellationToken);
         }
 
         return tasks;
@@ -764,8 +731,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ArgumentNullException.ThrowIfNull(cityObject);
 
         ObjectDisposedException.ThrowIf(bootstrapInfo is null, this);
-        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
-        ObjectDisposedException.ThrowIf(processingTasks is null, this);
+        ObjectDisposedException.ThrowIf(processingRuntime is null, this);
 
         if (cityObjectBaker is not null)
         {
@@ -790,10 +756,10 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
     private async Task<IReadOnlyList<string>> CompleteCoreAsync(CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
-        ObjectDisposedException.ThrowIf(processingTasks is null, this);
         ObjectDisposedException.ThrowIf(bootstrapInfo is null, this);
         ObjectDisposedException.ThrowIf(datasetRootSlot is null, this);
+        LiveSendExecutionRuntime runtime = processingRuntime
+            ?? throw new ObjectDisposedException(nameof(ResoniteLinkSceneBuilder), "Live send runtime is not initialized.");
         IResoniteLinkClient routedClient = GetRoutedClient();
 
         if (cityObjectBaker is not null)
@@ -850,25 +816,13 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                 "live",
                 $"Completing live send. Closing lane writers (attempted={attemptedCityObjectCount}, "
                 + $"prepared={processedCityObjectCount}, failed={failedCityObjectCount})."));
-        cityObjectChannel.Writer.TryComplete();
+        runtime.CompleteWriter();
 
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Awaiting {processingTasks.Length} send lane task(s) to drain after queue close."));
-        Task allProcessingTasks = Task.WhenAll(processingTasks);
-        if (firstProcessingFailureSource is not null)
-        {
-            Task completedTask = await Task.WhenAny(allProcessingTasks, firstProcessingFailureSource.Task).WaitAsync(cancellationToken);
-            if (completedTask == firstProcessingFailureSource.Task)
-            {
-                CancelProcessing();
-                Exception failure = await firstProcessingFailureSource.Task.WaitAsync(cancellationToken);
-                throw failure;
-            }
-        }
-
-        await allProcessingTasks.WaitAsync(cancellationToken);
+                $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
+        await runtime.AwaitCompletionAsync(cancellationToken);
         ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
         datasetLicenseComponentId = await sceneBootstrapCoordinator.ApplyDatasetLicenseAsync(
             routedClient,
@@ -901,32 +855,9 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     private async ValueTask ResetRunStateAsync(bool disposeClients, bool resetClients)
     {
         ResoniteSceneRunState? runState = activeRunState;
-        if (runState is not null)
+        if (runState?.ProcessingRuntime is not null)
         {
-            runState.CityObjectChannel?.Writer.TryComplete();
-
-            try
-            {
-                if (runState.ProcessingCancellationSource is not null)
-                {
-                    await runState.ProcessingCancellationSource.CancelAsync();
-                }
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-
-            if (runState.ProcessingTasks is not null)
-            {
-                Task[] drainTasks = runState.ProcessingTasks
-                    .Select(static task => task.ContinueWith(
-                        static completedTask => _ = completedTask.Exception,
-                        CancellationToken.None,
-                        TaskContinuationOptions.ExecuteSynchronously,
-                        TaskScheduler.Default))
-                    .ToArray();
-                await Task.WhenAll(drainTasks);
-            }
+            await runState.ProcessingRuntime.DisposeAsync();
         }
 
         try
@@ -945,7 +876,6 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
             activeRunState = null;
             if (runState is not null)
             {
-                runState.ProcessingCancellationSource?.Dispose();
                 TryDeleteDirectory(runState.RunRoot);
             }
         }
@@ -1110,14 +1040,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
     {
         await AwaitProcessingTasksIfCompletedAsync();
 
-        ObjectDisposedException.ThrowIf(cityObjectMemoryGate is null, this);
+        LiveSendExecutionRuntime runtime = processingRuntime
+            ?? throw new ObjectDisposedException(nameof(ResoniteLinkSceneBuilder), "Live send runtime is not initialized.");
         long estimatedWorksetBytes = EstimateCityObjectWorkingSetBytes(cityObject);
-        AsyncWeightedGate.Lease cityObjectMemoryLease = await cityObjectMemoryGate.AcquireAsync(
+        AsyncWeightedGate.Lease cityObjectMemoryLease = await runtime.AcquireCityObjectMemoryAsync(
             estimatedWorksetBytes,
             cancellationToken);
         Task<PreparedCityObject> preparationTask = CreatePreparationTask(cityObject, cancellationToken);
         Task<ObjectSlotHierarchy> objectHierarchyTask = CreateObjectHierarchyTask(cityObject, cancellationToken);
-        ObjectDisposedException.ThrowIf(cityObjectChannel is null, this);
         if (Interlocked.CompareExchange(ref firstQueuedCityObjectLogged, 1, 0) == 0)
         {
             ReportProgress(
@@ -1130,14 +1060,14 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
         using CancellationTokenSource enqueueCancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
-            processingCancellationSource?.Token ?? CancellationToken.None);
+            runtime.ProcessingCancellationToken);
         try
         {
-            await cityObjectChannel.Writer.WriteAsync(
+            await runtime.WriteAsync(
                 new QueuedCityObject(cityObject, preparationTask, objectHierarchyTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
         }
-        catch (OperationCanceledException) when (processingCancellationSource?.IsCancellationRequested == true)
+        catch (OperationCanceledException) when (runtime.IsCancellationRequested)
         {
             await cityObjectMemoryLease.DisposeAsync();
             await AwaitProcessingTasksIfCompletedAsync();
@@ -1244,7 +1174,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
                     + $"mesh='{cityObject.ActualMeshCode}'."));
         }
 
-        CancellationToken processingCancellationToken = processingCancellationSource?.Token ?? CancellationToken.None;
+        CancellationToken processingCancellationToken = processingRuntime?.ProcessingCancellationToken ?? CancellationToken.None;
         return PrepareCityObjectWithLinkedCancellationAsync(
             cityObject,
             callerCancellationToken,
@@ -1255,7 +1185,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ResoniteConstructionCityObject cityObject,
         CancellationToken callerCancellationToken)
     {
-        CancellationToken processingCancellationToken = processingCancellationSource?.Token ?? CancellationToken.None;
+        CancellationToken processingCancellationToken = processingRuntime?.ProcessingCancellationToken ?? CancellationToken.None;
         return CreateObjectHierarchyWithLinkedCancellationAsync(
             GetRoutedClient(),
             cityObject,
@@ -1699,7 +1629,7 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
     private double GetSceneElapsedSeconds()
     {
-        return sceneBuildStopwatch?.Elapsed.TotalSeconds ?? 0.0;
+        return processingRuntime?.ElapsedTotalSeconds ?? 0.0;
     }
 
     private static string CreateDispatchDependencyKey(ResoniteConstructionCityObject cityObject)
@@ -2581,37 +2511,20 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
     private async Task AwaitProcessingTasksIfCompletedAsync()
     {
-        if (firstProcessingFailureSource?.Task.IsCompletedSuccessfully == true)
+        if (processingRuntime is not null)
         {
-            Exception failure = await firstProcessingFailureSource.Task;
-            throw failure;
-        }
-
-        if (processingTasks is not null && Array.Exists(processingTasks, static task => task.IsCompleted))
-        {
-            await Task.WhenAll(processingTasks);
+            await processingRuntime.AwaitIfAnyTaskCompletedAsync();
         }
     }
 
     private void TryMarkProcessingFailure(Exception exception)
     {
-        if (exception is OperationCanceledException)
-        {
-            return;
-        }
-
-        firstProcessingFailureSource?.TrySetResult(exception);
+        processingRuntime?.TryMarkFailure(exception);
     }
 
     private void CancelProcessing()
     {
-        try
-        {
-            _ = processingCancellationSource?.CancelAsync();
-        }
-        catch (ObjectDisposedException)
-        {
-        }
+        processingRuntime?.Cancel();
     }
 
     private Task<CreatedSlot> CreateSlotAsync(
@@ -3194,6 +3107,132 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
         ResoniteTextureImport TextureImport,
         TerrainTextureOverlay? TerrainOverlay = null);
 
+    private sealed record LiveSendRuntimePlan(
+        int ConnectionCount,
+        int QueueCapacity,
+        long MemoryBudgetBytes);
+
+    private sealed class LiveSendExecutionRuntime : IAsyncDisposable
+    {
+        private readonly Channel<QueuedCityObject> cityObjectChannel;
+        private readonly CancellationTokenSource processingCancellationSource;
+        private readonly TaskCompletionSource<Exception> firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly AsyncWeightedGate cityObjectMemoryGate;
+        private readonly Stopwatch sceneBuildStopwatch = Stopwatch.StartNew();
+        private Task[] processingTasks = [];
+
+        public LiveSendExecutionRuntime(LiveSendRuntimePlan plan, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(plan);
+
+            cityObjectChannel = Channel.CreateBounded<QueuedCityObject>(
+                new BoundedChannelOptions(plan.QueueCapacity)
+                {
+                    SingleReader = false,
+                    SingleWriter = false,
+                    FullMode = BoundedChannelFullMode.Wait,
+                });
+            processingCancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cityObjectMemoryGate = new AsyncWeightedGate(plan.MemoryBudgetBytes);
+        }
+
+        public ChannelReader<QueuedCityObject> Reader => cityObjectChannel.Reader;
+
+        public CancellationToken ProcessingCancellationToken => processingCancellationSource.Token;
+
+        public bool IsCancellationRequested => processingCancellationSource.IsCancellationRequested;
+
+        public int ProcessingTaskCount => processingTasks.Length;
+
+        public double ElapsedTotalSeconds => sceneBuildStopwatch.Elapsed.TotalSeconds;
+
+        public void Start(Task[] tasks)
+        {
+            ArgumentNullException.ThrowIfNull(tasks);
+            processingTasks = tasks;
+        }
+
+        public ValueTask<AsyncWeightedGate.Lease> AcquireCityObjectMemoryAsync(long estimatedWorksetBytes, CancellationToken cancellationToken)
+        {
+            return cityObjectMemoryGate.AcquireAsync(estimatedWorksetBytes, cancellationToken);
+        }
+
+        public ValueTask WriteAsync(QueuedCityObject queuedCityObject, CancellationToken cancellationToken)
+        {
+            return cityObjectChannel.Writer.WriteAsync(queuedCityObject, cancellationToken);
+        }
+
+        public void CompleteWriter()
+        {
+            cityObjectChannel.Writer.TryComplete();
+        }
+
+        public async Task AwaitCompletionAsync(CancellationToken cancellationToken)
+        {
+            Task allProcessingTasks = Task.WhenAll(processingTasks);
+            Task completedTask = await Task.WhenAny(allProcessingTasks, firstProcessingFailureSource.Task).WaitAsync(cancellationToken);
+            if (completedTask == firstProcessingFailureSource.Task)
+            {
+                Cancel();
+                Exception failure = await firstProcessingFailureSource.Task.WaitAsync(cancellationToken);
+                throw failure;
+            }
+
+            await allProcessingTasks.WaitAsync(cancellationToken);
+        }
+
+        public async Task AwaitIfAnyTaskCompletedAsync()
+        {
+            if (firstProcessingFailureSource.Task.IsCompletedSuccessfully)
+            {
+                Exception failure = await firstProcessingFailureSource.Task;
+                throw failure;
+            }
+
+            if (Array.Exists(processingTasks, static task => task.IsCompleted))
+            {
+                await Task.WhenAll(processingTasks);
+            }
+        }
+
+        public void TryMarkFailure(Exception exception)
+        {
+            if (exception is OperationCanceledException)
+            {
+                return;
+            }
+
+            firstProcessingFailureSource.TrySetResult(exception);
+        }
+
+        public void Cancel()
+        {
+            try
+            {
+                _ = processingCancellationSource.CancelAsync();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            cityObjectChannel.Writer.TryComplete();
+            Cancel();
+
+            Task[] drainTasks = processingTasks
+                .Select(static task => task.ContinueWith(
+                    static completedTask => _ = completedTask.Exception,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default))
+                .ToArray();
+            await Task.WhenAll(drainTasks);
+            processingCancellationSource.Dispose();
+        }
+    }
+
     private sealed class ResoniteSceneRunState
     {
         public SceneBootstrapInfo? BootstrapInfo { get; set; }
@@ -3222,25 +3261,15 @@ public sealed class ResoniteLinkSceneBuilder : ISceneImportTarget
 
         public AsyncCompletedResultCache<TextureImportCacheKey, Uri>? ImportedTextureUriCache { get; set; }
 
-        public Channel<QueuedCityObject>? CityObjectChannel { get; set; }
-
-        public Task[]? ProcessingTasks { get; set; }
-
-        public CancellationTokenSource? ProcessingCancellationSource { get; set; }
-
-        public TaskCompletionSource<Exception>? FirstProcessingFailureSource { get; set; }
+        public LiveSendExecutionRuntime? ProcessingRuntime { get; set; }
 
         public CompositeCityObjectBaker? CityObjectBaker { get; set; }
-
-        public AsyncWeightedGate? CityObjectMemoryGate { get; set; }
 
         public int AttemptedCityObjectCount;
 
         public int ProcessedCityObjectCount;
 
         public int FailedCityObjectCount;
-
-        public Stopwatch? SceneBuildStopwatch { get; set; }
 
         public int FirstQueuedCityObjectLogged;
 
