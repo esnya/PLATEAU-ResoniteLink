@@ -290,20 +290,12 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(ParsedSourceFileResult parsedSourceFile)
     {
         if (!string.Equals(parsedSourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || parsedSourceFile.CityObjects.Length == 0)
+            || Metadata.SourceDataset.TerrainTextureOverlays.Count == 0)
         {
             return [];
         }
 
-        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds([parsedSourceFile], fallbackBounds: null);
-        if (demBounds is null)
-        {
-            return [];
-        }
-
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            demBounds,
-            Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
+        return Metadata.SourceDataset.TerrainTextureOverlays.ToArray();
     }
 
     private static void ValidateCompatibleReferenceSystem(

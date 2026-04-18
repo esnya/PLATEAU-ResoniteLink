@@ -206,7 +206,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     [Fact]
     public async Task ExecuteAsync_BootstrapAddsOptionalGsiFallbackLicenseWithoutUsingUpdates()
     {
-        using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
@@ -217,24 +216,17 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new ResoniteLiveSceneImportDependencies(
                 session,
                 new TerrainTextureAssetGenerator()));
-        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
-            request.Dataset,
-            request.MeshCode,
-            request.LocalSourcePath!,
-            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays:
-            [
-                new TerrainTextureOverlay(
-                    PackageName: "dem",
-                    UrlTemplate: "https://primary.example/{z}/{x}/{y}.png",
-                    ZoomLevel: 18,
-                    GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
-                    MaxTextureSize: 4096,
-                    FallbackUrlTemplate: "https://fallback.example/{z}/{x}/{y}.png",
-                    LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback),
-            ]);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
+            PackageNames: ["dem"],
+            ServerUri: null);
+        LocalCityGmlDocumentSet documentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
+        ResoniteConstructionMetadata metadata = new LocalCityGmlConstructionComposer(new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))
+            .Compose(request, documentSet)
+            .Metadata;
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
@@ -245,7 +237,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(2, licenses.Length);
-        Assert.Contains(licenses, static component => ((Field_string)component.Members["CreditString"]).Value.Contains("credit License: license", StringComparison.Ordinal));
+        Assert.Contains(licenses, static component => ((Field_string)component.Members["CreditString"]).Value.Contains("tokyo23ku", StringComparison.Ordinal));
         Assert.Contains(licenses, static component => ((Field_string)component.Members["CreditString"]).Value.Contains("GSI Maps Terms", StringComparison.Ordinal));
         Assert.Empty(routedClient.UpdatedComponents);
     }

@@ -31,7 +31,8 @@ public sealed class LocalCityGmlBootstrapParityTests
                 "udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml"],
             expectedPackageNames: ["bldg", "dem", "luse", "tran"],
             expectedRequestedMeshCodes: ["53394525"],
-            expectedTerrainSamplerPresent: false);
+            expectedTerrainSamplerPresent: false,
+            expectedTerrainTextureOverlaysPresent: true);
     }
 
     [Fact]
@@ -58,7 +59,8 @@ public sealed class LocalCityGmlBootstrapParityTests
                 "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml"],
             expectedPackageNames: ["bldg", "dem", "luse", "tran"],
             expectedRequestedMeshCodes: ["53394525"],
-            expectedTerrainSamplerPresent: false);
+            expectedTerrainSamplerPresent: false,
+            expectedTerrainTextureOverlaysPresent: true);
     }
 
     private static void AssertDocumentSetParity(
@@ -104,14 +106,29 @@ public sealed class LocalCityGmlBootstrapParityTests
         IReadOnlyList<string> expectedRelativeSourceFiles,
         IReadOnlyList<string> expectedPackageNames,
         IReadOnlyList<string> expectedRequestedMeshCodes,
-        bool expectedTerrainSamplerPresent)
+        bool expectedTerrainSamplerPresent,
+        bool expectedTerrainTextureOverlaysPresent)
     {
         Assert.Equal(expectedRelativeSourceFiles, documentSet.RelativeSourceFiles);
         Assert.Equal(expectedPackageNames, documentSet.PackageNames);
         Assert.Equal(expectedRequestedMeshCodes, documentSet.RequestedMeshCodes);
         Assert.Null(documentSet.BootstrapReferenceSystem);
         Assert.Equal(expectedTerrainSamplerPresent, documentSet.BootstrapTerrainHeightSampler is not null);
-        Assert.Empty(documentSet.TerrainTextureOverlays);
+        if (expectedTerrainTextureOverlaysPresent)
+        {
+            Assert.NotEmpty(documentSet.TerrainTextureOverlays);
+            Assert.All(
+                documentSet.TerrainTextureOverlays,
+                static overlay =>
+                {
+                    Assert.Equal("dem", overlay.PackageName);
+                    Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
+                });
+        }
+        else
+        {
+            Assert.Empty(documentSet.TerrainTextureOverlays);
+        }
         Assert.Empty(documentSet.BootstrapCachedDemSourceFiles);
     }
 }

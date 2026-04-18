@@ -110,32 +110,22 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
     {
         return new SourceFilePipeline(
             sourceFile,
-            () => Task.FromResult(new ParsedSourceFileResult(
-                sourceFile,
-                cityObjects,
-                cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
-                string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                    ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
-                    : [],
-                TimeSpan.Zero)),
-            cancellationToken => StreamCityObjectsAsync(cityObjects, beforeYield, cancellationToken));
-    }
+            async () =>
+            {
+                if (beforeYield is not null)
+                {
+                    await beforeYield;
+                }
 
-    private static async IAsyncEnumerable<BootstrapParsedCityObject> StreamCityObjectsAsync(
-        IReadOnlyList<BootstrapParsedCityObject> cityObjects,
-        Task? beforeYield,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        if (beforeYield is not null)
-        {
-            await beforeYield.WaitAsync(cancellationToken);
-        }
-
-        foreach (BootstrapParsedCityObject cityObject in cityObjects)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return cityObject;
-        }
+                return new ParsedSourceFileResult(
+                    sourceFile,
+                    cityObjects,
+                    cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
+                    string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                        ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
+                        : [],
+                    TimeSpan.Zero);
+            });
     }
 
     private static BootstrapParsedCityObject CreateParsedCityObject(

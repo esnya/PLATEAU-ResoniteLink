@@ -1,14 +1,11 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
+using System.Globalization;
+using System.Xml;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed class DatasetInspectionService
 {
-    private static readonly Regex LodTokenRegex = new(
-        @"lod(?<lod>\d)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-
     [SuppressMessage(
         "Performance",
         "CA1822:Mark members as static",
@@ -54,65 +51,132 @@ public sealed class DatasetInspectionService
         IReadOnlyList<string>? packageNames,
         CancellationToken cancellationToken = default)
     {
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
-        LocalCityGmlDatasetSourceFileCandidate[] candidates = LocalCityGmlSourceFileDiscovery
-            .EnumerateCandidates(datasetSource.EnumerateFiles(), packageNames)
-            .Where(static candidate => candidate.IsRequestedPackage)
-            .ToArray();
-
-        Dictionary<string, int> packageCounts = candidates
-            .GroupBy(static candidate => candidate.PackageName, StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
-            .ToDictionary(
-                static group => group.Key,
-                static group => group.Count(),
-                StringComparer.Ordinal);
-
-        Dictionary<string, int> meshCodeCounts = candidates
-            .Select(static candidate => ResolveRepresentativeMeshCode(candidate))
-            .Where(static meshCode => meshCode is not null)
-            .Select(static meshCode => meshCode!)
-            .GroupBy(static meshCode => meshCode, StringComparer.Ordinal)
-            .OrderBy(static group => group.Key, StringComparer.Ordinal)
-            .ToDictionary(
-                static group => group.Key,
-                static group => group.Count(),
-                StringComparer.Ordinal);
-
-        Dictionary<int, int> lodCounts = [];
-        int filesWithoutDetectedLod = 0;
-
-        foreach (LocalCityGmlDatasetSourceFileCandidate candidate in candidates)
+        try
         {
-            await using Stream stream = await datasetSource.OpenReadAsync(candidate.RelativePath, cancellationToken);
-            using StreamReader reader = new(stream);
-            string content = await reader.ReadToEndAsync(cancellationToken);
-
-            int[] lodLevels = LodTokenRegex.Matches(content)
-                .Select(static match => int.Parse(match.Groups["lod"].Value, System.Globalization.CultureInfo.InvariantCulture))
-                .Distinct()
-                .OrderBy(static lod => lod)
+            IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
+            LocalCityGmlDatasetSourceFileCandidate[] candidates = LocalCityGmlSourceFileDiscovery
+                .EnumerateCandidates(datasetSource.EnumerateFiles(), packageNames)
+                .Where(static candidate => candidate.IsRequestedPackage)
                 .ToArray();
 
-            if (lodLevels.Length == 0)
+            Dictionary<string, int> packageCounts = candidates
+                .GroupBy(static candidate => candidate.PackageName, StringComparer.Ordinal)
+                .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(
+                    static group => group.Key,
+                    static group => group.Count(),
+                    StringComparer.Ordinal);
+
+            Dictionary<string, int> meshCodeCounts = candidates
+                .Select(static candidate => ResolveRepresentativeMeshCode(candidate))
+                .Where(static meshCode => meshCode is not null)
+                .Select(static meshCode => meshCode!)
+                .GroupBy(static meshCode => meshCode, StringComparer.Ordinal)
+                .OrderBy(static group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(
+                    static group => group.Key,
+                    static group => group.Count(),
+                    StringComparer.Ordinal);
+
+            Dictionary<int, int> lodCounts = [];
+            int filesWithoutDetectedLod = 0;
+
+            foreach (LocalCityGmlDatasetSourceFileCandidate candidate in candidates)
             {
-                filesWithoutDetectedLod++;
-                continue;
+                await using Stream stream = await datasetSource.OpenReadAsync(candidate.RelativePath, cancellationToken);
+                int[] lodLevels = await ReadStructuralLodLevelsAsync(stream, cancellationToken);
+
+                if (lodLevels.Length == 0)
+                {
+                    filesWithoutDetectedLod++;
+                    continue;
+                }
+
+                foreach (int lodLevel in lodLevels)
+                {
+                    lodCounts.TryGetValue(lodLevel, out int currentCount);
+                    lodCounts[lodLevel] = currentCount + 1;
+                }
             }
 
-            foreach (int lodLevel in lodLevels)
+            return new DatasetStatsResult(
+                candidates.Length,
+                packageCounts,
+                meshCodeCounts,
+                lodCounts.OrderBy(static pair => pair.Key).ToDictionary(static pair => pair.Key, static pair => pair.Value),
+                filesWithoutDetectedLod);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new PlateauImportValidationException([exception.Message]);
+        }
+    }
+
+    private static async Task<int[]> ReadStructuralLodLevelsAsync(
+        Stream stream,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            XmlReaderSettings settings = new()
             {
-                lodCounts.TryGetValue(lodLevel, out int currentCount);
-                lodCounts[lodLevel] = currentCount + 1;
+                Async = true,
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreComments = true,
+                IgnoreWhitespace = true,
+            };
+            using XmlReader reader = XmlReader.Create(stream, settings);
+            HashSet<int> lodLevels = [];
+
+            while (await reader.ReadAsync())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reader.NodeType != XmlNodeType.Element
+                    || !IsRecognizedCityGmlNamespace(reader.NamespaceURI)
+                    || !TryParseLodLevel(reader.LocalName, out int lodLevel))
+                {
+                    continue;
+                }
+
+                lodLevels.Add(lodLevel);
             }
+
+            return lodLevels.OrderBy(static lod => lod).ToArray();
+        }
+        catch (XmlException)
+        {
+            return [];
+        }
+    }
+
+    private static bool IsRecognizedCityGmlNamespace(string namespaceUri)
+    {
+        return !string.IsNullOrWhiteSpace(namespaceUri)
+            && namespaceUri.Contains("citygml", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseLodLevel(string localName, out int lodLevel)
+    {
+        lodLevel = 0;
+        if (!localName.StartsWith("lod", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
         }
 
-        return new DatasetStatsResult(
-            candidates.Length,
-            packageCounts,
-            meshCodeCounts,
-            lodCounts.OrderBy(static pair => pair.Key).ToDictionary(static pair => pair.Key, static pair => pair.Value),
-            filesWithoutDetectedLod);
+        int digitStart = 3;
+        int digitLength = 0;
+        while (digitStart + digitLength < localName.Length
+            && char.IsDigit(localName[digitStart + digitLength]))
+        {
+            digitLength++;
+        }
+
+        return digitLength > 0
+            && int.TryParse(
+                localName.AsSpan(digitStart, digitLength),
+                NumberStyles.None,
+                CultureInfo.InvariantCulture,
+                out lodLevel);
     }
 
     private static string? ResolveRepresentativeMeshCode(LocalCityGmlDatasetSourceFileCandidate candidate)

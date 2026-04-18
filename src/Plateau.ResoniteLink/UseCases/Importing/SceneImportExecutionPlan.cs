@@ -45,7 +45,7 @@ public sealed record SceneImportExecutionPlan
     {
         if (!string.Equals(normalizedRequest.Dataset, buildRequest.Dataset, StringComparison.Ordinal)
             || !string.Equals(normalizedRequest.MeshCode, buildRequest.MeshCode, StringComparison.Ordinal)
-            || normalizedRequest.SourceKind != buildRequest.SourceKind
+            || !HasCompatibleSourceResolution(normalizedRequest, buildRequest)
             || normalizedRequest.IncludeMarkingAlways != buildRequest.IncludeMarkingAlways
             || normalizedRequest.DemTerrainMode != buildRequest.DemTerrainMode
             || normalizedRequest.DemHeightmapMetersPerVertex != buildRequest.DemHeightmapMetersPerVertex
@@ -59,6 +59,19 @@ public sealed record SceneImportExecutionPlan
                 "Scene import execution plan requires normalized and build requests to match for execution identity and import options. Only source-resolved location values may differ.",
                 nameof(buildRequest));
         }
+    }
+
+    private static bool HasCompatibleSourceResolution(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest buildRequest)
+    {
+        if (normalizedRequest.SourceKind == buildRequest.SourceKind)
+        {
+            return true;
+        }
+
+        return normalizedRequest.SourceKind == DatasetSourceKind.Remote
+            && buildRequest.SourceKind == DatasetSourceKind.Local;
     }
 
     private static bool SequenceEqual(
