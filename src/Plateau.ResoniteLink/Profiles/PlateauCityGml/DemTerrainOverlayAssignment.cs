@@ -8,8 +8,8 @@ internal static class DemTerrainOverlayAssignment
     private const double BoundarySliverMaxAreaRatio = 0.01;
     private const double BoundarySliverMaxAreaSquareMeters = 4.0;
 
-    public static IEnumerable<(LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject parsedCityObject,
+    public static IEnumerable<(LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
+        LocalCityGmlObjectProjection.ParsedCityObject parsedCityObject,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
     {
         if (!string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
@@ -19,12 +19,12 @@ internal static class DemTerrainOverlayAssignment
             yield break;
         }
 
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint sharedOrigin = GetCityObjectOrigin(parsedCityObject);
-        LocalCityGmlResonitePlanBuilder.ParsedSurface[] generatedSurfaces = parsedCityObject.Surfaces
+        LocalCityGmlObjectProjection.GeodeticPoint sharedOrigin = GetCityObjectOrigin(parsedCityObject);
+        LocalCityGmlObjectProjection.ParsedSurface[] generatedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => surface.UsesGeneratedDemTexture)
             .ToArray();
 
-        LocalCityGmlResonitePlanBuilder.ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
+        LocalCityGmlObjectProjection.ParsedSurface[] nonGeneratedSurfaces = parsedCityObject.Surfaces
             .Where(static surface => !surface.UsesGeneratedDemTexture)
             .ToArray();
 
@@ -34,8 +34,8 @@ internal static class DemTerrainOverlayAssignment
             yield break;
         }
 
-        List<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> splitGeneratedSurfaces = [];
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSurface generatedSurface in generatedSurfaces)
+        List<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> splitGeneratedSurfaces = [];
+        foreach (LocalCityGmlObjectProjection.ParsedSurface generatedSurface in generatedSurfaces)
         {
             GeographicRectangle surfaceBounds = GetSurfaceGeographicBounds(generatedSurface);
             TerrainTextureOverlay? containingOverlay = demTerrainTextureOverlays.FirstOrDefault(overlay =>
@@ -62,7 +62,7 @@ internal static class DemTerrainOverlayAssignment
                 continue;
             }
 
-            IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
+            IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces =
                 DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(
                     generatedSurface,
                     candidateOverlays.Length == 0 ? demTerrainTextureOverlays : candidateOverlays);
@@ -71,7 +71,7 @@ internal static class DemTerrainOverlayAssignment
                 if (TryPruneBoundarySliverSplit(
                     generatedSurface,
                     clippedSurfaces,
-                    out IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces))
+                    out IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces))
                 {
                     splitGeneratedSurfaces.AddRange(prunedSurfaces);
                 }
@@ -87,7 +87,7 @@ internal static class DemTerrainOverlayAssignment
             splitGeneratedSurfaces.Add((generatedSurface, overlay));
         }
 
-        IGrouping<TerrainTextureOverlay, (LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] groups = splitGeneratedSurfaces
+        IGrouping<TerrainTextureOverlay, (LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)>[] groups = splitGeneratedSurfaces
             .GroupBy(static surface => surface.Overlay)
             .OrderBy(static group => group.Key.PackageName, StringComparer.Ordinal)
             .ThenBy(static group => group.Key.GeographicBounds.MinLatitude)
@@ -110,7 +110,7 @@ internal static class DemTerrainOverlayAssignment
 
         for (int index = 0; index < groups.Length; index++)
         {
-            IGrouping<TerrainTextureOverlay, (LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> group = groups[index];
+            IGrouping<TerrainTextureOverlay, (LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> group = groups[index];
             yield return (
                 parsedCityObject with
                 {
@@ -134,8 +134,8 @@ internal static class DemTerrainOverlayAssignment
     }
 
     public static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateHeightMapTextureTransform(
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject,
-        LocalCityGmlResonitePlanBuilder.MaterializedSurface materializedSurface,
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject,
+        LocalCityGmlObjectProjection.MaterializedSurface materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
@@ -183,7 +183,7 @@ internal static class DemTerrainOverlayAssignment
     }
 
     private static TerrainTextureOverlay SelectOverlay(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface,
+        LocalCityGmlObjectProjection.ParsedSurface surface,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
     {
         GeographicRectangle surfaceBounds = GetSurfaceGeographicBounds(surface);
@@ -224,9 +224,9 @@ internal static class DemTerrainOverlayAssignment
     }
 
     private static bool TryPruneBoundarySliverSplit(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface sourceSurface,
-        IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces,
-        out IReadOnlyList<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces)
+        LocalCityGmlObjectProjection.ParsedSurface sourceSurface,
+        IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces,
+        out IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces)
     {
         prunedSurfaces = [];
         if (clippedSurfaces.Count <= 1)
@@ -252,7 +252,7 @@ internal static class DemTerrainOverlayAssignment
             }
         }
 
-        List<(LocalCityGmlResonitePlanBuilder.ParsedSurface Surface, TerrainTextureOverlay Overlay)> keptSurfaces =
+        List<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> keptSurfaces =
         [
             clippedSurfaces[dominantIndex],
         ];
@@ -298,8 +298,8 @@ internal static class DemTerrainOverlayAssignment
         return true;
     }
 
-    private static LocalCityGmlResonitePlanBuilder.GeodeticPoint GetCityObjectOrigin(
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject)
+    private static LocalCityGmlObjectProjection.GeodeticPoint GetCityObjectOrigin(
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject)
     {
         if (cityObject.OriginOverride is not null)
         {
@@ -307,10 +307,10 @@ internal static class DemTerrainOverlayAssignment
         }
 
         bool hasPoint = false;
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint? origin = null;
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSurface surface in cityObject.Surfaces)
+        LocalCityGmlObjectProjection.GeodeticPoint? origin = null;
+        foreach (LocalCityGmlObjectProjection.ParsedSurface surface in cityObject.Surfaces)
         {
-            foreach (LocalCityGmlResonitePlanBuilder.GeodeticPoint point in surface.Vertices)
+            foreach (LocalCityGmlObjectProjection.GeodeticPoint point in surface.Vertices)
             {
                 if (!hasPoint
                     || point.Latitude < origin!.Latitude
@@ -334,16 +334,16 @@ internal static class DemTerrainOverlayAssignment
     }
 
     private static GeographicRectangle GetCityObjectGeographicBounds(
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject)
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject)
     {
         bool hasPoint = false;
         double minLatitude = 0.0;
         double maxLatitude = 0.0;
         double minLongitude = 0.0;
         double maxLongitude = 0.0;
-        foreach (LocalCityGmlResonitePlanBuilder.ParsedSurface surface in cityObject.Surfaces)
+        foreach (LocalCityGmlObjectProjection.ParsedSurface surface in cityObject.Surfaces)
         {
-            foreach (LocalCityGmlResonitePlanBuilder.GeodeticPoint point in surface.Vertices)
+            foreach (LocalCityGmlObjectProjection.GeodeticPoint point in surface.Vertices)
             {
                 if (!hasPoint)
                 {
@@ -373,7 +373,7 @@ internal static class DemTerrainOverlayAssignment
     }
 
     private static GeographicRectangle GetSurfaceGeographicBounds(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
+        LocalCityGmlObjectProjection.ParsedSurface surface)
     {
         return new GeographicRectangle(
             MinLatitude: surface.Vertices.Min(static point => point.Latitude),
@@ -440,9 +440,9 @@ internal static class DemTerrainOverlayAssignment
                     + $" lon[{overlay.GeographicBounds.MinLongitude:F8},{overlay.GeographicBounds.MaxLongitude:F8}]")));
     }
 
-    private static SurfaceMetrics ComputeSurfaceMetrics(LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
+    private static SurfaceMetrics ComputeSurfaceMetrics(LocalCityGmlObjectProjection.ParsedSurface surface)
     {
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
         if (vertices.Length < 3)
         {
             return new SurfaceMetrics(0.0, 0.0);

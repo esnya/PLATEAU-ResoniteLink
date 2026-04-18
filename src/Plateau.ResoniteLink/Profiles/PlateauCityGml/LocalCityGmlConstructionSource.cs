@@ -19,7 +19,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
-    private readonly LocalCityGmlResonitePlanBuilder.MeshCodeArea[] requestedMeshAreas;
+    private readonly MeshCodeBounds[] requestedMeshAreas;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
@@ -35,7 +35,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.progressReporter = progressReporter;
-        requestedMeshAreas = LocalCityGmlResonitePlanBuilder.MeshCodeArea.CreateManyFromRequestedMeshCodes(
+        requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
             Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
     }
 
@@ -55,7 +55,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
             foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
-                foreach (ResoniteMaterialBinding material in LocalCityGmlResonitePlanBuilder.EnumerateCommonMaterials(
+                foreach (ResoniteMaterialBinding material in LocalCityGmlObjectProjection.EnumerateCommonMaterials(
                              new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]).ToLegacy(),
                              resolvedReferenceSystem.ToLegacy(),
                              globalOriginPoint.ToLegacy(),

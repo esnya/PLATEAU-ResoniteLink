@@ -14,10 +14,6 @@ internal interface ITerrainTextureAssetGenerator
     Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken);
-
-    void ResetUsageTracking();
-
-    ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense);
 }
 
 internal sealed class TerrainTextureAssetGenerator(
@@ -30,8 +26,6 @@ internal sealed class TerrainTextureAssetGenerator(
     private readonly PersistentTerrainTileCache? persistentTileCache = disablePersistentCache
         ? null
         : new PersistentTerrainTileCache(persistentCacheRoot);
-    private int usedTerrainTileCount;
-    private int fallbackTileUseCount;
 
     public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
@@ -43,45 +37,7 @@ internal sealed class TerrainTextureAssetGenerator(
             terrainTextureOverlay,
             ct => CreateTextureAsync(terrainTextureOverlay, ct),
             cancellationToken);
-        _ = Interlocked.Add(ref usedTerrainTileCount, cachedTexture.UsedTerrainTileCount);
-        _ = Interlocked.Add(ref fallbackTileUseCount, cachedTexture.FallbackTileUseCount);
         return cachedTexture.TextureImport;
-    }
-
-    public void ResetUsageTracking()
-    {
-        Interlocked.Exchange(ref usedTerrainTileCount, 0);
-        Interlocked.Exchange(ref fallbackTileUseCount, 0);
-    }
-
-    public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
-    {
-        ArgumentNullException.ThrowIfNull(baseLicense);
-
-        int usedTerrainTiles = Interlocked.Exchange(ref usedTerrainTileCount, 0);
-        int fallbackTerrainTiles = Interlocked.Exchange(ref fallbackTileUseCount, 0);
-
-        if (usedTerrainTiles == 0)
-        {
-            return baseLicense;
-        }
-
-        if (fallbackTerrainTiles == 0)
-        {
-            return baseLicense with
-            {
-                CreditText = $"{baseLicense.CreditText} DEM terrain imagery used Project PLATEAU Ortho xyz tiles.",
-                LicenseName = "PLATEAU Open Data Terms + Project PLATEAU Site Policy",
-                LicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/",
-            };
-        }
-
-        return baseLicense with
-        {
-            CreditText = $"{baseLicense.CreditText} DEM terrain imagery used Project PLATEAU Ortho xyz tiles with fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage was unavailable.",
-            LicenseName = "PLATEAU Open Data Terms + GSI Maps Terms",
-            LicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html",
-        };
     }
 
     private async Task<CachedTerrainTexture> CreateTextureAsync(
@@ -219,7 +175,18 @@ internal sealed class TerrainTextureAssetGenerator(
                 cancellationToken);
             if (cachedBytes is not null)
             {
-                return await LoadTileImageAsync(cachedBytes, cancellationToken);
+                try
+                {
+                    return await LoadTileImageAsync(cachedBytes, cancellationToken);
+                }
+                catch (SixLabors.ImageSharp.UnknownImageFormatException)
+                {
+                    // Corrupt persistent cache entries should behave like a cache miss.
+                }
+                catch (SixLabors.ImageSharp.InvalidImageContentException)
+                {
+                    // Corrupt persistent cache entries should behave like a cache miss.
+                }
             }
         }
 
@@ -237,7 +204,7 @@ internal sealed class TerrainTextureAssetGenerator(
             byte[] encodedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             if (persistentTileCache is not null)
             {
-                await persistentTileCache.WriteTileBytesAsync(
+                await TryWritePersistentTileBytesAsync(
                     urlTemplate,
                     zoomLevel,
                     tileX,
@@ -251,6 +218,41 @@ internal sealed class TerrainTextureAssetGenerator(
         catch (HttpRequestException)
         {
             return null;
+        }
+    }
+
+    private async Task TryWritePersistentTileBytesAsync(
+        string urlTemplate,
+        int zoomLevel,
+        int tileX,
+        int tileY,
+        byte[] encodedBytes,
+        CancellationToken cancellationToken)
+    {
+        if (persistentTileCache is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await persistentTileCache.WriteTileBytesAsync(
+                urlTemplate,
+                zoomLevel,
+                tileX,
+                tileY,
+                encodedBytes,
+                cancellationToken);
+        }
+        catch (IOException)
+        {
+            // Persistent tile caching is an optimization. A local cache write failure
+            // must not discard a tile that was already downloaded successfully.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Persistent tile caching is an optimization. A local cache write failure
+            // must not discard a tile that was already downloaded successfully.
         }
     }
 

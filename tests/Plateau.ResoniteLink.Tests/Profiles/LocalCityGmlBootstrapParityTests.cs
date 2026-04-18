@@ -18,7 +18,7 @@ public sealed class LocalCityGmlBootstrapParityTests
 
         LocalCityGmlDocumentSet pipelineDocumentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
         LocalCityGmlDocumentSet readerDocumentSet = await new LocalCityGmlDocumentReader().ReadAsync(request);
-        LocalCityGmlDocumentSet compatibilityDocumentSet = await LocalCityGmlResonitePlanBuilder.ReadDocumentSetAsync(request);
+        LocalCityGmlDocumentSet compatibilityDocumentSet = await LocalCityGmlObjectProjection.ReadDocumentSetAsync(request);
 
         AssertDocumentSetParity(pipelineDocumentSet, readerDocumentSet);
         AssertDocumentSetParity(pipelineDocumentSet, compatibilityDocumentSet);

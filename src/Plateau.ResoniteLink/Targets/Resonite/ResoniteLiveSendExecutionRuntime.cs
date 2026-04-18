@@ -5,18 +5,18 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
 {
-    private readonly Channel<ResoniteLinkSceneBuilder.QueuedCityObject> cityObjectChannel;
+    private readonly Channel<ResoniteLiveSceneImportTarget.QueuedCityObject> cityObjectChannel;
     private readonly CancellationTokenSource processingCancellationSource;
     private readonly TaskCompletionSource<Exception> firstProcessingFailureSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly AsyncWeightedGate cityObjectMemoryGate;
     private readonly Stopwatch sceneBuildStopwatch = Stopwatch.StartNew();
     private Task[] processingTasks = [];
 
-    public LiveSendExecutionRuntime(ResoniteLinkSceneBuilder.LiveSendRuntimePlan plan, CancellationToken cancellationToken)
+    public LiveSendExecutionRuntime(LiveSendQueuePlan plan, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(plan);
 
-        cityObjectChannel = Channel.CreateBounded<ResoniteLinkSceneBuilder.QueuedCityObject>(
+        cityObjectChannel = Channel.CreateBounded<ResoniteLiveSceneImportTarget.QueuedCityObject>(
             new BoundedChannelOptions(plan.QueueCapacity)
             {
                 SingleReader = false,
@@ -27,7 +27,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
         cityObjectMemoryGate = new AsyncWeightedGate(plan.MemoryBudgetBytes);
     }
 
-    public ChannelReader<ResoniteLinkSceneBuilder.QueuedCityObject> Reader => cityObjectChannel.Reader;
+    public ChannelReader<ResoniteLiveSceneImportTarget.QueuedCityObject> Reader => cityObjectChannel.Reader;
 
     public CancellationToken ProcessingCancellationToken => processingCancellationSource.Token;
 
@@ -48,7 +48,7 @@ internal sealed class LiveSendExecutionRuntime : IAsyncDisposable
         return cityObjectMemoryGate.AcquireAsync(estimatedWorksetBytes, cancellationToken);
     }
 
-    public ValueTask WriteAsync(ResoniteLinkSceneBuilder.QueuedCityObject queuedCityObject, CancellationToken cancellationToken)
+    public ValueTask WriteAsync(ResoniteLiveSceneImportTarget.QueuedCityObject queuedCityObject, CancellationToken cancellationToken)
     {
         return cityObjectChannel.Writer.WriteAsync(queuedCityObject, cancellationToken);
     }

@@ -118,7 +118,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             GeodeticPoint globalOriginPoint,
             GeographicLib.LocalCartesian? globalCartesian,
             IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-            IReadOnlyList<LocalCityGmlResonitePlanBuilder.MeshCodeArea> requestedMeshAreas,
+            IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
             PlateauImportRequest request,
             Func<BootstrapParsedCityObject, bool>? predicate = null)
         {

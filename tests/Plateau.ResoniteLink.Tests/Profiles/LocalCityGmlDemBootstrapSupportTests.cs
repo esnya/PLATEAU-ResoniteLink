@@ -65,10 +65,10 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
 
         TerrainTextureOverlay overlay = Assert.Single(result);
         Assert.Equal("dem", overlay.PackageName);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureFallbackUrlTemplate, overlay.FallbackUrlTemplate);
-        Assert.Equal(LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
-        Assert.Equal(TerrainTextureLicenseMode.Unknown, overlay.LicenseMode);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, overlay.FallbackUrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
     [Fact]

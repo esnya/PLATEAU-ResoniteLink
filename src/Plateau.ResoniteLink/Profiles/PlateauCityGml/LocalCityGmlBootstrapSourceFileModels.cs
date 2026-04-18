@@ -6,16 +6,16 @@ internal sealed record SourceFileDescriptor(
     string MatchedMeshCode,
     bool RequiresMeshAreaFilter)
 {
-    internal LocalCityGmlResonitePlanBuilder.SourceFileDescriptor ToLegacy()
+    internal LocalCityGmlObjectProjection.SourceFileDescriptor ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.SourceFileDescriptor(
+        return new LocalCityGmlObjectProjection.SourceFileDescriptor(
             RelativePath,
             PackageName,
             MatchedMeshCode,
             RequiresMeshAreaFilter);
     }
 
-    internal static SourceFileDescriptor FromLegacy(LocalCityGmlResonitePlanBuilder.SourceFileDescriptor sourceFile)
+    internal static SourceFileDescriptor FromLegacy(LocalCityGmlObjectProjection.SourceFileDescriptor sourceFile)
     {
         return new SourceFileDescriptor(
             sourceFile.RelativePath,
@@ -33,14 +33,14 @@ internal sealed record CachedSourceFileDescriptor(
 
     public string PackageName => SourceFile.PackageName;
 
-    internal LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor ToLegacy()
+    internal LocalCityGmlObjectProjection.CachedSourceFileDescriptor ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor(
+        return new LocalCityGmlObjectProjection.CachedSourceFileDescriptor(
             SourceFile.ToLegacy(),
             CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray());
     }
 
-    internal static CachedSourceFileDescriptor FromLegacy(LocalCityGmlResonitePlanBuilder.CachedSourceFileDescriptor sourceFile)
+    internal static CachedSourceFileDescriptor FromLegacy(LocalCityGmlObjectProjection.CachedSourceFileDescriptor sourceFile)
     {
         return new CachedSourceFileDescriptor(
             SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),
@@ -53,7 +53,7 @@ internal sealed class SourceFilePipeline
     private readonly object parseTaskGate = new();
     private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
     private readonly Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>> streamFactory;
-    private readonly LocalCityGmlResonitePlanBuilder.SourceFilePipeline? legacy;
+    private readonly LocalCityGmlObjectProjection.SourceFilePipeline? legacy;
     private Task<ParsedSourceFileResult>? parseTask;
 
     internal SourceFilePipeline(
@@ -66,7 +66,7 @@ internal sealed class SourceFilePipeline
         this.streamFactory = streamFactory ?? CreateParseTaskBackedStream;
     }
 
-    internal SourceFilePipeline(LocalCityGmlResonitePlanBuilder.SourceFilePipeline legacy)
+    internal SourceFilePipeline(LocalCityGmlObjectProjection.SourceFilePipeline legacy)
         : this(
             SourceFileDescriptor.FromLegacy(legacy.SourceFile),
             async () => ParsedSourceFileResult.FromLegacy(await legacy.GetParseTask().ConfigureAwait(false)))
@@ -91,9 +91,9 @@ internal sealed class SourceFilePipeline
         return streamFactory(cancellationToken);
     }
 
-    internal LocalCityGmlResonitePlanBuilder.SourceFilePipeline ToLegacy()
+    internal LocalCityGmlObjectProjection.SourceFilePipeline ToLegacy()
     {
-        return legacy ?? new LocalCityGmlResonitePlanBuilder.SourceFilePipeline(
+        return legacy ?? new LocalCityGmlObjectProjection.SourceFilePipeline(
             SourceFile.ToLegacy(),
             async () => (await GetParseTask().ConfigureAwait(false)).ToLegacy());
     }
@@ -117,9 +117,9 @@ internal sealed record ParsedSourceFileResult(
     TerrainHeightTriangle[] TerrainTriangles,
     TimeSpan Elapsed)
 {
-    internal LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedSourceFileResult ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult(
+        return new LocalCityGmlObjectProjection.ParsedSourceFileResult(
             SourceFile.ToLegacy(),
             CityObjects.Select(static cityObject => cityObject.ToLegacy()).ToArray(),
             ReferenceSystem?.ToLegacy(),
@@ -127,7 +127,7 @@ internal sealed record ParsedSourceFileResult(
             Elapsed);
     }
 
-    internal static ParsedSourceFileResult FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedSourceFileResult sourceFile)
+    internal static ParsedSourceFileResult FromLegacy(LocalCityGmlObjectProjection.ParsedSourceFileResult sourceFile)
     {
         return new ParsedSourceFileResult(
             SourceFileDescriptor.FromLegacy(sourceFile.SourceFile),

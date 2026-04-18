@@ -1,15 +1,13 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 
-using GeographicLib;
-
 using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
-internal sealed class ResoniteScenePlacementSession(
+internal sealed class ResoniteSharedSlotIndex(
     CreatedSlot datasetRootSlot,
     CreatedSlot datasetAssetsRootSlot,
     ResoniteLocalOrigin requestLocalOrigin,
@@ -23,8 +21,6 @@ internal sealed class ResoniteScenePlacementSession(
     private readonly ConcurrentDictionary<string, CreatedSlot> sharedSlotIndex = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
-
-    public string? DatasetLicenseComponentId { get; set; }
 
     public void IndexBootstrapHierarchy(ResoniteSceneBootstrapState bootstrapState)
     {
@@ -68,7 +64,9 @@ internal sealed class ResoniteScenePlacementSession(
             return anchor.Value.Position;
         }
 
-        return Add(anchor.Value.Position, ComputeMeshCodeOffset(anchor.Value.MeshCode, meshCode));
+        return ResonitePlacementPolicy.Add(
+            anchor.Value.Position,
+            ResonitePlacementPolicy.ComputeMeshCodeOffset(anchor.Value.MeshCode, meshCode));
     }
 
     public Task<CreatedSlot> GetOrCreateSharedChildSlotAsync(
@@ -97,19 +95,25 @@ internal sealed class ResoniteScenePlacementSession(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
     {
-        string cityGmlScopeKey = ResolveCityGmlScopeKey(cityObject);
-        string cityGmlSlotName = ResolveCityGmlSlotName(cityObject, cityGmlScopeKey);
-        string rootMeshCode = ResolveRequiredSourceFileRootMeshCode(cityGmlSlotName, cityObject.ActualMeshCode);
+        string cityGmlScopeKey = ResonitePlacementPolicy.ResolveCityGmlScopeKey(cityObject);
+        string cityGmlSlotName = ResonitePlacementPolicy.ResolveCityGmlSlotName(cityObject, cityGmlScopeKey, cityGmlSlotNamesByRelativePath);
+        string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(cityGmlSlotName, cityObject.ActualMeshCode);
+        ResoniteFloat3 plannedRootPosition = ResonitePlacementPolicy.NormalizeMeshRootPosition(ResolveMeshCodeRootPosition(rootMeshCode));
         CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
             new CanonicalParentScopeKey(cityGmlScopeKey, rootMeshCode, cityObject.LodLevel),
             ct => CreateCanonicalParentScopeAsync(client, cityGmlSlotName, rootMeshCode, cityObject.LodLevel, ct),
             cancellationToken);
+        ResoniteFloat3 resolvedRootPosition = TryGetObservedSlotPosition(parentScope.CityGmlSlot.SlotId) ?? plannedRootPosition;
 
         return new ObjectSlotHierarchy(
             parentScope.AssetLodSlot,
             parentScope.LodSlot,
             cityObject.DisplayName,
-            ResolveCityObjectLocalPosition(requestLocalOrigin, rootMeshCode, cityObject.Transform.Position),
+            ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
+                requestLocalOrigin,
+                rootMeshCode,
+                TryGetObservedSlotPosition(parentScope.CityGmlSlot.SlotId),
+                cityObject.Transform.Position),
             cityObject.Transform.Rotation);
     }
 
@@ -120,8 +124,8 @@ internal sealed class ResoniteScenePlacementSession(
         int? lodLevel,
         CancellationToken cancellationToken)
     {
-        string lodSlotName = FormatLodSlotName(lodLevel);
-        ResoniteFloat3 rootPosition = NormalizeMeshRootPosition(ResolveMeshCodeRootPosition(rootMeshCode));
+        string lodSlotName = ResonitePlacementPolicy.FormatLodSlotName(lodLevel);
+        ResoniteFloat3 rootPosition = ResonitePlacementPolicy.NormalizeMeshRootPosition(ResolveMeshCodeRootPosition(rootMeshCode));
         CreatedSlot? cityGmlSlot = TryGetIndexedSharedChildSlot(datasetRootSlot.SlotId, cityGmlSlotName);
         CreatedSlot? assetCityGmlSlot = TryGetIndexedSharedChildSlot(datasetAssetsRootSlot.SlotId, cityGmlSlotName);
         CreatedSlot? lodSlot = cityGmlSlot is null ? null : TryGetIndexedSharedChildSlot(cityGmlSlot.Value.SlotId, lodSlotName);
@@ -284,6 +288,17 @@ internal sealed class ResoniteScenePlacementSession(
         return createdSlot;
     }
 
+    private ResoniteFloat3? TryGetObservedSlotPosition(string slotId)
+    {
+        if (!observedSlotSnapshotsById.TryGetValue(slotId, out Slot? slot)
+            || slot.Position is not Field_float3 position)
+        {
+            return null;
+        }
+
+        return new ResoniteFloat3(position.Value.x, position.Value.y, position.Value.z);
+    }
+
     private static string CreateSharedSlotIndexKey(string parentId, string slotName)
     {
         return string.Create(CultureInfo.InvariantCulture, $"{parentId}\n{slotName}");
@@ -338,123 +353,6 @@ internal sealed class ResoniteScenePlacementSession(
             ?? throw new InvalidOperationException(
                 $"Child slot '{slotName}' under parent '{parentId ?? parentSlot.ID ?? "<unknown>"}' did not surface an ID.");
         return new CreatedSlot(existingSlotId, slotName);
-    }
-
-    private string ResolveCityGmlSlotName(ResoniteConstructionCityObject cityObject, string cityGmlScopeKey)
-    {
-        if (cityGmlSlotNamesByRelativePath.TryGetValue(cityGmlScopeKey, out string? slotName)
-            && !string.IsNullOrWhiteSpace(slotName))
-        {
-            return slotName;
-        }
-
-        if (!string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath))
-        {
-            string fileStem = Path.GetFileNameWithoutExtension(cityObject.SourceFileRelativePath);
-            if (!string.IsNullOrWhiteSpace(fileStem))
-            {
-                return fileStem;
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
-        {
-            return cityObject.SourceUnitKey!;
-        }
-
-        return cityObject.SlotKey;
-    }
-
-    private static string ResolveCityGmlScopeKey(ResoniteConstructionCityObject cityObject)
-    {
-        if (!string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath))
-        {
-            return cityObject.SourceFileRelativePath!;
-        }
-
-        if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
-        {
-            return cityObject.SourceUnitKey!;
-        }
-
-        return cityObject.SlotKey;
-    }
-
-    private static string ResolveRequiredSourceFileRootMeshCode(string cityGmlSlotName, string actualMeshCode)
-    {
-        if (ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(cityGmlSlotName, out string meshCode))
-        {
-            return meshCode;
-        }
-
-        if (PlateauMeshCode.TryGetCenter(actualMeshCode, out _))
-        {
-            return actualMeshCode;
-        }
-
-        throw new InvalidOperationException(
-            $"Source-file root '{cityGmlSlotName}' did not contain a concrete meshcode and actual mesh '{actualMeshCode}' was not concrete.");
-    }
-
-    private static string FormatLodSlotName(int? lodLevel)
-    {
-        return lodLevel.HasValue
-            ? string.Create(CultureInfo.InvariantCulture, $"LOD{lodLevel.Value}")
-            : "LOD";
-    }
-
-    private static ResoniteFloat3 ResolveCityObjectLocalPosition(
-        ResoniteLocalOrigin requestOrigin,
-        string rootMeshCode,
-        ResoniteFloat3 cityObjectPosition)
-    {
-        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
-        {
-            return cityObjectPosition;
-        }
-
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
-        return Subtract(cityObjectPosition, rootOffsetFromRequest);
-    }
-
-    private static ResoniteFloat3 NormalizeMeshRootPosition(ResoniteFloat3 position)
-    {
-        return new ResoniteFloat3(position.X, 0.0, position.Z);
-    }
-
-    private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        return new ResoniteFloat3(left.X + right.X, left.Y + right.Y, left.Z + right.Z);
-    }
-
-    private static ResoniteFloat3 Subtract(ResoniteFloat3 left, ResoniteFloat3 right)
-    {
-        return new ResoniteFloat3(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
-    }
-
-    private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
-    {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
-            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
-        {
-            return new ResoniteFloat3(0.0, 0.0, 0.0);
-        }
-
-        return ComputeOriginOffset(referenceCenter, currentCenter);
-    }
-
-    private static ResoniteFloat3 ComputeOriginOffset(ResoniteLocalOrigin referenceCenter, ResoniteLocalOrigin currentCenter)
-    {
-        LocalCartesian cartesian = new(
-            referenceCenter.Latitude,
-            referenceCenter.Longitude,
-            referenceCenter.Altitude,
-            Geocentric.WGS84);
-        (double x, double y, double z) eun = cartesian.Forward(
-            currentCenter.Latitude,
-            currentCenter.Longitude,
-            currentCenter.Altitude);
-        return new ResoniteFloat3(X: eun.x, Y: 0.0, Z: eun.y);
     }
 
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)

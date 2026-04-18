@@ -82,7 +82,7 @@ For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`
   1. Query `GetComponentTypeList` with the narrowest collider-oriented filter the session supports.
   2. Run `GetComponentDefinition` on the candidate runtime types and record the exact type string that the session accepts.
 - After the runtime type is confirmed, add the BoxCollider probe to the target slot and inspect the callable or member surface exposed by the session for bounds-derived update paths.
-- Prefer `SetFromLocalBounds` or `SetFromLocalBoundsPrecise` for the probe step. Treat those as the primary bounds-capture path unless the user explicitly wants a world-space comparison.
+- Prefer `SetFromLocalBounds` for the probe step. In the currently observed workspace session, do not use `SetFromLocalBoundsPrecise` as an evaluation path because it returned unit bounds instead of usable occupancy values. Treat `SetFromLocalBounds` as the primary bounds-capture path unless the user explicitly wants a world-space comparison.
 - Do not assume that a global-bounds helper is the correct default. Record the exact callable path that was used and keep `SetFromGlobalBounds` as an explicit alternative, not the baseline procedure.
 - After the local-bounds update runs, capture the BoxCollider state together with the slot transform. Treat the `Size` and `Offset` values as slot-local occupancy and combine them with the slot transform only when a world-space interpretation is needed.
 - Standard procedure: remove the BoxCollider probe after readback so the inspected world returns to its pre-probe state. If a probe is intentionally left in place for manual follow-up, record that deviation explicitly in the run notes.
@@ -97,7 +97,7 @@ For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`
 - Structural check:
   confirm the expected slot exists under the expected dataset branch, and confirm whether the expected renderer and collider components are present before adding the probe.
 - Local occupancy check:
-  record BoxCollider `Size` and `Offset` after `SetFromLocalBounds` or `SetFromLocalBoundsPrecise`.
+  record BoxCollider `Size` and `Offset` after `SetFromLocalBounds`.
 - Placement check:
   record the slot transform together with the BoxCollider local values so later comparisons can distinguish slot misplacement from geometry extent changes.
 - Rotation check:

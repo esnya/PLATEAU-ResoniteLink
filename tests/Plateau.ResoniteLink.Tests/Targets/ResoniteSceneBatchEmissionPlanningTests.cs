@@ -8,7 +8,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_CreatesHeightMapGridPlanWithPlannedTextureReference()
     {
-        ResoniteScenePlacementSession.ObjectSlotHierarchy objectSlots = new(
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot("asset-lod-slot", "Asset LOD"),
             new CreatedSlot("lod-slot", "LOD"),
             "HeightMap Object",
@@ -35,7 +35,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 true));
 
-        PlannedBatchEmission batchPlan = ResoniteLinkSceneBuilder.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
 
         PlannedBatchSlotEmission meshAssetSlot = Assert.Single(
             batchPlan.SlotEmissions,
@@ -61,7 +61,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesReusableTargetsAndPlansDedicatedMaterialComponents()
     {
-        ResoniteScenePlacementSession.ObjectSlotHierarchy objectSlots = new(
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot("asset-lod-slot", "Asset LOD"),
             new CreatedSlot("lod-slot", "LOD"),
             "Triangle Object",
@@ -96,7 +96,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 false));
 
-        PlannedBatchEmission batchPlan = ResoniteLinkSceneBuilder.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -128,7 +128,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     [Fact]
     public void CreatePlannedBatchEmission_UsesMeshAssetContainerWhenDedicatedMaterialSlotIsNotPreserved()
     {
-        ResoniteScenePlacementSession.ObjectSlotHierarchy objectSlots = new(
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot("asset-lod-slot", "Asset LOD"),
             new CreatedSlot("lod-slot", "LOD"),
             "Triangle Object",
@@ -166,7 +166,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 true));
 
-        PlannedBatchEmission batchPlan = ResoniteLinkSceneBuilder.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
 
         PlannedBatchSlotEmission meshAssetSlot = Assert.Single(
             batchPlan.SlotEmissions,

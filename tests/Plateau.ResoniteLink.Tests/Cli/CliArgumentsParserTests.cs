@@ -357,6 +357,30 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseClearsPackageSpecificLodExclusionsWhenNoneIsSpecifiedLater()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--exclude-lod-for-package",
+                "tran:1,tran:none",
+                "--resonitelink-port",
+                "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.NotNull(result.Options!.Request.ExcludeLodLevelsByPackage);
+        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("tran", out IReadOnlySet<int>? tranLods));
+        Assert.Empty(tranLods);
+    }
+
+    [Fact]
     public void ParseParsesResoniteLinkPort()
     {
         CliParseResult result = CliArgumentsParser.Parse(

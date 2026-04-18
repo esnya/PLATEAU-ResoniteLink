@@ -82,7 +82,7 @@ disposable な headless validation では、次の operator sequence を優先�
   1. session が受け付ける最も狭い collider-oriented filter で `GetComponentTypeList` を引きます。
   2. 候補 runtime type に対して `GetComponentDefinition` を実行し、session が受け付ける exact な type string を記録します。
 - runtime type が確定したら target slot に BoxCollider probe を追加し、session が見せる callable / member surface から bounds 由来 update path を確認します。
-- probe 手順では `SetFromLocalBounds` または `SetFromLocalBoundsPrecise` を優先します。user が world-space comparison を明示しない限り、これを基本経路とします。
+- probe 手順では `SetFromLocalBounds` を優先します。現在観測している workspace session では `SetFromLocalBoundsPrecise` は unit bounds しか返さず評価経路として使えないため、使いません。user が world-space comparison を明示しない限り、`SetFromLocalBounds` を基本経路とします。
 - global-bounds helper を default とみなしません。実際に使った callable path を記録し、`SetFromGlobalBounds` は明示的な代替として扱います。
 - local-bounds update 後は、BoxCollider state と slot transform をセットで採取します。`Size` と `Offset` は slot-local occupancy として扱い、world-space 解釈が必要なときだけ slot transform と組み合わせます。
 - 標準手順では、readback 後に BoxCollider probe を削除して inspected world を probe 追加前の状態へ戻します。manual follow-up のために意図的に残す場合だけ、その逸脱を run note に明記します。
@@ -97,7 +97,7 @@ disposable な headless validation では、次の operator sequence を優先�
 - Structural check:
   期待した slot が期待した dataset branch 配下に存在するか、probe 追加前に renderer と collider component があるかを確認します。
 - Local occupancy check:
-  `SetFromLocalBounds` または `SetFromLocalBoundsPrecise` 実行後の BoxCollider `Size` と `Offset` を記録します。
+  `SetFromLocalBounds` 実行後の BoxCollider `Size` と `Offset` を記録します。
 - Placement check:
   後比較で slot misplacement と geometry extent 変化を分離できるよう、slot transform と BoxCollider local 値をセットで残します。
 - Rotation check:

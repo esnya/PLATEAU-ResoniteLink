@@ -113,7 +113,7 @@ internal static class ResoniteMaterialPlanning
             materialSlotName,
             cancellationToken);
         string materialContainerSlotId = materialSlot.SlotId;
-        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(plannedMaterial.Material);
+        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(plannedMaterial.Material);
 
         Uri? albedoTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
         if (albedoTextureUri is not null)
@@ -200,14 +200,14 @@ internal static class ResoniteMaterialPlanning
             {
                 TargetID = emissionTexture.ComponentId,
             };
-            materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
+            materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
         }
 
         CreatedComponent materialComponent = await createComponentAsync(
             client,
             materialContainerSlotId,
-            ResoniteMaterialComponentBuilder.GetComponentType(plannedMaterial.Material),
+            ResoniteMaterialComponentPolicy.GetComponentType(plannedMaterial.Material),
             materialMembers,
             cancellationToken);
         return new CreatedMaterialAsset(materialComponent.ComponentId, null);
@@ -235,7 +235,7 @@ internal static class ResoniteMaterialPlanning
         Task<Uri?> metallicTextureTask = Task.FromResult<Uri?>(null);
         Task<Uri?> emissionTextureTask = Task.FromResult<Uri?>(null);
 
-        if (ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
+        if (ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet)
             && textureSet is not null)
         {
             if (textureSet.NormalPath is not null)

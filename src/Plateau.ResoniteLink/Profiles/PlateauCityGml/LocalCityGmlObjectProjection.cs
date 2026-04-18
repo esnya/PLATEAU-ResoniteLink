@@ -15,7 +15,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public static partial class LocalCityGmlResonitePlanBuilder
+public static partial class LocalCityGmlObjectProjection
 {
     public const string DefaultDemTerrainTexturePath = "dem/plateau-ortho";
     public const string DefaultDemTerrainTextureUrlTemplate = "https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png";
@@ -54,7 +54,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         bool sharedAcrossMeshCodes,
         AppearanceLibrary appearanceLibrary,
         CoordinateReferenceSystem coordinateReferenceSystem,
-        IReadOnlyList<MeshCodeArea>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         LodFilteringStrategy lodFilteringStrategy)
     {
         string objectTypeName = cityObjectElement.Name.LocalName;
@@ -110,9 +110,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             && coordinateReferenceSystem.IsGeographic)
         {
             bool intersectsRequestedMeshArea = sharedAcrossMeshCodes
-                && TryCreateMeshCodeArea(resolvedActualMeshCode, out MeshCodeArea? resolvedActualMeshArea)
-                    ? IntersectsMeshCodeArea(resolvedActualMeshArea!, requestedMeshAreas)
-                    : IntersectsMeshCodeArea(surfaces, requestedMeshAreas);
+                && TryCreateMeshCodeBounds(resolvedActualMeshCode, out MeshCodeBounds? resolvedActualMeshArea)
+                    ? IntersectsMeshCodeBounds(resolvedActualMeshArea!, requestedMeshAreas)
+                    : IntersectsMeshCodeBounds(surfaces, requestedMeshAreas);
             if (!intersectsRequestedMeshArea)
             {
                 return null;
@@ -138,7 +138,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
-        MeshCodeArea demBounds,
+        MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
         return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
@@ -234,7 +234,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         XDocument document,
         SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
-        IReadOnlyList<MeshCodeArea>? requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         LodFilteringStrategy lodFilteringStrategy)
     {
         string relativeSourceFile = sourceFile.RelativePath;
@@ -263,9 +263,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             .ToArray();
     }
 
-    private static bool IntersectsMeshCodeArea(
+    private static bool IntersectsMeshCodeBounds(
         IEnumerable<ParsedSurface> surfaces,
-        IReadOnlyList<MeshCodeArea> meshCodeAreas)
+        IReadOnlyList<MeshCodeBounds> meshCodeAreas)
     {
         List<GeodeticPoint> vertices = surfaces
             .SelectMany(static surface => surface.Vertices)
@@ -276,14 +276,14 @@ public static partial class LocalCityGmlResonitePlanBuilder
         double minLongitude = vertices.Min(static point => point.Longitude);
         double maxLongitude = vertices.Max(static point => point.Longitude);
 
-        return IntersectsMeshCodeArea(minLatitude, maxLatitude, minLongitude, maxLongitude, meshCodeAreas);
+        return IntersectsMeshCodeBounds(minLatitude, maxLatitude, minLongitude, maxLongitude, meshCodeAreas);
     }
 
-    private static bool IntersectsMeshCodeArea(
-        MeshCodeArea meshCodeArea,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas)
+    private static bool IntersectsMeshCodeBounds(
+        MeshCodeBounds meshCodeArea,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas)
     {
-        return IntersectsMeshCodeArea(
+        return IntersectsMeshCodeBounds(
             meshCodeArea.SouthLatitude,
             meshCodeArea.NorthLatitude,
             meshCodeArea.WestLongitude,
@@ -291,12 +291,12 @@ public static partial class LocalCityGmlResonitePlanBuilder
             requestedMeshAreas);
     }
 
-    private static bool IntersectsMeshCodeArea(
+    private static bool IntersectsMeshCodeBounds(
         double minLatitude,
         double maxLatitude,
         double minLongitude,
         double maxLongitude,
-        IReadOnlyList<MeshCodeArea> meshCodeAreas)
+        IReadOnlyList<MeshCodeBounds> meshCodeAreas)
     {
         const double overlapTolerance = 1e-10;
 
@@ -351,9 +351,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
         return true;
     }
 
-    private static bool TryCreateMeshCodeArea(string meshCode, out MeshCodeArea? meshCodeArea)
+    private static bool TryCreateMeshCodeBounds(string meshCode, out MeshCodeBounds? meshCodeArea)
     {
-        meshCodeArea = MeshCodeArea.TryParse(meshCode);
+        meshCodeArea = MeshCodeBounds.TryParse(meshCode);
         return meshCodeArea is not null;
     }
 
@@ -426,9 +426,9 @@ public static partial class LocalCityGmlResonitePlanBuilder
             allPoints.Min(static point => point.Altitude));
     }
 
-    internal static MeshCodeArea? ResolveDemTerrainBounds(
+    internal static MeshCodeBounds? ResolveDemTerrainBounds(
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
-        MeshCodeArea? fallbackBounds)
+        MeshCodeBounds? fallbackBounds)
     {
         global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
             demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
@@ -1181,7 +1181,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
 
     private static GeodeticPoint CreateGlobalOrigin(
         (double minLatitude, double maxLatitude, double minLongitude, double maxLongitude, double minAltitude) bounds,
-        MeshCodeArea? requestedMeshArea,
+        MeshCodeBounds? requestedMeshArea,
         bool isGeographicReferenceSystem)
     {
         if (isGeographicReferenceSystem && requestedMeshArea is not null)
@@ -2638,7 +2638,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
@@ -2709,7 +2709,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeArea> requestedMeshAreas,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)
@@ -2726,7 +2726,7 @@ public static partial class LocalCityGmlResonitePlanBuilder
                 && requestedMeshAreas.Count > 0
                 && splitCityObject.CityObject.ReferenceSystem.IsGeographic
                 && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                && !IntersectsMeshCodeArea(splitCityObject.CityObject.Surfaces, requestedMeshAreas))
+                && !IntersectsMeshCodeBounds(splitCityObject.CityObject.Surfaces, requestedMeshAreas))
             {
                 continue;
             }
@@ -3767,63 +3767,6 @@ public static partial class LocalCityGmlResonitePlanBuilder
         CoordinateReferenceSystem? ReferenceSystem,
         TerrainHeightTriangle[] TerrainTriangles,
         TimeSpan Elapsed);
-
-    internal sealed record MeshCodeArea(
-        double SouthLatitude,
-        double NorthLatitude,
-        double WestLongitude,
-        double EastLongitude)
-    {
-        public static MeshCodeArea? TryParse(string meshCode)
-        {
-            if (!PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
-            {
-                return null;
-            }
-            return new MeshCodeArea(
-                bounds.SouthLatitude,
-                bounds.NorthLatitude,
-                bounds.WestLongitude,
-                bounds.EastLongitude);
-        }
-
-        public static MeshCodeArea[] CreateManyFromRequestedMeshCodes(IEnumerable<string> meshCodes)
-        {
-            ArgumentNullException.ThrowIfNull(meshCodes);
-
-            return meshCodes
-                .Select(TryParse)
-                .Where(static meshArea => meshArea is not null)
-                .Select(static meshArea => meshArea!)
-                .Distinct()
-                .ToArray();
-        }
-
-        public static MeshCodeArea? TryMerge(IEnumerable<MeshCodeArea> meshAreas)
-        {
-            ArgumentNullException.ThrowIfNull(meshAreas);
-
-            MeshCodeArea[] areaArray = meshAreas.ToArray();
-            if (areaArray.Length == 0)
-            {
-                return null;
-            }
-
-            return new MeshCodeArea(
-                areaArray.Min(static meshArea => meshArea.SouthLatitude),
-                areaArray.Max(static meshArea => meshArea.NorthLatitude),
-                areaArray.Min(static meshArea => meshArea.WestLongitude),
-                areaArray.Max(static meshArea => meshArea.EastLongitude));
-        }
-
-        public ResoniteLocalOrigin GetCenter()
-        {
-            return new ResoniteLocalOrigin(
-                Latitude: (SouthLatitude + NorthLatitude) / 2.0,
-                Longitude: (WestLongitude + EastLongitude) / 2.0,
-                Altitude: 0.0);
-        }
-    }
 
     internal sealed record ParsedRing(
         string RingId,

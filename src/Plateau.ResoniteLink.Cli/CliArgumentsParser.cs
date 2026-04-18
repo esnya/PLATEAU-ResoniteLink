@@ -656,6 +656,7 @@ public static class CliArgumentsParser
             if (string.IsNullOrWhiteSpace(lodStr)
                 || string.Equals(lodStr, "none", StringComparison.OrdinalIgnoreCase))
             {
+                lodSet.Clear();
                 continue;
             }
 

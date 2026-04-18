@@ -9,12 +9,12 @@ internal sealed record GeodeticPoint(
     double Longitude,
     double Altitude)
 {
-    internal LocalCityGmlResonitePlanBuilder.GeodeticPoint ToLegacy()
+    internal LocalCityGmlObjectProjection.GeodeticPoint ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.GeodeticPoint(Latitude, Longitude, Altitude);
+        return new LocalCityGmlObjectProjection.GeodeticPoint(Latitude, Longitude, Altitude);
     }
 
-    internal static GeodeticPoint FromLegacy(LocalCityGmlResonitePlanBuilder.GeodeticPoint point)
+    internal static GeodeticPoint FromLegacy(LocalCityGmlObjectProjection.GeodeticPoint point)
     {
         return new GeodeticPoint(point.Latitude, point.Longitude, point.Altitude);
     }
@@ -25,15 +25,15 @@ internal sealed record TerrainHeightTriangle(
     GeodeticPoint Vertex1,
     GeodeticPoint Vertex2)
 {
-    internal LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle ToLegacy()
+    internal LocalCityGmlObjectProjection.TerrainHeightTriangle ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle(
+        return new LocalCityGmlObjectProjection.TerrainHeightTriangle(
             Vertex0.ToLegacy(),
             Vertex1.ToLegacy(),
             Vertex2.ToLegacy());
     }
 
-    internal static TerrainHeightTriangle FromLegacy(LocalCityGmlResonitePlanBuilder.TerrainHeightTriangle triangle)
+    internal static TerrainHeightTriangle FromLegacy(LocalCityGmlObjectProjection.TerrainHeightTriangle triangle)
     {
         return new TerrainHeightTriangle(
             GeodeticPoint.FromLegacy(triangle.Vertex0),
@@ -48,7 +48,7 @@ internal sealed record DemTerrainBounds(
     double WestLongitude,
     double EastLongitude)
 {
-    internal static DemTerrainBounds FromLegacy(LocalCityGmlResonitePlanBuilder.MeshCodeArea bounds)
+    internal static DemTerrainBounds FromLegacy(MeshCodeBounds bounds)
     {
         return new DemTerrainBounds(
             bounds.SouthLatitude,
@@ -57,9 +57,9 @@ internal sealed record DemTerrainBounds(
             bounds.EastLongitude);
     }
 
-    internal LocalCityGmlResonitePlanBuilder.MeshCodeArea ToLegacy()
+    internal MeshCodeBounds ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.MeshCodeArea(
+        return new MeshCodeBounds(
             SouthLatitude,
             NorthLatitude,
             WestLongitude,
@@ -107,14 +107,14 @@ internal sealed record CoordinateReferenceSystem(
         return new CoordinateReferenceSystem(srsName, geocentric, compatibilityKey);
     }
 
-    internal static CoordinateReferenceSystem FromLegacy(LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem referenceSystem)
+    internal static CoordinateReferenceSystem FromLegacy(LocalCityGmlObjectProjection.CoordinateReferenceSystem referenceSystem)
     {
         return new CoordinateReferenceSystem(referenceSystem.SrsName, referenceSystem.Geocentric, referenceSystem.CompatibilityKey);
     }
 
-    internal LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem ToLegacy()
+    internal LocalCityGmlObjectProjection.CoordinateReferenceSystem ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem(
+        return new LocalCityGmlObjectProjection.CoordinateReferenceSystem(
             SrsName,
             Geocentric,
             CompatibilityKey);
@@ -142,19 +142,19 @@ internal sealed record CoordinateReferenceSystem(
 
 internal sealed class TerrainHeightSampler
 {
-    private readonly LocalCityGmlResonitePlanBuilder.TerrainHeightSampler legacy;
+    private readonly LocalCityGmlObjectProjection.TerrainHeightSampler legacy;
 
-    internal TerrainHeightSampler(LocalCityGmlResonitePlanBuilder.TerrainHeightSampler legacy)
+    internal TerrainHeightSampler(LocalCityGmlObjectProjection.TerrainHeightSampler legacy)
     {
         this.legacy = legacy;
     }
 
-    internal static TerrainHeightSampler? FromLegacy(LocalCityGmlResonitePlanBuilder.TerrainHeightSampler? terrainHeightSampler)
+    internal static TerrainHeightSampler? FromLegacy(LocalCityGmlObjectProjection.TerrainHeightSampler? terrainHeightSampler)
     {
         return terrainHeightSampler is null ? null : new TerrainHeightSampler(terrainHeightSampler);
     }
 
-    internal LocalCityGmlResonitePlanBuilder.TerrainHeightSampler ToLegacy()
+    internal LocalCityGmlObjectProjection.TerrainHeightSampler ToLegacy()
     {
         return legacy;
     }
@@ -165,7 +165,7 @@ internal sealed class TerrainHeightSampler
         Geocentric geocentric)
     {
         return new TerrainHeightSampler(
-            LocalCityGmlResonitePlanBuilder.TerrainHeightSampler.Create(
+            LocalCityGmlObjectProjection.TerrainHeightSampler.Create(
                 terrainTriangles.Select(static triangle => triangle.ToLegacy()).ToArray(),
                 globalOriginPoint.ToLegacy(),
                 geocentric));

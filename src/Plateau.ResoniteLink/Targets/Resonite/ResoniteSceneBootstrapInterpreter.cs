@@ -12,18 +12,17 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private const string StaticTextureComponentType = "[FrooxEngine]FrooxEngine.StaticTexture2D";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
+    private const string GsiLicenseName = "GSI Maps Terms";
+    private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
 
     private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync;
-    private readonly ResoniteComponentUpdateInterpreter componentUpdateInterpreter;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
 
     internal ResoniteSceneBootstrapInterpreter(
         Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync,
-        ResoniteComponentUpdateInterpreter componentUpdateInterpreter,
         IResoniteSceneAnchorResolver? sceneAnchorResolver = null)
     {
         this.tryGetDatasetRootAsync = tryGetDatasetRootAsync;
-        this.componentUpdateInterpreter = componentUpdateInterpreter;
         this.sceneAnchorResolver = sceneAnchorResolver ?? new ResoniteSceneAnchorResolver();
     }
 
@@ -50,7 +49,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 setupClient,
                 setupInfo.Dataset,
                 completionMeshCode,
-                setupInfo.DatasetLicense,
+                CreateDatasetLicensePlan(setupInfo),
                 commonMaterials,
                 cancellationToken);
         }
@@ -67,18 +66,12 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         Slot? commonSlot = assetsSlot is null
             ? null
             : GetReusableChildSlot(new ResoniteSceneSlotSnapshot(assetsSlot), "Common", assetsSlot.ID!);
-        string? existingLicenseComponentId = datasetRootSnapshot.Components?
-            .Where(static component => string.Equals(component.ComponentType, LicenseComponentType, StringComparison.Ordinal))
-            .OrderBy(static component => component.ID, StringComparer.Ordinal)
-            .Select(static component => component.ID)
-            .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
-        string? datasetLicenseComponentId = existingLicenseComponentId;
-        IReadOnlyDictionary<string, Member> datasetLicenseMembers = CreateDatasetLicenseMembers(setupInfo.DatasetLicense);
+        DatasetLicenseDefinition[] datasetLicenses = CreateDatasetLicensePlan(setupInfo);
+        HashSet<DatasetLicenseRole> matchedExistingLicenseRoles = MatchExistingLicenseRoles(datasetRootSnapshot, datasetLicenses);
 
         List<DataModelOperation> operations = [];
         ResoniteBatchOperations.PendingBatchSlot? pendingAssets = null;
         ResoniteBatchOperations.PendingBatchSlot? pendingCommon = null;
-        ResoniteBatchOperations.PendingBatchComponent? pendingLicense = null;
         string batchScopeToken = CreateBatchScopeToken();
 
         string assetsParentId = existingDatasetRoot.Value.SlotId;
@@ -110,10 +103,22 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             datasetRootExisted: true,
             cancellationToken);
 
-        if (string.IsNullOrWhiteSpace(existingLicenseComponentId))
+        foreach (DatasetLicenseDefinition license in datasetLicenses)
         {
-            pendingLicense = CreatePendingBatchComponent("bootstrap_dataset_license", LicenseComponentType, batchScopeToken);
-            operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(existingDatasetRoot.Value.SlotId, LicenseComponentType, datasetLicenseMembers, pendingLicense.Value));
+            if (matchedExistingLicenseRoles.Contains(license.Role))
+            {
+                continue;
+            }
+
+            ResoniteBatchOperations.PendingBatchComponent pendingLicense = CreatePendingBatchComponent(
+                $"bootstrap_dataset_license_{license.Role}",
+                LicenseComponentType,
+                batchScopeToken);
+            operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(
+                existingDatasetRoot.Value.SlotId,
+                LicenseComponentType,
+                license.Members,
+                pendingLicense));
         }
 
         (Dictionary<string, CreatedMaterialAsset> commonMaterialAssetsByKey, HashSet<string> commonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
@@ -140,11 +145,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 commonSlot = CreateSlot(entityMap.ResolveSlot(pendingCommon.Value));
             }
 
-            if (pendingLicense is not null)
-            {
-                datasetLicenseComponentId = entityMap.ResolveComponent(pendingLicense.Value).ComponentId;
-            }
-
             foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
             {
                 commonMaterialAssetsByKey[plannedMaterial.MaterialKey] = new CreatedMaterialAsset(
@@ -158,15 +158,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             throw new InvalidOperationException("Bootstrap did not resolve required shared slots.");
         }
 
-        if (!string.IsNullOrWhiteSpace(existingLicenseComponentId))
-        {
-            await componentUpdateInterpreter.ApplyAsync(
-                setupClient,
-                existingLicenseComponentId,
-                datasetLicenseMembers,
-                cancellationToken);
-        }
-
         return new ResoniteSceneBootstrapState(
             existingDatasetRoot.Value,
             new CreatedSlot(assetsSlot.ID!, assetsSlot.Name?.Value ?? "Assets"),
@@ -174,8 +165,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             DatasetRootExisted: true,
             sceneAnchor,
             datasetRootSnapshot,
-            existingLicenseComponentId,
-            datasetLicenseComponentId,
             commonMaterialAssetsByKey,
             commonMaterialFamilies);
     }
@@ -191,46 +180,11 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             : null;
     }
 
-    public async Task<string> ApplyDatasetLicenseAsync(
-        IResoniteLinkClient setupClient,
-        string datasetRootSlotId,
-        ResoniteLicenseComponentMetadata license,
-        string? existingComponentId,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(setupClient);
-        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRootSlotId);
-        ArgumentNullException.ThrowIfNull(license);
-
-        IReadOnlyDictionary<string, Member> members = CreateDatasetLicenseMembers(license);
-        if (!string.IsNullOrWhiteSpace(existingComponentId))
-        {
-            await componentUpdateInterpreter.ApplyAsync(
-                setupClient,
-                existingComponentId,
-                members,
-                cancellationToken);
-            return existingComponentId;
-        }
-
-        ResoniteBatchOperations.PendingBatchComponent pendingLicense = CreatePendingBatchComponent(
-            "bootstrap_dataset_license",
-            LicenseComponentType,
-            CreateBatchScopeToken());
-        BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(
-            [
-                ResoniteBatchOperations.CreateAddComponentOperation(datasetRootSlotId, LicenseComponentType, members, pendingLicense),
-            ],
-            cancellationToken);
-        CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
-        return entityMap.ResolveComponent(pendingLicense).ComponentId;
-    }
-
     private static async Task<ResoniteSceneBootstrapState> CreateInitialBootstrapStateAsync(
         IResoniteLinkClient setupClient,
         string datasetName,
         string completionMeshCode,
-        ResoniteLicenseComponentMetadata datasetLicense,
+        IReadOnlyList<DatasetLicenseDefinition> datasetLicenses,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken)
     {
@@ -240,18 +194,24 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         ResoniteBatchOperations.PendingBatchSlot pendingDatasetRootSlot = CreatePendingBatchSlot("bootstrap_dataset_root", datasetRootName, batchScopeToken);
         ResoniteBatchOperations.PendingBatchSlot pendingDatasetAssetsRootSlot = CreatePendingBatchSlot("bootstrap_assets_root", "Assets", batchScopeToken);
         ResoniteBatchOperations.PendingBatchSlot pendingCommonAssetsRootSlot = CreatePendingBatchSlot("bootstrap_common_assets_root", "Common", batchScopeToken);
-        ResoniteBatchOperations.PendingBatchComponent pendingLicense = CreatePendingBatchComponent("bootstrap_dataset_license", LicenseComponentType, batchScopeToken);
         List<DataModelOperation> operations =
         [
             ResoniteBatchOperations.CreateAddSlotOperation("Root", datasetRootName, null, null, pendingDatasetRootSlot),
             ResoniteBatchOperations.CreateAddSlotOperation(pendingDatasetRootSlot.LocalId, "Assets", null, null, pendingDatasetAssetsRootSlot),
             ResoniteBatchOperations.CreateAddSlotOperation(pendingDatasetAssetsRootSlot.LocalId, "Common", null, null, pendingCommonAssetsRootSlot),
-            ResoniteBatchOperations.CreateAddComponentOperation(
+        ];
+        foreach (DatasetLicenseDefinition datasetLicense in datasetLicenses)
+        {
+            ResoniteBatchOperations.PendingBatchComponent pendingLicense = CreatePendingBatchComponent(
+                $"bootstrap_dataset_license_{datasetLicense.Role}",
+                LicenseComponentType,
+                batchScopeToken);
+            operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(
                 pendingDatasetRootSlot.LocalId,
                 LicenseComponentType,
-                CreateDatasetLicenseMembers(datasetLicense),
-                pendingLicense),
-        ];
+                datasetLicense.Members,
+                pendingLicense));
+        }
 
         (Dictionary<string, CreatedMaterialAsset> commonMaterialAssetsByKey, HashSet<string> commonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> plannedCommonMaterials)
             = await PlanCommonMaterialOperationsAsync(
@@ -269,7 +229,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         CreatedSlot datasetRootSlot = entityMap.ResolveSlot(pendingDatasetRootSlot);
         CreatedSlot datasetAssetsRootSlot = entityMap.ResolveSlot(pendingDatasetAssetsRootSlot);
         CreatedSlot commonAssetsRootSlot = entityMap.ResolveSlot(pendingCommonAssetsRootSlot);
-        CreatedComponent licenseComponent = entityMap.ResolveComponent(pendingLicense);
         foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
         {
             commonMaterialAssetsByKey[plannedMaterial.MaterialKey] = new CreatedMaterialAsset(
@@ -284,10 +243,80 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             DatasetRootExisted: false,
             new SceneAnchor(datasetRootSlot.SlotId, completionMeshCode, anchorPosition, ReferenceSourceFileRootId: null),
             DatasetRootSnapshot: null,
-            ExistingLicenseComponentId: null,
-            DatasetLicenseComponentId: licenseComponent.ComponentId,
             commonMaterialAssetsByKey,
             commonMaterialFamilies);
+    }
+
+    private static DatasetLicenseDefinition[] CreateDatasetLicensePlan(SceneBootstrapInfo setupInfo)
+    {
+        ArgumentNullException.ThrowIfNull(setupInfo);
+
+        List<DatasetLicenseDefinition> licenses =
+        [
+            new(
+                DatasetLicenseRole.PrimaryPlateau,
+                setupInfo.DatasetLicense,
+                CreateDatasetLicenseMembers(setupInfo.DatasetLicense)),
+        ];
+        if (setupInfo.RequiresGsiFallbackLicense)
+        {
+            ResoniteLicenseComponentMetadata gsiLicense = new(
+                RequireCredit: true,
+                CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
+                LicenseName: GsiLicenseName,
+                LicenseUrl: GsiLicenseUrl);
+            licenses.Add(new(
+                DatasetLicenseRole.GsiFallback,
+                gsiLicense,
+                CreateDatasetLicenseMembers(gsiLicense)));
+        }
+
+        return licenses.ToArray();
+    }
+
+    private static HashSet<DatasetLicenseRole> MatchExistingLicenseRoles(
+        Slot datasetRootSnapshot,
+        IReadOnlyList<DatasetLicenseDefinition> datasetLicenses)
+    {
+        HashSet<DatasetLicenseRole> matchedRoles = [];
+        if (datasetRootSnapshot.Components is null || datasetRootSnapshot.Components.Count == 0)
+        {
+            return matchedRoles;
+        }
+
+        foreach (DatasetLicenseDefinition plannedLicense in datasetLicenses)
+        {
+            bool exists = datasetRootSnapshot.Components
+                .Where(static component => string.Equals(component.ComponentType, LicenseComponentType, StringComparison.Ordinal))
+                .OrderBy(static component => component.ID, StringComparer.Ordinal)
+                .Any(component => LicenseMembersMatch(component, plannedLicense.Members));
+            if (exists)
+            {
+                matchedRoles.Add(plannedLicense.Role);
+            }
+        }
+
+        return matchedRoles;
+    }
+
+    private static bool LicenseMembersMatch(Component component, IReadOnlyDictionary<string, Member> members)
+    {
+        if (!component.Members.TryGetValue("RequireCredit", out Member? requireCreditMember)
+            || requireCreditMember is not Field_bool existingRequireCredit
+            || members["RequireCredit"] is not Field_bool expectedRequireCredit
+            || existingRequireCredit.Value != expectedRequireCredit.Value)
+        {
+            return false;
+        }
+
+        if (!component.Members.TryGetValue("CreditString", out Member? creditStringMember)
+            || creditStringMember is not Field_string existingCreditString
+            || members["CreditString"] is not Field_string expectedCreditString)
+        {
+            return false;
+        }
+
+        return string.Equals(existingCreditString.Value, expectedCreditString.Value, StringComparison.Ordinal);
     }
 
     private static async Task<(Dictionary<string, CreatedMaterialAsset> CommonMaterialAssetsByKey, HashSet<string> CommonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials)> PlanCommonMaterialOperationsAsync(
@@ -313,7 +342,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             Slot? existingMaterialSlot = commonSlotSnapshot is null
                 ? null
                 : GetReusableChildSlot(commonSlotSnapshot, materialSlotName, commonSlot!.ID!);
-            string materialComponentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
+            string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
             string? existingMaterialComponentId = existingMaterialSlot?.Components?
                 .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
                 .OrderBy(static component => component.ID, StringComparer.Ordinal)
@@ -379,7 +408,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         int materialIndex)
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;
-        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentBuilder.CreateMembers(material);
+        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material);
         string componentPrefix = $"bootstrap_common_material_component_{materialIndex}";
 
         Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
@@ -482,17 +511,17 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             {
                 TargetID = emissionTexture.LocalId,
             };
-            materialMembers["EmissiveColor"] = ResoniteMaterialComponentBuilder.CreateColorMember(
+            materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
         }
 
         ResoniteBatchOperations.PendingBatchComponent pendingMaterialComponent = CreatePendingBatchComponent(
             componentPrefix,
-            ResoniteMaterialComponentBuilder.GetComponentType(material),
+            ResoniteMaterialComponentPolicy.GetComponentType(material),
             batchScopeToken);
         operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(
             materialContainerId,
-            ResoniteMaterialComponentBuilder.GetComponentType(material),
+            ResoniteMaterialComponentPolicy.GetComponentType(material),
             materialMembers,
             pendingMaterialComponent));
         return pendingMaterialComponent;
@@ -558,4 +587,15 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         string MaterialKey,
         string Family,
         ResoniteBatchOperations.PendingBatchComponent PendingMaterialComponent);
+
+    private enum DatasetLicenseRole
+    {
+        PrimaryPlateau,
+        GsiFallback,
+    }
+
+    private sealed record DatasetLicenseDefinition(
+        DatasetLicenseRole Role,
+        ResoniteLicenseComponentMetadata License,
+        IReadOnlyDictionary<string, Member> Members);
 }

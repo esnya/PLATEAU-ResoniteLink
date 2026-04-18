@@ -4,7 +4,7 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
-internal static class ResoniteMaterialComponentBuilder
+internal static class ResoniteMaterialComponentPolicy
 {
     private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = BundledDefaultMaterialTiling.DefaultTilesPerMeter;
     private const float DefaultWireframeThickness = 0.01f;

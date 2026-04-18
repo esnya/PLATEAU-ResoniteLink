@@ -7,7 +7,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace Plateau.ResoniteLink.Tests.Targets;
 
-public sealed class ResoniteMaterialComponentBuilderTests
+public sealed class ResoniteMaterialComponentPolicyTests
 {
     [Fact]
     public void CreateMembersBuildsUvStandardMaterialFields()
@@ -26,8 +26,8 @@ public sealed class ResoniteMaterialComponentBuilderTests
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0);
 
-        string componentType = ResoniteMaterialComponentBuilder.GetComponentType(material);
-        Dictionary<string, Member> members = ResoniteMaterialComponentBuilder.CreateMembers(material);
+        string componentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
 
         Assert.Equal("[FrooxEngine]FrooxEngine.PBS_Metallic", componentType);
         Field_colorX albedo = Assert.IsType<Field_colorX>(members["AlbedoColor"]);
@@ -73,10 +73,10 @@ public sealed class ResoniteMaterialComponentBuilderTests
             DepthOffset: null,
             SubmeshIndices: [0]);
 
-        Dictionary<string, Member> triplanarMembers = ResoniteMaterialComponentBuilder.CreateMembers(triplanarMaterial);
-        Dictionary<string, Member> wireframeMembers = ResoniteMaterialComponentBuilder.CreateMembers(wireframeMaterial);
+        Dictionary<string, Member> triplanarMembers = ResoniteMaterialComponentPolicy.CreateMembers(triplanarMaterial);
+        Dictionary<string, Member> wireframeMembers = ResoniteMaterialComponentPolicy.CreateMembers(wireframeMaterial);
 
-        Assert.Equal("[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic", ResoniteMaterialComponentBuilder.GetComponentType(triplanarMaterial));
+        Assert.Equal("[FrooxEngine]FrooxEngine.PBS_TriplanarMetallic", ResoniteMaterialComponentPolicy.GetComponentType(triplanarMaterial));
         Field_float2 triplanarTextureScale = Assert.IsType<Field_float2>(triplanarMembers["TextureScale"]);
         Field_float2 triplanarTextureOffset = Assert.IsType<Field_float2>(triplanarMembers["TextureOffset"]);
         Assert.IsType<Field_float>(triplanarMembers["Metallic"]);
@@ -87,7 +87,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
         Assert.Equal(0.0f, triplanarTextureOffset.Value.x, 6);
         Assert.Equal(0.0f, triplanarTextureOffset.Value.y, 6);
 
-        Assert.Equal("[FrooxEngine]FrooxEngine.WireframeMaterial", ResoniteMaterialComponentBuilder.GetComponentType(wireframeMaterial));
+        Assert.Equal("[FrooxEngine]FrooxEngine.WireframeMaterial", ResoniteMaterialComponentPolicy.GetComponentType(wireframeMaterial));
         Field_float thickness = Assert.IsType<Field_float>(wireframeMembers["Thickness"]);
         Field_colorX fillColor = Assert.IsType<Field_colorX>(wireframeMembers["FillColor"]);
         Assert.Equal(0.01f, thickness.Value, 6);
@@ -109,7 +109,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0);
 
-        bool resolved = ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
@@ -134,7 +134,7 @@ public sealed class ResoniteMaterialComponentBuilderTests
             Family: BundledDefaultMaterialFamilies.CityFurniture,
             BundledVariantIndex: 0);
 
-        bool resolved = ResoniteMaterialComponentBuilder.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);

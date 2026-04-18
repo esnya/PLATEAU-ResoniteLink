@@ -6,7 +6,7 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 public static class ResoniteSceneImportTargetFactory
 {
-    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "ResoniteLinkSceneBuilder owns the client session lifetime.")]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "ResoniteLiveSceneImportTarget owns the client session lifetime.")]
     public static ISceneImportTarget Create(
         Uri endpoint,
         int connectionCount,
@@ -24,11 +24,11 @@ public static class ResoniteSceneImportTargetFactory
             ? ResoniteLinkSendDiagnostics.CreateEnabled(progressReporter)
             : ResoniteLinkSendDiagnostics.Disabled;
 
-        return new ResoniteLinkSceneBuilder(
+        return new ResoniteLiveSceneImportTarget(
             endpoint,
             connectionCount,
             diagnostics,
-            new ResoniteLinkSceneBuilderDependencies(
+            new ResoniteLiveSceneImportDependencies(
                 Transport.ResoniteLink.ResoniteLinkTransportSessionFactory.Create(
                     endpoint,
                     connectionCount,

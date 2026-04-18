@@ -9,11 +9,4 @@ internal interface IResoniteSceneBootstrapInterpreter
         SceneBootstrapInfo setupInfo,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken);
-
-    Task<string> ApplyDatasetLicenseAsync(
-        IResoniteLinkClient setupClient,
-        string datasetRootSlotId,
-        ResoniteLicenseComponentMetadata license,
-        string? existingComponentId,
-        CancellationToken cancellationToken);
 }

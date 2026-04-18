@@ -70,7 +70,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             "53394525",
             RequiresMeshAreaFilter: false);
 
-        SourceFilePipeline[] pipelines = await LocalCityGmlResonitePlanBuilder.CreateSourceFilePipelinesCoreAsync(
+        SourceFilePipeline[] pipelines = await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
             [sourceFile],
             datasetSource,
             [],

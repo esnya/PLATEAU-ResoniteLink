@@ -7,15 +7,15 @@ internal sealed record BootstrapParsedRing(
     GeodeticPoint[] Vertices,
     IReadOnlyList<ResoniteFloat2>? UVs)
 {
-    internal LocalCityGmlResonitePlanBuilder.ParsedRing ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedRing ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.ParsedRing(
+        return new LocalCityGmlObjectProjection.ParsedRing(
             RingId,
             Vertices.Select(static point => point.ToLegacy()).ToArray(),
             UVs);
     }
 
-    internal static BootstrapParsedRing FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedRing ring)
+    internal static BootstrapParsedRing FromLegacy(LocalCityGmlObjectProjection.ParsedRing ring)
     {
         return new BootstrapParsedRing(
             ring.RingId,
@@ -47,11 +47,11 @@ internal sealed record BootstrapParsedSurface(
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
 
-    internal LocalCityGmlResonitePlanBuilder.ParsedSurface ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedSurface ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.ParsedSurface(
+        return new LocalCityGmlObjectProjection.ParsedSurface(
             PolygonId,
-            (LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic)Semantic,
+            (LocalCityGmlObjectProjection.ParsedSurfaceSemantic)Semantic,
             ExteriorRing.ToLegacy(),
             InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
             BaseColor,
@@ -59,7 +59,7 @@ internal sealed record BootstrapParsedSurface(
             UsesGeneratedDemTexture);
     }
 
-    internal static BootstrapParsedSurface FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
+    internal static BootstrapParsedSurface FromLegacy(LocalCityGmlObjectProjection.ParsedSurface surface)
     {
         return new BootstrapParsedSurface(
             surface.PolygonId,
@@ -87,9 +87,9 @@ internal sealed record BootstrapParsedCityObject(
     bool TerrainAligned = false,
     GeodeticPoint? OriginOverride = null)
 {
-    internal LocalCityGmlResonitePlanBuilder.ParsedCityObject ToLegacy()
+    internal LocalCityGmlObjectProjection.ParsedCityObject ToLegacy()
     {
-        return new LocalCityGmlResonitePlanBuilder.ParsedCityObject(
+        return new LocalCityGmlObjectProjection.ParsedCityObject(
             SlotKey,
             DisplayName,
             PackageName,
@@ -105,7 +105,7 @@ internal sealed record BootstrapParsedCityObject(
             OriginOverride?.ToLegacy());
     }
 
-    internal static BootstrapParsedCityObject FromLegacy(LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject)
+    internal static BootstrapParsedCityObject FromLegacy(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
     {
         return new BootstrapParsedCityObject(
             cityObject.SlotKey,

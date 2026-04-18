@@ -9,7 +9,7 @@ internal sealed record LiveSendExecutionContext(
     CreatedSlot DatasetRootSlot,
     CompositeCityObjectBaker? CityObjectBaker);
 
-internal sealed class LiveSendProgressState
+internal sealed class LiveSendProgressSink
 {
     public int AttemptedCityObjectCount;
 
@@ -46,22 +46,40 @@ internal sealed class LiveSendProgressState
     }
 }
 
-internal sealed class LiveSendMaterialState
+internal sealed class CommonMaterialAssetCache
 {
     public ConcurrentDictionary<string, Task> CommonMaterialFamilyWarmupTasks { get; } = new(StringComparer.Ordinal);
 
     public ConcurrentDictionary<string, Task<CreatedMaterialAsset>> CommonMaterialCreationTasks { get; } = new(StringComparer.Ordinal);
 }
 
-internal sealed class LiveSendExecutionState
+internal sealed record LiveSendRunPlan(
+    SceneBootstrapInfo BootstrapInfo,
+    string ResolvedWorkRoot,
+    ResoniteLocalOrigin RequestLocalOrigin,
+    IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
+    LiveSendQueuePlan Queue,
+    bool MeshBakeEnabled);
+
+internal sealed record LiveSendQueuePlan(
+    int ConnectionCount,
+    int QueueCapacity,
+    long MemoryBudgetBytes);
+
+internal sealed record LiveSendRunContext(
+    LiveSendRunPlan Plan,
+    CreatedSlot DatasetRootSlot,
+    CompositeCityObjectBaker? CityObjectBaker);
+
+internal sealed class LiveSendRunState
 {
-    public required LiveSendExecutionContext Context { get; init; }
+    public required LiveSendRunContext Context { get; init; }
 
-    public required LiveSendProgressState Progress { get; init; }
+    public required LiveSendProgressSink Progress { get; init; }
 
-    public required LiveSendMaterialState Materials { get; init; }
+    public required CommonMaterialAssetCache Materials { get; init; }
 
-    public required ResoniteScenePlacementSession Placement { get; init; }
+    public required ResoniteSharedSlotIndex Placement { get; init; }
 
     public required AsyncCompletedResultCache<TextureImportCacheKey, Uri> ImportedTextureUriCache { get; init; }
 

@@ -28,7 +28,7 @@ internal sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgr
         PlannedBatchEmission batchEmission,
         CancellationToken cancellationToken)
     {
-        CityObjectBatchBuilder batchBuilder = new();
+        BatchOperationAccumulator batchBuilder = new();
         Dictionary<string, PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
         Dictionary<string, PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
 
@@ -144,7 +144,7 @@ internal sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgr
         };
     }
 
-    private sealed class CityObjectBatchBuilder
+    private sealed class BatchOperationAccumulator
     {
         private readonly string batchScopeToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
         private int nextEntityId;

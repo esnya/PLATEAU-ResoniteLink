@@ -149,6 +149,24 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncTreatsPersistentTileCacheWriteFailuresAsNonFatal()
+    {
+        using TemporaryDirectory workRoot = new();
+        string cacheRootPath = Path.Combine(workRoot.Path, "cache-root-file");
+        await File.WriteAllTextAsync(cacheRootPath, "not-a-directory");
+
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, cacheRootPath);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(512, texture.Width);
+        Assert.Equal(4, handler.RequestCount);
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncRemovesFaultedSharedGenerationAndRetries()
     {
         using FlakyMapTileHandler handler = new();
@@ -188,26 +206,31 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
-    public async Task ResolveDatasetLicenseUsesPlateauOnlyTermsWhenNoFallbackTileWasUsed()
+    public async Task EnsureTextureAsyncRefetchesWhenPersistentCacheEntryIsCorrupt()
     {
+        using TemporaryDirectory cacheRoot = new();
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        PersistentTerrainTileCache persistentCache = new(cacheRoot.Path);
+        await persistentCache.WriteTileBytesAsync(
+            overlay.UrlTemplate,
+            overlay.ZoomLevel,
+            0,
+            0,
+            [1, 2, 3, 4],
+            CancellationToken.None);
+
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
-        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
-        ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
+        TerrainTextureAssetGenerator generator = new(httpClient, cacheRoot.Path);
 
-        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
-
-        Assert.Contains("Project PLATEAU Ortho xyz tiles.", resolved.CreditText, StringComparison.Ordinal);
-        Assert.DoesNotContain("fallback to GSI", resolved.CreditText, StringComparison.Ordinal);
-        Assert.Equal("PLATEAU Open Data Terms + Project PLATEAU Site Policy", resolved.LicenseName);
-        Assert.Equal("https://www.mlit.go.jp/plateau/site-policy/", resolved.LicenseUrl);
+        Assert.Equal(512, texture.Width);
+        Assert.Equal(4, handler.RequestCount);
     }
 
     [Fact]
-    public async Task ResolveDatasetLicenseUsesGsiTermsWhenFallbackTileWasUsed()
+    public async Task EnsureTextureAsyncUsesFallbackTilesWhenPrimaryCoverageIsUnavailable()
     {
         using PrimaryFallbackMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
@@ -215,53 +238,12 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay(
             "https://primary.example/{z}/{x}/{y}.png",
             "https://fallback.example/{z}/{x}/{y}.png");
-        ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
 
-        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
-
-        Assert.Contains("fallback to GSI seamless photo tiles", resolved.CreditText, StringComparison.Ordinal);
-        Assert.Equal("PLATEAU Open Data Terms + GSI Maps Terms", resolved.LicenseName);
-        Assert.Equal("https://maps.gsi.go.jp/help/termsofuse.html", resolved.LicenseUrl);
-    }
-
-    [Fact]
-    public async Task ResolveDatasetLicenseConsumesUsageCountersPerImportLifecycle()
-    {
-        using FakeMapTileHandler handler = new();
-        using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
-        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
-        ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
-
-        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
-
-        ResoniteLicenseComponentMetadata firstResolved = generator.ResolveDatasetLicense(baseLicense);
-        ResoniteLicenseComponentMetadata secondResolved = generator.ResolveDatasetLicense(baseLicense);
-
-        Assert.NotEqual(baseLicense, firstResolved);
-        Assert.Equal(baseLicense, secondResolved);
-    }
-
-    [Fact]
-    public async Task ResolveDatasetLicensePreservesDemAttributionWhenCachedTextureIsReusedAcrossImports()
-    {
-        using FakeMapTileHandler handler = new();
-        using HttpClient httpClient = new(handler);
-        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
-        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
-        ResoniteLicenseComponentMetadata baseLicense = new(true, "base credit", "base license", "https://example.invalid/base");
-
-        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
-        _ = generator.ResolveDatasetLicense(baseLicense);
-
-        generator.ResetUsageTracking();
-        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
-        ResoniteLicenseComponentMetadata resolved = generator.ResolveDatasetLicense(baseLicense);
-
-        Assert.Contains("Project PLATEAU Ortho xyz tiles.", resolved.CreditText, StringComparison.Ordinal);
-        Assert.Equal(4, handler.RequestCount);
+        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+        AssertColor(image[128, 128], 255, 0, 0);
+        AssertColor(image[384, 128], 0, 255, 0);
     }
 
     private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)

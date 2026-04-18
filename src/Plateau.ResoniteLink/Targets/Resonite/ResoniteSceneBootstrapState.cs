@@ -9,7 +9,5 @@ internal readonly record struct ResoniteSceneBootstrapState(
     bool DatasetRootExisted,
     SceneAnchor SceneAnchor,
     Slot? DatasetRootSnapshot,
-    string? ExistingLicenseComponentId,
-    string? DatasetLicenseComponentId,
     IReadOnlyDictionary<string, CreatedMaterialAsset> CommonMaterialAssetsByKey,
     IReadOnlyCollection<string> CommonMaterialFamilies);

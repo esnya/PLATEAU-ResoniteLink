@@ -9,29 +9,29 @@ public sealed class DemTerrainOverlayAssignmentTests
     public void SplitParsedCityObjectCollapsesCentimeterClassBoundarySliverToDominantOverlay()
     {
         const double boundaryLongitude = 139.0100;
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = CreateGeneratedSurface(
+        LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
             "dem-sliver",
             [
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 0.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 1.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 2.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 2.0),
             ]);
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject(surface);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = CreateCityObject(surface);
         TerrainTextureOverlay[] overlays =
         [
             CreateOverlay(139.0000, boundaryLongitude),
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        (LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        (LocalCityGmlObjectProjection.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
         Assert.NotNull(overlay);
         Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
 
-        LocalCityGmlResonitePlanBuilder.ParsedSurface collapsedSurface = Assert.Single(splitCityObject.Surfaces);
+        LocalCityGmlObjectProjection.ParsedSurface collapsedSurface = Assert.Single(splitCityObject.Surfaces);
         Assert.Equal(surface.PolygonId, collapsedSurface.PolygonId);
         Assert.Equal(surface.ExteriorRing.Vertices, collapsedSurface.ExteriorRing.Vertices);
         Assert.True(collapsedSurface.UsesGeneratedDemTexture);
@@ -41,21 +41,21 @@ public sealed class DemTerrainOverlayAssignmentTests
     public void SplitParsedCityObjectKeepsMeaningfulBoundarySplit()
     {
         const double boundaryLongitude = 139.0100;
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = CreateGeneratedSurface(
+        LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
             "dem-wide-split",
             [
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 0.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 1.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0120, 2.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0120, 2.0),
             ]);
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject(surface);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = CreateCityObject(surface);
         TerrainTextureOverlay[] overlays =
         [
             CreateOverlay(139.0000, boundaryLongitude),
             CreateOverlay(boundaryLongitude, 139.0200),
         ];
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        (LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
         Assert.Equal(2, results.Length);
@@ -78,14 +78,14 @@ public sealed class DemTerrainOverlayAssignmentTests
         const double boundaryOne = 139.0100;
         const double boundaryTwo = 139.0100003;
         const double boundaryThree = 139.0100006;
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = CreateGeneratedSurface(
+        LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
             "dem-many-slivers",
             [
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0000, 0.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0000, 1.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, boundaryThree + 0.0000002, 2.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, boundaryThree + 0.0000002, 2.0),
             ]);
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject(surface);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = CreateCityObject(surface);
         TerrainTextureOverlay[] overlays =
         [
             CreateOverlay(139.0000, boundaryOne),
@@ -94,10 +94,10 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(boundaryThree, 139.0200),
         ];
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        (LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        (LocalCityGmlObjectProjection.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
         Assert.NotNull(overlay);
         Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(boundaryOne, overlay.GeographicBounds.MaxLongitude, 6);
@@ -107,55 +107,55 @@ public sealed class DemTerrainOverlayAssignmentTests
     [Fact]
     public void SplitParsedCityObjectFallsBackToNearestOverlayWhenSurfaceMissesOverlayBounds()
     {
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface = CreateGeneratedSurface(
+        LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
             "dem-nearest-overlay",
             [
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0000, 139.0200002, 0.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200002, 1.0),
-                new LocalCityGmlResonitePlanBuilder.GeodeticPoint(35.0100, 139.0200006, 2.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0200002, 0.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200002, 1.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200006, 2.0),
             ]);
-        LocalCityGmlResonitePlanBuilder.ParsedCityObject cityObject = CreateCityObject(surface);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = CreateCityObject(surface);
         TerrainTextureOverlay[] overlays =
         [
             CreateOverlay(139.0000, 139.0100),
             CreateOverlay(139.0100, 139.0200),
         ];
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
+        (LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
             DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
 
-        (LocalCityGmlResonitePlanBuilder.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
+        (LocalCityGmlObjectProjection.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
         Assert.NotNull(overlay);
         Assert.Equal(139.0100, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(139.0200, overlay.GeographicBounds.MaxLongitude, 6);
         Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
     }
 
-    private static LocalCityGmlResonitePlanBuilder.ParsedCityObject CreateCityObject(
-        LocalCityGmlResonitePlanBuilder.ParsedSurface surface)
+    private static LocalCityGmlObjectProjection.ParsedCityObject CreateCityObject(
+        LocalCityGmlObjectProjection.ParsedSurface surface)
     {
-        return new LocalCityGmlResonitePlanBuilder.ParsedCityObject(
+        return new LocalCityGmlObjectProjection.ParsedCityObject(
             SlotKey: "dem-object",
             DisplayName: "DEM Object",
             PackageName: "dem",
             ActualMeshCode: "53394525",
             LodLevel: 1,
             Surfaces: [surface],
-            ReferenceSystem: LocalCityGmlResonitePlanBuilder.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            ReferenceSystem: LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
             SourceUnitIdentity: "source-unit",
             SourceIdentity: "source",
             SharedAcrossMeshCodes: false);
     }
 
-    private static LocalCityGmlResonitePlanBuilder.ParsedSurface CreateGeneratedSurface(
+    private static LocalCityGmlObjectProjection.ParsedSurface CreateGeneratedSurface(
         string polygonId,
-        LocalCityGmlResonitePlanBuilder.GeodeticPoint[] vertices)
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
-        return new LocalCityGmlResonitePlanBuilder.ParsedSurface(
+        return new LocalCityGmlObjectProjection.ParsedSurface(
             PolygonId: polygonId,
-            Semantic: LocalCityGmlResonitePlanBuilder.ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new LocalCityGmlResonitePlanBuilder.ParsedRing(
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
                 $"{polygonId}-ring",
                 vertices,
                 UVs: null),
@@ -176,7 +176,7 @@ public sealed class DemTerrainOverlayAssignmentTests
                 MaxLatitude: 35.0200,
                 MinLongitude: westLongitude,
                 MaxLongitude: eastLongitude),
-            MaxTextureSize: LocalCityGmlResonitePlanBuilder.DefaultDemTerrainTextureMaxSize);
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize);
     }
 
 }

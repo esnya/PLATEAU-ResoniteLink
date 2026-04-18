@@ -7,7 +7,7 @@ using ResoniteLink;
 
 namespace Plateau.ResoniteLink.Tests.Targets;
 
-internal static class ResoniteLinkSceneBuilderTestSupport
+internal static class ResoniteLiveSceneImportTargetTestSupport
 {
     public static async Task BuildSceneAsync(
         ResoniteConstructionMetadata metadata,
@@ -16,7 +16,7 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true)
     {
-        await using ResoniteLinkSceneBuilder builder = CreateBuilder(
+        await using ResoniteLiveSceneImportTarget builder = CreateBuilder(
             client,
             terrainTextureAssetGenerator,
             enableMeshBake);
@@ -101,20 +101,20 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         SceneBuilderRecordingClient client)
     {
         using TemporaryDirectory firstWorkDirectory = new();
-        await using (ResoniteLinkSceneBuilder builder = CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
         {
             _ = await ExecuteSceneAsync(builder, metadata, firstWorkDirectory.Path, firstRunCityObjects);
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
-        await using (ResoniteLinkSceneBuilder builder = CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
         {
             _ = await ExecuteSceneAsync(builder, metadata, secondWorkDirectory.Path, secondRunCityObjects);
         }
     }
 
     public static Task<SceneImportExecutionResult> ExecuteSceneAsync(
-        ResoniteLinkSceneBuilder builder,
+        ResoniteLiveSceneImportTarget builder,
         ResoniteConstructionMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
@@ -174,17 +174,17 @@ internal static class ResoniteLinkSceneBuilderTestSupport
         return false;
     }
 
-    public static ResoniteLinkSceneBuilder CreateBuilder(
+    public static ResoniteLiveSceneImportTarget CreateBuilder(
         IResoniteLinkClient routedClient,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
         DelegatingClientSession? session = null)
     {
-        return new ResoniteLinkSceneBuilder(
+        return new ResoniteLiveSceneImportTarget(
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLinkSceneBuilderDependencies(
+            new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
             enableMeshBake,
@@ -567,8 +567,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 }
 
 internal sealed class RecordingTerrainTextureAssetGenerator(
-    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory,
-    ResoniteLicenseComponentMetadata? resolvedLicense = null) : ITerrainTextureAssetGenerator
+    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory) : ITerrainTextureAssetGenerator
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
@@ -579,15 +578,6 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
         cancellationToken.ThrowIfCancellationRequested();
         RequestedOverlays.Add(terrainTextureOverlay);
         return Task.FromResult(textureFactory(terrainTextureOverlay));
-    }
-
-    public void ResetUsageTracking()
-    {
-    }
-
-    public ResoniteLicenseComponentMetadata ResolveDatasetLicense(ResoniteLicenseComponentMetadata baseLicense)
-    {
-        return resolvedLicense ?? baseLicense;
     }
 }
 

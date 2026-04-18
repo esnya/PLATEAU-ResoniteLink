@@ -9,7 +9,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
-public sealed class LocalCityGmlResonitePlanBuilderTests
+public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
@@ -40,8 +40,8 @@ public sealed class LocalCityGmlResonitePlanBuilderTests
             LocalSourcePath: fixturePath,
             ServerUri: null);
 
-        IResoniteConstructionSource asyncSource = await LocalCityGmlResonitePlanBuilder.CreateConstructionSourceAsync(request);
-        IResoniteConstructionSource syncSource = LocalCityGmlResonitePlanBuilder.CreateConstructionSource(request);
+        IResoniteConstructionSource asyncSource = await PlateauCityGmlConstructionSources.CreateAsync(request);
+        IResoniteConstructionSource syncSource = PlateauCityGmlConstructionSources.Create(request);
 
         Assert.Equal(asyncSource.Metadata.SchemaVersion, syncSource.Metadata.SchemaVersion);
         Assert.Equal(asyncSource.Metadata.WorldName, syncSource.Metadata.WorldName);
