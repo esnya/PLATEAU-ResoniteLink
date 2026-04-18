@@ -1,9 +1,21 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
 namespace Plateau.ResoniteLink.Cli;
 
 public static class Program
 {
-    public static Task<int> Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
-        return CliCompositionRoot.CreateDefaultApplication().RunAsync(args);
+        using IHost host = CliHostFactory.Create(args);
+        await host.StartAsync();
+        try
+        {
+            return await host.Services.GetRequiredService<CliApplication>().RunAsync(args);
+        }
+        finally
+        {
+            await host.StopAsync();
+        }
     }
 }

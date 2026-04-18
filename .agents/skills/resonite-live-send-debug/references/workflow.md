@@ -2,62 +2,45 @@
 
 Use this reference after `SKILL.md` triggers.
 
-The operator-facing repository workflow lives in [docs/live-testing.md](../../../docs/live-testing.md). This file intentionally does not repeat cleanup, send, or comparison procedure steps.
+This file stays agent-facing on purpose. Use it as supplemental notes after `SKILL.md`; do not depend on removed tracked live-testing documents.
 
-Default document fixtures:
+## Defaults
 
-- Use `plateau-20202-matsumoto-shi-2020` with adjacent detailed-building meshes `54372778` and `54372788` unless the task requires a different dataset.
-- Switch to Yokohama mesh `53391530` only when the task needs `frn` validation.
-- Treat those fixture choices as dataset and mesh selectors, not as a promise about cache paths. Confirm the actual local source path on disk before you inspect files or launch cleanup.
+- Use `plateau-20202-matsumoto-shi-2020` with meshes `54372778` and `54372788` unless the task needs a different fixture.
+- Switch to Yokohama mesh `53391530` only for `frn` validation.
+- Treat those defaults as selectors, not as a promise about cache paths. Confirm the actual resolved local source path before cleanup or send.
 
-## Required Skill Artifacts
+## Agent Guardrails
+
+- Prefer the bundled helper scripts under `.agents/skills/resonite-live-send-debug/scripts/` instead of ad hoc commands.
+- Use Windows-side helper scripts when WSL cannot reach the listener through `localhost`.
+- Re-run listener discovery before each comparison rerun and keep `sessionName`, `sessionID`, and `linkPort` in the run notes.
+- Do not guess the listener port, process ID, log path, or session identity. Use discovery output, helper stdout, and CLI logs.
+- Treat cleanup as destructive. It can remove dataset roots, stop matching live-send CLI processes, and delete local runtime artifacts.
+- Keep the final `DatasetRoot` in place after a successful validation unless the user explicitly requests cleanup.
+- Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
+
+## Component Type Discovery
+
+- When a live inspection needs an exact component type name, prefer ResoniteLink reflection over guesswork.
+- Primary path: connect with the local ResoniteLink library or official REPL helper and query `GetComponentTypeList` first, then `GetComponentDefinition` for candidates.
+- Use category queries when possible. Reserve `GetComponentTypeList("*")` for cases where narrower categories are unknown, and record when the session returns an empty list.
+- If reflection is unavailable or returns no useful data, inspect existing `componentType` values in root dumps as a fallback evidence source.
+- Distinguish UI labels from runtime type strings. A picker label like `Texture2D Metadata` is not sufficient proof of the exact `AddComponent` type name.
+
+## RawOutput Readback Limits
+
+- In the currently observed combination of `Resonite 2026.4.16.1327` and `ResoniteLink 0.13.1.0`, `RawOutput` members on metadata components did not produce readable values through Link even when the target asset reference was set correctly and the component was polled again later.
+- The confirmed examples were `[FrooxEngine]FrooxEngine.Texture2DAssetMetadata` and `[FrooxEngine]FrooxEngine.BitmapAssetMetadata` attached to a `StaticTexture2D`.
+- Treat this as version-specific evidence, not a timeless rule. If either Resonite or ResoniteLink changes, re-verify before relying on the limitation.
+
+## Required Artifacts
 
 Expect these bundled files under this skill:
 
 - `tools/ResoniteAdmin/ResoniteAdmin.csproj`
 
-Prefer the bundled skill scripts over any ad hoc repo commands. Those wrappers build the admin utility or CLI binaries on demand, so a separate manual build command is not part of the canonical procedure.
-When you use the root dump or cleanup helpers, expect them to rebuild `ResoniteAdmin` on demand, emit build output before the actual dump or cleanup step, and require fresh Windows build output. When the Windows app host is present they launch `ResoniteAdmin.exe`; otherwise they fall back to `dotnet` plus the freshly built `.dll`.
-
-## Skill Guardrails
-
-Practical rules that stay local to this skill:
-
-- Wait long enough for UDP `12512` announcements.
-- Capture `sessionName`, `sessionID`, and `linkPort`.
-- Keep the resolved `linkPort` with the run notes.
-- If the listener is absent and a disposable headless install is available, start it with the bundled headless wrapper. Otherwise stop and ask the user to bring Resonite back up.
-- For disposable headless sessions, prefer a baseline Root dump before the send and a post-send Root dump after the send.
-- Prefer UDP discovery when it yields `sessionID`; otherwise require explicit UI confirmation.
-- If UDP and UI identify different sessions, mark the run invalid.
-- Before each comparison rerun, rediscover the listener and confirm the same session identity again.
-- Do not guess the listener port, process ID, or log path. Use discovery output and wrapper return values.
-- Treat the bundled script set under `.agents/skills/resonite-live-send-debug/scripts/` as the complete live-test execution surface for this skill.
-- Warning: cleanup is destructive. It removes dataset roots from the live world, stops matching live-send CLI processes launched from the same repo, and clears local runtime artifacts.
-
-The send wrapper returns a PowerShell object with these properties:
-
-- `ProcessId`
-- `StdoutLog`
-- `StderrLog`
-- `CliDllPath`
-- `CliDllLastWriteTime`
-
-Use those values. Do not guess the log path or process id.
-
-Canonical log reads after a launch:
-
-```powershell
-Get-Content <stdout-log> -Tail 40
-Get-Content <stderr-log> -Tail 40
-```
-
-From WSL:
-
-```bash
-tail -n 40 /mnt/c/path/to/stdout.log
-tail -n 40 /mnt/c/path/to/stderr.log
-```
+The helper scripts rebuild the admin utility or CLI binaries on demand. Fresh Windows build output is part of the expected execution path for dump and cleanup helpers.
 
 ## Script Inventory
 
@@ -73,5 +56,5 @@ tail -n 40 /mnt/c/path/to/stderr.log
   Remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`
   Launch one Windows-side live send with explicit logs.
-- `scripts/compare-modes.ps1`
-  Run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
+- `scripts/windows-build-tools.ps1`
+  Resolve Windows-side `dotnet` and shared ResoniteAdmin build paths for the other helper scripts.

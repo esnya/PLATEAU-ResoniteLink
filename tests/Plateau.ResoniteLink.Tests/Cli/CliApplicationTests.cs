@@ -14,7 +14,7 @@ public sealed class CliApplicationTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateImportService(IResoniteSceneBuilder sceneBuilder)
+    private static PlateauImportService CreateImportService(ISceneImportTarget sceneBuilder)
     {
         return new PlateauImportService(
             sceneBuilder,
@@ -33,11 +33,12 @@ public sealed class CliApplicationTests
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         StubSceneBuilder sceneBuilder = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(sceneBuilder));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            CreateImportService(sceneBuilder));
+            importServiceFactory);
 
         int exitCode = await application.RunAsync(
             [
@@ -57,6 +58,7 @@ public sealed class CliApplicationTests
         Assert.Equal(0, exitCode);
         Assert.Equal(2, sceneBuilder.CityObjects.Count);
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
+        Assert.Contains("World: PLATEAU tokyo23ku 53394525", standardOutput.ToString());
         Assert.Contains("Resonite location: stub://resonite/location", standardOutput.ToString());
         Assert.Equal(string.Empty, standardError.ToString());
     }
@@ -67,11 +69,12 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubImportServiceFactory importServiceFactory = new(_ => throw new InvalidOperationException("Unexpected transport failure."));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            _ => throw new InvalidOperationException("Unexpected transport failure."));
+            importServiceFactory);
 
         int exitCode = await application.RunAsync(
             BuildLiveArgs(fixturePath));
@@ -87,23 +90,19 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        BuildCommandOptions? capturedOptions = null;
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            options =>
-            {
-                capturedOptions = options;
-                return CreateImportService(new StubSceneBuilder());
-            });
+            importServiceFactory);
 
         int exitCode = await application.RunAsync(
             BuildLiveArgs(fixturePath));
 
         Assert.Equal(0, exitCode);
-        Assert.NotNull(capturedOptions);
-        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions!.Request.PackageNames);
+        BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions.Request.PackageNames);
         Assert.Equal(string.Empty, standardError.ToString());
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
     }
@@ -114,16 +113,12 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        BuildCommandOptions? capturedOptions = null;
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            options =>
-            {
-                capturedOptions = options;
-                return CreateImportService(new StubSceneBuilder());
-            });
+            importServiceFactory);
 
         int exitCode = await application.RunAsync(
             [
@@ -132,8 +127,33 @@ public sealed class CliApplicationTests
             ]);
 
         Assert.Equal(0, exitCode);
-        Assert.NotNull(capturedOptions);
-        Assert.False(capturedOptions!.EnableMeshBake);
+        BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        Assert.False(capturedOptions.EnableMeshBake);
+    }
+
+    [Fact]
+    public async Task RunAsyncDoesNotWarnWhenMultipleConnectionsAreConfigured()
+    {
+        using StringWriter standardOutput = new();
+        using StringWriter standardError = new();
+        string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
+
+        CliApplication application = new(
+            standardOutput,
+            standardError,
+            importServiceFactory);
+
+        int exitCode = await application.RunAsync(
+            [
+                ..BuildLiveArgs(fixturePath),
+                "--resonitelink-connections",
+                "4",
+            ]);
+
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("is experimental", standardOutput.ToString(), StringComparison.Ordinal);
+        Assert.Equal(string.Empty, standardError.ToString());
     }
 
     [Fact]
@@ -142,11 +162,12 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        StubImportServiceFactory importServiceFactory = new(_ => throw new OperationCanceledException());
 
         CliApplication application = new(
             standardOutput,
             standardError,
-            _ => throw new OperationCanceledException());
+            importServiceFactory);
 
         using CancellationTokenSource cancellationTokenSource = new();
         await cancellationTokenSource.CancelAsync();
@@ -162,9 +183,9 @@ public sealed class CliApplicationTests
         return CliTestData.BuildLocalBuildArgs(fixturePath);
     }
 
-    private sealed class StubSceneBuilder : IResoniteSceneBuilder
+    private sealed class StubSceneBuilder : ISceneImportTarget
     {
-        public List<ResoniteConstructionCityObject> CityObjects { get; } = [];
+        public List<ImportedCityObject> CityObjects { get; } = [];
 
         public Task EnsureConnectedAsync(
             PlateauImportRequest request,
@@ -174,29 +195,15 @@ public sealed class CliApplicationTests
         }
 
         public Task BeginAsync(
-            SceneBootstrapInfo bootstrapInfo,
-            IPlateauDatasetContentSource datasetContentSource,
-            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
-            string workRoot,
+            SceneBuildRequest request,
             CancellationToken cancellationToken = default)
         {
-            _ = bootstrapInfo;
-            _ = datasetContentSource;
-            _ = commonMaterials;
-            _ = workRoot;
-            return Task.CompletedTask;
-        }
-
-        public Task StartCommonMaterialWarmupAsync(
-            IReadOnlyList<ResoniteMaterialBinding> materials,
-            CancellationToken cancellationToken = default)
-        {
-            _ = materials;
+            _ = request;
             return Task.CompletedTask;
         }
 
         public Task ProcessCityObjectAsync(
-            ResoniteConstructionCityObject cityObject,
+            ImportedCityObject cityObject,
             CancellationToken cancellationToken = default)
         {
             CityObjects.Add(cityObject);
@@ -211,6 +218,18 @@ public sealed class CliApplicationTests
         public ValueTask DisposeAsync()
         {
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class StubImportServiceFactory(Func<BuildCommandOptions, PlateauImportService> createImportService)
+        : IImportServiceFactory
+    {
+        public List<BuildCommandOptions> CapturedOptions { get; } = [];
+
+        public PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter)
+        {
+            CapturedOptions.Add(options);
+            return createImportService(options);
         }
     }
 }

@@ -11,7 +11,7 @@ description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink �
 
 code-only review や static な log 読みには使わないでください。実際の live send、実際の Resonite world inspection、または machine-level execution がないと無効な比較が必要なときにだけ使います。
 
-このファイルは live-send を実行する Coding Agent 用 playbook です。operator-facing の手順参照は [docs/live-testing.md](../../../docs/live-testing.md) に残し、手順本文はここで重複させず簡潔に運用判断を置きます。
+このファイルは live-send を実行する Coding Agent 用 playbook であり、この repository における authoritative な live-send workflow reference です。
 
 ## Dataset Defaults
 
@@ -25,7 +25,7 @@ task が `frn` または city-furniture content を必要とする場合だけ�
 
 ## Canonical Procedure
 
-repository の live-send 手順は [docs/live-testing.md](../../../docs/live-testing.md) を参照してください。この skill は cleanup、send、comparison の手順を再定義しません。
+bundled helper script を直に組み合わせて実行してください。このファイルは Coding Agent 向けの guardrail、default、workflow、run worksheet を保持し、[references/workflow.md](./references/workflow.md) には agent-oriented な補助情報を置きます。
 
 送信実行の判断は次の原則で行います。
 
@@ -33,7 +33,7 @@ repository の live-send 手順は [docs/live-testing.md](../../../docs/live-tes
 - sender と listener が同一ホストで、WSL 側から `localhost` 到達が確認できるなら WSL 起点の送信も有効です。
 - reverse proxy などで host 判定が listener 目線で許容可能に変換されるなら、IP 経由も有効になる場合があります。OS 固定ではなく、実際の到達経路と session 識別結果で判断します。
 
-[references/workflow.ja.md](./references/workflow.ja.md) は、skill 固有の default、guardrail、script inventory だけに使ってください。
+[references/workflow.ja.md](./references/workflow.ja.md) は、Coding Agent 向けの補助メモと bundled script inventory を保持するために使ってください。
 
 disposable な headless 検証では、次の operator sequence を優先してください。
 
@@ -43,6 +43,15 @@ disposable な headless 検証では、次の operator sequence を優先して�
 4. `run-live-send.ps1`
 5. `dump-root-session.ps1 -Label after-send`
 6. `stop-headless-session.ps1`
+
+`19001` で Matsumoto `54372778 -> 54372788` の fixed base/append 検証を行う場合は、次の順で helper を直実行してください。
+
+1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
+2. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-baseappend-baseline`
+3. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372778 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-base-heightmap-19001`
+4. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-base-heightmap-after-send`
+5. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372788 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-append-heightmap-19001`
+6. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-append-heightmap-after-send`
 
 ## Run Worksheet
 
@@ -70,6 +79,9 @@ disposable な headless 検証では、次の operator sequence を優先して�
 - successful validation の最終 `DatasetRoot` は、明示的な cleanup 指示がない限り目視確認用 artifact として残す。
 - root-only cleanup で orphan descendant が存在しないと断定しない。汚染の可能性があるなら明記する。
 - failed / interrupted run 後の構造上の結論は、orphan audit がない限り provisional とする。
+- Resonite component を名前で追加・調査する task では、正確な型解決を必須 step として扱う。`AddComponent` に渡す型文字列を推測する前に、ResoniteLink の reflection API である `GetComponentTypeList` と `GetComponentDefinition` を使う。
+- Resonite UI の component picker 表示名と `AddComponent` に渡す型文字列が一致しない場合は、UI label と解決できた runtime type を両方 run note に残す。
+- `GetComponentTypeList("*")` や category を絞った query が current session で有用な結果を返さない場合は、その事実を明示し、root dump 内の `componentType` など既存 world data の証拠へ fallback する。型名を黙って捏造しない。
 
 ## Bundled Scripts
 
@@ -85,14 +97,15 @@ tracked 済み、または明示指定した session から再帰的な Root sna
 live world から dataset root を消し、残存 CLI process を止め、local runtime artifact を消す。
 - `scripts/run-live-send.ps1`
 1 回の live send を explicit log 付きで起動する。
-- `scripts/compare-modes.ps1`
-cleanup を挟んだ標準 `heightmap -> mesh -> heightmap` 比較を実行する。
+- `scripts/windows-build-tools.ps1`
+他の script から使う Windows 側 `dotnet` / ResoniteAdmin build 解決 helper。
 
 上記 7 path はすべて `.agents/skills/resonite-live-send-debug/` からの相対 path です。
 
 ## Outputs
 
 - 各 run の stdout / stderr log は repository runtime directory 配下に distinct な name で保持する。
+- 観測面は CLI の stdout / stderr log と direct helper stdout とする。ad-hoc な wrapper return object を前提にしない。
 - 各 run は次で要約する。
   - listener endpoint
   - cleanup verification result

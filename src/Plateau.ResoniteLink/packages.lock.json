@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "GeographicLib.NET": {
+        "type": "Direct",
+        "requested": "[2.3.2, )",
+        "resolved": "2.3.2",
+        "contentHash": "b8slF2a3kkTiuU8Ca4C5cDm3/sZRPwcy6GYaDSsdwlqzb1UYm3lL56w/0m5q0kYAgjhC+EE7kBzD72bsJ4uYlw=="
+      },
+      "LibTessDotNet": {
+        "type": "Direct",
+        "requested": "[1.1.15, )",
+        "resolved": "1.1.15",
+        "contentHash": "KuA7N3Nv/lIeawJdQBQJR6oqWD9KETHLbWzBqapwFs+Tby+R5I4crkKujKMm5bXcSuFZ8LNtflFQVadsWCbBjg=="
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "Direct",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "L3AdmZ1WOK4XXT5YFPEwyt0ep6l8lGIPs7F5OOBZc77Zqeo01Of7XXICy47628sdVl0v/owxYJTe86DTgFwKCA=="
+      },
+      "MinVer": {
+        "type": "Direct",
+        "requested": "[7.0.0, )",
+        "resolved": "7.0.0",
+        "contentHash": "2lMTCQl5bGP4iv0JNkockPnyllC6eHLz+CoK2ICvalvHod+exXSxueu9hq+zNkU7bZBJf8wMfeRC/Edn8AGmEg=="
+      },
+      "NetTopologySuite": {
+        "type": "Direct",
+        "requested": "[2.6.0, )",
+        "resolved": "2.6.0",
+        "contentHash": "1B1OTacTd4QtFyBeuIOcThwSSLUdRZU3bSFIwM8vk36XiZlBMi3K36u74e4OqwwHRHUuJC1PhbDx4hyI266X1Q=="
+      },
+      "SharpCompress": {
+        "type": "Direct",
+        "requested": "[0.47.4, )",
+        "resolved": "0.47.4",
+        "contentHash": "0s2rmGFLFQED6ERPUtJiT/KoDsrBzsc+qDoVX1XT4HfAiLZCtV6Z9mHfArBgHVpDErl4Pt9M5VTMVQLPUJw5Kg=="
+      },
+      "SixLabors.ImageSharp": {
+        "type": "Direct",
+        "requested": "[3.1.12, )",
+        "resolved": "3.1.12",
+        "contentHash": "iAg6zifihXEFS/t7fiHhZBGAdCp3FavsF4i2ZIDp0JfeYeDVzvmlbY1CNhhIKimaIzrzSi5M/NBFcWvZT2rB/A=="
+      },
+      "YellowDogMan.ResoniteLink": {
+        "type": "Direct",
+        "requested": "[0.13.1, )",
+        "resolved": "0.13.1",
+        "contentHash": "t7H5pS9B2wIJq9FlXeufIrImp9v63fVFBsVht80/VaGayG6uTwtKyfFByPDhOrAhumMTOW/sTiEXrFQ4B8OyEA=="
+      }
+    }
+  }
+}

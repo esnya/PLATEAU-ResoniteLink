@@ -13,7 +13,7 @@ Official reference pages:
 Current repository behavior:
 
 - The default URL template is defined in
-  src/Plateau.ResoniteLink.Application/Importing/LocalCityGmlResonitePlanBuilder.cs
+  src/Plateau.ResoniteLink/Profiles/PlateauCityGml/LocalCityGmlResonitePlanBuilder.cs
   as `DefaultDemTerrainTextureUrlTemplate`.
 - The imagery is not checked into this repository as a bundled asset.
 - The CLI downloads tiles at build time only when DEM terrain texture overlays

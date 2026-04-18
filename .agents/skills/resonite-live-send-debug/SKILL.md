@@ -11,7 +11,7 @@ Warning: cleanup in this workflow can destroy live world results in the current 
 
 Do not use this skill for code-only review or static log reading. Use it only when the user wants a real live send, a real Resonite world inspection, or a comparison that is invalid without machine-level execution.
 
-Use this file as the Coding Agent execution playbook for live-send runs. The operator-facing procedural reference remains [docs/live-testing.md](../../../docs/live-testing.md), which should stay readable and should not be duplicated here.
+Use this file as the Coding Agent execution playbook and the authoritative live-send workflow reference for this repository.
 
 ## Dataset Defaults
 
@@ -25,9 +25,7 @@ Do not assume a fixed on-disk cache layout for these fixtures. Resolve the actua
 
 ## Canonical Procedure
 
-Follow [docs/live-testing.md](../../../docs/live-testing.md) for the repository's live-send procedure. This skill does not redefine cleanup, send, or comparison steps.
-
-Use [references/workflow.md](./references/workflow.md) only for skill-specific defaults, guardrails, and script inventory.
+Use the bundled helper scripts directly. This file keeps the workflow, guardrails, defaults, and the run worksheet, while [references/workflow.md](./references/workflow.md) keeps supplemental agent-oriented guidance.
 
 Execution heuristics for sender placement:
 
@@ -44,6 +42,15 @@ For disposable headless validation, prefer this operator sequence:
 4. `run-live-send.ps1`
 5. `dump-root-session.ps1 -Label after-send`
 6. `stop-headless-session.ps1`
+
+For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the helpers directly in this order:
+
+1. `cleanup-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Dataset plateau-20202-matsumoto-shi-2020`
+2. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-baseappend-baseline`
+3. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372778 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-base-heightmap-19001`
+4. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-base-heightmap-after-send`
+5. `run-live-send.ps1 -RepoPath <repo> -ResoniteLinkPort 19001 -LocalSourcePath <archive> -Dataset plateau-20202-matsumoto-shi-2020 -MeshCode 54372788 -DemTerrainMode heightmap -Connections 1 -LogPrefix matsumoto-append-heightmap-19001`
+6. `dump-root-session.ps1 -RepoPath <repo> -Endpoint ws://localhost:19001/ -Label matsumoto-append-heightmap-after-send`
 
 ## Run Worksheet
 
@@ -71,6 +78,9 @@ Keep these facts fixed or explicitly updated between comparison runs:
 - Keep successful final `DatasetRoot` artifacts in place by default for visual inspection unless cleanup is explicitly requested.
 - Do not assume root-only cleanup proves the absence of all orphaned descendants; if orphan contamination is plausible, say so explicitly.
 - Do not treat structure-level conclusions after a failed or interrupted run as fully clean; mark them provisional unless you have an orphan audit beyond root removal.
+- When a task requires adding or inspecting a Resonite component by name, treat exact type resolution as a required step. Use ResoniteLink reflection APIs such as `GetComponentTypeList` and `GetComponentDefinition` before guessing a type string for `AddComponent`.
+- If a component picker label in Resonite UI does not match an `AddComponent` type string, record both the UI label and the resolved runtime type in the run notes.
+- If `GetComponentTypeList("*")` or narrower category queries return no useful entries in the current session, say that explicitly and fall back to evidence from existing world data such as `componentType` values in root dumps. Do not silently invent a type name.
 
 ## Bundled Scripts
 
@@ -86,14 +96,15 @@ Use to capture a recursive Root snapshot from the tracked or explicitly addresse
 Use to remove dataset roots from the live world, stop leftover CLI processes, and clear local runtime artifacts.
 - `scripts/run-live-send.ps1`
 Use to launch one live send with explicit logs.
-- `scripts/compare-modes.ps1`
-Use to run the standard `heightmap -> mesh -> heightmap` comparison with cleanup between runs.
+- `scripts/windows-build-tools.ps1`
+Use as the shared helper that resolves Windows-side `dotnet` and ResoniteAdmin build output for the other scripts.
 
 All seven paths above are relative to `.agents/skills/resonite-live-send-debug/`.
 
 ## Outputs
 
 - Keep the per-run stdout and stderr logs under the repo runtime directory with distinct names.
+- Treat the CLI stdout/stderr logs and direct helper stdout as the observation surface. Do not require ad-hoc wrapper return objects to decide whether a run is valid.
 - Summarize each run with:
   - listener endpoint
   - cleanup verification result

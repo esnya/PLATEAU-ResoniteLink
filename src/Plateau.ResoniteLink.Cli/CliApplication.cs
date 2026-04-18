@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 using Plateau.ResoniteLink.Application.Importing;
+using Plateau.ResoniteLink.Application.Logging;
 
 namespace Plateau.ResoniteLink.Cli;
 
@@ -8,32 +10,16 @@ public sealed class CliApplication
 {
     private readonly TextWriter standardError;
     private readonly TextWriter standardOutput;
-    private readonly Func<BuildCommandOptions, PlateauImportService>? importServiceFactory;
-    private readonly PlateauImportService? importService;
+    private readonly IImportServiceFactory importServiceFactory;
 
-    public CliApplication(
+    internal CliApplication(
         TextWriter standardOutput,
         TextWriter standardError,
-        PlateauImportService importService)
-    {
-        this.standardOutput = standardOutput;
-        this.standardError = standardError;
-        this.importService = importService;
-    }
-
-    public CliApplication(
-        TextWriter standardOutput,
-        TextWriter standardError,
-        Func<BuildCommandOptions, PlateauImportService> importServiceFactory)
+        IImportServiceFactory importServiceFactory)
     {
         this.standardOutput = standardOutput;
         this.standardError = standardError;
         this.importServiceFactory = importServiceFactory;
-    }
-
-    public static CliApplication CreateDefault()
-    {
-        return CliCompositionRoot.CreateDefaultApplication();
     }
 
     [SuppressMessage(
@@ -60,16 +46,17 @@ public sealed class CliApplication
 
         try
         {
-            PlateauImportService effectiveImportService =
-                importService ?? importServiceFactory!(parseResult.Options!);
+            BuildCommandOptions options = parseResult.Options!;
+            Action<string> reporter = CreateReporter(options.VerboseLogging);
+            PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);
 
             ImportExecutionResult result = await effectiveImportService.ExecuteAsync(
-                parseResult.Options!.Request,
-                parseResult.Options.WorkRoot,
+                options.Request,
+                options.WorkRoot,
                 cancellationToken);
 
             await standardOutput.WriteLineAsync("Resonite import completed.");
-            await standardOutput.WriteLineAsync($"World: {result.Metadata.WorldName}");
+            await standardOutput.WriteLineAsync($"World: {result.Metadata.SceneName}");
 
             foreach (string destination in result.Destinations)
             {
@@ -96,5 +83,62 @@ public sealed class CliApplication
             await standardError.WriteLineAsync($"Import failed: {exception.Message}");
             return 1;
         }
+    }
+
+    private Action<string> CreateReporter(PlateauLogLevel minimumLogLevel)
+    {
+        return message =>
+        {
+            string timestamp = DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffzzz", CultureInfo.InvariantCulture);
+            WriteLogLine(standardOutput, timestamp, message, minimumLogLevel);
+        };
+    }
+
+    private Action<string> CreateReporter(bool verboseLogging)
+    {
+        return CreateReporter(verboseLogging ? PlateauLogLevel.Debug : PlateauLogLevel.Info);
+    }
+
+    private static void WriteLogLine(
+        TextWriter writer,
+        string timestamp,
+        string message,
+        PlateauLogLevel minimumLogLevel)
+    {
+        string normalizedMessage = PlateauLog.NormalizeLegacyMessage(message, PlateauLog.InferLegacyDefaultLevel(message));
+
+        if (PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry filteredEntry)
+            && filteredEntry.Level < minimumLogLevel)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(writer, Console.Out)
+            && !Console.IsOutputRedirected
+            && PlateauLogEntry.TryParse(normalizedMessage, out PlateauLogEntry entry))
+        {
+            ConsoleColor originalForeground = Console.ForegroundColor;
+            Console.Write($"[{timestamp}] ");
+            Console.ForegroundColor = GetLogLevelColor(entry.Level);
+            Console.Write($"[{entry.Scope}][{entry.LevelToken}]");
+            Console.ForegroundColor = originalForeground;
+            Console.Write(' ');
+            Console.WriteLine(entry.Message);
+            return;
+        }
+
+        writer.WriteLine($"[{timestamp}] {normalizedMessage}");
+    }
+
+    private static ConsoleColor GetLogLevelColor(PlateauLogLevel level)
+    {
+        return level switch
+        {
+            PlateauLogLevel.Debug => ConsoleColor.DarkGray,
+            PlateauLogLevel.Info => Console.ForegroundColor,
+            PlateauLogLevel.Warning => ConsoleColor.Yellow,
+            PlateauLogLevel.Error => ConsoleColor.Red,
+            _ => Console.ForegroundColor,
+        };
     }
 }

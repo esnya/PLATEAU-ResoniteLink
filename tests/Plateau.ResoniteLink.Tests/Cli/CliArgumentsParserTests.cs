@@ -364,10 +364,10 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void HelpTextDocumentsExperimentalResoniteLinkConnections()
+    public void HelpTextDocumentsParallelResoniteLinkConnections()
     {
         Assert.Contains(
-            "Experimental parallel ResoniteLink connection count for live sends. Default: 1.",
+            "Parallel ResoniteLink connection count for live sends. Default: 1.",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
     }
