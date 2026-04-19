@@ -10,7 +10,12 @@ public static class PlateauImportServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<ICityGmlDocumentReader>(_ => PlateauCityGmlImportComposition.CreateDocumentReader());
+        services.AddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
+        services.AddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
+        services.AddSingleton<ICityGmlDocumentReader>(provider =>
+            PlateauCityGmlImportComposition.CreateDocumentReader(
+                provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
+                provider.GetRequiredService<ICityGmlLodSelector>()));
         services.AddSingleton<IDefaultMaterialResolver>(_ => PlateauCityGmlImportComposition.CreateMaterialResolver());
         services.AddSingleton<ICityGmlGeometryProjector>(provider =>
             PlateauCityGmlImportComposition.CreateGeometryProjector(
