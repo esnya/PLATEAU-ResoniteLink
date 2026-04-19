@@ -247,7 +247,12 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             return null;
         }
 
-        double[] values = LocalCityGmlObjectProjection.ParseDoubles(value);
+        double[]? values = TryParseDoubles(value);
+        if (values is null)
+        {
+            return null;
+        }
+
         return values.Length == 0 ? null : values[0];
     }
 
@@ -258,7 +263,12 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             return fallback;
         }
 
-        double[] values = LocalCityGmlObjectProjection.ParseDoubles(value);
+        double[]? values = TryParseDoubles(value);
+        if (values is null)
+        {
+            return fallback;
+        }
+
         if (values.Length < 3)
         {
             return fallback;
@@ -278,7 +288,12 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             return null;
         }
 
-        double[] values = LocalCityGmlObjectProjection.ParseDoubles(value);
+        double[]? values = TryParseDoubles(value);
+        if (values is null)
+        {
+            return null;
+        }
+
         if (values.Length < 3)
         {
             return null;
@@ -289,5 +304,21 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             G: values[1],
             B: values[2],
             A: values.Length >= 4 ? values[3] : 1.0);
+    }
+
+    private static double[]? TryParseDoubles(string value)
+    {
+        try
+        {
+            return LocalCityGmlObjectProjection.ParseDoubles(value);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+        catch (OverflowException)
+        {
+            return null;
+        }
     }
 }

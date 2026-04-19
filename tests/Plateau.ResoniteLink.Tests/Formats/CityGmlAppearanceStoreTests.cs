@@ -122,4 +122,94 @@ public sealed class CityGmlAppearanceStoreTests
         Assert.Equal("35.0 139.0 10.0", appearance.GeoreferencedTexture.ReferencePoint);
         Assert.Equal("0 1", appearance.GeoreferencedTexture.Orientation);
     }
+
+    [Fact]
+    public async Task Resolve_IgnoresMalformedOptionalBorderColor()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        string packageDirectory = Path.Combine(datasetRoot.Path, "udx", "bldg", "53394525");
+        string appearanceDirectory = Path.Combine(packageDirectory, "appearance");
+        Directory.CreateDirectory(appearanceDirectory);
+
+        using (Image<Rgba32> image = new(1, 1, new Rgba32(255, 255, 255, 255)))
+        {
+            await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "roof.png"));
+        }
+
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(datasetRoot.Path);
+        ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
+            "udx/bldg/53394525/example.gml",
+            datasetSource);
+        XDocument document = XDocument.Parse(
+            """
+            <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0">
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:ParameterizedTexture>
+                      <app:imageURI>appearance/roof.png</app:imageURI>
+                      <app:borderColor>broken value</app:borderColor>
+                      <app:target uri="#poly-1">
+                        <app:TexCoordList>
+                          <app:textureCoordinates ring="#ring-1">0 0 1 0 1 1 0 1</app:textureCoordinates>
+                        </app:TexCoordList>
+                      </app:target>
+                    </app:ParameterizedTexture>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+            </core:CityModel>
+            """);
+
+        store.LoadFromDocument(document);
+        CityGmlResolvedAppearance appearance = store.Resolve("poly-1");
+
+        Assert.NotNull(appearance.ParameterizedTexture);
+        Assert.Null(appearance.ParameterizedTexture!.BorderColor);
+        Assert.NotNull(appearance.TexturePayload);
+    }
+
+    [Fact]
+    public async Task Resolve_IgnoresMalformedOptionalX3dMaterialFields()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        string packageDirectory = Path.Combine(datasetRoot.Path, "udx", "bldg", "53394525");
+        Directory.CreateDirectory(packageDirectory);
+
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(datasetRoot.Path);
+        ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
+            "udx/bldg/53394525/example.gml",
+            datasetSource);
+        XDocument document = XDocument.Parse(
+            """
+            <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0">
+              <app:appearanceMember>
+                <app:Appearance>
+                  <app:surfaceDataMember>
+                    <app:X3DMaterial>
+                      <app:diffuseColor>0.2 0.4 0.6</app:diffuseColor>
+                      <app:ambientIntensity>broken</app:ambientIntensity>
+                      <app:emissiveColor>bad color</app:emissiveColor>
+                      <app:specularColor>still bad</app:specularColor>
+                      <app:shininess>oops</app:shininess>
+                      <app:transparency>nope</app:transparency>
+                      <app:target uri="#poly-1" />
+                    </app:X3DMaterial>
+                  </app:surfaceDataMember>
+                </app:Appearance>
+              </app:appearanceMember>
+            </core:CityModel>
+            """);
+
+        store.LoadFromDocument(document);
+        CityGmlResolvedAppearance appearance = store.Resolve("poly-1");
+
+        Assert.NotNull(appearance.MaterialAttributes);
+        Assert.Equal(0.2, appearance.MaterialAttributes!.DiffuseColor.R, 6);
+        Assert.Null(appearance.MaterialAttributes.AmbientIntensity);
+        Assert.Null(appearance.MaterialAttributes.EmissiveColor);
+        Assert.Null(appearance.MaterialAttributes.SpecularColor);
+        Assert.Null(appearance.MaterialAttributes.Shininess);
+        Assert.Null(appearance.MaterialAttributes.Transparency);
+    }
 }

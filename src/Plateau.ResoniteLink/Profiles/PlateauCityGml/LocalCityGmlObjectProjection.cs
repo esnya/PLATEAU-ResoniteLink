@@ -476,6 +476,13 @@ public static partial class LocalCityGmlObjectProjection
             return null;
         }
 
+        string? unitOfMeasure = element.Attribute("uom")?.Value.Trim();
+        if (!string.IsNullOrWhiteSpace(unitOfMeasure)
+            && !string.Equals(unitOfMeasure, "m", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         return double.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out double value) && value > 0.0
             ? value
             : null;
