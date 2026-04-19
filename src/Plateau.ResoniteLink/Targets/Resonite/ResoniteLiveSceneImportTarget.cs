@@ -1408,7 +1408,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
             CreatedMaterialAsset existingMaterialAsset = await runState.Materials.CommonMaterialCreationTasks.GetOrCreateAsync(
                 materialKey,
-                _ => new LazySharedMaterialTaskFactory(
+                () => new LazySharedMaterialTaskFactory(
                     runState,
                     client,
                     normalizedSharedMaterial,
