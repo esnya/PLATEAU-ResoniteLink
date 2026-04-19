@@ -119,9 +119,14 @@ internal static class ResoniteMaterialPlanning
         }
 
         Uri? textureUri = await ImportOptionalTextureAsync(importClient, textureImport, cancellationToken);
+        string textureIdentity = textureImport switch
+        {
+            ResoniteRawTextureImport rawTexture when !string.IsNullOrWhiteSpace(rawTexture.Identity) => rawTexture.Identity!,
+            _ => material.MaterialKey,
+        };
         return textureUri is null
             ? null
-            : new PlannedTextureAsset(new TextureIdentity($"main-texture-override:{material.MaterialKey}"), textureUri);
+            : new PlannedTextureAsset(new TextureIdentity($"main-texture-override:{textureIdentity}"), textureUri);
     }
 
     public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(

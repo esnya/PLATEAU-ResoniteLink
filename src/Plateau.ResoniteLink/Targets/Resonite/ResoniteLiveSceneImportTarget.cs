@@ -1469,16 +1469,31 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
         private async Task<CreatedMaterialAsset> CreateAsync(string materialKey)
         {
-            CreatedSlot familySlot = await RunState.Placement.GetOrCreateSharedChildSlotAsync(
-                Client,
+            CreatedSlot familySlot = await TryGetExistingSharedChildSlotAsync(
                 RunState.Context.CommonAssetsRootSlot.SlotId,
                 FamilySlotName,
-                RunState.Runtime.ProcessingCancellationToken);
+                RunState.Runtime.ProcessingCancellationToken)
+                ?? await RunState.Placement.GetOrCreateSharedChildSlotAsync(
+                    Client,
+                    RunState.Context.CommonAssetsRootSlot.SlotId,
+                    FamilySlotName,
+                    RunState.Runtime.ProcessingCancellationToken);
             PlannedDedicatedMaterialAsset plannedMaterial = await ResoniteMaterialPlanning.PlanCommonMaterialAssetAsync(
                 Client,
                 Material,
                 RunState.Runtime.ProcessingCancellationToken);
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(Material, useCommonMaterialAssets: true);
+            string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(Material);
+            string? existingMaterialComponentId = await TryGetExistingCommonMaterialComponentIdAsync(
+                familySlot.SlotId,
+                materialSlotName,
+                materialComponentType,
+                RunState.Runtime.ProcessingCancellationToken);
+            if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
+            {
+                return new CreatedMaterialAsset(existingMaterialComponentId, null);
+            }
+
             CreatedMaterialAsset createdMaterial = await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
                 Client,
                 plannedMaterial,
@@ -1488,6 +1503,35 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 CreateComponentAsync,
                 RunState.Runtime.ProcessingCancellationToken);
             return createdMaterial;
+        }
+
+        private async Task<CreatedSlot?> TryGetExistingSharedChildSlotAsync(
+            string parentSlotId,
+            string childSlotName,
+            CancellationToken cancellationToken)
+        {
+            Slot? parentSlotSnapshot = await Client.GetSlotAsync(parentSlotId, 1, cancellationToken);
+            ResoniteSceneChildLookupResult childLookup = new ResoniteSceneSlotSnapshot(parentSlotSnapshot)
+                .GetUniqueChildLookupResult(childSlotName, parentSlotId);
+            return childLookup.State == ResoniteSceneChildLookupState.FoundWithId
+                ? new CreatedSlot(childLookup.SlotId!, childSlotName)
+                : null;
+        }
+
+        private async Task<string?> TryGetExistingCommonMaterialComponentIdAsync(
+            string familySlotId,
+            string materialSlotName,
+            string materialComponentType,
+            CancellationToken cancellationToken)
+        {
+            Slot? familySlotSnapshot = await Client.GetSlotAsync(familySlotId, 1, cancellationToken);
+            ResoniteSceneChildLookupResult materialLookup = new ResoniteSceneSlotSnapshot(familySlotSnapshot)
+                .GetUniqueChildLookupResult(materialSlotName, familySlotId);
+            return materialLookup.Slot?.Components?
+                .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
+                .OrderBy(static component => component.ID, StringComparer.Ordinal)
+                .Select(static component => component.ID)
+                .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
         }
     }
 
