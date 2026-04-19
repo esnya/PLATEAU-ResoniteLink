@@ -389,6 +389,15 @@ public sealed class ResoniteSessionToolCommandLineParserTests
     }
 
     [Fact]
+    public void SessionToolSourceTreatsGetProcessByIdRaceAsNonFatalDuringStop()
+    {
+        string source = File.ReadAllText(ScriptPath);
+
+        Assert.Contains("catch (ArgumentException)", source, StringComparison.Ordinal);
+        Assert.Contains("The process exited between the liveness probe and GetProcessById.", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StopHeadlessRejectsMissingLocator()
     {
         ProcessResult result = await RunSessionToolAsync("stop-headless");

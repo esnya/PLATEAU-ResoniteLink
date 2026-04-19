@@ -527,6 +527,10 @@ async Task<int> ExecuteStopHeadlessAsync(string[] commandArgs)
                 throw new InvalidOperationException();
             }
         }
+        catch (ArgumentException)
+        {
+            // The process exited between the liveness probe and GetProcessById.
+        }
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException or TimeoutException)
         {
             forced = true;
