@@ -14,8 +14,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private const string SharedCommonMaterialsRootName = "Common Materials";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private const string GsiLicenseName = "GSI Maps Terms";
-    private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
 
     private readonly IResoniteSceneSlotLocator sceneSlotLocator;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
@@ -78,7 +76,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             ? assetsLookup.Slot
             : null;
         DatasetLicenseDefinition[] datasetLicenses = CreateDatasetLicensePlan(setupInfo);
-        HashSet<DatasetLicenseRole> matchedExistingLicenseRoles = MatchExistingLicenseRoles(datasetRootSnapshot, datasetLicenses);
+        HashSet<string> matchedExistingLicenseKeys = MatchExistingLicenseKeys(datasetRootSnapshot, datasetLicenses);
 
         List<DataModelOperation> operations = [];
         ResoniteBatchOperations.PendingBatchSlot? pendingAssets = null;
@@ -125,7 +123,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         foreach (DatasetLicenseDefinition license in datasetLicenses)
         {
-            if (matchedExistingLicenseRoles.Contains(license.Role))
+            if (matchedExistingLicenseKeys.Contains(license.DeduplicationKey))
             {
                 continue;
             }
@@ -289,37 +287,24 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
 
-        List<DatasetLicenseDefinition> licenses =
-        [
-            new(
-                DatasetLicenseRole.PrimaryPlateau,
-                setupInfo.DatasetLicense,
-                CreateDatasetLicenseMembers(setupInfo.DatasetLicense)),
-        ];
-        if (setupInfo.RequiresGsiFallbackLicense)
-        {
-            LicenseAttributionMetadata gsiLicense = new(
-                RequireCredit: true,
-                CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
-                LicenseName: GsiLicenseName,
-                LicenseUrl: GsiLicenseUrl);
-            licenses.Add(new(
-                DatasetLicenseRole.GsiFallback,
-                gsiLicense,
-                CreateDatasetLicenseMembers(gsiLicense)));
-        }
-
-        return licenses.ToArray();
+        return setupInfo.AdditionalDatasetLicenses
+            .Prepend(setupInfo.DatasetLicense)
+            .Distinct()
+            .Select(static license => new DatasetLicenseDefinition(
+                DeduplicationKey: CreateLicenseDeduplicationKey(license),
+                License: license,
+                Members: CreateDatasetLicenseMembers(license)))
+            .ToArray();
     }
 
-    private static HashSet<DatasetLicenseRole> MatchExistingLicenseRoles(
+    private static HashSet<string> MatchExistingLicenseKeys(
         Slot datasetRootSnapshot,
         IReadOnlyList<DatasetLicenseDefinition> datasetLicenses)
     {
-        HashSet<DatasetLicenseRole> matchedRoles = [];
+        HashSet<string> matchedKeys = [];
         if (datasetRootSnapshot.Components is null || datasetRootSnapshot.Components.Count == 0)
         {
-            return matchedRoles;
+            return matchedKeys;
         }
 
         foreach (DatasetLicenseDefinition plannedLicense in datasetLicenses)
@@ -330,11 +315,21 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 .Any(component => LicenseMembersMatch(component, plannedLicense.Members));
             if (exists)
             {
-                matchedRoles.Add(plannedLicense.Role);
+                matchedKeys.Add(plannedLicense.DeduplicationKey);
             }
         }
 
-        return matchedRoles;
+        return matchedKeys;
+    }
+
+    private static string CreateLicenseDeduplicationKey(LicenseAttributionMetadata license)
+    {
+        return string.Join(
+            "\n",
+            license.RequireCredit.ToString(),
+            license.CreditText,
+            license.LicenseName,
+            license.LicenseUrl);
     }
 
     private static bool LicenseMembersMatch(Component component, IReadOnlyDictionary<string, Member> members)
@@ -665,14 +660,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         string Family,
         ResoniteBatchOperations.PendingBatchComponent PendingMaterialComponent);
 
-    private enum DatasetLicenseRole
-    {
-        PrimaryPlateau,
-        GsiFallback,
-    }
-
     private sealed record DatasetLicenseDefinition(
-        DatasetLicenseRole Role,
+        string DeduplicationKey,
         LicenseAttributionMetadata License,
         IReadOnlyDictionary<string, Member> Members);
 }

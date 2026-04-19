@@ -21,6 +21,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
+    private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
@@ -34,6 +35,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         Metadata = metadata;
         this.request = request;
         sourceFiles = documentSet.BootstrapSourceFilePipelines.ToArray();
+        bootstrapTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
         globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.commonMaterialEnumerator = commonMaterialEnumerator;
@@ -300,12 +302,12 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(string packageName)
     {
         if (!string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || Metadata.SourceDataset.TerrainTextureOverlays.Count == 0)
+            || bootstrapTerrainTextureOverlays.Length == 0)
         {
             return [];
         }
 
-        return Metadata.SourceDataset.TerrainTextureOverlays.ToArray();
+        return bootstrapTerrainTextureOverlays.ToArray();
     }
 
     private static void ValidateCompatibleReferenceSystem(

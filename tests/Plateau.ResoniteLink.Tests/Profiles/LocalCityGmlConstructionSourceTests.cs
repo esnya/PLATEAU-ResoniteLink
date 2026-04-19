@@ -67,7 +67,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                 [
                     new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
-                ]),
+                ],
+                [overlay]),
             geometryProjector,
             CommonMaterialEnumerator);
 
@@ -113,7 +114,9 @@ public sealed class LocalCityGmlConstructionSourceTests
         return CreateDocumentSet(sourceFiles);
     }
 
-    private static LocalCityGmlDocumentSet CreateDocumentSet(IReadOnlyList<SourceFileDescriptor> sourceFiles)
+    private static LocalCityGmlDocumentSet CreateDocumentSet(
+        IReadOnlyList<SourceFileDescriptor> sourceFiles,
+        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFilePipeline[] pipelines = sourceFiles
@@ -132,7 +135,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             new EmptyDatasetContentSource(),
             pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
             pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
-            [],
+            terrainTextureOverlays ?? [],
             ["57402736"],
             pipelines,
             [],
