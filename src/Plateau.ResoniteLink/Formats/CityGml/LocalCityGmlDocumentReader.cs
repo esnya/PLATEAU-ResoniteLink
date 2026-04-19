@@ -4,18 +4,26 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
+    private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
     private readonly ICityGmlAppearanceStoreFactory appearanceStoreFactory;
     private readonly ICityGmlLodSelector lodSelector;
 
     public LocalCityGmlDocumentReader()
-        : this(new CityGmlAppearanceStoreFactory(), new CityGmlLodSelector())
+        : this(
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector())
     {
     }
 
     internal LocalCityGmlDocumentReader(
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector)
     {
+        this.datasetContentSourceFactory = datasetContentSourceFactory;
         this.appearanceStoreFactory = appearanceStoreFactory;
         this.lodSelector = lodSelector;
     }
@@ -27,6 +35,7 @@ public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
     {
         return await LocalCityGmlBootstrapPipeline.ReadAsync(
             request,
+            datasetContentSourceFactory,
             appearanceStoreFactory,
             lodSelector,
             progressReporter,

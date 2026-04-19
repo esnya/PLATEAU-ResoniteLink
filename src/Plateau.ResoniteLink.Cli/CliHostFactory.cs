@@ -71,7 +71,8 @@ internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
     ISceneImportTargetFactory sceneImportTargetFactory,
     ICityGmlDocumentReader documentReader,
-    IResoniteConstructionSourceFactory constructionSourceFactory) : IImportServiceFactory
+    IResoniteConstructionSourceFactory constructionSourceFactory,
+    IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
@@ -86,17 +87,23 @@ internal sealed class DefaultImportServiceFactory(
             datasetSourceResolverFactory.Create(),
             documentReader,
             constructionSourceFactory,
+            archiveFileLayoutPolicy,
             progressReporter);
     }
 }
 
-internal sealed class DefaultPlateauDatasetSourceResolverFactory(IHttpClientFactory httpClientFactory)
+internal sealed class DefaultPlateauDatasetSourceResolverFactory(
+    IHttpClientFactory httpClientFactory,
+    IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy,
+    IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
     : IPlateauDatasetSourceResolverFactory
 {
     public IPlateauDatasetSourceResolver Create()
     {
         return new CkanPlateauDatasetSourceResolver(
-            httpClientFactory.CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName));
+            httpClientFactory.CreateClient(CliHostFactory.PlateauDatasetResolverHttpClientName),
+            remoteArchiveDistributionPolicy,
+            archiveFileLayoutPolicy);
     }
 }
 

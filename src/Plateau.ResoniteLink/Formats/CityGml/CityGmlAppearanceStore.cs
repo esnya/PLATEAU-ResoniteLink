@@ -210,7 +210,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             return null;
         }
 
-        string? resolvedTexturePath = PlateauDatasetContentSourceFactory.ResolveRelativePath(
+        string? resolvedTexturePath = datasetSource.ResolveRelativePath(
             sourceFileRelativePath,
             imageUri);
         if (resolvedTexturePath is null || !datasetSource.FileExists(resolvedTexturePath))

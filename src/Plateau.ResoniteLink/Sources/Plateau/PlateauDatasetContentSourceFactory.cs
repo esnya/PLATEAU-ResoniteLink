@@ -1,5 +1,3 @@
-using Plateau.ResoniteLink.Domain.Importing;
-
 using SharpCompress.Archives;
 using SharpCompress.Readers;
 
@@ -7,16 +5,33 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public static class PlateauDatasetContentSourceFactory
 {
-    public static async Task<IPlateauDatasetContentSource> CreateAsync(
+    public static Task<IPlateauDatasetContentSource> CreateAsync(
         string sourcePath,
         CancellationToken cancellationToken = default)
     {
+        return CreateAsync(
+            sourcePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy(),
+            cancellationToken);
+    }
+
+    public static async Task<IPlateauDatasetContentSource> CreateAsync(
+        string sourcePath,
+        IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy,
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        ArgumentNullException.ThrowIfNull(remoteArchiveDistributionPolicy);
+        ArgumentNullException.ThrowIfNull(archiveFileLayoutPolicy);
 
         string fullPath = Path.GetFullPath(sourcePath);
         if (Directory.Exists(fullPath))
         {
-            return new LocalPlateauDatasetContentSource(PlateauDatasetPathResolver.ResolveDatasetRoot(fullPath));
+            return new LocalPlateauDatasetContentSource(
+                PlateauDatasetPathResolver.ResolveDatasetRoot(fullPath),
+                archiveFileLayoutPolicy);
         }
 
         if (!File.Exists(fullPath))
@@ -24,20 +39,15 @@ public static class PlateauDatasetContentSourceFactory
             throw new PlateauImportValidationException([$"The local source path '{sourcePath}' does not exist."]);
         }
 
-        if (!TryGetSupportedArchiveExtension(fullPath, out _))
+        bool isSupportedArchivePath = archiveFileLayoutPolicy.IsSupportedArchivePath(fullPath)
+            || remoteArchiveDistributionPolicy.IsSupportedArchivePath(fullPath);
+        if (!isSupportedArchivePath)
         {
             throw new PlateauImportValidationException(
                 [$"The local source path '{sourcePath}' is not a supported dataset directory or archive."]);
         }
 
-        return await ArchivePlateauDatasetContentSource.CreateAsync(fullPath, cancellationToken);
-    }
-
-    private static bool TryGetSupportedArchiveExtension(string path, out string extension)
-    {
-        extension = Path.GetExtension(path);
-        return string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
+        return await ArchivePlateauDatasetContentSource.CreateAsync(fullPath, archiveFileLayoutPolicy, cancellationToken);
     }
 
     internal static string NormalizeRelativePath(string path)
@@ -69,39 +79,18 @@ public static class PlateauDatasetContentSourceFactory
                 .Where(static segment => segment.Length > 0));
     }
 
-    internal static string GetMaterializedArchiveCacheKey(string archivePath)
+    internal static string? ResolveRelativePath(
+        string baseRelativePath,
+        string candidatePath,
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
     {
-        return WorkRootLayout.GetMaterializedArchiveCacheKey(archivePath);
+        ArgumentNullException.ThrowIfNull(archiveFileLayoutPolicy);
+        return archiveFileLayoutPolicy.ResolveRelativePath(baseRelativePath, candidatePath);
     }
 
-    internal static string GetDirectoryPath(string relativePath)
-    {
-        string normalized = NormalizeRelativePath(relativePath);
-        int separatorIndex = normalized.LastIndexOf('/');
-        return separatorIndex < 0 ? string.Empty : normalized[..separatorIndex];
-    }
-
-    internal static string? ResolveRelativePath(string baseRelativePath, string candidatePath)
-    {
-        if (string.IsNullOrWhiteSpace(candidatePath))
-        {
-            return null;
-        }
-
-        string normalizedCandidate = candidatePath.Replace('\\', '/').Trim();
-        if (normalizedCandidate.StartsWith('/'))
-        {
-            return null;
-        }
-
-        string baseDirectory = GetDirectoryPath(baseRelativePath);
-        string combined = NormalizeRelativePath(Path.GetRelativePath(
-            "/",
-            Path.GetFullPath(Path.Combine("/", baseDirectory, normalizedCandidate))));
-        return combined.StartsWith("..", StringComparison.Ordinal) ? null : combined;
-    }
-
-    private sealed class LocalPlateauDatasetContentSource(string datasetRoot) : IPlateauDatasetContentSource
+    private sealed class LocalPlateauDatasetContentSource(
+        string datasetRoot,
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IPlateauDatasetContentSource
     {
         public string SourcePath => datasetRoot;
 
@@ -109,22 +98,30 @@ public static class PlateauDatasetContentSourceFactory
         {
             return Directory
                 .EnumerateFiles(datasetRoot, "*", SearchOption.AllDirectories)
-                .Select(path => NormalizeRelativePath(Path.GetRelativePath(datasetRoot, path)))
+                .Select(path => archiveFileLayoutPolicy.NormalizeRelativePath(Path.GetRelativePath(datasetRoot, path)))
                 .OrderBy(path => path, StringComparer.Ordinal)
                 .ToArray();
         }
 
         public bool FileExists(string relativePath)
         {
-            string absolutePath = Path.Combine(datasetRoot, NormalizeRelativePath(relativePath));
+            string absolutePath = Path.Combine(datasetRoot, archiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
             return File.Exists(absolutePath);
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return PlateauDatasetContentSourceFactory.ResolveRelativePath(
+                baseRelativePath,
+                candidatePath,
+                archiveFileLayoutPolicy);
         }
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 #pragma warning disable CA2000
-            return ValueTask.FromResult<Stream>(OpenFileReadStream(datasetRoot, relativePath));
+            return ValueTask.FromResult<Stream>(OpenFileReadStream(datasetRoot, archiveFileLayoutPolicy, relativePath));
 #pragma warning restore CA2000
         }
 
@@ -134,13 +131,16 @@ public static class PlateauDatasetContentSourceFactory
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(Path.Combine(datasetRoot, NormalizeRelativePath(relativePath)));
+            return Task.FromResult(Path.Combine(datasetRoot, archiveFileLayoutPolicy.NormalizeRelativePath(relativePath)));
         }
 
-        private static FileStream OpenFileReadStream(string datasetRoot, string relativePath)
+        private static FileStream OpenFileReadStream(
+            string datasetRoot,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
+            string relativePath)
         {
             return new FileStream(
-                Path.Combine(datasetRoot, NormalizeRelativePath(relativePath)),
+                Path.Combine(datasetRoot, archiveFileLayoutPolicy.NormalizeRelativePath(relativePath)),
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
@@ -161,19 +161,23 @@ public static class PlateauDatasetContentSourceFactory
 
         private string ArchivePath { get; }
         private IReadOnlyDictionary<string, ArchiveFileAccessor> Files { get; }
+        private IArchiveFileLayoutPolicy ArchiveFileLayoutPolicy { get; }
 
         private ArchivePlateauDatasetContentSource(
             string archivePath,
-            IReadOnlyDictionary<string, ArchiveFileAccessor> files)
+            IReadOnlyDictionary<string, ArchiveFileAccessor> files,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
         {
             ArchivePath = archivePath;
             Files = files;
+            ArchiveFileLayoutPolicy = archiveFileLayoutPolicy;
         }
 
         public string SourcePath => ArchivePath;
 
         public static async Task<ArchivePlateauDatasetContentSource> CreateAsync(
             string archivePath,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
             CancellationToken cancellationToken)
         {
             List<RawArchiveFileAccessor> rawFiles = [];
@@ -182,13 +186,14 @@ public static class PlateauDatasetContentSourceFactory
                 ct => OpenArchiveFileStreamAsync(archivePath, ct),
                 prefix: string.Empty,
                 rawFiles,
+                archiveFileLayoutPolicy,
                 cancellationToken);
 
-            string datasetRootPrefix = ResolveDatasetRootPrefix(rawFiles.Select(static file => file.RelativePath));
+            string datasetRootPrefix = archiveFileLayoutPolicy.ResolveDatasetRootPrefix(rawFiles.Select(static file => file.RelativePath));
             Dictionary<string, ArchiveFileAccessor> indexedFiles = rawFiles
                 .Select(file => new
                 {
-                    RelativePath = StripDatasetRootPrefix(file.RelativePath, datasetRootPrefix),
+                    RelativePath = archiveFileLayoutPolicy.StripDatasetRootPrefix(file.RelativePath, datasetRootPrefix),
                     file.OpenReadAsync,
                 })
                 .Where(static file => !string.IsNullOrWhiteSpace(file.RelativePath))
@@ -198,7 +203,7 @@ public static class PlateauDatasetContentSourceFactory
                     static file => new ArchiveFileAccessor(file.RelativePath, file.OpenReadAsync),
                     StringComparer.OrdinalIgnoreCase);
 
-            return new ArchivePlateauDatasetContentSource(archivePath, indexedFiles);
+            return new ArchivePlateauDatasetContentSource(archivePath, indexedFiles, archiveFileLayoutPolicy);
         }
 
         public IReadOnlyList<string> EnumerateFiles()
@@ -208,12 +213,20 @@ public static class PlateauDatasetContentSourceFactory
 
         public bool FileExists(string relativePath)
         {
-            return Files.ContainsKey(NormalizeRelativePath(relativePath));
+            return Files.ContainsKey(ArchiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return PlateauDatasetContentSourceFactory.ResolveRelativePath(
+                baseRelativePath,
+                candidatePath,
+                ArchiveFileLayoutPolicy);
         }
 
         public async ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
-            string normalizedPath = NormalizeRelativePath(relativePath);
+            string normalizedPath = ArchiveFileLayoutPolicy.NormalizeRelativePath(relativePath);
             if (!Files.TryGetValue(normalizedPath, out ArchiveFileAccessor? fileAccessor))
             {
                 throw new FileNotFoundException($"The dataset entry '{relativePath}' was not found in '{ArchivePath}'.");
@@ -230,7 +243,7 @@ public static class PlateauDatasetContentSourceFactory
             cancellationToken.ThrowIfCancellationRequested();
 
             string normalizedPath = NormalizeSafeRelativePath(relativePath);
-            string archiveCacheRoot = WorkRootLayout.GetMaterializedArchiveRoot(outputRoot, ArchivePath);
+            string archiveCacheRoot = ArchiveFileLayoutPolicy.GetMaterializedArchiveRoot(outputRoot, ArchivePath);
             string destinationPath = ResolveMaterializedPath(archiveCacheRoot, normalizedPath);
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
@@ -282,6 +295,7 @@ public static class PlateauDatasetContentSourceFactory
             Func<CancellationToken, ValueTask<Stream>> openArchiveStreamAsync,
             string prefix,
             ICollection<RawArchiveFileAccessor> results,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
             CancellationToken cancellationToken)
         {
             await using Stream archiveStream = await openArchiveStreamAsync(cancellationToken);
@@ -296,28 +310,23 @@ public static class PlateauDatasetContentSourceFactory
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string entryKey = NormalizeRelativePath(entry.Key ?? string.Empty);
+                string entryKey = archiveFileLayoutPolicy.NormalizeRelativePath(entry.Key ?? string.Empty);
                 if (IsSupportedArchiveFile(entryKey))
                 {
-                    string nestedFileName = Path.GetFileNameWithoutExtension(entryKey);
-                    string nestedParent = GetDirectoryPath(entryKey);
-                    string nestedPrefix = PlateauPackageCatalog.TryNormalizePackageName(nestedFileName, out string? packageName)
-                        ? CombineRelativePaths(prefix, nestedParent, "udx", packageName)
-                        : CombineRelativePaths(prefix, nestedParent, nestedFileName);
-
                     await IndexArchiveAsync(
                         archivePath,
-                        ct => OpenNestedArchiveStreamAsync(archivePath, openArchiveStreamAsync, entryKey, ct),
-                        nestedPrefix,
+                        ct => OpenNestedArchiveStreamAsync(archivePath, openArchiveStreamAsync, entryKey, archiveFileLayoutPolicy, ct),
+                        archiveFileLayoutPolicy.GetNestedArchivePrefix(prefix, entryKey),
                         results,
+                        archiveFileLayoutPolicy,
                         cancellationToken);
                     continue;
                 }
 
-                string relativePath = CombineRelativePaths(prefix, entryKey);
+                string relativePath = archiveFileLayoutPolicy.CombineRelativePaths(prefix, entryKey);
                 results.Add(new RawArchiveFileAccessor(
                     relativePath,
-                    ct => OpenEntryStreamAsync(archivePath, openArchiveStreamAsync, entryKey, ct)));
+                    ct => OpenEntryStreamAsync(archivePath, openArchiveStreamAsync, entryKey, archiveFileLayoutPolicy, ct)));
             }
         }
 
@@ -337,12 +346,14 @@ public static class PlateauDatasetContentSourceFactory
             string archivePath,
             Func<CancellationToken, ValueTask<Stream>> openArchiveStreamAsync,
             string entryKey,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
             CancellationToken cancellationToken)
         {
             await using Stream nestedEntryStream = await OpenEntryStreamAsync(
                 archivePath,
                 openArchiveStreamAsync,
                 entryKey,
+                archiveFileLayoutPolicy,
                 cancellationToken);
             MemoryStream buffer = new();
             await nestedEntryStream.CopyToAsync(buffer, cancellationToken);
@@ -354,6 +365,7 @@ public static class PlateauDatasetContentSourceFactory
             string archivePath,
             Func<CancellationToken, ValueTask<Stream>> openArchiveStreamAsync,
             string entryKey,
+            IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
             CancellationToken cancellationToken)
         {
             await using Stream archiveStream = await openArchiveStreamAsync(cancellationToken);
@@ -367,8 +379,8 @@ public static class PlateauDatasetContentSourceFactory
             IArchiveEntry entry = archive.Entries.FirstOrDefault(candidate =>
                     !candidate.IsDirectory
                     && string.Equals(
-                        NormalizeRelativePath(candidate.Key ?? string.Empty),
-                        NormalizeRelativePath(entryKey),
+                        archiveFileLayoutPolicy.NormalizeRelativePath(candidate.Key ?? string.Empty),
+                        archiveFileLayoutPolicy.NormalizeRelativePath(entryKey),
                         StringComparison.Ordinal))
                 ?? throw new FileNotFoundException($"The dataset entry '{entryKey}' was not found in '{archivePath}'.");
 
@@ -384,35 +396,6 @@ public static class PlateauDatasetContentSourceFactory
             string extension = Path.GetExtension(path);
             return string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string ResolveDatasetRootPrefix(IEnumerable<string> relativePaths)
-        {
-            string[] candidates = relativePaths
-                .Select(NormalizeRelativePath)
-                .Where(path => path.Contains("/udx/", StringComparison.Ordinal))
-                .Select(path => path[..path.IndexOf("/udx/", StringComparison.Ordinal)])
-                .Where(static path => path.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(static path => path.Count(static character => character == '/'))
-                .ThenBy(static path => path, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            return candidates.FirstOrDefault() ?? string.Empty;
-        }
-
-        private static string StripDatasetRootPrefix(string relativePath, string datasetRootPrefix)
-        {
-            string normalizedPath = NormalizeRelativePath(relativePath);
-            if (string.IsNullOrEmpty(datasetRootPrefix))
-            {
-                return normalizedPath;
-            }
-
-            string normalizedPrefix = NormalizeRelativePath(datasetRootPrefix);
-            return normalizedPath.StartsWith(normalizedPrefix + "/", StringComparison.OrdinalIgnoreCase)
-                ? normalizedPath[(normalizedPrefix.Length + 1)..]
-                : normalizedPath;
         }
 
     }

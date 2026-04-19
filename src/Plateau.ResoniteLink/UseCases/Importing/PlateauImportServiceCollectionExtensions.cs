@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
@@ -10,20 +11,23 @@ public static class PlateauImportServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
-        services.AddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
-        services.AddSingleton<ICityGmlDocumentReader>(provider =>
+        services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
+        services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
+        services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
+        services.TryAddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
+        services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
+        services.TryAddSingleton<IDefaultMaterialResolver>(_ =>
+            PlateauCityGmlImportComposition.CreateMaterialResolver());
+        services.TryAddSingleton<IResoniteConstructionComposer>(provider =>
+            PlateauCityGmlImportComposition.CreateConstructionComposer(
+                PlateauCityGmlImportComposition.CreateGeometryProjector(
+                    provider.GetRequiredService<IDefaultMaterialResolver>())));
+        services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
             PlateauCityGmlImportComposition.CreateDocumentReader(
+                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
-        services.AddSingleton<IDefaultMaterialResolver>(_ => PlateauCityGmlImportComposition.CreateMaterialResolver());
-        services.AddSingleton<ICityGmlGeometryProjector>(provider =>
-            PlateauCityGmlImportComposition.CreateGeometryProjector(
-                provider.GetRequiredService<IDefaultMaterialResolver>()));
-        services.AddSingleton<IResoniteConstructionComposer>(provider =>
-            PlateauCityGmlImportComposition.CreateConstructionComposer(
-                provider.GetRequiredService<ICityGmlGeometryProjector>()));
-        services.AddSingleton<IResoniteConstructionSourceFactory>(provider =>
+        services.TryAddSingleton<IResoniteConstructionSourceFactory>(provider =>
             PlateauCityGmlImportComposition.CreateConstructionSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),
                 provider.GetRequiredService<IResoniteConstructionComposer>()));

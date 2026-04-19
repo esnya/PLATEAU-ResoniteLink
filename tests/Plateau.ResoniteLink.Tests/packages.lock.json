@@ -376,6 +376,7 @@
       "plateau.resonitelink.cli": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
           "Microsoft.Extensions.Http": "[10.0.0, )",
           "Plateau.ResoniteLink": "[1.0.0, )"

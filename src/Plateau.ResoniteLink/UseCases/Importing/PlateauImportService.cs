@@ -11,8 +11,25 @@ public sealed class PlateauImportService(
     IPlateauDatasetSourceResolver datasetSourceResolver,
     ICityGmlDocumentReader documentReader,
     IResoniteConstructionSourceFactory constructionSourceFactory,
+    IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
+    public PlateauImportService(
+        ISceneImportTarget sceneBuilder,
+        IPlateauDatasetSourceResolver datasetSourceResolver,
+        ICityGmlDocumentReader documentReader,
+        IResoniteConstructionSourceFactory constructionSourceFactory,
+        Action<string>? progressReporter = null)
+        : this(
+            sceneBuilder,
+            datasetSourceResolver,
+            documentReader,
+            constructionSourceFactory,
+            new ArchiveFileLayoutPolicy(),
+            progressReporter)
+    {
+    }
+
     private readonly ISceneImportTarget sceneBuilder =
         sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
@@ -22,6 +39,8 @@ public sealed class PlateauImportService(
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
         constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
+    private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
+        archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
 
     public async Task<ImportExecutionResult> ExecuteAsync(
         PlateauImportRequest request,
@@ -32,7 +51,7 @@ public sealed class PlateauImportService(
 
         ValidatedPlateauImportRequest validatedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
         PlateauImportRequest normalizedRequest = validatedRequest.ToImportRequest();
-        string datasetWorkRoot = WorkRootLayout.ResolveDatasetRoot(workRoot, validatedRequest.Dataset);
+        string datasetWorkRoot = archiveFileLayoutPolicy.ResolveDatasetRoot(workRoot, validatedRequest.Dataset);
 
         PlateauImportRequest resolvedRequest =
             (await datasetSourceResolver.ResolveAsync(validatedRequest, datasetWorkRoot, cancellationToken)).ToImportRequest();

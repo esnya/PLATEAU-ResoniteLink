@@ -23,8 +23,6 @@ public static partial class LocalCityGmlObjectProjection
         return await LocalCityGmlBootstrapPipeline.ReadDocumentSetCoreAsync(
             request,
             progressReporter,
-            appearanceStoreFactory: null,
-            lodSelector: null,
             cancellationToken);
     }
 

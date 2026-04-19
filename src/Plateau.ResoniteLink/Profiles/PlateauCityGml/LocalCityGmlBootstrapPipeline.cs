@@ -9,24 +9,82 @@ internal static class LocalCityGmlBootstrapPipeline
 {
     public static async Task<LocalCityGmlDocumentSet> ReadAsync(
         PlateauImportRequest request,
-        ICityGmlAppearanceStoreFactory? appearanceStoreFactory = null,
-        ICityGmlLodSelector? lodSelector = null,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await ReadDocumentSetCoreAsync(request, progressReporter, appearanceStoreFactory, lodSelector, cancellationToken);
+        return await ReadAsync(
+            request,
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector(),
+            progressReporter,
+            cancellationToken);
+    }
+
+    public static async Task<LocalCityGmlDocumentSet> ReadAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReadDocumentSetCoreAsync(
+            request,
+            datasetContentSourceFactory,
+            progressReporter,
+            appearanceStoreFactory,
+            lodSelector,
+            cancellationToken);
     }
 
     internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReadDocumentSetCoreAsync(
+            request,
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            progressReporter,
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector(),
+            cancellationToken);
+    }
+
+    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Action<string>? progressReporter = null,
         ICityGmlAppearanceStoreFactory? appearanceStoreFactory = null,
         ICityGmlLodSelector? lodSelector = null,
         CancellationToken cancellationToken = default)
     {
+        return await ReadDocumentSetCoreInternalAsync(
+            request,
+            datasetContentSourceFactory,
+            progressReporter,
+            appearanceStoreFactory ?? new CityGmlAppearanceStoreFactory(),
+            lodSelector ?? new CityGmlLodSelector(),
+            cancellationToken);
+    }
+
+    private static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreInternalAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Action<string>? progressReporter,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(request);
-        appearanceStoreFactory ??= new CityGmlAppearanceStoreFactory();
-        lodSelector ??= new CityGmlLodSelector();
+        ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
+        ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
+        ArgumentNullException.ThrowIfNull(lodSelector);
 
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
@@ -34,7 +92,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
         }
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+        IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
             localSource.LocalSourcePath!,
             cancellationToken);
         MeshCodeBounds? requestedMeshArea =
@@ -164,5 +222,4 @@ internal static class LocalCityGmlBootstrapPipeline
         throw new PlateauImportValidationException(
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
     }
-
 }

@@ -4,20 +4,15 @@ namespace Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
 internal static class PlateauCityGmlImportComposition
 {
-    public static ICityGmlDocumentReader CreateDocumentReader()
-    {
-        return new LocalCityGmlDocumentReader(
-            new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector());
-    }
-
     public static ICityGmlDocumentReader CreateDocumentReader(
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector)
     {
+        ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
         ArgumentNullException.ThrowIfNull(lodSelector);
-        return new LocalCityGmlDocumentReader(appearanceStoreFactory, lodSelector);
+        return new LocalCityGmlDocumentReader(datasetContentSourceFactory, appearanceStoreFactory, lodSelector);
     }
 
     public static IDefaultMaterialResolver CreateMaterialResolver()
@@ -44,14 +39,5 @@ internal static class PlateauCityGmlImportComposition
         ArgumentNullException.ThrowIfNull(documentReader);
         ArgumentNullException.ThrowIfNull(constructionComposer);
         return new LocalCityGmlConstructionSourceFactory(documentReader, constructionComposer);
-    }
-
-    public static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
-    {
-        IDefaultMaterialResolver materialResolver = CreateMaterialResolver();
-        ICityGmlGeometryProjector geometryProjector = CreateGeometryProjector(materialResolver);
-        IResoniteConstructionComposer constructionComposer = CreateConstructionComposer(geometryProjector);
-        ICityGmlDocumentReader documentReader = CreateDocumentReader();
-        return CreateConstructionSourceFactory(documentReader, constructionComposer);
     }
 }

@@ -26,10 +26,10 @@ public sealed class CliHostFactoryTests
         using IHost host = CliHostFactory.Create([]);
 
         Assert.NotNull(host.Services.GetRequiredService<ICityGmlDocumentReader>());
-        Assert.NotNull(host.Services.GetRequiredService<IDefaultMaterialResolver>());
-        Assert.NotNull(host.Services.GetRequiredService<ICityGmlGeometryProjector>());
-        Assert.NotNull(host.Services.GetRequiredService<IResoniteConstructionComposer>());
         Assert.NotNull(host.Services.GetRequiredService<IResoniteConstructionSourceFactory>());
+        Assert.NotNull(host.Services.GetRequiredService<IArchiveFileLayoutPolicy>());
+        Assert.NotNull(host.Services.GetRequiredService<IRemoteArchiveDistributionPolicy>());
+        Assert.NotNull(host.Services.GetRequiredService<IPlateauDatasetContentSourceFactory>());
     }
 
     [Fact]
