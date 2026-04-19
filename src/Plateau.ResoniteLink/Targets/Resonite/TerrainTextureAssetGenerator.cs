@@ -11,10 +11,15 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal interface ITerrainTextureAssetGenerator
 {
-    Task<ResoniteRawTextureImport> EnsureTextureAsync(
+    Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken);
 }
+
+internal sealed record GeneratedTerrainTexture(
+    ResoniteRawTextureImport TextureImport,
+    ResoniteFloat2 CanvasScale,
+    ResoniteFloat2 CanvasOffset);
 
 internal sealed class TerrainTextureAssetGenerator(
     HttpClient? httpClient = null,
@@ -27,7 +32,7 @@ internal sealed class TerrainTextureAssetGenerator(
         ? null
         : new PersistentTerrainTileCache(persistentCacheRoot);
 
-    public async Task<ResoniteRawTextureImport> EnsureTextureAsync(
+    public async Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
@@ -37,7 +42,7 @@ internal sealed class TerrainTextureAssetGenerator(
             terrainTextureOverlay,
             ct => CreateTextureAsync(terrainTextureOverlay, ct),
             cancellationToken);
-        return cachedTexture.TextureImport;
+        return cachedTexture.GeneratedTexture;
     }
 
     private async Task<CachedTerrainTexture> CreateTextureAsync(
@@ -66,11 +71,12 @@ internal sealed class TerrainTextureAssetGenerator(
             }
 
             using (image)
-            using (Image<Rgba32> outputImage = ResizeToMaxTextureSize(image, terrainTextureOverlay.MaxTextureSize))
             {
-                return new CachedTerrainTexture(
-                    CreateRawTextureImport(outputImage, CreateOverlayIdentity(terrainTextureOverlay, source)),
-                    source);
+                GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
+                    image,
+                    terrainTextureOverlay.MaxTextureSize,
+                    CreateOverlayIdentity(terrainTextureOverlay, source));
+                return new CachedTerrainTexture(generatedTexture, source);
             }
         }
 
@@ -160,6 +166,55 @@ internal sealed class TerrainTextureAssetGenerator(
         }
     }
 
+    private static GeneratedTerrainTexture CreateGeneratedTexture(
+        Image<Rgba32> image,
+        int maxTextureSize,
+        string identity)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
+
+        if (TryCreatePowerOfTwoCanvasTexture(image, maxTextureSize, identity, out GeneratedTerrainTexture? generatedTexture))
+        {
+            return generatedTexture!;
+        }
+
+        int fallbackMaxTextureSize = RoundDownToPowerOfTwo(maxTextureSize);
+        using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(image, fallbackMaxTextureSize);
+        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, identity, out generatedTexture))
+        {
+            return generatedTexture!;
+        }
+
+        throw new InvalidOperationException(
+            $"Terrain texture fallback failed to fit into a power-of-two canvas within maxTextureSize={maxTextureSize}.");
+    }
+
+    private static bool TryCreatePowerOfTwoCanvasTexture(
+        Image<Rgba32> image,
+        int maxTextureSize,
+        string identity,
+        out GeneratedTerrainTexture? generatedTexture)
+    {
+        int canvasWidth = RoundUpToPowerOfTwo(image.Width);
+        int canvasHeight = RoundUpToPowerOfTwo(image.Height);
+        if (canvasWidth > maxTextureSize || canvasHeight > maxTextureSize)
+        {
+            generatedTexture = null;
+            return false;
+        }
+
+        using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight);
+        canvasImage.Mutate(context => context.DrawImage(
+            image,
+            new Point(0, canvasHeight - image.Height),
+            1.0f));
+        generatedTexture = new GeneratedTerrainTexture(
+            CreateRawTextureImport(canvasImage, identity),
+            new ResoniteFloat2((double)image.Width / canvasWidth, (double)image.Height / canvasHeight),
+            new ResoniteFloat2(0.0, 0.0));
+        return true;
+    }
+
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
@@ -175,6 +230,32 @@ internal sealed class TerrainTextureAssetGenerator(
             Size = new Size(maxTextureSize, maxTextureSize),
             Sampler = KnownResamplers.Lanczos3,
         }));
+    }
+
+    private static int RoundUpToPowerOfTwo(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+
+        int rounded = 1;
+        while (rounded < value)
+        {
+            rounded <<= 1;
+        }
+
+        return rounded;
+    }
+
+    private static int RoundDownToPowerOfTwo(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+
+        int rounded = 1;
+        while ((rounded << 1) > 0 && (rounded << 1) <= value)
+        {
+            rounded <<= 1;
+        }
+
+        return rounded;
     }
 
     private static string CreateOverlayIdentity(
@@ -303,7 +384,7 @@ internal sealed class TerrainTextureAssetGenerator(
     }
 
     private sealed record CachedTerrainTexture(
-        ResoniteRawTextureImport TextureImport,
+        GeneratedTerrainTexture GeneratedTexture,
         TerrainTextureSource UsedSource);
 }
 

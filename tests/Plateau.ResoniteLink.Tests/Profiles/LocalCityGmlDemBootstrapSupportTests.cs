@@ -68,6 +68,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, overlay.FallbackUrlTemplate);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize);
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
@@ -88,6 +89,35 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
         Assert.Equal(
             result.Length,
             result.Select(static overlay => overlay.GeographicBounds).Distinct().Count());
+    }
+
+    [Fact]
+    public void CreateDemTerrainTextureOverlaysDefaultThirdMeshCanvasFitsLargeBudget()
+    {
+        MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("54372778")
+            ?? throw new InvalidOperationException("Expected Matsumoto third mesh bounds.");
+
+        TerrainTextureOverlay overlay = Assert.Single(
+            LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+                new DemTerrainBounds(
+                    meshBounds.SouthLatitude,
+                    meshBounds.NorthLatitude,
+                    meshBounds.WestLongitude,
+                    meshBounds.EastLongitude),
+                ["54372778"]));
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
+            overlay.GeographicBounds,
+            overlay.ZoomLevel);
+
+        int canvasWidth = RoundUpToPowerOfTwo(layout.CropWidth);
+        int canvasHeight = RoundUpToPowerOfTwo(layout.CropHeight);
+        long rawRgbaBytes = (long)canvasWidth * canvasHeight * 4L;
+
+        Assert.Equal(8192, canvasWidth);
+        Assert.Equal(4096, canvasHeight);
+        Assert.Equal(134_217_728L, rawRgbaBytes);
+        Assert.True(rawRgbaBytes <= ResoniteImportBudgetProfiles.Large.ImportWorkingSetBytes);
+        Assert.True(rawRgbaBytes <= ResoniteImportBudgetProfiles.Large.RuntimeVramBudgetBytes);
     }
 
     private static BootstrapParsedCityObject CreateCityObject()
@@ -132,5 +162,16 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             new GeodeticPoint(35.0, 139.0, 10.0),
             new GeodeticPoint(35.0, 139.001, 10.1),
             new GeodeticPoint(35.0, 139.002, 10.2));
+    }
+
+    private static int RoundUpToPowerOfTwo(int value)
+    {
+        int rounded = 1;
+        while (rounded < value)
+        {
+            rounded <<= 1;
+        }
+
+        return rounded;
     }
 }

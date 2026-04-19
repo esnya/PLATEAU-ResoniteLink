@@ -606,11 +606,11 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 }
 
 internal sealed class RecordingTerrainTextureAssetGenerator(
-    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory) : ITerrainTextureAssetGenerator
+    Func<TerrainTextureOverlay, GeneratedTerrainTexture> textureFactory) : ITerrainTextureAssetGenerator
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
-    public Task<ResoniteRawTextureImport> EnsureTextureAsync(
+    public Task<GeneratedTerrainTexture> EnsureTextureAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
