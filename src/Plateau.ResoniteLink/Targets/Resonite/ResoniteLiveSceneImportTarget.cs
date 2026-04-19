@@ -7,6 +7,7 @@ using ResoniteLink;
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
+using Plateau.ResoniteLink.Targets.Resonite.Execution;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
@@ -15,18 +16,19 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
-    private const string RootSlotId = "Root";
     private const string DemPackageName = "dem";
     private const string HeightMapAssetSlotSuffix = "_heightmap";
-    private const float DefaultNormalScale = 1.0f;
-    private const float DefaultBundledHeightScale = 0.002f;
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
-    private readonly ResoniteGeometryAssetAssembler geometryAssetAssembler;
+    private readonly IResoniteGeometryAssetAssembler geometryAssetAssembler;
+    private readonly IResoniteMaterialPlanning materialPlanning;
+    private readonly IResoniteBatchEmissionPlanner batchEmissionPlanner;
+    private readonly IResoniteSceneBatchEmitter batchEmitter;
+    private readonly IResoniteSlotCreator slotCreator;
+    private readonly IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory;
 #pragma warning disable CA1859
-    private readonly ILiveSendClientSession clientSession;
+    private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
     private readonly Action<string>? progressReporter;
 #pragma warning disable CA1859
@@ -36,35 +38,41 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     public ResoniteLiveSceneImportTarget(Uri endpoint, Action<string>? progressReporter = null)
         : this(
-            endpoint,
-            4,
-            ResoniteLinkSendDiagnostics.Disabled,
-            PlateauImportMemoryProfile.Large,
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                4,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: progressReporter),
             CreateDefaultDependencies(
                 endpoint,
                 4,
                 ResoniteLinkSendDiagnostics.Disabled,
                 new TerrainTextureAssetGenerator(),
-                progressReporter),
-            enableMeshBake: true,
-            progressReporter)
+                progressReporter))
     {
     }
 
     public ResoniteLiveSceneImportTarget(Uri endpoint, int connectionCount, Action<string>? progressReporter = null)
         : this(
-            endpoint,
-            connectionCount,
-            ResoniteLinkSendDiagnostics.Disabled,
-            PlateauImportMemoryProfile.Large,
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                connectionCount,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: progressReporter),
             CreateDefaultDependencies(
                 endpoint,
                 connectionCount,
                 ResoniteLinkSendDiagnostics.Disabled,
                 new TerrainTextureAssetGenerator(),
-                progressReporter),
-            enableMeshBake: true,
-            progressReporter)
+                progressReporter))
     {
     }
 
@@ -75,18 +83,21 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         PlateauImportMemoryProfile memoryProfile,
         Action<string>? progressReporter = null)
         : this(
-            endpoint,
-            connectionCount,
-            diagnostics,
-            memoryProfile,
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                connectionCount,
+                EnableSendMetrics: diagnostics != ResoniteLinkSendDiagnostics.Disabled,
+                memoryProfile,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: progressReporter),
             CreateDefaultDependencies(
                 endpoint,
                 connectionCount,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                progressReporter),
-            enableMeshBake: true,
-            progressReporter)
+                progressReporter))
     {
     }
 
@@ -98,18 +109,21 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         bool enableMeshBake,
         Action<string>? progressReporter = null)
         : this(
-            endpoint,
-            connectionCount,
-            diagnostics,
-            memoryProfile,
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                connectionCount,
+                EnableSendMetrics: diagnostics != ResoniteLinkSendDiagnostics.Disabled,
+                memoryProfile,
+                enableMeshBake,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: progressReporter),
             CreateDefaultDependencies(
                 endpoint,
                 connectionCount,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                progressReporter),
-            enableMeshBake,
-            progressReporter)
+                progressReporter))
     {
     }
 
@@ -121,13 +135,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         bool enableMeshBake = true,
         Action<string>? progressReporter = null)
         : this(
-            endpoint,
-            connectionCount,
-            diagnostics,
-            PlateauImportMemoryProfile.Large,
-            dependencies,
-            enableMeshBake,
-            progressReporter)
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                connectionCount,
+                EnableSendMetrics: diagnostics != ResoniteLinkSendDiagnostics.Disabled,
+                PlateauImportMemoryProfile.Large,
+                enableMeshBake,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: progressReporter),
+            dependencies)
     {
     }
 
@@ -139,22 +156,44 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteLiveSceneImportDependencies dependencies,
         bool enableMeshBake = true,
         Action<string>? progressReporter = null)
+        : this(
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                connectionCount,
+                EnableSendMetrics: diagnostics != ResoniteLinkSendDiagnostics.Disabled,
+                memoryProfile,
+                enableMeshBake,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: progressReporter),
+            dependencies)
     {
+    }
+
+    internal ResoniteLiveSceneImportTarget(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLiveSceneImportDependencies dependencies)
+    {
+        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(dependencies);
         ArgumentNullException.ThrowIfNull(dependencies.ClientSession);
         ArgumentNullException.ThrowIfNull(dependencies.TerrainTextureAssetGenerator);
 
-        this.endpoint = endpoint;
-        this.connectionCount = connectionCount;
-        MemoryProfile = memoryProfile;
-        this.diagnostics = diagnostics;
+        endpoint = options.Endpoint;
+        connectionCount = options.ConnectionCount;
+        MemoryProfile = options.MemoryProfile;
+        Diagnostics = dependencies.Diagnostics;
         this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
-        MeshBakeEnabled = enableMeshBake;
-        this.progressReporter = progressReporter;
-        sceneBootstrapInterpreter = new ResoniteSceneBootstrapInterpreter(
-            TryGetDatasetRootAsync);
-        geometryAssetAssembler = new ResoniteGeometryAssetAssembler(ReportProgress);
-        clientSession = dependencies.ClientSession;
+        MeshBakeEnabled = options.EnableMeshBake;
+        progressReporter = options.ProgressReporter;
+        sceneBootstrapInterpreter = dependencies.SceneBootstrapInterpreter;
+        geometryAssetAssembler = dependencies.GeometryAssetAssembler;
+        materialPlanning = dependencies.MaterialPlanning;
+        batchEmissionPlanner = dependencies.BatchEmissionPlanner;
+        batchEmitter = dependencies.BatchEmitter;
+        slotCreator = dependencies.SlotCreator;
+        cityObjectBakerFactory = dependencies.CityObjectBakerFactory;
+        ClientSessionInternal = dependencies.ClientSession;
     }
 
     internal static ResoniteLiveSceneImportDependencies CreateDefaultDependencies(
@@ -174,10 +213,22 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 diagnostics,
                 progressReporter,
                 baseClientFactory),
-            terrainTextureAssetGenerator);
+            diagnostics,
+            terrainTextureAssetGenerator,
+            new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator()),
+            new ResoniteGeometryAssetAssembler(),
+            new ResoniteMaterialPlanning(),
+            new ResoniteBatchEmissionPlanner(),
+            new PlannedBatchEmissionInterpreter(),
+            new ResoniteSlotCreator(),
+            new ResoniteBufferedCityObjectBakerFactory());
     }
 
     internal bool MeshBakeEnabled { get; }
+
+    internal ResoniteLinkSendDiagnostics Diagnostics { get; }
+
+    internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
     internal PlateauImportMemoryProfile MemoryProfile { get; }
 
@@ -263,7 +314,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
-        await clientSession.EnsureConnectedAsync(normalizedRequest, cancellationToken);
+        await ClientSessionInternal.EnsureConnectedAsync(normalizedRequest, cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -297,7 +348,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             runPlan.RequestLocalOrigin,
             runPlan.SourceFileSlotNamesByRelativePath,
             bootstrapState.SceneAnchor,
-            CreateSlotAsync);
+            slotCreator.CreateAsync);
         placement.IndexBootstrapHierarchy(bootstrapState);
         ReportProgress(
             PlateauLog.Info(
@@ -341,7 +392,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Dataset metadata/license phase complete during bootstrap. "
                 + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
-        clientSession.BeginWorkerClientTracking();
+        ClientSessionInternal.BeginWorkerClientTracking();
         LiveSendQueuePlan runtimePlan = runPlan.Queue;
         ReportProgress(
             PlateauLog.Info(
@@ -350,11 +401,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         LiveSendExecutionRuntime runtime = new(runtimePlan, cancellationToken);
         progress.Reset();
         ResoniteImportBudgetProfile resourceBudget = runPlan.ResourceBudget;
-        CompositeCityObjectBaker? cityObjectBaker = runPlan.MeshBakeEnabled
-            ? new CompositeCityObjectBaker(
-                new Lod2AtlasCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget),
-                new FixedCellCityObjectMeshBaker())
-            : null;
+        CompositeCityObjectBaker? cityObjectBaker = cityObjectBakerFactory.Create(
+            runPlan.MeshBakeEnabled,
+            textureImageLoader,
+            resourceBudget);
         LiveSendRunContext context = new(
             runPlan,
             bootstrapState.DatasetRootSlot,
@@ -370,7 +420,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             Runtime = runtime,
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
-        diagnostics.StartSendWindow(connectionCount);
+        Diagnostics.StartSendWindow(connectionCount);
         runtime.Start(CreateProcessingTasks(state, runtime));
         ReportProgress(
             PlateauLog.Info(
@@ -390,30 +440,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
         return state;
-    }
-
-    private Task<CreatedSlot?> TryGetDatasetRootAsync(
-        IResoniteLinkClient client,
-        string slotName,
-        CancellationToken cancellationToken)
-    {
-        return TryGetDatasetRootCoreAsync(client, slotName, cancellationToken);
-    }
-
-    private static async Task<CreatedSlot?> TryGetDatasetRootCoreAsync(
-        IResoniteLinkClient client,
-        string slotName,
-        CancellationToken cancellationToken)
-    {
-        ResoniteSceneSlotSnapshot snapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
-            client,
-            RootSlotId,
-            1,
-            cancellationToken);
-        ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult(slotName, RootSlotId);
-        return lookup.State == ResoniteSceneChildLookupState.FoundWithId
-            ? new CreatedSlot(lookup.SlotId!, slotName)
-            : null;
     }
 
     private LiveSendRunPlan CreateRunPlan(
@@ -669,7 +695,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
         await runtime.AwaitCompletionAsync(cancellationToken);
         ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
-        diagnostics.CompleteSendWindow();
+        Diagnostics.CompleteSendWindow();
         ReportProgress(
             PlateauLog.Info(
                 "live",
@@ -703,11 +729,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
         if (disposeClients)
         {
-            clientSession.DisposeClients();
+            ClientSessionInternal.DisposeClients();
         }
         else if (resetClients)
         {
-            await clientSession.ResetClientsAsync();
+            await ClientSessionInternal.ResetClientsAsync();
         }
     }
 
@@ -902,7 +928,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private IResoniteLinkClient GetRoutedClient()
     {
-        return clientSession.RoutedClient
+        return ClientSessionInternal.RoutedClient
             ?? throw new ObjectDisposedException(nameof(ILiveSendClientSession), "Routed ResoniteLink client is not connected.");
     }
 
@@ -1016,7 +1042,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                     .ToArray()));
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
         stopwatch.Stop();
-        diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
+        Diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
 
         if (Interlocked.CompareExchange(ref state.Progress.FirstPreparedCityObjectLogged, 1, 0) == 0)
         {
@@ -1072,7 +1098,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     {
         IResoniteLinkClient routedClient = GetRoutedClient();
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
-        using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
+        using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = Diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportBuildStep(cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();
@@ -1125,14 +1151,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             new PlannedCollider(
                 plannedGeometryAsset.Identity,
                 cityObject.CollisionEnabled));
-        PlannedBatchEmission batchEmission = CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchEmission = batchEmissionPlanner.Create(objectSlots, emissionPlan);
 
         ReportBuildStep(cityObject, "Creating object-scoped DataModel batch.");
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        await new PlannedBatchEmissionInterpreter(ReportProgress).ExecuteAsync(
+        await batchEmitter.ExecuteAsync(
             routedClient,
             cityObject,
             batchEmission,
+            progressReporter,
             cancellationToken);
         batchStopwatch.Stop();
 
@@ -1411,9 +1438,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 () => new LazySharedMaterialTaskFactory(
                     runState,
                     client,
+                    materialPlanning,
                     normalizedSharedMaterial,
                     familySlotName,
-                    CreateComponentAsync).CreateLazySharedMaterialTask(materialKey),
+                    ResoniteMaterialPlanning.CreateComponentAsync).CreateLazySharedMaterialTask(materialKey),
                 ct);
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
@@ -1440,7 +1468,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             bool preserveDedicatedMaterialSlot,
             CancellationToken ct)
         {
-            PlannedDedicatedMaterialAsset plannedMaterial = await ResoniteMaterialPlanning.PlanDedicatedMaterialAssetAsync(
+            PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanDedicatedMaterialAssetAsync(
                 client,
                 sourceMaterial,
                 materialIndex,
@@ -1456,6 +1484,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private readonly record struct LazySharedMaterialTaskFactory(
         LiveSendRunState RunState,
         IResoniteLinkClient Client,
+        IResoniteMaterialPlanning MaterialPlanning,
         ResoniteMaterialBinding Material,
         string FamilySlotName,
         Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> CreateComponentAsync)
@@ -1467,7 +1496,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
         private async Task<CreatedMaterialAsset> CreateAsync(string materialKey)
         {
-            CreatedSlot familySlot = await TryGetExistingSharedChildSlotAsync(
+            CreatedSlot familySlot = await ResoniteMaterialPlanning.TryGetExistingSharedChildSlotAsync(
+                Client,
                 RunState.Context.CommonAssetsRootSlot.SlotId,
                 FamilySlotName,
                 RunState.Runtime.ProcessingCancellationToken)
@@ -1476,13 +1506,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                     RunState.Context.CommonAssetsRootSlot.SlotId,
                     FamilySlotName,
                     RunState.Runtime.ProcessingCancellationToken);
-            PlannedDedicatedMaterialAsset plannedMaterial = await ResoniteMaterialPlanning.PlanCommonMaterialAssetAsync(
+            PlannedDedicatedMaterialAsset plannedMaterial = await MaterialPlanning.PlanCommonMaterialAssetAsync(
                 Client,
                 Material,
                 RunState.Runtime.ProcessingCancellationToken);
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(Material, useCommonMaterialAssets: true);
             string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(Material);
-            string? existingMaterialComponentId = await TryGetExistingCommonMaterialComponentIdAsync(
+            string? existingMaterialComponentId = await ResoniteMaterialPlanning.TryGetExistingCommonMaterialComponentIdAsync(
+                Client,
                 familySlot.SlotId,
                 materialSlotName,
                 materialComponentType,
@@ -1501,35 +1532,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 CreateComponentAsync,
                 RunState.Runtime.ProcessingCancellationToken);
             return createdMaterial;
-        }
-
-        private async Task<CreatedSlot?> TryGetExistingSharedChildSlotAsync(
-            string parentSlotId,
-            string childSlotName,
-            CancellationToken cancellationToken)
-        {
-            Slot? parentSlotSnapshot = await Client.GetSlotAsync(parentSlotId, 1, cancellationToken);
-            ResoniteSceneChildLookupResult childLookup = new ResoniteSceneSlotSnapshot(parentSlotSnapshot)
-                .GetUniqueChildLookupResult(childSlotName, parentSlotId);
-            return childLookup.State == ResoniteSceneChildLookupState.FoundWithId
-                ? new CreatedSlot(childLookup.SlotId!, childSlotName)
-                : null;
-        }
-
-        private async Task<string?> TryGetExistingCommonMaterialComponentIdAsync(
-            string familySlotId,
-            string materialSlotName,
-            string materialComponentType,
-            CancellationToken cancellationToken)
-        {
-            Slot? familySlotSnapshot = await Client.GetSlotAsync(familySlotId, 1, cancellationToken);
-            ResoniteSceneChildLookupResult materialLookup = new ResoniteSceneSlotSnapshot(familySlotSnapshot)
-                .GetUniqueChildLookupResult(materialSlotName, familySlotId);
-            return materialLookup.Slot?.Components?
-                .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
-                .OrderBy(static component => component.ID, StringComparer.Ordinal)
-                .Select(static component => component.ID)
-                .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
         }
     }
 
@@ -1553,6 +1555,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                     CreateMeshAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     triangleMesh.MeshImport,
+                    progressReporter,
                     cancellationToken)),
             PreparedHeightMapGridGeometry heightMap => CreatePlannedGeometryAsset(
                 cityObject,
@@ -1563,6 +1566,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                     cityObject.DisplayName,
                     heightMap.Geometry,
                     heightMap.HeightTextureImport,
+                    progressReporter,
                     cancellationToken)),
             _ => throw new InvalidOperationException(
                 $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
@@ -1624,366 +1628,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         };
     }
 
-    internal static PlannedBatchEmission CreatePlannedBatchEmission(
-        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
-        PlannedSceneObjectEmission emissionPlan)
-    {
-        ArgumentNullException.ThrowIfNull(objectSlots);
-        ArgumentNullException.ThrowIfNull(emissionPlan);
-
-        List<PlannedBatchSlotEmission> slotEmissions = [];
-        List<PlannedBatchComponentEmission> componentEmissions = [];
-        List<BatchPlanEntityId> slotResolutionTargets = [];
-        List<BatchPlanEntityId> componentResolutionTargets = [];
-
-        BatchPlanEntityId meshAssetSlotId = CreateBatchPlanEntityId("mesh-asset-slot");
-        slotEmissions.Add(new PlannedBatchSlotEmission(
-            meshAssetSlotId,
-            objectSlots.AssetLodSlot.SlotId,
-            emissionPlan.GeometryAsset.MeshAssetSlotName,
-            null,
-            null));
-        slotResolutionTargets.Add(meshAssetSlotId);
-
-        BatchPlanEntityId geometryComponentId = CreateBatchPlanEntityId("geometry-component");
-        switch (emissionPlan.GeometryAsset)
-        {
-            case PlannedTriangleMeshGeometryAsset triangleMesh:
-                componentEmissions.Add(new PlannedBatchComponentEmission(
-                    geometryComponentId,
-                    meshAssetSlotId.Value,
-                    "[FrooxEngine]FrooxEngine.StaticMesh",
-                    new Dictionary<string, Member>(StringComparer.Ordinal)
-                    {
-                        ["URL"] = new Field_Uri
-                        {
-                            Value = triangleMesh.MeshUri,
-                        },
-                    }));
-                break;
-            case PlannedHeightMapGridGeometryAsset heightMap:
-                BatchPlanEntityId heightMapAssetSlotId = CreateBatchPlanEntityId("heightmap-asset-slot");
-                BatchPlanEntityId heightTextureComponentId = CreateBatchPlanEntityId("height-texture-component");
-                slotEmissions.Add(new PlannedBatchSlotEmission(
-                    heightMapAssetSlotId,
-                    objectSlots.AssetLodSlot.SlotId,
-                    heightMap.HeightMapAssetSlotName,
-                    null,
-                    null));
-                slotResolutionTargets.Add(heightMapAssetSlotId);
-                componentEmissions.Add(new PlannedBatchComponentEmission(
-                    heightTextureComponentId,
-                    heightMapAssetSlotId.Value,
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)));
-                double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
-                componentEmissions.Add(new PlannedBatchComponentEmission(
-                    geometryComponentId,
-                    meshAssetSlotId.Value,
-                    "[FrooxEngine]FrooxEngine.GridMesh",
-                    new Dictionary<string, Member>(StringComparer.Ordinal)
-                    {
-                        ["Points"] = new Field_int2
-                        {
-                            Value = new int2
-                            {
-                                x = heightMap.Geometry.Width,
-                                y = heightMap.Geometry.Height,
-                            },
-                        },
-                        ["Size"] = new Field_float2
-                        {
-                            Value = new float2
-                            {
-                                x = (float)heightMap.Geometry.Size.X,
-                                y = (float)heightMap.Geometry.Size.Y,
-                            },
-                        },
-                        ["DisplacementMagnitude"] = new Field_float
-                        {
-                            Value = (float)displacementMagnitude,
-                        },
-                        ["DisplacementTexture"] = new Reference
-                        {
-                            TargetID = heightTextureComponentId.Value,
-                        },
-                    }));
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unsupported planned geometry asset type '{emissionPlan.GeometryAsset.GetType().Name}'.");
-        }
-        componentResolutionTargets.Add(geometryComponentId);
-
-        Dictionary<MaterialIdentity, string> emittedMaterialTargets = new();
-        foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
-        {
-            switch (materialAsset)
-            {
-                case PlannedReusableMaterialAsset reusableMaterial:
-                    emittedMaterialTargets[reusableMaterial.Identity] = reusableMaterial.TargetId;
-                    break;
-                case PlannedDedicatedMaterialAsset dedicatedMaterial:
-                    string emittedMaterialTarget = AddPlannedDedicatedMaterialEmissions(
-                        slotEmissions,
-                        componentEmissions,
-                        meshAssetSlotId.Value,
-                        dedicatedMaterial);
-                    emittedMaterialTargets[dedicatedMaterial.Identity] = emittedMaterialTarget;
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        $"Unsupported planned material asset type '{materialAsset.GetType().Name}'.");
-            }
-        }
-
-        BatchPlanEntityId presentationSlotId = CreateBatchPlanEntityId("presentation-slot");
-        slotEmissions.Add(new PlannedBatchSlotEmission(
-            presentationSlotId,
-            objectSlots.LodSlot.SlotId,
-            objectSlots.CityObjectSlotName,
-            objectSlots.CityObjectLocalPosition,
-            objectSlots.CityObjectRotation));
-        slotResolutionTargets.Add(presentationSlotId);
-
-        SyncList rendererMaterials = new()
-        {
-            Elements = emissionPlan.Renderer.MaterialBindings
-                .Select(binding => (Member)new Reference
-                {
-                    TargetID = emittedMaterialTargets[binding.MaterialIdentity],
-                })
-                .ToList(),
-        };
-        SyncList rendererMaterialPropertyBlocks = new()
-        {
-            Elements = [],
-        };
-        bool hasMaterialPropertyBlockOverride = false;
-        foreach (PlannedRendererMaterialBinding materialBinding in emissionPlan.Renderer.MaterialBindings)
-        {
-            if (materialBinding is PlannedMainTextureOverrideRendererMaterialBinding mainTextureOverrideBinding)
-            {
-                hasMaterialPropertyBlockOverride = true;
-                rendererMaterialPropertyBlocks.Elements.Add(
-                    CreateMainTexturePropertyBlockReference(
-                        componentEmissions,
-                        meshAssetSlotId.Value,
-                        presentationSlotId.Value,
-                        mainTextureOverrideBinding));
-                continue;
-            }
-
-            rendererMaterialPropertyBlocks.Elements.Add(new Reference
-            {
-                TargetID = null,
-            });
-        }
-
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanEntityId("mesh-renderer-component"),
-            presentationSlotId.Value,
-            "[FrooxEngine]FrooxEngine.MeshRenderer",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
-            {
-                ["Mesh"] = new Reference
-                {
-                    TargetID = geometryComponentId.Value,
-                },
-                ["Materials"] = rendererMaterials,
-                ["MaterialPropertyBlocks"] = hasMaterialPropertyBlockOverride
-                    ? rendererMaterialPropertyBlocks
-                    : new SyncList { Elements = [] },
-            }));
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanEntityId("mesh-collider-component"),
-            presentationSlotId.Value,
-            "[FrooxEngine]FrooxEngine.MeshCollider",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
-            {
-                ["Type"] = new Field_Enum
-                {
-                    Value = emissionPlan.Collider.CollisionEnabled ? "Static" : "NoCollision",
-                },
-                ["CharacterCollider"] = new Field_bool
-                {
-                    Value = emissionPlan.Collider.CollisionEnabled,
-                },
-                ["Mesh"] = new Reference
-                {
-                    TargetID = geometryComponentId.Value,
-                },
-            }));
-
-        return new PlannedBatchEmission(
-            slotEmissions,
-            componentEmissions,
-            slotResolutionTargets,
-            componentResolutionTargets);
-    }
-
-    private static Reference CreateMainTexturePropertyBlockReference(
-        List<PlannedBatchComponentEmission> componentEmissions,
-        string assetSlotId,
-        string presentationSlotId,
-        PlannedMainTextureOverrideRendererMaterialBinding binding)
-    {
-        string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
-        BatchPlanEntityId textureId = CreateBatchPlanEntityId($"renderer-texture:{overrideIdentity}");
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            textureId,
-            assetSlotId,
-            "[FrooxEngine]FrooxEngine.StaticTexture2D",
-            ResoniteSceneMaterialConventions.CreateTextureMembers(binding.MainTexture.AssetUri)));
-
-        BatchPlanEntityId propertyBlockId = CreateBatchPlanEntityId($"renderer-main-texture-property-block:{overrideIdentity}");
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            propertyBlockId,
-            presentationSlotId,
-            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
-            {
-                ["Texture"] = new Reference
-                {
-                    TargetID = textureId.Value,
-                },
-            }));
-
-        return new Reference
-        {
-            TargetID = propertyBlockId.Value,
-        };
-    }
-
     private static long EstimateBatchPayloadBytes(int operationCount)
     {
         return Math.Max(1L, operationCount) * 1024L;
-    }
-
-    private static string AddPlannedDedicatedMaterialEmissions(
-        List<PlannedBatchSlotEmission> slotEmissions,
-        List<PlannedBatchComponentEmission> componentEmissions,
-        string meshAssetSlotTargetId,
-        PlannedDedicatedMaterialAsset plannedMaterial)
-    {
-        ResoniteMaterialBinding material = plannedMaterial.Material;
-        string materialContainerId = meshAssetSlotTargetId;
-        if (plannedMaterial.PreserveDedicatedMaterialSlot)
-        {
-            BatchPlanEntityId materialSlotId = CreateBatchPlanEntityId($"material-slot:{plannedMaterial.Identity.Value}");
-            string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
-            slotEmissions.Add(new PlannedBatchSlotEmission(
-                materialSlotId,
-                meshAssetSlotTargetId,
-                materialSlotName,
-                null,
-                null));
-            materialContainerId = materialSlotId.Value;
-        }
-
-        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material);
-
-        Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
-        if (albedoTextureUri is not null)
-        {
-            BatchPlanEntityId albedoTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:albedo");
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                albedoTextureId,
-                materialContainerId,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(albedoTextureUri)));
-            materialMembers["AlbedoTexture"] = new Reference
-            {
-                TargetID = albedoTextureId.Value,
-            };
-        }
-
-        Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
-        if (normalTextureUri is not null)
-        {
-            BatchPlanEntityId normalTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:normal");
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                normalTextureId,
-                materialContainerId,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(normalTextureUri)));
-            materialMembers["NormalMap"] = new Reference
-            {
-                TargetID = normalTextureId.Value,
-            };
-            materialMembers["NormalScale"] = new Field_float
-            {
-                Value = DefaultNormalScale,
-            };
-        }
-
-        Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
-        if (heightTextureUri is not null)
-        {
-            BatchPlanEntityId heightTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:height");
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                heightTextureId,
-                materialContainerId,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(heightTextureUri)));
-            materialMembers["HeightMap"] = new Reference
-            {
-                TargetID = heightTextureId.Value,
-            };
-            materialMembers["HeightScale"] = new Field_float
-            {
-                Value = DefaultBundledHeightScale,
-            };
-        }
-
-        Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
-        if (metallicTextureUri is not null)
-        {
-            BatchPlanEntityId metallicTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:metallic");
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                metallicTextureId,
-                materialContainerId,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(metallicTextureUri)));
-            materialMembers["MetallicMap"] = new Reference
-            {
-                TargetID = metallicTextureId.Value,
-            };
-            materialMembers["OcclusionMap"] = new Reference
-            {
-                TargetID = metallicTextureId.Value,
-            };
-        }
-
-        Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
-        if (emissionTextureUri is not null)
-        {
-            BatchPlanEntityId emissionTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:emission");
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                emissionTextureId,
-                materialContainerId,
-                "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(emissionTextureUri)));
-            materialMembers["EmissiveMap"] = new Reference
-            {
-                TargetID = emissionTextureId.Value,
-            };
-            materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
-                new ResoniteColor(1.0, 1.0, 1.0, 1.0));
-        }
-
-        BatchPlanEntityId materialComponentId = CreateBatchPlanEntityId($"material-component:{plannedMaterial.Identity.Value}");
-        componentEmissions.Add(new PlannedBatchComponentEmission(
-            materialComponentId,
-            materialContainerId,
-            ResoniteMaterialComponentPolicy.GetComponentType(material),
-            materialMembers));
-        return materialComponentId.Value;
-    }
-
-    internal static Dictionary<string, Member> CreateTextureMembers(Uri assetUri)
-    {
-        return ResoniteSceneMaterialConventions.CreateTextureMembers(assetUri);
     }
 
     private void ReportBuildStep(ResoniteConstructionCityObject cityObject, string step)
@@ -2019,51 +1666,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         state.Runtime.Cancel();
     }
 
-    private Task<CreatedSlot> CreateSlotAsync(
-        IResoniteLinkClient client,
-        string parentId,
-        string slotName,
-        ResoniteFloat3? position,
-        ResoniteFloatQ? rotation,
-        CancellationToken cancellationToken)
-    {
-        return CreateSlotCoreAsync(client, parentId, slotName, position, rotation, cancellationToken);
-    }
-
-    private static async Task<CreatedComponent> CreateComponentAsync(
-        IResoniteLinkClient client,
-        string containerSlotId,
-        string componentType,
-        IReadOnlyDictionary<string, Member> members,
-        CancellationToken cancellationToken)
-    {
-        ResoniteBatchOperations.PendingBatchComponent pendingComponent = new(
-            LocalId: $"single_component_{Guid.NewGuid():N}",
-            MessageId: $"single_component_message_{Guid.NewGuid():N}",
-            ComponentType: componentType);
-        BatchResponse response = await client.RunDataModelOperationBatchAsync(
-            [ResoniteBatchOperations.CreateAddComponentOperation(containerSlotId, componentType, members, pendingComponent.LocalId, pendingComponent.MessageId)],
-            cancellationToken);
-        return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
-    }
-
-    private static async Task<CreatedSlot> CreateSlotCoreAsync(
-        IResoniteLinkClient client,
-        string parentId,
-        string slotName,
-        ResoniteFloat3? position,
-        ResoniteFloatQ? rotation,
-        CancellationToken cancellationToken)
-    {
-        ResoniteBatchOperations.PendingBatchSlot pendingSlot = new(
-            LocalId: $"single_slot_{Guid.NewGuid():N}",
-            MessageId: $"single_slot_message_{Guid.NewGuid():N}",
-            SlotName: slotName);
-        BatchResponse response = await client.RunDataModelOperationBatchAsync(
-            [ResoniteBatchOperations.CreateAddSlotOperation(parentId, slotName, position, rotation, requestedSlotId: pendingSlot.LocalId, messageId: pendingSlot.MessageId)],
-            cancellationToken);
-        return CanonicalBatchEntityMap.Create(response).ResolveSlot(pendingSlot);
-    }
 
     private static string CreateMeshAssetSlotName(ResoniteConstructionCityObject cityObject)
     {

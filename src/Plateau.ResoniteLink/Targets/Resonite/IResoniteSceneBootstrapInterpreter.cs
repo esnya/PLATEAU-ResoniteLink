@@ -1,6 +1,6 @@
 using Plateau.ResoniteLink.Domain.Importing;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Targets.Resonite.Execution;
 
 internal interface IResoniteSceneBootstrapInterpreter
 {

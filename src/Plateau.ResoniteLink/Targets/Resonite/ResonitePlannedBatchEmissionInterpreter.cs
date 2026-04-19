@@ -5,27 +5,39 @@ using System.Security.Cryptography;
 using Plateau.ResoniteLink.Application.Logging;
 using Plateau.ResoniteLink.Domain.Importing;
 
-using static Plateau.ResoniteLink.Targets.Resonite.ResoniteBatchOperations;
+using static Plateau.ResoniteLink.Targets.Resonite.Execution.ResoniteBatchOperations;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Targets.Resonite.Execution;
 
-internal sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgress)
+internal interface IResoniteSceneBatchEmitter
+{
+    Task ExecuteAsync(
+        IResoniteLinkClient client,
+        ResoniteConstructionCityObject cityObject,
+        PlannedBatchEmission batchEmission,
+        Action<string>? reportProgress,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitter
 {
     public Task ExecuteAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
+        Action<string>? reportProgress,
         CancellationToken cancellationToken)
     {
-        return ExecuteCoreAsync(client, cityObject, batchEmission, cancellationToken);
+        return ExecuteCoreAsync(client, cityObject, batchEmission, reportProgress, cancellationToken);
     }
 
-    private async Task ExecuteCoreAsync(
+    private static async Task ExecuteCoreAsync(
         IResoniteLinkClient client,
         ResoniteConstructionCityObject cityObject,
         PlannedBatchEmission batchEmission,
+        Action<string>? reportProgress,
         CancellationToken cancellationToken)
     {
         BatchOperationAccumulator batchBuilder = new();
@@ -54,7 +66,7 @@ internal sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgr
                 && pointsMember is Field_int2 points
                 && displacementMember is Field_float displacement)
             {
-                reportProgress(
+                reportProgress?.Invoke(
                     $"[live] HeightMap texture ready. Creating GridMesh "
                     + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3}).");
             }
@@ -70,7 +82,7 @@ internal sealed class PlannedBatchEmissionInterpreter(Action<string> reportProgr
         Stopwatch batchStopwatch = Stopwatch.StartNew();
         BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
         batchStopwatch.Stop();
-        reportProgress(
+        reportProgress?.Invoke(
             PlateauLog.Debug(
                 "live",
                 $"City object '{cityObject.DisplayName}' batch completed in {batchStopwatch.Elapsed.TotalSeconds:F3}s "

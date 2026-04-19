@@ -588,8 +588,11 @@ public sealed class CliArgumentsParserTests
             result.Error);
     }
 
-    [Fact]
-    public void ParseRejectsNumericMemoryProfile()
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("2")]
+    public void ParseRejectsNumericMemoryProfile(string memoryProfileValue)
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -603,11 +606,11 @@ public sealed class CliArgumentsParserTests
                 "--resonitelink-port",
                 "12345",
                 "--memory-profile",
-                "2",
+                memoryProfileValue,
             ]);
 
         Assert.Equal(
-            "The value '2' is not a valid memory profile. Use 'small' or 'large'.",
+            $"The value '{memoryProfileValue}' is not a valid memory profile. Use 'small' or 'large'.",
             result.Error);
     }
 

@@ -24,6 +24,7 @@ internal static class ResoniteLinkTransportSessionFactory
             CreateConfiguredClient,
             endpoint,
             connectionCount,
+            diagnostics,
             progressReporter);
     }
 }

@@ -18,15 +18,19 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         Func<IResoniteLinkClient> createConfiguredClient,
         Uri endpoint,
         int connectionCount,
+        ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter)
     {
         this.createConfiguredClient = createConfiguredClient;
         this.endpoint = endpoint;
         this.connectionCount = connectionCount;
+        Diagnostics = diagnostics;
         reportProgress = progressReporter;
     }
 
     public IResoniteLinkClient? RoutedClient { get; private set; }
+
+    public ResoniteLinkSendDiagnostics Diagnostics { get; }
 
     private IResoniteLinkClient[]? ConnectedClients { get; set; }
 

@@ -5,6 +5,8 @@ namespace Plateau.ResoniteLink.Tests.Targets;
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ResoniteSceneBatchEmissionPlanningTests
 {
+    private static readonly IResoniteBatchEmissionPlanner Planner = new ResoniteBatchEmissionPlanner();
+
     [Fact]
     public void CreatePlannedBatchEmission_CreatesHeightMapGridPlanWithPlannedTextureReference()
     {
@@ -35,7 +37,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 true));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchSlotEmission meshAssetSlot = Assert.Single(
             batchPlan.SlotEmissions,
@@ -99,7 +101,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 false));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -169,7 +171,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 true));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchSlotEmission meshAssetSlot = Assert.Single(
             batchPlan.SlotEmissions,
@@ -237,7 +239,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 false));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -293,7 +295,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 false));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission[] propertyBlocks = batchPlan.ComponentEmissions
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))

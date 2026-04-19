@@ -27,21 +27,32 @@ public static class ResoniteSceneImportTargetFactory
             : ResoniteLinkSendDiagnostics.Disabled;
 
         return new ResoniteLiveSceneImportTarget(
-            endpoint,
-            connectionCount,
-            diagnostics,
-            memoryProfile,
+            new ResoniteLiveSceneImportTargetOptions(
+                endpoint,
+                connectionCount,
+                diagnostics != ResoniteLinkSendDiagnostics.Disabled,
+                memoryProfile,
+                enableMeshBake,
+                terrainTileCacheRoot,
+                disableTerrainTileCache,
+                progressReporter),
             new ResoniteLiveSceneImportDependencies(
                 Transport.ResoniteLink.ResoniteLinkTransportSessionFactory.Create(
                     endpoint,
                     connectionCount,
                     diagnostics,
                     progressReporter),
+                diagnostics,
                 new TerrainTextureAssetGenerator(
                     terrainTextureAssetHttpClient,
                     terrainTileCacheRoot,
-                    disableTerrainTileCache)),
-            enableMeshBake,
-            progressReporter);
+                    disableTerrainTileCache),
+                new Execution.ResoniteSceneBootstrapInterpreter(new Execution.ResoniteSceneSlotLocator()),
+                new Execution.ResoniteGeometryAssetAssembler(),
+                new Execution.ResoniteMaterialPlanning(),
+                new Execution.ResoniteBatchEmissionPlanner(),
+                new Execution.PlannedBatchEmissionInterpreter(),
+                new Execution.ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
     }
 }

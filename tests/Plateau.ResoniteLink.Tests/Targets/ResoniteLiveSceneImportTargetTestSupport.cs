@@ -613,6 +613,8 @@ internal sealed class DelegatingClientSession(
 
     public IResoniteLinkClient? RoutedClient { get; set; } = routedClient;
 
+    public ResoniteLinkSendDiagnostics Diagnostics { get; } = ResoniteLinkSendDiagnostics.Disabled;
+
     public int BeginWorkerClientTrackingCallCount { get; private set; }
 
     public int EnsureConnectedCallCount { get; private set; }

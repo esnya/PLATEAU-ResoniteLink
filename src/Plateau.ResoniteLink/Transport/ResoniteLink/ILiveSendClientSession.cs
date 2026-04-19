@@ -6,6 +6,8 @@ internal interface ILiveSendClientSession
 {
     IResoniteLinkClient? RoutedClient { get; }
 
+    ResoniteLinkSendDiagnostics Diagnostics { get; }
+
     void BeginWorkerClientTracking();
 
     Task EnsureConnectedAsync(
