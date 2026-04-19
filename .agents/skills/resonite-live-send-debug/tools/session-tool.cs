@@ -112,7 +112,7 @@ async Task<int> ExecuteDiscoverSessionAsync(string[] commandArgs)
         switch (argument)
         {
             case "--listen-port":
-                listenPort = ReadPositiveInt(commandArgs, ref index, argument);
+                listenPort = ReadPort(commandArgs, ref index, argument);
                 break;
             case "--timeout-seconds":
                 timeoutSeconds = ReadPositiveInt(commandArgs, ref index, argument);
@@ -299,7 +299,7 @@ async Task<int> ExecuteStartHeadlessAsync(string[] commandArgs)
                 headlessPath = ReadValue(commandArgs, ref index, argument);
                 break;
             case "--resonitelink-port":
-                resoniteLinkPort = ReadPositiveInt(commandArgs, ref index, argument);
+                resoniteLinkPort = ReadPort(commandArgs, ref index, argument);
                 break;
             case "--session-name":
                 sessionName = ReadValue(commandArgs, ref index, argument);
@@ -328,6 +328,11 @@ async Task<int> ExecuteStartHeadlessAsync(string[] commandArgs)
 
     string resolvedRuntimeRoot = Path.GetFullPath(runtimeRoot);
     string resolvedStatePath = ResolveStatePath(statePath, resolvedRuntimeRoot);
+    if (File.Exists(resolvedStatePath))
+    {
+        File.Delete(resolvedStatePath);
+    }
+
     HeadlessLauncher launcher = ResolveHeadlessLauncherOrDefault(headlessPath);
     string sessionRoot = Path.Combine(resolvedRuntimeRoot, logPrefix);
     string stdoutLog = Path.Combine(resolvedRuntimeRoot, $"{logPrefix}.stdout.log");
@@ -589,6 +594,17 @@ int ReadPositiveInt(string[] args, ref int index, string optionName)
     if (parsed <= 0)
     {
         throw new ArgumentException($"{optionName} requires a positive integer value.");
+    }
+
+    return parsed;
+}
+
+int ReadPort(string[] args, ref int index, string optionName)
+{
+    int parsed = ReadInt(args, ref index, optionName);
+    if (parsed is < 1 or > 65535)
+    {
+        throw new ArgumentException($"{optionName} requires an integer value between 1 and 65535.");
     }
 
     return parsed;

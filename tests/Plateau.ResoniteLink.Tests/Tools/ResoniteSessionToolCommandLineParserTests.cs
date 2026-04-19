@@ -180,20 +180,34 @@ public sealed class ResoniteSessionToolCommandLineParserTests
     public async Task DiscoverSessionIgnoresMalformedAnnouncementsUntilValidPacketArrives()
     {
         int listenPort = GetFreeUdpPort();
-
+        using CancellationTokenSource senderCancellation = new(TimeSpan.FromSeconds(8));
         Task sender = Task.Run(async () =>
         {
-            await Task.Delay(1000);
-
             using UdpClient client = new();
             byte[] malformedPayload = Encoding.UTF8.GetBytes("""{"sessionName":"x","sessionID":"y","linkPort":"oops"}""");
             byte[] validPayload = Encoding.UTF8.GetBytes("""{"sessionName":"good","sessionID":"session-1","linkPort":19001}""");
             IPEndPoint endpoint = new(IPAddress.Loopback, listenPort);
-            await client.SendAsync(malformedPayload, endpoint);
-            await Task.Delay(250);
-            await client.SendAsync(validPayload, endpoint);
-            await Task.Delay(250);
-            await client.SendAsync(validPayload, endpoint);
+
+            bool malformedSent = false;
+            while (!senderCancellation.Token.IsCancellationRequested)
+            {
+                if (!malformedSent)
+                {
+                    await client.SendAsync(malformedPayload, endpoint);
+                    malformedSent = true;
+                }
+
+                await client.SendAsync(validPayload, endpoint);
+
+                try
+                {
+                    await Task.Delay(200, senderCancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+            }
         });
 
         ProcessResult result = await RunSessionToolAsync(
@@ -205,12 +219,69 @@ public sealed class ResoniteSessionToolCommandLineParserTests
             "--max-announcements",
             "1");
 
+        await senderCancellation.CancelAsync();
         await sender;
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains(@"""SessionName"": ""good""", result.StdOut, StringComparison.Ordinal);
         Assert.Contains(@"""LinkPort"": 19001", result.StdOut, StringComparison.Ordinal);
         Assert.DoesNotContain("oops", result.StdOut, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StartHeadlessRejectsOutOfRangeResoniteLinkPort()
+    {
+        string runtimeRoot = Path.Combine(Path.GetTempPath(), $"session-tool-test-{Guid.NewGuid():N}", "runtime");
+        Directory.CreateDirectory(runtimeRoot);
+
+        try
+        {
+            ProcessResult result = await RunSessionToolAsync(
+                "start-headless",
+                "--runtime-root",
+                runtimeRoot,
+                "--headless-path",
+                runtimeRoot,
+                "--resonitelink-port",
+                "70000");
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("--resonitelink-port requires an integer value between 1 and 65535.", result.StdErr, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(runtimeRoot)!, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task StartHeadlessDeletesStaleTrackedStateBeforeFailingLaunch()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), $"session-tool-test-{Guid.NewGuid():N}");
+        string runtimeRoot = Path.Combine(tempRoot, "runtime");
+        string invalidLauncher = Path.Combine(tempRoot, "not-a-launcher.txt");
+
+        Directory.CreateDirectory(runtimeRoot);
+        await File.WriteAllTextAsync(invalidLauncher, "invalid");
+        string statePath = await WriteTrackedStateAsync(runtimeRoot, processId: 1234, endpoint: "ws://127.0.0.1:1/");
+
+        try
+        {
+            ProcessResult result = await RunSessionToolAsync(
+                "start-headless",
+                "--runtime-root",
+                runtimeRoot,
+                "--headless-path",
+                invalidLauncher);
+
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains("Expected Resonite.dll or Resonite.exe.", result.StdErr, StringComparison.Ordinal);
+            Assert.False(File.Exists(statePath), $"Expected stale tracked state '{statePath}' to be deleted before launch.");
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
     }
 
     [Fact]
