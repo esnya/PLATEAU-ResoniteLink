@@ -43,7 +43,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Assert.Equal(firstMaterialId, secondMaterialId);
         Assert.StartsWith(
-            $"PLATEAU {DatasetName}/Assets/Common/",
+            "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[commonMaterialContainerSlotId],
             StringComparison.Ordinal);
     }
@@ -69,7 +69,41 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncDemotesPayloadTexturesToDedicatedMaterials()
+    public async Task BuildAsyncSharesBundledTriplanarRoofCommonMaterialAssets()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    "shared-roof-one",
+                    family: BundledDefaultMaterialFamilies.Roof,
+                    projection: ResoniteMaterialProjection.Triplanar),
+                CreateBundledTriangleCityObject(
+                    "shared-roof-two",
+                    family: BundledDefaultMaterialFamilies.Roof,
+                    projection: ResoniteMaterialProjection.Triplanar),
+            ],
+            client);
+
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-two");
+        string commonMaterialContainerSlotId = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, firstMaterialId, StringComparison.Ordinal)).ContainerSlotId;
+
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.StartsWith(
+            "PLATEAU Shared Assets/Common Materials/",
+            client.SlotPaths[commonMaterialContainerSlotId],
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
@@ -91,20 +125,49 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-two");
         HashSet<string> commonMaterialIds = client.AddedComponents
             .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("/Assets/Common/", StringComparison.Ordinal))
+                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
             .Select(static request => request.Data.ID)
             .Where(static id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
+        string firstPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-one");
+        string secondPropertyBlockId = GetRendererMaterialPropertyBlockReferenceTarget(client, "CityObject dataset-texture-two");
 
-        Assert.NotEqual(firstMaterialId, secondMaterialId);
-        Assert.DoesNotContain(firstMaterialId, commonMaterialIds);
-        Assert.DoesNotContain(secondMaterialId, commonMaterialIds);
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.Contains(firstMaterialId, commonMaterialIds);
+        Assert.NotEqual(firstPropertyBlockId, secondPropertyBlockId);
         Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/albedo-one.png");
         Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/albedo-two.png");
     }
 
     [Fact]
-    public async Task BuildAsyncPreservesMixedCommonAndDedicatedMaterialOrder()
+    public async Task BuildAsyncUsesDistinctPropertyBlocksForSameMaterialKeyWithDifferentPayloadOverrides()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreateSameKeyPayloadOverrideCityObject(
+                    "same-key-override",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/same-key-a.png"),
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/same-key-b.png")),
+            ],
+            client);
+
+        string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject same-key-override");
+        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject same-key-override");
+
+        Assert.Equal(2, materialIds.Length);
+        Assert.All(materialIds, materialId => Assert.Equal(materialIds[0], materialId));
+        Assert.Equal(2, propertyBlockIds.Length);
+        Assert.All(propertyBlockIds, static propertyBlockId => Assert.False(string.IsNullOrWhiteSpace(propertyBlockId)));
+        Assert.Equal(2, propertyBlockIds.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public async Task BuildAsyncPreservesMixedCommonAndOverrideMaterialOrder()
     {
         using TemporaryDirectory datasetDirectory = new();
         ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
@@ -123,14 +186,16 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(2, materialIds.Length);
         HashSet<string> commonMaterialIds = client.AddedComponents
             .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
-                && path.Contains("/Assets/Common/", StringComparison.Ordinal))
+                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
             .Select(static request => request.Data.ID)
             .Where(static id => !string.IsNullOrWhiteSpace(id))
             .ToHashSet(StringComparer.Ordinal);
+        string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject mixed-material-order");
 
-        Assert.NotEqual(materialIds[0], materialIds[1]);
         Assert.Contains(materialIds[0], commonMaterialIds);
-        Assert.DoesNotContain(materialIds[1], commonMaterialIds);
+        Assert.Contains(materialIds[1], commonMaterialIds);
+        Assert.Null(propertyBlockIds[0]);
+        Assert.NotNull(propertyBlockIds[1]);
         Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/mixed-albedo.png");
     }
 
@@ -149,15 +214,45 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, $"PLATEAU {DatasetName}");
         Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}/Assets");
-        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, $"PLATEAU {DatasetName}/Assets/Common");
+        Slot sharedAssetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets");
+        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
 
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, $"PLATEAU {DatasetName}", StringComparison.Ordinal)));
         Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal)
             && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common", StringComparison.Ordinal)
-            && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
-        Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, assetsRoot.ID));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU Shared Assets", StringComparison.Ordinal)));
+        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common Materials", StringComparison.Ordinal)
+            && string.Equals(slot.Parent?.TargetID, sharedAssetsRoot.ID, StringComparison.Ordinal)));
+        Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, sharedAssetsRoot.ID));
         Assert.True(client.ImportedMeshes.Count >= 2);
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesExistingSharedCommonMaterialAssetsForPayloadOverridesAcrossRuns()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
+            metadata,
+            [
+                CreatePayloadTriangleCityObject(
+                    "payload-run-one",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/payload-run-one.png")),
+            ],
+            [
+                CreatePayloadTriangleCityObject(
+                    "payload-run-two",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/payload-run-two.png")),
+            ],
+            client);
+
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject payload-run-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject payload-run-two");
+
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.Equal(1, CountCommonMaterialComponents(client, firstMaterialId));
     }
 
     [Fact]
@@ -637,6 +732,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
         string objectIdentity,
         ResoniteFloat2? textureScale = null,
+        string family = BundledDefaultMaterialFamilies.Facade,
+        ResoniteMaterialProjection projection = ResoniteMaterialProjection.Uv,
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimarySourceFile,
         ResoniteFloat3? worldPosition = null,
@@ -658,11 +755,11 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-                    Projection: ResoniteMaterialProjection.Uv,
+                    Projection: projection,
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TextureScale: textureScale,
-                    Family: BundledDefaultMaterialFamilies.Facade,
+                    Family: family,
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0),
             ],
@@ -694,8 +791,51 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    Family: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+            ],
+            SourceObjectKey: objectIdentity,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateSameKeyPayloadOverrideCityObject(
+        string objectIdentity,
+        ResoniteTexturePayload firstPayload,
+        ResoniteTexturePayload secondPayload,
+        string sourceFileRelativePath = PrimarySourceFile)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh("shared-submesh-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-submesh-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: firstPayload,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    Family: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-submesh-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: secondPayload,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    Family: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
@@ -772,8 +912,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    Family: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
@@ -885,6 +1025,55 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             .Select(Assert.IsType<Reference>)
             .Select(static reference => reference.TargetID)
             .ToArray();
+    }
+
+    private static ResoniteImportedMesh CreateTwoSubmeshMesh(string materialKey)
+    {
+        return new ResoniteImportedMesh(
+            Vertices:
+            [
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
+            ],
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, materialKey, [0, 1, 2]),
+                new ResoniteMeshSubmesh(1, materialKey, [1, 3, 2]),
+            ]);
+    }
+
+    private static string GetRendererMaterialPropertyBlockReferenceTarget(
+        SceneBuilderRecordingClient client,
+        string slotName)
+    {
+        string? targetId = Assert.Single(GetRendererMaterialPropertyBlockReferenceTargets(client, slotName));
+        return Assert.IsType<string>(targetId);
+    }
+
+    private static string?[] GetRendererMaterialPropertyBlockReferenceTargets(
+        SceneBuilderRecordingClient client,
+        string slotName)
+    {
+        Component renderer = Assert.Single(
+            client.AddedComponents.Where(request =>
+                    string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                    && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, slotName, StringComparison.Ordinal))
+                .Select(static request => request.Data));
+        SyncList propertyBlocks = Assert.IsType<SyncList>(renderer.Members["MaterialPropertyBlocks"]);
+        return propertyBlocks.Elements
+            .Select(Assert.IsType<Reference>)
+            .Select(static reference => reference.TargetID)
+            .ToArray();
+    }
+
+    private static int CountCommonMaterialComponents(SceneBuilderRecordingClient client, string materialComponentId)
+    {
+        return client.AddedComponents.Count(request =>
+            string.Equals(request.Data.ID, materialComponentId, StringComparison.Ordinal)
+            && client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
+            && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
     }
 
 }

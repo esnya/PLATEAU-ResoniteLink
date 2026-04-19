@@ -44,9 +44,23 @@ internal sealed record PlannedDedicatedMaterialAsset(
     bool PreserveDedicatedMaterialSlot)
     : PlannedMaterialAsset(Identity);
 
+internal abstract record PlannedRendererMaterialBinding(MaterialIdentity MaterialIdentity);
+
+internal sealed record PlannedDirectRendererMaterialBinding(MaterialIdentity MaterialIdentity)
+    : PlannedRendererMaterialBinding(MaterialIdentity);
+
+internal sealed record PlannedMainTextureOverrideRendererMaterialBinding(
+    MaterialIdentity MaterialIdentity,
+    PlannedTextureAsset MainTexture)
+    : PlannedRendererMaterialBinding(MaterialIdentity);
+
 internal sealed record PlannedRenderer(
     GeometryIdentity GeometryIdentity,
-    IReadOnlyList<MaterialIdentity> MaterialIdentities);
+    IReadOnlyList<PlannedRendererMaterialBinding> MaterialBindings);
+
+internal sealed record PlannedSceneMaterialPlan(
+    IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
+    IReadOnlyList<PlannedRendererMaterialBinding> RendererMaterialBindings);
 
 internal sealed record PlannedCollider(
     GeometryIdentity GeometryIdentity,

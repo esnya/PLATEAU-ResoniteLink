@@ -27,6 +27,7 @@ public static partial class LocalCityGmlObjectProjection
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
+    public const double DefaultDemPerimeterSkirtDepthMeters = 8.0;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
 
     private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
@@ -807,7 +808,7 @@ public static partial class LocalCityGmlObjectProjection
         {
             foreach (GeodeticPoint point in surface.Vertices)
             {
-                if (terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude))
+                if (terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude, allowNearestPointFallback: false))
                 {
                     anchors.Add(new TerrainSampleAnchor(point.Latitude, point.Longitude, altitude));
                 }
@@ -862,7 +863,7 @@ public static partial class LocalCityGmlObjectProjection
         for (int index = 0; index < ring.Vertices.Length; index++)
         {
             GeodeticPoint point = ring.Vertices[index];
-            double altitude = terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double sampledAltitude)
+            double altitude = terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double sampledAltitude, allowNearestPointFallback: false)
                 ? sampledAltitude
                 : FindNearestAnchorAltitude(point, anchors);
             if (Math.Abs(point.Altitude - altitude) > 1e-6)
@@ -926,7 +927,7 @@ public static partial class LocalCityGmlObjectProjection
         for (int index = 0; index < ring.Vertices.Length; index++)
         {
             GeodeticPoint point = ring.Vertices[index];
-            if (!terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude))
+            if (!terrainHeightSampler.TrySampleHeight(point.Latitude, point.Longitude, out double altitude, allowNearestPointFallback: false))
             {
                 vertices[index] = point;
                 continue;
@@ -2908,25 +2909,55 @@ public static partial class LocalCityGmlObjectProjection
         HeightMapChunkAlignmentState[] chunkStates = states
             .Select(static state => state!)
             .ToArray();
-        int sampleOffset = 0;
+        const double seaLevelWorldHeightTolerance = 1e-6;
+        Dictionary<DemBoundarySampleKey, List<BoundaryHeightSampleReference>> sampleReferencesByKey = [];
         foreach (HeightMapChunkAlignmentState state in chunkStates)
         {
-            state.SampleOffset = sampleOffset;
-            sampleOffset += state.HeightSamples.Length;
+            foreach (BoundaryHeightSampleReference sampleReference in EnumerateBoundaryHeightSampleReferences(state))
+            {
+                if (!sampleReferencesByKey.TryGetValue(sampleReference.Key, out List<BoundaryHeightSampleReference>? references))
+                {
+                    references = [];
+                    sampleReferencesByKey.Add(sampleReference.Key, references);
+                }
+
+                references.Add(sampleReference);
+            }
         }
 
-        HeightMapSampleUnionFind unionFind = new(sampleOffset);
         bool foundSharedBoundary = false;
-
-        for (int leftIndex = 0; leftIndex < chunkStates.Length; leftIndex++)
+        foreach (List<BoundaryHeightSampleReference> references in sampleReferencesByKey.Values)
         {
-            for (int rightIndex = leftIndex + 1; rightIndex < chunkStates.Length; rightIndex++)
+            if (references.Count < 2
+                || references.Select(static reference => reference.State.CityObject.SourceObjectKey ?? reference.State.CityObject.SlotKey).Distinct(StringComparer.Ordinal).Count() < 2)
             {
-                foundSharedBoundary |=
-                    TryUnionVerticalHeightMapBoundary(chunkStates[leftIndex], chunkStates[rightIndex], unionFind)
-                    || TryUnionVerticalHeightMapBoundary(chunkStates[rightIndex], chunkStates[leftIndex], unionFind)
-                    || TryUnionHorizontalHeightMapBoundary(chunkStates[leftIndex], chunkStates[rightIndex], unionFind)
-                    || TryUnionHorizontalHeightMapBoundary(chunkStates[rightIndex], chunkStates[leftIndex], unionFind);
+                continue;
+            }
+
+            foundSharedBoundary = true;
+            double worldHeightSum = 0.0;
+            int sampleCount = 0;
+            double nonSeaLevelWorldHeightSum = 0.0;
+            int nonSeaLevelSampleCount = 0;
+            foreach (BoundaryHeightSampleReference reference in references)
+            {
+                double worldHeight = reference.State.BaseHeight + reference.State.HeightSamples[reference.SampleIndex];
+                bool isSeaLevelFallbackCandidate = Math.Abs(worldHeight) <= seaLevelWorldHeightTolerance;
+                worldHeightSum += worldHeight;
+                sampleCount++;
+                if (!isSeaLevelFallbackCandidate)
+                {
+                    nonSeaLevelWorldHeightSum += worldHeight;
+                    nonSeaLevelSampleCount++;
+                }
+            }
+
+            double alignedWorldHeight = nonSeaLevelSampleCount > 0
+                ? nonSeaLevelWorldHeightSum / nonSeaLevelSampleCount
+                : worldHeightSum / sampleCount;
+            foreach (BoundaryHeightSampleReference reference in references)
+            {
+                reference.State.HeightSamples[reference.SampleIndex] = alignedWorldHeight - reference.State.BaseHeight;
             }
         }
 
@@ -2935,126 +2966,56 @@ public static partial class LocalCityGmlObjectProjection
             return cityObjects.ToArray();
         }
 
-        const double seaLevelWorldHeightTolerance = 1e-6;
-        Dictionary<int, (double WorldHeightSum, int Count, double NonSeaLevelWorldHeightSum, int NonSeaLevelCount)> groupedWorldHeights = [];
-        foreach (HeightMapChunkAlignmentState state in chunkStates)
-        {
-            for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
-            {
-                int root = unionFind.Find(state.SampleOffset + localSampleIndex);
-                double worldHeight = state.BaseHeight + state.HeightSamples[localSampleIndex];
-                bool isSeaLevelFallbackCandidate = Math.Abs(worldHeight) <= seaLevelWorldHeightTolerance;
-                if (groupedWorldHeights.TryGetValue(root, out (double WorldHeightSum, int Count, double NonSeaLevelWorldHeightSum, int NonSeaLevelCount) current))
-                {
-                    groupedWorldHeights[root] = (
-                        current.WorldHeightSum + worldHeight,
-                        current.Count + 1,
-                        current.NonSeaLevelWorldHeightSum + (isSeaLevelFallbackCandidate ? 0.0 : worldHeight),
-                        current.NonSeaLevelCount + (isSeaLevelFallbackCandidate ? 0 : 1));
-                }
-                else
-                {
-                    groupedWorldHeights[root] = (
-                        worldHeight,
-                        1,
-                        isSeaLevelFallbackCandidate ? 0.0 : worldHeight,
-                        isSeaLevelFallbackCandidate ? 0 : 1);
-                }
-            }
-        }
-
-        foreach (HeightMapChunkAlignmentState state in chunkStates)
-        {
-            for (int localSampleIndex = 0; localSampleIndex < state.HeightSamples.Length; localSampleIndex++)
-            {
-                int root = unionFind.Find(state.SampleOffset + localSampleIndex);
-                (double worldHeightSum, int count, double nonSeaLevelWorldHeightSum, int nonSeaLevelCount) = groupedWorldHeights[root];
-                double alignedWorldHeight = nonSeaLevelCount > 0
-                    ? nonSeaLevelWorldHeightSum / nonSeaLevelCount
-                    : worldHeightSum / count;
-                state.HeightSamples[localSampleIndex] = alignedWorldHeight - state.BaseHeight;
-            }
-        }
-
         return chunkStates
             .Select(static state => state.ToCityObject())
             .ToArray();
     }
 
-    private static bool TryUnionVerticalHeightMapBoundary(
-        HeightMapChunkAlignmentState leftState,
-        HeightMapChunkAlignmentState rightState,
-        HeightMapSampleUnionFind unionFind)
+    private static IEnumerable<BoundaryHeightSampleReference> EnumerateBoundaryHeightSampleReferences(
+        HeightMapChunkAlignmentState state)
     {
-        if (leftState.Geometry.Height != rightState.Geometry.Height)
+        int width = state.Geometry.Width;
+        int height = state.Geometry.Height;
+        if (width < 2 || height < 2)
         {
-            return false;
+            yield break;
         }
 
-        const double boundaryTolerance = 1e-3;
-        double leftMaxX = leftState.CityObject.Transform.Position.X + (leftState.Geometry.Size.X / 2.0);
-        double rightMinX = rightState.CityObject.Transform.Position.X - (rightState.Geometry.Size.X / 2.0);
-        if (Math.Abs(leftMaxX - rightMinX) > boundaryTolerance)
+        for (int row = 0; row < height; row++)
         {
-            return false;
+            yield return CreateBoundaryHeightSampleReference(state, row, 0);
+            yield return CreateBoundaryHeightSampleReference(state, row, width - 1);
         }
 
-        double leftMinZ = leftState.CityObject.Transform.Position.Z - (leftState.Geometry.Size.Y / 2.0);
-        double leftMaxZ = leftState.CityObject.Transform.Position.Z + (leftState.Geometry.Size.Y / 2.0);
-        double rightMinZ = rightState.CityObject.Transform.Position.Z - (rightState.Geometry.Size.Y / 2.0);
-        double rightMaxZ = rightState.CityObject.Transform.Position.Z + (rightState.Geometry.Size.Y / 2.0);
-        if (Math.Abs(leftMinZ - rightMinZ) > boundaryTolerance
-            || Math.Abs(leftMaxZ - rightMaxZ) > boundaryTolerance)
+        for (int column = 1; column < width - 1; column++)
         {
-            return false;
+            yield return CreateBoundaryHeightSampleReference(state, 0, column);
+            yield return CreateBoundaryHeightSampleReference(state, height - 1, column);
         }
-
-        for (int row = 0; row < leftState.Geometry.Height; row++)
-        {
-            int leftSampleIndex = (row * leftState.Geometry.Width) + (leftState.Geometry.Width - 1);
-            int rightSampleIndex = row * rightState.Geometry.Width;
-            unionFind.Union(leftState.SampleOffset + leftSampleIndex, rightState.SampleOffset + rightSampleIndex);
-        }
-
-        return true;
     }
 
-    private static bool TryUnionHorizontalHeightMapBoundary(
-        HeightMapChunkAlignmentState southState,
-        HeightMapChunkAlignmentState northState,
-        HeightMapSampleUnionFind unionFind)
+    private static BoundaryHeightSampleReference CreateBoundaryHeightSampleReference(
+        HeightMapChunkAlignmentState state,
+        int row,
+        int column)
     {
-        if (southState.Geometry.Width != northState.Geometry.Width)
-        {
-            return false;
-        }
+        double u = state.Geometry.Width == 1 ? 0.0 : (double)column / (state.Geometry.Width - 1);
+        double v = state.Geometry.Height == 1 ? 0.0 : (double)row / (state.Geometry.Height - 1);
+        double x = (state.CityObject.Transform.Position.X - (state.Geometry.Size.X / 2.0)) + (state.Geometry.Size.X * u);
+        double z = (state.CityObject.Transform.Position.Z - (state.Geometry.Size.Y / 2.0)) + (state.Geometry.Size.Y * v);
+        int sampleIndex = (row * state.Geometry.Width) + column;
+        return new BoundaryHeightSampleReference(
+            state,
+            sampleIndex,
+            new DemBoundarySampleKey(
+                QuantizeBoundaryCoordinate(x),
+                QuantizeBoundaryCoordinate(z)));
+    }
 
+    private static long QuantizeBoundaryCoordinate(double coordinate)
+    {
         const double boundaryTolerance = 1e-3;
-        double southMaxZ = southState.CityObject.Transform.Position.Z + (southState.Geometry.Size.Y / 2.0);
-        double northMinZ = northState.CityObject.Transform.Position.Z - (northState.Geometry.Size.Y / 2.0);
-        if (Math.Abs(southMaxZ - northMinZ) > boundaryTolerance)
-        {
-            return false;
-        }
-
-        double southMinX = southState.CityObject.Transform.Position.X - (southState.Geometry.Size.X / 2.0);
-        double southMaxX = southState.CityObject.Transform.Position.X + (southState.Geometry.Size.X / 2.0);
-        double northMinX = northState.CityObject.Transform.Position.X - (northState.Geometry.Size.X / 2.0);
-        double northMaxX = northState.CityObject.Transform.Position.X + (northState.Geometry.Size.X / 2.0);
-        if (Math.Abs(southMinX - northMinX) > boundaryTolerance
-            || Math.Abs(southMaxX - northMaxX) > boundaryTolerance)
-        {
-            return false;
-        }
-
-        int southRowStart = (southState.Geometry.Height - 1) * southState.Geometry.Width;
-        for (int column = 0; column < southState.Geometry.Width; column++)
-        {
-            int southSampleIndex = southRowStart + column;
-            unionFind.Union(southState.SampleOffset + southSampleIndex, northState.SampleOffset + column);
-        }
-
-        return true;
+        return (long)Math.Round(coordinate / boundaryTolerance, MidpointRounding.AwayFromZero);
     }
 
     private sealed class HeightMapChunkAlignmentState
@@ -3077,8 +3038,6 @@ public static partial class LocalCityGmlObjectProjection
         public double[] HeightSamples { get; }
 
         public double BaseHeight { get; }
-
-        public int SampleOffset { get; set; }
 
         public static HeightMapChunkAlignmentState? TryCreate(ResoniteConstructionCityObject cityObject)
         {
@@ -3111,35 +3070,14 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    private sealed class HeightMapSampleUnionFind
-    {
-        private readonly int[] _parents;
+    private sealed record DemBoundarySampleKey(
+        long QuantizedX,
+        long QuantizedZ);
 
-        public HeightMapSampleUnionFind(int sampleCount)
-        {
-            _parents = Enumerable.Range(0, sampleCount).ToArray();
-        }
-
-        public int Find(int index)
-        {
-            if (_parents[index] != index)
-            {
-                _parents[index] = Find(_parents[index]);
-            }
-
-            return _parents[index];
-        }
-
-        public void Union(int left, int right)
-        {
-            int leftRoot = Find(left);
-            int rightRoot = Find(right);
-            if (leftRoot != rightRoot)
-            {
-                _parents[rightRoot] = leftRoot;
-            }
-        }
-    }
+    private sealed record BoundaryHeightSampleReference(
+        HeightMapChunkAlignmentState State,
+        int SampleIndex,
+        DemBoundarySampleKey Key);
 
     private static bool TryMaterializeDemHeightMapCityObject(
         ParsedCityObject cityObject,
@@ -3435,6 +3373,39 @@ public static partial class LocalCityGmlObjectProjection
             MaxLatitude: Math.Min(left.MaxLatitude, right.MaxLatitude),
             MinLongitude: Math.Max(left.MinLongitude, right.MinLongitude),
             MaxLongitude: Math.Min(left.MaxLongitude, right.MaxLongitude));
+    }
+
+    private static ResoniteFloat3 TransformPointToWorld(ResoniteTransform transform, ResoniteFloat3 localPosition)
+    {
+        ResoniteFloat3 rotated = transform.Rotation is null
+            ? localPosition
+            : Rotate(localPosition, transform.Rotation);
+        return Add(transform.Position, rotated);
+    }
+
+    private static ResoniteFloat3 Rotate(ResoniteFloat3 value, ResoniteFloatQ rotation)
+    {
+        ResoniteFloat3 qv = new(rotation.X, rotation.Y, rotation.Z);
+        ResoniteFloat3 uv = Cross3(qv, value);
+        ResoniteFloat3 uuv = Cross3(qv, uv);
+        return Add(
+            value,
+            Add(
+                Scale3(uv, 2.0 * rotation.W),
+                Scale3(uuv, 2.0)));
+    }
+
+    private static ResoniteFloat3 Cross3(ResoniteFloat3 left, ResoniteFloat3 right)
+    {
+        return new ResoniteFloat3(
+            (left.Y * right.Z) - (left.Z * right.Y),
+            (left.Z * right.X) - (left.X * right.Z),
+            (left.X * right.Y) - (left.Y * right.X));
+    }
+
+    private static ResoniteFloat3 Scale3(ResoniteFloat3 value, double scalar)
+    {
+        return new ResoniteFloat3(value.X * scalar, value.Y * scalar, value.Z * scalar);
     }
 
     private static bool HasRenderableGeometry(ResoniteConstructionCityObject cityObject)
@@ -4106,7 +4077,7 @@ public static partial class LocalCityGmlObjectProjection
                 trianglesByCell);
         }
 
-        public bool TrySampleHeight(double latitude, double longitude, out double altitude)
+        public bool TrySampleHeight(double latitude, double longitude, out double altitude, bool allowNearestPointFallback = true)
         {
             (double x, double z) = Project(latitude, longitude);
             if (x < minX - 1e-6
@@ -4151,7 +4122,13 @@ public static partial class LocalCityGmlObjectProjection
                 }
             }
 
-            return TrySampleNearestPointHeight(x, z, out altitude);
+            if (allowNearestPointFallback)
+            {
+                return TrySampleNearestPointHeight(x, z, out altitude);
+            }
+
+            altitude = 0.0;
+            return false;
         }
 
         private static TerrainHeightPoint CreatePoint(GeodeticPoint point, LocalCartesian cartesian)

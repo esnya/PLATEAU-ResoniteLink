@@ -58,6 +58,7 @@ internal sealed record LiveSendRunPlan(
     string ResolvedWorkRoot,
     ResoniteLocalOrigin RequestLocalOrigin,
     IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
+    ResoniteImportBudgetProfile ResourceBudget,
     LiveSendQueuePlan Queue,
     bool MeshBakeEnabled);
 
@@ -69,6 +70,7 @@ internal sealed record LiveSendQueuePlan(
 internal sealed record LiveSendRunContext(
     LiveSendRunPlan Plan,
     CreatedSlot DatasetRootSlot,
+    CreatedSlot CommonAssetsRootSlot,
     CompositeCityObjectBaker? CityObjectBaker);
 
 internal sealed class LiveSendRunState

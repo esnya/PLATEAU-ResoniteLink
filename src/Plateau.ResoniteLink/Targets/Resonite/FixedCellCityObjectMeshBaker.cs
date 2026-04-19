@@ -239,8 +239,9 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                         $"Buffered mesh bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
                 }
 
-                MaterialIdentity identity = MaterialIdentity.From(material);
-                materialByIdentity.TryAdd(identity, material);
+                ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
+                MaterialIdentity identity = MaterialIdentity.From(normalizedMaterial);
+                materialByIdentity.TryAdd(identity, normalizedMaterial);
                 if (!trianglesByMaterial.TryGetValue(identity, out List<int>? indices))
                 {
                     indices = [];
@@ -632,19 +633,20 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     {
         public static MaterialIdentity From(ResoniteMaterialBinding material)
         {
+            ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
             return new MaterialIdentity(
-                material.MaterialKey,
-                material.BaseColor,
-                material.MaterialType,
-                material.TexturePayload?.Identity,
-                material.TextureSourceKind,
-                material.TerrainOverlay,
-                material.Projection,
-                material.DepthOffset,
-                material.TextureScale,
-                material.Family,
-                material.TextureOffset,
-                material.AssetScope);
+                normalizedMaterial.MaterialKey,
+                normalizedMaterial.BaseColor,
+                normalizedMaterial.MaterialType,
+                normalizedMaterial.TexturePayload?.Identity,
+                normalizedMaterial.TextureSourceKind,
+                normalizedMaterial.TerrainOverlay,
+                normalizedMaterial.Projection,
+                normalizedMaterial.DepthOffset,
+                normalizedMaterial.TextureScale,
+                normalizedMaterial.Family,
+                normalizedMaterial.TextureOffset,
+                normalizedMaterial.AssetScope);
         }
     }
 
@@ -861,7 +863,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 ? null
                 : string.Create(
                     CultureInfo.InvariantCulture,
-                    $"{overlay.PackageName}|{overlay.GeographicBounds.MinLatitude:R}|{overlay.GeographicBounds.MinLongitude:R}|{overlay.GeographicBounds.MaxLatitude:R}|{overlay.GeographicBounds.MaxLongitude:R}|{overlay.ZoomLevel}|{overlay.MaxTextureSize}");
+                    $"{overlay.PackageName}|{overlay.GeographicBounds.MinLatitude:R}|{overlay.GeographicBounds.MinLongitude:R}|{overlay.GeographicBounds.MaxLatitude:R}|{overlay.GeographicBounds.MaxLongitude:R}|{overlay.SourceIdentityKey}|{overlay.MaxTextureSize}");
         }
     }
 

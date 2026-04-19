@@ -74,6 +74,35 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncPreservesDetectedBackgroundColorInTransparentTilePixels()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-transparent",
+                CreatePayload(
+                    "textures/transparent-edge.png",
+                    [
+                        new Rgba32(255, 0, 0, 255),
+                        new Rgba32(0, 0, 0, 0),
+                    ],
+                    2,
+                    1),
+                0,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+
+        Assert.Equal(2, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 0), ReadPixel(atlasPayload, 1, 0));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncKeepsCommonMaterialsAsSeparateSubmeshesWhileAtlasingDedicatedMaterials()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -111,6 +140,30 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncUnifiesPreservedBundledFamilyMaterialsEvenWhenNotPreScopedAsCommon()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateBundledFamilyPreservedLod2Building(
+                "building-one",
+                CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4),
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding commonMaterial = Assert.Single(
+            cityObject.Materials,
+            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal));
+
+        Assert.Equal(2, cityObject.Materials.Count);
+        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, commonMaterial.AssetScope);
+        Assert.Equal(0, commonMaterial.BundledVariantIndex);
+        Assert.Null(commonMaterial.TexturePayload);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncFallsBackToOriginalCityObjectWhenSingleCandidateCannotFitAtlasBudget()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 12, tilePaddingPixels: 1);
@@ -145,6 +198,44 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b" && cityObject.SourceFileRelativePath == "unit-b.gml");
     }
 
+    [Fact]
+    public async Task FlushAllAsyncPacksMixedSizeTexturesIntoSingleAtlasBatch()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreatePayload("textures/a.png", new Rgba32(255, 0, 0, 255), 7, 7), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreatePayload("textures/b.png", new Rgba32(0, 255, 0, 255), 1, 7), 2, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreatePayload("textures/c.png", new Rgba32(0, 0, 255, 255), 3, 3), 4, "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        Assert.Equal(8, atlasPayload.Width);
+        Assert.Equal(10, atlasPayload.Height);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncCapsAtlasTileSizeForSmallMemoryProfile()
+    {
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(),
+            maxAtlasSize: 2048,
+            tilePaddingPixels: 0,
+            resourceBudget: ResoniteImportBudgetProfiles.Small);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-large",
+                CreatePayload("textures/large.png", new Rgba32(255, 0, 0, 255), 1024, 1024),
+                0,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        Assert.Equal(512, atlasPayload.Width);
+        Assert.Equal(512, atlasPayload.Height);
+    }
+
     private static async Task AssertBufferedAsync(Lod2AtlasCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
     {
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
@@ -155,6 +246,21 @@ public sealed class Lod2AtlasCityObjectBakerTests
     private static ResoniteTexturePayload CreatePayload(string identity, Rgba32 color, int width, int height)
     {
         using Image<Rgba32> image = new(width, height, color);
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private static ResoniteTexturePayload CreatePayload(string identity, IReadOnlyList<Rgba32> pixels, int width, int height)
+    {
+        Assert.Equal(width * height, pixels.Count);
+        using Image<Rgba32> image = new(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                image[x, y] = pixels[(y * width) + x];
+            }
+        }
+
         return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
     }
 
@@ -414,6 +520,74 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     SubmeshIndices: [2],
                     Family: BundledDefaultMaterialFamilies.Facade,
                     AssetScope: ResoniteMaterialAssetScope.Common,
+                    BundledVariantIndex: 1),
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
+    }
+
+    private static ResoniteConstructionCityObject CreateBundledFamilyPreservedLod2Building(
+        string slotKey,
+        ResoniteTexturePayload payload,
+        string sourceUnitKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, $"{slotKey}-atlas", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, $"{slotKey}-roof-0", [3, 4, 5]),
+                    new ResoniteMeshSubmesh(2, $"{slotKey}-roof-1", [6, 7, 8]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-atlas",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: payload,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-roof-0",
+                    BaseColor: new ResoniteColor(0.85, 0.85, 0.85, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    BundledVariantIndex: 0),
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-roof-1",
+                    BaseColor: new ResoniteColor(0.75, 0.75, 0.75, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [2],
+                    Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 1),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
