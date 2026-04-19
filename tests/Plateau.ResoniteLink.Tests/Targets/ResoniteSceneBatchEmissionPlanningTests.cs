@@ -239,7 +239,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 false));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission meshRenderer = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -295,7 +295,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 false));
 
-        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
 
         PlannedBatchComponentEmission[] propertyBlocks = batchPlan.ComponentEmissions
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))

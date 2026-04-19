@@ -269,6 +269,68 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return new CreatedMaterialAsset(materialComponent.ComponentId, null);
     }
 
+    public static async Task<CreatedSlot?> TryGetExistingSharedChildSlotAsync(
+        IResoniteLinkClient client,
+        string parentSlotId,
+        string childSlotName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(childSlotName);
+
+        Slot? parentSlotSnapshot = await client.GetSlotAsync(parentSlotId, 1, cancellationToken);
+        ResoniteSceneChildLookupResult childLookup = new ResoniteSceneSlotSnapshot(parentSlotSnapshot)
+            .GetUniqueChildLookupResult(childSlotName, parentSlotId);
+        return childLookup.State == ResoniteSceneChildLookupState.FoundWithId
+            ? new CreatedSlot(childLookup.SlotId!, childSlotName)
+            : null;
+    }
+
+    public static async Task<string?> TryGetExistingCommonMaterialComponentIdAsync(
+        IResoniteLinkClient client,
+        string familySlotId,
+        string materialSlotName,
+        string materialComponentType,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(familySlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(materialComponentType);
+
+        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlotId, 1, cancellationToken);
+        ResoniteSceneChildLookupResult materialLookup = new ResoniteSceneSlotSnapshot(familySlotSnapshot)
+            .GetUniqueChildLookupResult(materialSlotName, familySlotId);
+        return materialLookup.Slot?.Components?
+            .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
+            .OrderBy(static component => component.ID, StringComparer.Ordinal)
+            .Select(static component => component.ID)
+            .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+    }
+
+    public static async Task<CreatedComponent> CreateComponentAsync(
+        IResoniteLinkClient client,
+        string containerSlotId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentException.ThrowIfNullOrWhiteSpace(containerSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(componentType);
+        ArgumentNullException.ThrowIfNull(members);
+
+        ResoniteBatchOperations.PendingBatchComponent pendingComponent = new(
+            LocalId: $"single_component_{Guid.NewGuid():N}",
+            MessageId: $"single_component_message_{Guid.NewGuid():N}",
+            ComponentType: componentType);
+        BatchResponse response = await client.RunDataModelOperationBatchAsync(
+            [ResoniteBatchOperations.CreateAddComponentOperation(containerSlotId, componentType, members, pendingComponent.LocalId, pendingComponent.MessageId)],
+            cancellationToken);
+        return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
+    }
+
     public static MaterialIdentity CreateDedicatedMaterialIdentity(
         string packageName,
         int materialIndex,

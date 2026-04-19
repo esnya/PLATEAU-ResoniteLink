@@ -148,15 +148,12 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 {
                     TargetID = geometryComponentId.Value,
                 },
-                ["Materials"] = new SyncList
-                {
-                    Elements = emissionPlan.Renderer.MaterialIdentities
-                        .Select(materialIdentity => (Member)new Reference
-                        {
-                            TargetID = emittedMaterialTargets[materialIdentity],
-                        })
-                        .ToList(),
-                },
+                ["Materials"] = CreateRendererMaterials(emissionPlan.Renderer.MaterialBindings, emittedMaterialTargets),
+                ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
+                    componentEmissions,
+                    meshAssetSlotId.Value,
+                    presentationSlotId.Value,
+                    emissionPlan.Renderer.MaterialBindings),
             }));
         componentEmissions.Add(new PlannedBatchComponentEmission(
             CreateBatchPlanEntityId("mesh-collider-component"),
@@ -304,6 +301,91 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             ResoniteMaterialComponentPolicy.GetComponentType(material),
             materialMembers));
         return materialComponentId.Value;
+    }
+
+    private static SyncList CreateRendererMaterials(
+        IReadOnlyList<PlannedRendererMaterialBinding> materialBindings,
+        Dictionary<MaterialIdentity, string> emittedMaterialTargets)
+    {
+        return new SyncList
+        {
+            Elements = materialBindings
+                .Select(binding => (Member)new Reference
+                {
+                    TargetID = emittedMaterialTargets[binding.MaterialIdentity],
+                })
+                .ToList(),
+        };
+    }
+
+    private static SyncList CreateRendererMaterialPropertyBlocks(
+        List<PlannedBatchComponentEmission> componentEmissions,
+        string assetSlotId,
+        string presentationSlotId,
+        IReadOnlyList<PlannedRendererMaterialBinding> materialBindings)
+    {
+        SyncList propertyBlocks = new()
+        {
+            Elements = [],
+        };
+
+        bool hasMaterialPropertyBlockOverride = false;
+        foreach (PlannedRendererMaterialBinding materialBinding in materialBindings)
+        {
+            if (materialBinding is PlannedMainTextureOverrideRendererMaterialBinding mainTextureOverrideBinding)
+            {
+                hasMaterialPropertyBlockOverride = true;
+                propertyBlocks.Elements.Add(
+                    CreateMainTexturePropertyBlockReference(
+                        componentEmissions,
+                        assetSlotId,
+                        presentationSlotId,
+                        mainTextureOverrideBinding));
+                continue;
+            }
+
+            propertyBlocks.Elements.Add(new Reference
+            {
+                TargetID = null,
+            });
+        }
+
+        return hasMaterialPropertyBlockOverride
+            ? propertyBlocks
+            : new SyncList { Elements = [] };
+    }
+
+    private static Reference CreateMainTexturePropertyBlockReference(
+        List<PlannedBatchComponentEmission> componentEmissions,
+        string assetSlotId,
+        string presentationSlotId,
+        PlannedMainTextureOverrideRendererMaterialBinding binding)
+    {
+        string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
+        BatchPlanEntityId textureId = CreateBatchPlanEntityId($"renderer-texture:{overrideIdentity}");
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            textureId,
+            assetSlotId,
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteSceneMaterialConventions.CreateTextureMembers(binding.MainTexture.AssetUri)));
+
+        BatchPlanEntityId propertyBlockId = CreateBatchPlanEntityId($"renderer-main-texture-property-block:{overrideIdentity}");
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            propertyBlockId,
+            presentationSlotId,
+            "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
+            new Dictionary<string, Member>(StringComparer.Ordinal)
+            {
+                ["Texture"] = new Reference
+                {
+                    TargetID = textureId.Value,
+                },
+            }));
+
+        return new Reference
+        {
+            TargetID = propertyBlockId.Value,
+        };
     }
 
     private static BatchPlanEntityId CreateBatchPlanEntityId(string suffix)

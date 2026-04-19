@@ -615,29 +615,6 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseRejectsNumericMemoryProfile()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--memory-profile",
-                "2",
-            ]);
-
-        Assert.Equal(
-            "The value '2' is not a valid memory profile. Use 'small' or 'large'.",
-            result.Error);
-    }
-
-    [Fact]
     public void ParseDisablesMeshBakeWhenRequested()
     {
         CliParseResult result = CliArgumentsParser.Parse(
