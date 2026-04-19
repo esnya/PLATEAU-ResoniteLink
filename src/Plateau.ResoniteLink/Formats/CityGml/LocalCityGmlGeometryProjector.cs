@@ -18,7 +18,7 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
-        return LocalCityGmlLegacyProjectionAdapter.MaterializeCityObjects(
+        return LocalCityGmlObjectProjection.MaterializeCityObjects(
             sourceFile,
             referenceSystem,
             globalOriginPoint,
