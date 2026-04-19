@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Plateau.ResoniteLink.Targets.Resonite.Execution;
 
@@ -10,23 +11,23 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
-        services.AddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
-        services.AddScoped<IResoniteGeometryAssetAssembler, ResoniteGeometryAssetAssembler>();
-        services.AddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
-        services.AddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
-        services.AddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
-        services.AddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
-        services.AddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
-        services.AddScoped<IResoniteClientSessionFactory, ResoniteClientSessionFactory>();
-        services.AddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
-        services.AddScoped<IResoniteSceneBootstrapInterpreter>(
+        services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
+        services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
+        services.TryAddScoped<IResoniteGeometryAssetAssembler, ResoniteGeometryAssetAssembler>();
+        services.TryAddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
+        services.TryAddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
+        services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
+        services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
+        services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
+        services.TryAddScoped<IResoniteClientSessionFactory, ResoniteClientSessionFactory>();
+        services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
+        services.TryAddScoped<IResoniteSceneBootstrapInterpreter>(
             static serviceProvider => new ResoniteSceneBootstrapInterpreter(
                 serviceProvider.GetRequiredService<IResoniteSceneSlotLocator>(),
                 serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
                 serviceProvider.GetRequiredService<IResoniteSceneAnchorResolver>()));
-        services.AddScoped<IResoniteLiveSceneImportDependencyFactory, ResoniteLiveSceneImportDependencyFactory>();
-        services.AddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
+        services.TryAddScoped<IResoniteLiveSceneImportDependencyFactory, ResoniteLiveSceneImportDependencyFactory>();
+        services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
 
         return services;
     }

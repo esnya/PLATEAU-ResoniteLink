@@ -142,16 +142,11 @@ internal static class LocalCityGmlBootstrapPipeline
                 appearanceStoreFactory,
                 lodSelector,
                 cancellationToken);
-        ParsedSourceFileResult[] demParsedSourceFiles = (await Task.WhenAll(
-            sourceFilePipelines
-                .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                .Select(static pipeline => pipeline.GetParseTask())))
-            .ToArray();
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
         TerrainTextureOverlay[] terrainTextureOverlays =
-            CreateBootstrapTerrainTextureOverlays(demParsedSourceFiles, discoveryResult.RequestedMeshCodes);
+            CreateBootstrapTerrainTextureOverlays(discoveredSourceFiles);
 
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
@@ -188,25 +183,21 @@ internal static class LocalCityGmlBootstrapPipeline
     }
 
     private static TerrainTextureOverlay[] CreateBootstrapTerrainTextureOverlays(
-        ParsedSourceFileResult[] demParsedSourceFiles,
-        IReadOnlyList<string> requestedMeshCodes)
+        IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles)
     {
-        if (demParsedSourceFiles.Length == 0)
+        List<string> demMeshCodes = discoveredSourceFiles
+            .Where(static sourceFile => string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+            .Select(static sourceFile => sourceFile.MatchedMeshCode)
+            .Where(static meshCode => !string.IsNullOrWhiteSpace(meshCode))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
+            .ToList();
+        if (demMeshCodes.Count == 0)
         {
             return [];
         }
 
-        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles,
-            fallbackBounds: null);
-        if (demBounds is null)
-        {
-            return [];
-        }
-
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            demBounds,
-            requestedMeshCodes);
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysForMeshCodes(demMeshCodes);
     }
 
     private static void ValidateCompatibleReferenceSystem(

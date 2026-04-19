@@ -5,11 +5,9 @@ using Plateau.ResoniteLink.Domain.Importing;
 namespace Plateau.ResoniteLink.Application.Importing;
 
 internal sealed class LocalCityGmlCommonMaterialEnumerator(
-    IDefaultMaterialResolver materialResolver,
-    ICityGmlLegacyProjectionBridge? legacyProjectionBridge = null) : ICityGmlCommonMaterialEnumerator
+    IDefaultMaterialResolver materialResolver) : ICityGmlCommonMaterialEnumerator
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
-    private readonly ICityGmlLegacyProjectionBridge legacyProjectionBridge = legacyProjectionBridge ?? new LocalCityGmlLegacyProjectionBridge();
 
     public IEnumerable<ResoniteMaterialBinding> Enumerate(
         CachedSourceFileDescriptor sourceFile,
@@ -20,10 +18,10 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
         PlateauImportRequest request,
         ISet<string>? emittedMaterialKeys = null)
     {
-        return legacyProjectionBridge.EnumerateCommonMaterials(
-            sourceFile,
-            referenceSystem,
-            globalOriginPoint,
+        return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
+            sourceFile.ToLegacy(),
+            referenceSystem.ToLegacy(),
+            globalOriginPoint.ToLegacy(),
             globalCartesian,
             demTerrainTextureOverlays,
             terrainHeightSampler: null,

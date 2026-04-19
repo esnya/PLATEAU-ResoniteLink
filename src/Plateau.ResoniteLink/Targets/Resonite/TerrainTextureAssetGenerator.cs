@@ -26,6 +26,8 @@ internal sealed class TerrainTextureAssetGenerator(
     string? persistentCacheRoot = null,
     bool disablePersistentCache = false) : ITerrainTextureAssetGenerator
 {
+    private const int MaxTileDownloadAttempts = 4;
+
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, CachedTerrainTexture> cachedTextures = new();
     private readonly PersistentTerrainTileCache? persistentTileCache = disablePersistentCache
@@ -301,35 +303,46 @@ internal sealed class TerrainTextureAssetGenerator(
             }
         }
 
-        try
+        for (int attempt = 1; attempt <= MaxTileDownloadAttempts; attempt++)
         {
-            using HttpResponseMessage response = await httpClient.GetAsync(
-                tileUrl,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                return null;
-            }
-
-            byte[] encodedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-            if (persistentTileCache is not null)
-            {
-                await TryWritePersistentTileBytesAsync(
-                    tileSource.UrlTemplate,
-                    tileSource.ZoomLevel,
-                    tileX,
-                    tileY,
-                    encodedBytes,
+                using HttpResponseMessage response = await httpClient.GetAsync(
+                    tileUrl,
+                    HttpCompletionOption.ResponseHeadersRead,
                     cancellationToken);
-            }
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (attempt < MaxTileDownloadAttempts && IsTransientStatusCode((int)response.StatusCode))
+                    {
+                        await Task.Delay(GetRetryDelay(attempt), cancellationToken);
+                        continue;
+                    }
 
-            return await LoadTileImageAsync(encodedBytes, cancellationToken);
+                    return null;
+                }
+
+                byte[] encodedBytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                if (persistentTileCache is not null)
+                {
+                    await TryWritePersistentTileBytesAsync(
+                        tileSource.UrlTemplate,
+                        tileSource.ZoomLevel,
+                        tileX,
+                        tileY,
+                        encodedBytes,
+                        cancellationToken);
+                }
+
+                return await LoadTileImageAsync(encodedBytes, cancellationToken);
+            }
+            catch (HttpRequestException) when (attempt < MaxTileDownloadAttempts)
+            {
+                await Task.Delay(GetRetryDelay(attempt), cancellationToken);
+            }
         }
-        catch (HttpRequestException)
-        {
-            return null;
-        }
+
+        return null;
     }
 
     private async Task TryWritePersistentTileBytesAsync(
@@ -386,6 +399,19 @@ internal sealed class TerrainTextureAssetGenerator(
     private sealed record CachedTerrainTexture(
         GeneratedTerrainTexture GeneratedTexture,
         TerrainTextureSource UsedSource);
+
+    private static bool IsTransientStatusCode(int statusCode)
+    {
+        return statusCode == 408
+            || statusCode == 425
+            || statusCode == 429
+            || statusCode >= 500;
+    }
+
+    private static TimeSpan GetRetryDelay(int attempt)
+    {
+        return TimeSpan.FromMilliseconds(250 * attempt);
+    }
 }
 
 internal sealed class PersistentTerrainTileCache

@@ -15,7 +15,6 @@ public static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
         services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
-        services.TryAddSingleton<ICityGmlLegacyProjectionBridge, LocalCityGmlLegacyProjectionBridge>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
         services.TryAddSingleton<ICityGmlCommonMaterialEnumerator, LocalCityGmlCommonMaterialEnumerator>();
         services.TryAddSingleton<IResoniteConstructionComposer>(provider =>

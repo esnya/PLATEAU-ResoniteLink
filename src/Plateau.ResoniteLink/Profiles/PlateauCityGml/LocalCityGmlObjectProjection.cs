@@ -28,7 +28,6 @@ public static partial class LocalCityGmlObjectProjection
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
-    public const double DefaultDemPerimeterSkirtDepthMeters = 8.0;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
 
     private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
@@ -239,7 +238,9 @@ public static partial class LocalCityGmlObjectProjection
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        return LocalCityGmlLegacyProjectionBridge.CreateDemTerrainTextureOverlays(demBounds, requestedMeshCodes);
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            DemTerrainBounds.FromLegacy(demBounds),
+            requestedMeshCodes);
     }
 
     private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
@@ -561,13 +562,19 @@ public static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeBounds? fallbackBounds)
     {
-        return LocalCityGmlLegacyProjectionBridge.ResolveDemTerrainBounds(demParsedSourceFiles, fallbackBounds);
+        DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+            demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
+            fallbackBounds is null ? null : DemTerrainBounds.FromLegacy(fallbackBounds));
+        return bounds?.ToLegacy();
     }
 
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        return LocalCityGmlLegacyProjectionBridge.ExtractTerrainHeightTriangles(cityObjects);
+        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
+                cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
+            .Select(static triangle => triangle.ToLegacy())
+            .ToArray();
     }
 
     private static ParsedCityObject ConformCityObjectToTerrain(

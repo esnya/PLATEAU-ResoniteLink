@@ -11,13 +11,16 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     internal const double DefaultCellSizeMeters = 128.0;
     internal const int DefaultMaxCityObjectsPerBatch = 64;
     internal const int DefaultMaxVerticesPerBatch = 200_000;
-    internal const int DefaultMaxBufferedCells = 32;
+    internal const int DefaultMaxBufferedCells = 8;
 
     private readonly double cellSizeMeters;
     private readonly int maxCityObjectsPerBatch;
     private readonly int maxVerticesPerBatch;
+    private readonly int maxBufferedCells;
     private readonly Dictionary<CellKey, CellBuffer> buffers = [];
     private readonly Dictionary<CellKey, int> flushSequenceByCell = [];
+    private readonly LinkedList<CellKey> bufferedCellOrder = [];
+    private readonly Dictionary<CellKey, LinkedListNode<CellKey>> bufferedCellNodes = [];
 
     public FixedCellCityObjectMeshBaker()
         : this(
@@ -37,10 +40,12 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(cellSizeMeters, 0.0);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxCityObjectsPerBatch);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxVerticesPerBatch);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedCells);
 
         this.cellSizeMeters = cellSizeMeters;
         this.maxCityObjectsPerBatch = maxCityObjectsPerBatch;
         this.maxVerticesPerBatch = maxVerticesPerBatch;
+        this.maxBufferedCells = maxBufferedCells;
     }
 
     public string Name => "LOD1MeshBake";
@@ -62,13 +67,15 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         }
 
         CellKey cellKey = CreateCellKey(cityObject);
+        bool createdBuffer = false;
         if (!buffers.TryGetValue(cellKey, out CellBuffer? buffer))
         {
             buffer = new CellBuffer();
             buffers.Add(cellKey, buffer);
+            createdBuffer = true;
         }
 
-        List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer);
+        List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer, createdBuffer);
         bakedCityObject = readyCityObjects.Count > 0 ? readyCityObjects[0] : null;
         return true;
     }
@@ -85,13 +92,15 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         }
 
         CellKey cellKey = CreateCellKey(cityObject);
+        bool createdBuffer = false;
         if (!buffers.TryGetValue(cellKey, out CellBuffer? buffer))
         {
             buffer = new CellBuffer();
             buffers.Add(cellKey, buffer);
+            createdBuffer = true;
         }
 
-        List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer);
+        List<ResoniteConstructionCityObject> readyCityObjects = BufferCore(cityObject, cellKey, buffer, createdBuffer);
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
 
@@ -110,6 +119,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         }
 
         buffers.Clear();
+        bufferedCellOrder.Clear();
+        bufferedCellNodes.Clear();
         return bakedCityObjects;
     }
 
@@ -141,6 +152,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 continue;
             }
 
+            DetachBufferedCell(cellKey);
             ResoniteConstructionCityObject bakedCityObject = BakeCell(cellKey, buffer);
             buffer.CityObjects.Clear();
             await onBakedCityObject(bakedCityObject, cancellationToken);
@@ -150,8 +162,10 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     private List<ResoniteConstructionCityObject> BufferCore(
         ResoniteConstructionCityObject cityObject,
         CellKey cellKey,
-        CellBuffer buffer)
+        CellBuffer buffer,
+        bool createdBuffer)
     {
+        TrackBufferedCellAccess(cellKey, createdBuffer);
         buffer.CityObjects.Add(cityObject);
         buffer.VertexCount += cityObject.Mesh.Vertices.Count;
         BakedInputCityObjectCount++;
@@ -162,6 +176,12 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         if (exceededCityObjectBudget || buffer.VertexCount > maxVerticesPerBatch)
         {
             readyCityObjects.Add(FlushCell(cellKey));
+        }
+
+        while (buffers.Count > maxBufferedCells)
+        {
+            CellKey overflowCellKey = GetOldestBufferedCellKey(excluding: cellKey);
+            readyCityObjects.Add(FlushCell(overflowCellKey));
         }
 
         return readyCityObjects;
@@ -197,7 +217,52 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             throw new InvalidOperationException($"Cannot flush missing bake buffer '{cellKey}'.");
         }
 
+        DetachBufferedCell(cellKey);
         return BakeCell(cellKey, buffer);
+    }
+
+    private void TrackBufferedCellAccess(CellKey cellKey, bool createdBuffer)
+    {
+        if (createdBuffer)
+        {
+            LinkedListNode<CellKey> node = bufferedCellOrder.AddLast(cellKey);
+            bufferedCellNodes.Add(cellKey, node);
+            return;
+        }
+
+        if (!bufferedCellNodes.TryGetValue(cellKey, out LinkedListNode<CellKey>? existingNode))
+        {
+            throw new InvalidOperationException($"Buffered cell order tracking is missing '{cellKey}'.");
+        }
+
+        bufferedCellOrder.Remove(existingNode);
+        bufferedCellOrder.AddLast(existingNode);
+    }
+
+    private void DetachBufferedCell(CellKey cellKey)
+    {
+        if (!bufferedCellNodes.Remove(cellKey, out LinkedListNode<CellKey>? node))
+        {
+            return;
+        }
+
+        bufferedCellOrder.Remove(node);
+    }
+
+    private CellKey GetOldestBufferedCellKey(CellKey excluding)
+    {
+        LinkedListNode<CellKey>? node = bufferedCellOrder.First;
+        while (node is not null)
+        {
+            if (!EqualityComparer<CellKey>.Default.Equals(node.Value, excluding))
+            {
+                return node.Value;
+            }
+
+            node = node.Next;
+        }
+
+        return excluding;
     }
 
     private ResoniteConstructionCityObject BakeCell(CellKey cellKey, CellBuffer buffer)

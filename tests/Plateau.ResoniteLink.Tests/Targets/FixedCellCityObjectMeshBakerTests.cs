@@ -69,6 +69,34 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncFlushesOldestCellWhenBufferedCellLimitIsExceeded()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 10,
+            maxVerticesPerBatch: 1000,
+            maxBufferedCells: 2);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(
+            CreateTriangleBuilding("first", x: 10.0, z: 10.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "a.gml"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(
+            CreateTriangleBuilding("second", x: 80.0, z: 10.0, sourceUnitKey: "unit-b", sourceFileRelativePath: "b.gml"));
+        BufferedCityObjectBufferResult third = await baker.TryBufferAsync(
+            CreateTriangleBuilding("third", x: 150.0, z: 10.0, sourceUnitKey: "unit-c", sourceFileRelativePath: "c.gml"));
+
+        Assert.True(first.Buffered);
+        Assert.True(second.Buffered);
+        Assert.True(third.Buffered);
+        ResoniteConstructionCityObject evicted = Assert.Single(third.ReadyCityObjects);
+        Assert.Equal("a.gml", evicted.SourceFileRelativePath);
+
+        IReadOnlyList<ResoniteConstructionCityObject> remaining = await baker.FlushAllAsync();
+        Assert.Equal(2, remaining.Count);
+        Assert.Contains(remaining, static cityObject => cityObject.SourceFileRelativePath == "b.gml");
+        Assert.Contains(remaining, static cityObject => cityObject.SourceFileRelativePath == "c.gml");
+    }
+
+    [Fact]
     public void TryBufferSkipsNonTargetCityObjects()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 2, maxVerticesPerBatch: 1000);

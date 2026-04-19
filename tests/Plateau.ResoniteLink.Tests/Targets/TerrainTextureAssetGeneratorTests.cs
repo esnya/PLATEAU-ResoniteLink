@@ -374,6 +374,20 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Contains("fallback.example|1", requestedSources);
     }
 
+    [Fact]
+    public async Task EnsureTextureAsyncRetriesTransientTileFailureWithinSingleGeneration()
+    {
+        using RetryOnceMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(5, handler.RequestCount);
+    }
+
     private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)
     {
         return new TerrainTextureOverlay(
@@ -453,6 +467,33 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     private sealed class FlakyMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int currentRequest = Interlocked.Increment(ref requestCount);
+            if (currentRequest == 1)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+
+            using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class RetryOnceMapTileHandler : HttpMessageHandler
     {
         private int requestCount;
 

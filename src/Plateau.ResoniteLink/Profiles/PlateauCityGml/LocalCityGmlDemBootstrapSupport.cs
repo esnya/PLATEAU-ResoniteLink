@@ -121,6 +121,30 @@ internal static class LocalCityGmlDemBootstrapSupport
         ];
     }
 
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlaysForMeshCodes(
+        IReadOnlyList<string> meshCodes)
+    {
+        ArgumentNullException.ThrowIfNull(meshCodes);
+
+        return ExpandToThirdMeshCodes(meshCodes)
+            .Select(
+                static meshCode => new
+                {
+                    MeshCode = meshCode,
+                    HasBounds = PlateauMeshCode.TryGetBounds(
+                        meshCode,
+                        out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds),
+                    Bounds = bounds,
+                })
+            .Where(static entry => entry.HasBounds)
+            .Select(static entry => CreateDemTerrainTextureOverlay(entry.MeshCode, entry.Bounds))
+            .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
+            .ToArray();
+    }
+
     internal static TerrainHeightSampler? CreateTerrainHeightSampler(
         bool isGeographicReferenceSystem,
         IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,

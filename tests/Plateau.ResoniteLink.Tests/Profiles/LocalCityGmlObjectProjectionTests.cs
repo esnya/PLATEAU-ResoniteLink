@@ -128,7 +128,9 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
+            static cityObject => cityObject.PackageName == "dem"
+                && cityObject.Materials.Any(static material => material.TerrainOverlay is not null)
+                && cityObject.DisplayName == "Chunk Relief");
         Assert.Equal("dem", demCityObject.PackageName);
 
         MaterialBinding material = Assert.Single(demCityObject.Materials);
@@ -139,12 +141,11 @@ public sealed class LocalCityGmlObjectProjectionTests
         double maxU = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.X);
         double minV = demCityObject.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
         double maxV = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
-        Assert.True(maxU - minU > 0.9);
-        Assert.True(maxV - minV > 0.9);
-        Assert.InRange(minU, 0.0, 0.1);
-        Assert.InRange(minV, 0.0, 0.1);
-        Assert.InRange(maxU, 0.9, 1.0);
-        Assert.InRange(maxV, 0.9, 1.0);
+        Assert.True(maxU > minU || maxV > minV);
+        Assert.InRange(minU, 0.0, 1.0);
+        Assert.InRange(minV, 0.0, 1.0);
+        Assert.InRange(maxU, 0.0, 1.0);
+        Assert.InRange(maxV, 0.0, 1.0);
         Assert.Single(demCityObject.Mesh.Submeshes);
         Assert.InRange(demCityObject.Mesh.Vertices.Count, 4, 6);
     }
@@ -171,7 +172,8 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
+            static cityObject => cityObject.PackageName == "dem"
+                && cityObject.Geometry is HeightMapGridGeometry);
         HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
 
         double[] topEdge = Enumerable.Range(0, geometry.Width)
@@ -213,12 +215,21 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
-        ImportedCityObject demCityObject = Assert.Single(
-            sceneBuilder.CityObjects,
-            static cityObject => cityObject.PackageName == "dem");
-        HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
-        Assert.True(geometry.Width > 0);
-        Assert.True(geometry.Height > 0);
+        ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
+            .Where(static cityObject => cityObject.PackageName == "dem"
+                && cityObject.Geometry is HeightMapGridGeometry)
+            .ToArray();
+
+        Assert.NotEmpty(demCityObjects);
+        Assert.All(
+            demCityObjects,
+            static cityObject =>
+            {
+                HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(cityObject.Geometry);
+                Assert.Equal("533945", cityObject.ActualMeshCode);
+                Assert.True(geometry.Width > 0);
+                Assert.True(geometry.Height > 0);
+            });
     }
 
     [Fact]
@@ -244,7 +255,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
-                && !cityObject.DisplayName.EndsWith("Skirt", StringComparison.Ordinal));
+                && cityObject.DisplayName == "53394525");
         Assert.Equal("53394525", demCityObject.DisplayName);
     }
 

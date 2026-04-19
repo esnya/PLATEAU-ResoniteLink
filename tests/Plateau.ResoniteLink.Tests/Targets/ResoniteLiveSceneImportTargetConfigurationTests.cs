@@ -90,6 +90,68 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.Same(builder.Diagnostics, builder.ClientSession.Diagnostics);
     }
 
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionFactory()
+    {
+        RecordingClientSessionFactory sessionFactory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<IResoniteClientSessionFactory>(_ => sessionFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneImportTarget target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: PlateauImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Same(sessionFactory.LastCreatedSession, builder.ClientSession);
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredTerrainTextureFactory()
+    {
+        RecordingTerrainTextureAssetGeneratorFactory terrainTextureFactory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddScoped<ITerrainTextureAssetGeneratorFactory>(_ => terrainTextureFactory)
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneImportTarget target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: PlateauImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: "cache-root",
+                    DisableTerrainTileCache: true,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget _ = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.Equal(1, terrainTextureFactory.CreateCallCount);
+        Assert.Same(terrainTextureAssetHttpClient, terrainTextureFactory.LastHttpClient);
+        Assert.NotNull(terrainTextureFactory.LastOptions);
+        Assert.Equal("cache-root", terrainTextureFactory.LastOptions!.TerrainTileCacheRoot);
+        Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
+    }
+
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
@@ -114,5 +176,48 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
+    }
+
+    private sealed class RecordingClientSessionFactory : IResoniteClientSessionFactory
+    {
+        public ILiveSendClientSession? LastCreatedSession { get; private set; }
+
+        public ILiveSendClientSession Create(ResoniteLiveSceneImportTargetOptions options, ResoniteLinkSendDiagnostics diagnostics)
+        {
+            _ = options;
+            LastCreatedSession = new DelegatingClientSession();
+            return LastCreatedSession;
+        }
+    }
+
+    private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
+    {
+        public int CreateCallCount { get; private set; }
+
+        public HttpClient? LastHttpClient { get; private set; }
+
+        public ResoniteLiveSceneImportTargetOptions? LastOptions { get; private set; }
+
+        public ITerrainTextureAssetGenerator Create(
+            HttpClient terrainTextureAssetHttpClient,
+            ResoniteLiveSceneImportTargetOptions options)
+        {
+            CreateCallCount++;
+            LastHttpClient = terrainTextureAssetHttpClient;
+            LastOptions = options;
+            return new RecordingTerrainTextureAssetGenerator();
+        }
+    }
+
+    private sealed class RecordingTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
+    {
+        public Task<GeneratedTerrainTexture> EnsureTextureAsync(
+            TerrainTextureOverlay terrainTextureOverlay,
+            CancellationToken cancellationToken)
+        {
+            _ = terrainTextureOverlay;
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
+        }
     }
 }

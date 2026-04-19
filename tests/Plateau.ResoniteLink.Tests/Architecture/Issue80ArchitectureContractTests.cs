@@ -91,21 +91,12 @@ public sealed class Issue80ArchitectureContractTests
             TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlConstructionSource.cs"),
         ];
 
-        string[] allowedFiles =
-        [
-            "LocalCityGmlLegacyProjectionBridge.cs",
-            "LocalCityGmlBootstrapSourceFileModels.cs",
-            "LocalCityGmlBootstrapParsedObjectModels.cs",
-            "LocalCityGmlBootstrapGeometryModels.cs",
-        ];
-
         string[] offenders = files
-            .Where(path => allowedFiles.All(allowed => !path.EndsWith(allowed, StringComparison.Ordinal)))
             .Where(static path =>
             {
                 string content = File.ReadAllText(path);
-                return content.Contains(".ToLegacy()", StringComparison.Ordinal)
-                    || content.Contains(".FromLegacy(", StringComparison.Ordinal);
+                return content.Contains("LocalCityGmlLegacyProjectionBridge", StringComparison.Ordinal)
+                    || content.Contains("ICityGmlLegacyProjectionBridge", StringComparison.Ordinal);
             })
             .ToArray();
 

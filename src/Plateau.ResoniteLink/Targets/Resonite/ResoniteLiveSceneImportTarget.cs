@@ -746,7 +746,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .Select(static material => material.TexturePayload!.Identity)
             .Distinct()
             .Count();
-        long materialWeightBytes = checked((cityObject.Materials.Count * materialBindingWeightBytes) + (distinctTextureCount * textureReferenceWeightBytes));
+        long terrainOverlayWeightBytes = cityObject.Materials
+            .Where(static material => material.TerrainOverlay is not null)
+            .Select(static material => material.TerrainOverlay!)
+            .Distinct()
+            .Sum(EstimateTerrainOverlayWorkingSetBytes);
+        long materialWeightBytes = checked(
+            (cityObject.Materials.Count * materialBindingWeightBytes)
+            + (distinctTextureCount * textureReferenceWeightBytes)
+            + terrainOverlayWeightBytes);
         return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
 
         static long EstimateTriangleMeshWorkingSetBytes(ResoniteImportedMesh mesh)
@@ -755,6 +763,53 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             long indexBytes = mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * indexWeightBytes);
             long submeshBytes = mesh.Submeshes.Count * perSubmeshWeightBytes;
             return checked(vertexBytes + indexBytes + submeshBytes);
+        }
+
+        static long EstimateTerrainOverlayWorkingSetBytes(TerrainTextureOverlay overlay)
+        {
+            const long rgbaBytesPerPixel = 4L;
+
+            TerrainTextureTileSource? highestResolutionTileSource = overlay.EnumerateTileSources()
+                .OrderByDescending(static source => source.ZoomLevel)
+                .FirstOrDefault();
+            if (highestResolutionTileSource is null)
+            {
+                return textureReferenceWeightBytes;
+            }
+
+            TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
+                overlay.GeographicBounds,
+                highestResolutionTileSource.ZoomLevel);
+            int maxTextureEdge = RoundDownToPowerOfTwo(overlay.MaxTextureSize);
+            int estimatedWidth = Math.Min(RoundUpToPowerOfTwo(layout.CropWidth), maxTextureEdge);
+            int estimatedHeight = Math.Min(RoundUpToPowerOfTwo(layout.CropHeight), maxTextureEdge);
+            return Math.Max(textureReferenceWeightBytes, checked((long)estimatedWidth * estimatedHeight * rgbaBytesPerPixel));
+        }
+
+        static int RoundUpToPowerOfTwo(int value)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+
+            int rounded = 1;
+            while (rounded < value)
+            {
+                rounded <<= 1;
+            }
+
+            return rounded;
+        }
+
+        static int RoundDownToPowerOfTwo(int value)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+
+            int rounded = 1;
+            while ((rounded << 1) > 0 && (rounded << 1) <= value)
+            {
+                rounded <<= 1;
+            }
+
+            return rounded;
         }
     }
 

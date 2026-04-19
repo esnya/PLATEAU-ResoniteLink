@@ -1,3 +1,5 @@
+using Plateau.ResoniteLink.Domain.Importing;
+
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal interface IResoniteBufferedCityObjectBakerFactory
@@ -20,7 +22,11 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBuffered
         return enableMeshBake
             ? new CompositeCityObjectBaker(
                 new Lod2AtlasCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget),
-                new FixedCellCityObjectMeshBaker())
+                new FixedCellCityObjectMeshBaker(
+                    FixedCellCityObjectMeshBaker.DefaultCellSizeMeters,
+                    FixedCellCityObjectMeshBaker.DefaultMaxCityObjectsPerBatch,
+                    FixedCellCityObjectMeshBaker.DefaultMaxVerticesPerBatch,
+                    resourceBudget.Name == PlateauImportMemoryProfile.Small ? 256 : 1024))
             : null;
     }
 }

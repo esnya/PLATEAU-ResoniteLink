@@ -130,6 +130,19 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
         Assert.True(rawRgbaBytes <= ResoniteImportBudgetProfiles.Large.RuntimeVramBudgetBytes);
     }
 
+    [Fact]
+    public void CreateDemTerrainTextureOverlaysForMeshCodesUsesDiscoveredMeshCodesWithoutParsedBounds()
+    {
+        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysForMeshCodes(
+            ["533945", "53394525"]);
+
+        Assert.Equal(100, result.Length);
+        Assert.All(result, static overlay => Assert.Equal("dem", overlay.PackageName));
+        Assert.Equal(
+            result.Length,
+            result.Select(static overlay => overlay.GeographicBounds).Distinct().Count());
+    }
+
     private static BootstrapParsedCityObject CreateCityObject()
     {
         GeodeticPoint[] vertices =
