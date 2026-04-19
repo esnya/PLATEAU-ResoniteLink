@@ -30,7 +30,8 @@ description: Run and debug PLATEAU-ResoniteLink live-send reproductions against 
 - cleanup が明示的に要求されない限り、最後に成功した `DatasetRoot` は残します。
 - cleanup と post-run state の両方が検証されるまで、中断 run や partial run は provisional とみなします。
 - operator surface は direct `dotnet` command に限定します。thin wrapper script や project-based session tool を再導入しません。
-- `start-headless` も direct tool surface の一部です。launcher は指定 path とその近傍の少数の標準候補だけから解決し、実際にその launcher が起動できるかで environment support を判断します。
+- `start-headless` も direct tool surface の一部です。`--headless-path` がある場合は、その path とその近傍の少数の標準候補だけから launcher を解決します。`--headless-path` が無い場合だけ、標準 Windows Steam install root を試し、その launcher が実際に起動できるかで environment support を判断します。
+- 指定した headless path が誤っているときに、無関係な machine-local copy へ勝手に置き換えません。provided path に launcher が無ければ止まり、`references/workflow.md` の標準インストールパス案内を示します。
 - この skill は environment bridge を持ちません。ResoniteLink が `localhost` を使う場合は、sender、listener、headless を同一 environment で動かし、その前提を run note に残します。
 
 ## Guide Surface

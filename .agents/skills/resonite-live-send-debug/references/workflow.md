@@ -24,6 +24,17 @@ This file is the single operational guide surface for the repo-local live-send s
 - When ResoniteLink uses `localhost`, run sender, listener, and headless in the same environment. Mention that assumption in the run notes instead of trying to bridge environments inside this skill.
 - Before any resend that is supposed to start from a clean base, capture a post-removal pre-send root dump and treat the run as contaminated if that dump still shows stale dataset content.
 
+## Headless Launcher Path Guide
+
+- Treat `--headless-path` as an explicit launcher root or launcher file when provided. Do not silently replace a bad path with an unrelated local copy.
+- The resolver only checks the given file or directory plus these nearby candidates:
+  `Resonite.dll`, `Resonite.exe`, `Headless/Resonite.dll`, and `Headless/Resonite.exe`.
+- If `--headless-path` is omitted on Windows, the tool only auto-checks the standard Steam install root:
+  `C:\Program Files (x86)\Steam\steamapps\common\Resonite`
+- If a separate headless-only install exists on the machine, point `--headless-path` at that install root or directly at its `Resonite.exe` / `Resonite.dll`.
+- If the configured path does not contain one of the accepted launcher candidates, stop and report the missing launcher instead of guessing another machine-local directory.
+- Prefer the installed app tree over copied sandboxes when headless startup depends on version-matched runtime files, writable metadata caches, or machine-local auth/config.
+
 ## Fixed Run Worksheet
 
 Keep these facts fixed or explicitly updated between comparison runs:
@@ -42,7 +53,7 @@ Keep these facts fixed or explicitly updated between comparison runs:
 
 For disposable headless validation, prefer this operator sequence:
 
-1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --headless-path <headless> --resonitelink-port 19001`
+1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --resonitelink-port 19001`
 2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot --runtime-root <headless-runtime> --output <repo>/runtime/windows/resonite/root-dumps/baseline.json`
 3. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
 4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/post-removal-pre-send.json`
@@ -169,7 +180,7 @@ Direct `dotnet` execution rebuilds the session tool script or CLI on demand. Fre
 
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session`
   Capture live ResoniteLink announcements from UDP `12512`.
-- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --headless-path <headless> --resonitelink-port <port>`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json [--headless-path <headless>] --resonitelink-port <port>`
   Launch a disposable headless session directly and verify its announced ResoniteLink port. The launcher is resolved from the given file or directory plus a few nearby standard candidates, and `.dll` launchers run through the environment's `dotnet` command.
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
   Stop the tracked headless PID launched for the experiment, or an explicit PID.

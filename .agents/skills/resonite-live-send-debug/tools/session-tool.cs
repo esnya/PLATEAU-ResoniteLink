@@ -5,6 +5,7 @@
 #:property LangVersion=preview
 #:property Nullable=enable
 #:property ImplicitUsings=enable
+#:property JsonSerializerIsReflectionEnabledByDefault=true
 #:package YellowDogMan.ResoniteLink
 
 #pragma warning disable CA2000
@@ -18,15 +19,20 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using System.Text.RegularExpressions;
 using System.Text;
 
 using ResoniteLink;
 
+using ResoniteComponent = ResoniteLink.Component;
+using ResoniteMember = ResoniteLink.Member;
+
 JsonSerializerOptions jsonOptions = new()
 {
     WriteIndented = true,
     NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
+    TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
 };
 
 Regex linkPortRegex = new(@"ResoniteLink Started on port:\s*([0-9]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -82,7 +88,7 @@ string GetUsageText()
           session-tool.cs discover-session [--listen-port <port>] [--timeout-seconds <seconds>] [--max-announcements <count>]
           session-tool.cs dump-slot [<endpoint>] [--runtime-root <path>] [--state-path <path>] [--slot-id <id> | --root-child-name <name>] [--output <path>] [--depth <n>] [--include-component-data|--exclude-component-data]
           session-tool.cs remove-slot [<endpoint>] [--runtime-root <path>] [--state-path <path>] (--slot-id <id> | --root-child-name <name>)
-          session-tool.cs start-headless --runtime-root <path> --headless-path <path> [--state-path <path>] [--resonitelink-port <port>] [--session-name <name>] [--session-description <text>] [--log-prefix <prefix>] [--startup-timeout-seconds <seconds>] [--discovery-timeout-seconds <seconds>]
+          session-tool.cs start-headless --runtime-root <path> [--headless-path <path>] [--state-path <path>] [--resonitelink-port <port>] [--session-name <name>] [--session-description <text>] [--log-prefix <prefix>] [--startup-timeout-seconds <seconds>] [--discovery-timeout-seconds <seconds>]
           session-tool.cs stop-headless [--process-id <pid>] [--runtime-root <path>] [--state-path <path>]
         """;
 }
@@ -106,7 +112,7 @@ async Task<int> ExecuteDiscoverSessionAsync(string[] commandArgs)
         switch (argument)
         {
             case "--listen-port":
-                listenPort = ReadPositiveInt(commandArgs, ref index, argument);
+                listenPort = ReadPort(commandArgs, ref index, argument);
                 break;
             case "--timeout-seconds":
                 timeoutSeconds = ReadPositiveInt(commandArgs, ref index, argument);
@@ -248,7 +254,7 @@ async Task<int> ExecuteRemoveSlotAsync(string[] commandArgs)
     using CancellationTokenSource cts = new(TimeSpan.FromSeconds(30));
     await link.Connect(resolvedEndpoint, cts.Token);
 
-    Response response = await link.RemoveSlot(new RemoveSlot { SlotID = resolvedSlotId });
+    Response response = await link.RemoveSlot(new RemoveSlot { SlotID = resolvedSlotId }).WaitAsync(cts.Token);
     if (!response.Success)
     {
         throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.ErrorInfo)
@@ -293,7 +299,7 @@ async Task<int> ExecuteStartHeadlessAsync(string[] commandArgs)
                 headlessPath = ReadValue(commandArgs, ref index, argument);
                 break;
             case "--resonitelink-port":
-                resoniteLinkPort = ReadPositiveInt(commandArgs, ref index, argument);
+                resoniteLinkPort = ReadPort(commandArgs, ref index, argument);
                 break;
             case "--session-name":
                 sessionName = ReadValue(commandArgs, ref index, argument);
@@ -320,14 +326,14 @@ async Task<int> ExecuteStartHeadlessAsync(string[] commandArgs)
         throw new ArgumentException("start-headless requires --runtime-root.");
     }
 
-    if (string.IsNullOrWhiteSpace(headlessPath))
-    {
-        throw new ArgumentException("start-headless requires --headless-path.");
-    }
-
     string resolvedRuntimeRoot = Path.GetFullPath(runtimeRoot);
     string resolvedStatePath = ResolveStatePath(statePath, resolvedRuntimeRoot);
-    HeadlessLauncher launcher = ResolveHeadlessLauncher(headlessPath);
+    if (File.Exists(resolvedStatePath))
+    {
+        File.Delete(resolvedStatePath);
+    }
+
+    HeadlessLauncher launcher = ResolveHeadlessLauncherOrDefault(headlessPath);
     string sessionRoot = Path.Combine(resolvedRuntimeRoot, logPrefix);
     string stdoutLog = Path.Combine(resolvedRuntimeRoot, $"{logPrefix}.stdout.log");
     string stderrLog = Path.Combine(resolvedRuntimeRoot, $"{logPrefix}.stderr.log");
@@ -429,7 +435,7 @@ async Task<int> ExecuteStartHeadlessAsync(string[] commandArgs)
     {
         announcements = await CaptureAnnouncementsAsync(12512, Math.Clamp(discoveryTimeoutSeconds, 1, 30), 10, CancellationToken.None);
     }
-    catch (InvalidOperationException)
+    catch (Exception ex) when (ex is InvalidOperationException or SocketException)
     {
         announcements = Array.Empty<DiscoveryAnnouncement>();
     }
@@ -521,6 +527,10 @@ async Task<int> ExecuteStopHeadlessAsync(string[] commandArgs)
                 throw new InvalidOperationException();
             }
         }
+        catch (ArgumentException)
+        {
+            // The process exited between the liveness probe and GetProcessById.
+        }
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException or TimeoutException)
         {
             forced = true;
@@ -588,6 +598,17 @@ int ReadPositiveInt(string[] args, ref int index, string optionName)
     if (parsed <= 0)
     {
         throw new ArgumentException($"{optionName} requires a positive integer value.");
+    }
+
+    return parsed;
+}
+
+int ReadPort(string[] args, ref int index, string optionName)
+{
+    int parsed = ReadInt(args, ref index, optionName);
+    if (parsed is < 1 or > 65535)
+    {
+        throw new ArgumentException($"{optionName} requires an integer value between 1 and 65535.");
     }
 
     return parsed;
@@ -665,12 +686,81 @@ TrackedHeadlessSessionState ReadTrackedState(string statePath)
     return state;
 }
 
+HeadlessLauncher ResolveHeadlessLauncherOrDefault(string? configuredPath)
+{
+    if (!string.IsNullOrWhiteSpace(configuredPath))
+    {
+        return ResolveHeadlessLauncher(configuredPath);
+    }
+
+    List<string> checkedRoots = [];
+    foreach (string candidateRoot in GetStandardHeadlessInstallRoots())
+    {
+        checkedRoots.Add(candidateRoot);
+        if (Directory.Exists(candidateRoot))
+        {
+            try
+            {
+                return ResolveHeadlessLauncher(candidateRoot);
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+        }
+    }
+
+    throw new InvalidOperationException(
+        checkedRoots.Count == 0
+            ? "No standard headless install roots are configured on this machine. Provide --headless-path explicitly."
+            : $"No standard headless install root was found. Checked: {string.Join(", ", checkedRoots.Select(static path => $"'{path}'"))}. Provide --headless-path explicitly.");
+}
+
+IReadOnlyList<string> GetStandardHeadlessInstallRoots()
+{
+    string? configuredRoots = Environment.GetEnvironmentVariable("RESONITE_SESSION_TOOL_STANDARD_INSTALL_ROOTS");
+    if (!string.IsNullOrWhiteSpace(configuredRoots))
+    {
+        return configuredRoots
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    if (!OperatingSystem.IsWindows())
+    {
+        return Array.Empty<string>();
+    }
+
+    HashSet<string> roots = new(StringComparer.OrdinalIgnoreCase);
+
+    foreach (string? programFilesX86 in new[]
+    {
+        Environment.GetEnvironmentVariable("ProgramFiles(x86)"),
+        @"C:\Program Files (x86)",
+    })
+    {
+        if (string.IsNullOrWhiteSpace(programFilesX86))
+        {
+            continue;
+        }
+
+        roots.Add(Path.Combine(programFilesX86, "Steam", "steamapps", "common", "Resonite"));
+    }
+
+    return roots.ToArray();
+}
+
 HeadlessLauncher ResolveHeadlessLauncher(string configuredPath)
 {
     string resolvedPath = Path.GetFullPath(configuredPath);
     if (!File.Exists(resolvedPath) && !Directory.Exists(resolvedPath))
     {
-        throw new FileNotFoundException($"The configured headless path '{configuredPath}' does not exist.");
+        throw new FileNotFoundException(
+            $"The configured headless path '{configuredPath}' does not exist. " +
+            "Provide an installed Resonite root or launcher file. " +
+            "On a standard Windows Steam install, start with 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Resonite'.");
     }
 
     if (string.Equals(Path.GetFileName(resolvedPath), "Resonite", StringComparison.OrdinalIgnoreCase))
@@ -702,13 +792,30 @@ HeadlessLauncher ResolveHeadlessLauncher(string configuredPath)
             }
         }
 
-        throw new InvalidOperationException($"No Resonite launcher was found under '{resolvedPath}'. Expected Resonite.dll, Resonite.exe, Headless/Resonite.dll, or Headless/Resonite.exe.");
+        throw new InvalidOperationException(
+            $"No Resonite launcher was found under '{resolvedPath}'. " +
+            "Expected Resonite.dll, Resonite.exe, Headless/Resonite.dll, or Headless/Resonite.exe. " +
+            "On a standard Windows Steam install, start with 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Resonite'.");
+    }
+
+    if (!IsAcceptedLauncherFileName(Path.GetFileName(resolvedPath)))
+    {
+        throw new InvalidOperationException(
+            $"The configured headless file '{resolvedPath}' is not a supported Resonite launcher. " +
+            "Expected Resonite.dll or Resonite.exe. " +
+            "On a standard Windows Steam install, start with 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Resonite'.");
     }
 
     return new(
         resolvedPath,
         Path.GetDirectoryName(resolvedPath) ?? throw new InvalidOperationException($"Cannot resolve a working directory for '{resolvedPath}'."),
         resolvedPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase));
+}
+
+bool IsAcceptedLauncherFileName(string? fileName)
+{
+    return string.Equals(fileName, "Resonite.dll", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(fileName, "Resonite.exe", StringComparison.OrdinalIgnoreCase);
 }
 
 HeadlessLaunch ResolveHeadlessLaunch(HeadlessLauncher launcher, string configPath)
@@ -812,7 +919,11 @@ int StartWindowsProcessDirect(
     string stdoutPath,
     string stderrPath)
 {
-    string resolvedFilePath = Path.GetFullPath(filePath);
+    bool hasExplicitPath = Path.IsPathRooted(filePath)
+        || filePath.Contains(Path.DirectorySeparatorChar)
+        || filePath.Contains(Path.AltDirectorySeparatorChar);
+    string? resolvedApplicationPath = hasExplicitPath ? Path.GetFullPath(filePath) : null;
+    string executableForCommandLine = resolvedApplicationPath ?? filePath;
 
     NativeMethods.SECURITY_ATTRIBUTES securityAttributes = new()
     {
@@ -859,9 +970,9 @@ int StartWindowsProcessDirect(
             hStdError = stderrHandle,
         };
 
-        string commandLine = ToWindowsCommandLine(resolvedFilePath, argumentList);
+        string commandLine = ToWindowsCommandLine(executableForCommandLine, argumentList);
         bool created = CreateProcessW(
-            resolvedFilePath,
+            resolvedApplicationPath,
             commandLine,
             nint.Zero,
             nint.Zero,
@@ -874,7 +985,7 @@ int StartWindowsProcessDirect(
 
         if (!created)
         {
-            throw new InvalidOperationException($"Failed to start process '{resolvedFilePath}'. {DescribeLastWin32Error()}");
+            throw new InvalidOperationException($"Failed to start process '{executableForCommandLine}'. {DescribeLastWin32Error()}");
         }
 
         CloseHandle(processInformation.hThread);
@@ -976,7 +1087,7 @@ async Task<SlotDump> FetchSlotDumpAsync(
         SlotID = slotId,
         Depth = depth,
         IncludeComponentData = includeComponentData,
-    });
+    }).WaitAsync(cts.Token);
 
     if (!slot.Success)
     {
@@ -992,7 +1103,7 @@ async Task<SlotDump> FetchSlotDumpAsync(
         CapturedAtUtc: DateTimeOffset.UtcNow,
         Depth: depth,
         IncludeComponentData: includeComponentData,
-        Slot: slot.Data);
+        Slot: ToJsonElement(slot.Data));
 }
 
 async Task<string?> ResolveRootChildSlotIdAsync(Uri endpoint, string? rootChildName)
@@ -1015,15 +1126,9 @@ async Task<string?> ResolveRootChildSlotIdAsync(Uri endpoint, string? rootChildN
     };
 }
 
-IReadOnlyList<SlotSummary> EnumerateDirectChildren(object? slotData)
+IReadOnlyList<SlotSummary> EnumerateDirectChildren(JsonElement slotData)
 {
-    if (slotData is null)
-    {
-        return Array.Empty<SlotSummary>();
-    }
-
-    JsonElement rootElement = JsonSerializer.SerializeToElement(slotData);
-    if (!TryGetPropertyIgnoreCase(rootElement, "children", out JsonElement childrenElement) || (childrenElement.ValueKind != JsonValueKind.Array))
+    if (!TryGetPropertyIgnoreCase(slotData, "children", out JsonElement childrenElement) || (childrenElement.ValueKind != JsonValueKind.Array))
     {
         return Array.Empty<SlotSummary>();
     }
@@ -1076,6 +1181,136 @@ bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out Json
     return false;
 }
 
+JsonElement ToJsonElement(object? value)
+{
+    object? plainValue = value switch
+    {
+        null => null,
+        Slot slot => ConvertSlotToPlainJson(slot),
+        Reference reference => ConvertReferenceToPlainJson(reference),
+        ResoniteComponent component => ConvertComponentToPlainJson(component),
+        ResoniteMember member => ConvertMemberToPlainJson(member),
+        _ => value,
+    };
+
+    if (plainValue is null)
+    {
+        using JsonDocument document = JsonDocument.Parse("null");
+        return document.RootElement.Clone();
+    }
+
+    return JsonSerializer.SerializeToElement(plainValue, plainValue.GetType(), jsonOptions);
+}
+
+object ConvertSlotToPlainJson(Slot slot)
+{
+    return new Dictionary<string, object?>
+    {
+        ["id"] = slot.ID,
+        ["isReferenceOnly"] = slot.IsReferenceOnly,
+        ["parent"] = ConvertReferenceToPlainJson(slot.Parent),
+        ["position"] = ConvertFieldToPlainJson(slot.Position),
+        ["rotation"] = ConvertFieldToPlainJson(slot.Rotation),
+        ["scale"] = ConvertFieldToPlainJson(slot.Scale),
+        ["isActive"] = ConvertFieldToPlainJson(slot.IsActive),
+        ["isPersistent"] = ConvertFieldToPlainJson(slot.IsPersistent),
+        ["name"] = ConvertFieldToPlainJson(slot.Name),
+        ["tag"] = ConvertFieldToPlainJson(slot.Tag),
+        ["orderOffset"] = ConvertFieldToPlainJson(slot.OrderOffset),
+        ["components"] = (slot.Components ?? []).Select(component => ConvertComponentToPlainJson(component)).ToArray(),
+        ["children"] = (slot.Children ?? []).Select(child => ConvertSlotToPlainJson(child)).ToArray(),
+    };
+}
+
+object ConvertComponentToPlainJson(ResoniteComponent component)
+{
+    return new Dictionary<string, object?>
+    {
+        ["id"] = component.ID,
+        ["componentType"] = component.ComponentType,
+        ["isReferenceOnly"] = component.IsReferenceOnly,
+        ["members"] = (component.Members ?? []).ToDictionary(
+            pair => pair.Key,
+            pair => ConvertMemberToPlainJson(pair.Value),
+            StringComparer.Ordinal),
+    };
+}
+
+object ConvertMemberToPlainJson(ResoniteMember member)
+{
+    return member switch
+    {
+        Reference reference => ConvertReferenceToPlainJson(reference),
+        _ => ConvertFieldOrMemberToPlainJson(member),
+    };
+}
+
+object ConvertReferenceToPlainJson(Reference? reference)
+{
+    if (reference is null)
+    {
+        return new Dictionary<string, object?>();
+    }
+
+    return new Dictionary<string, object?>
+    {
+        ["id"] = reference.ID,
+        ["targetId"] = reference.TargetID,
+        ["targetType"] = reference.TargetType,
+    };
+}
+
+object ConvertFieldOrMemberToPlainJson(ResoniteMember member)
+{
+    Type memberType = member.GetType();
+    var valueProperty = memberType.GetProperty("Value");
+    var boxedValueProperty = memberType.GetProperty("BoxedValue");
+    var valueTypeProperty = memberType.GetProperty("ValueType");
+
+    object? value = valueProperty?.GetValue(member)
+        ?? boxedValueProperty?.GetValue(member);
+
+    return new Dictionary<string, object?>
+    {
+        ["id"] = member.ID,
+        ["memberType"] = memberType.FullName ?? memberType.Name,
+        ["valueType"] = valueTypeProperty?.GetValue(member)?.ToString(),
+        ["value"] = ConvertScalarValue(value),
+    };
+}
+
+object? ConvertFieldToPlainJson(object? field)
+{
+    if (field is ResoniteMember member)
+    {
+        return ConvertFieldOrMemberToPlainJson(member);
+    }
+
+    return ConvertScalarValue(field);
+}
+
+object? ConvertScalarValue(object? value)
+{
+    return value switch
+    {
+        null => null,
+        float3 vector3 => new Dictionary<string, float>
+        {
+            ["x"] = vector3.x,
+            ["y"] = vector3.y,
+            ["z"] = vector3.z,
+        },
+        floatQ quaternion => new Dictionary<string, float>
+        {
+            ["x"] = quaternion.x,
+            ["y"] = quaternion.y,
+            ["z"] = quaternion.z,
+            ["w"] = quaternion.w,
+        },
+        _ => value,
+    };
+}
+
 async Task<IReadOnlyList<DiscoveryAnnouncement>> CaptureAnnouncementsAsync(
     int listenPort,
     int timeoutSeconds,
@@ -1126,7 +1361,16 @@ DiscoveryAnnouncement? TryParseAnnouncement(UdpReceiveResult received)
         JsonElement root = document.RootElement;
         string? sessionName = root.TryGetProperty("sessionName", out JsonElement sessionNameElement) ? sessionNameElement.GetString() : null;
         string? sessionId = root.TryGetProperty("sessionID", out JsonElement sessionIdElement) ? sessionIdElement.GetString() : null;
-        int? linkPort = root.TryGetProperty("linkPort", out JsonElement linkPortElement) ? linkPortElement.GetInt32() : null;
+        int? linkPort = null;
+        if (root.TryGetProperty("linkPort", out JsonElement linkPortElement))
+        {
+            if (linkPortElement.ValueKind != JsonValueKind.Number || !linkPortElement.TryGetInt32(out int parsedLinkPort))
+            {
+                return null;
+            }
+
+            linkPort = parsedLinkPort;
+        }
 
         if (string.IsNullOrWhiteSpace(sessionName) || string.IsNullOrWhiteSpace(sessionId) || (linkPort is null))
         {
@@ -1135,7 +1379,7 @@ DiscoveryAnnouncement? TryParseAnnouncement(UdpReceiveResult received)
 
         return new(sessionName, sessionId, linkPort.Value, received.RemoteEndPoint.Address.ToString(), DateTimeOffset.UtcNow);
     }
-    catch (JsonException)
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
     {
         return null;
     }
@@ -1184,7 +1428,7 @@ string GetLogTail(string path, int lineCount = 20)
         return string.Empty;
     }
 
-    return string.Join(Environment.NewLine, File.ReadLines(path).TakeLast(lineCount));
+    return string.Join(Environment.NewLine, ReadLogLinesShared(path).TakeLast(lineCount));
 }
 
 string? FindLastMatchingLine(string path, Func<string, bool> predicate)
@@ -1194,7 +1438,7 @@ string? FindLastMatchingLine(string path, Func<string, bool> predicate)
         return null;
     }
 
-    return File.ReadLines(path).LastOrDefault(predicate);
+    return ReadLogLinesShared(path).LastOrDefault(predicate);
 }
 
 int? TryExtractLastInt(string path, Regex pattern)
@@ -1210,7 +1454,7 @@ string? TryExtractLastString(string path, Regex pattern)
         return null;
     }
 
-    foreach (string line in File.ReadLines(path).Reverse())
+    foreach (string line in ReadLogLinesShared(path).Reverse())
     {
         Match match = pattern.Match(line);
         if (match.Success && (match.Groups.Count > 1))
@@ -1220,6 +1464,22 @@ string? TryExtractLastString(string path, Regex pattern)
     }
 
     return null;
+}
+
+IEnumerable<string> ReadLogLinesShared(string path)
+{
+    using FileStream stream = new(
+        path,
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.ReadWrite | FileShare.Delete);
+    using StreamReader reader = new(stream);
+
+    string? line;
+    while ((line = reader.ReadLine()) is not null)
+    {
+        yield return line;
+    }
 }
 
 static nint CreateFileW(
@@ -1242,7 +1502,7 @@ static nint CreateFileW(
 }
 
 static bool CreateProcessW(
-    string lpApplicationName,
+    string? lpApplicationName,
     string lpCommandLine,
     nint lpProcessAttributes,
     nint lpThreadAttributes,
@@ -1336,7 +1596,7 @@ static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool CreateProcessW(
-        string lpApplicationName,
+        string? lpApplicationName,
         string lpCommandLine,
         nint lpProcessAttributes,
         nint lpThreadAttributes,
@@ -1373,7 +1633,7 @@ sealed record SlotDump(
     DateTimeOffset CapturedAtUtc,
     int Depth,
     bool IncludeComponentData,
-    object? Slot);
+    JsonElement Slot);
 
 sealed record HeadlessLauncher(
     string LauncherPath,

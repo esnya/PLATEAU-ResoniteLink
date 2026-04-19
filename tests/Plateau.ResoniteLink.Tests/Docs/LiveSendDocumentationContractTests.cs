@@ -123,6 +123,8 @@ public sealed partial class LiveSendDocumentationContractTests
         Assert.Contains("tools/session-tool.cs", workflowJa, StringComparison.Ordinal);
         Assert.Contains("same environment", workflow, StringComparison.Ordinal);
         Assert.Contains("同一 environment", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("If `--headless-path` is omitted on Windows", workflow, StringComparison.Ordinal);
+        Assert.Contains("`--headless-path` を省略した場合", workflowJa, StringComparison.Ordinal);
         Assert.Contains("--resonitelink-port 19001", workflow, StringComparison.Ordinal);
         Assert.Contains("--resonitelink-port 19001", workflowJa, StringComparison.Ordinal);
 

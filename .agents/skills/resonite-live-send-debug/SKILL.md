@@ -30,7 +30,8 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 - Keep the final successful `DatasetRoot` in place unless cleanup is explicitly requested.
 - Treat interrupted or partial runs as provisional unless cleanup and post-run state were both verified.
 - Use direct `dotnet` commands as the operator surface. Do not recreate thin wrapper scripts or a project-based session tool.
-- `start-headless` is part of the direct tool surface. Resolve the launcher from the provided path and a few standard nearby candidates only, then let the actual launcher execution decide whether the environment supports it.
+- `start-headless` is part of the direct tool surface. If `--headless-path` is present, resolve the launcher from that path and a few standard nearby candidates only. If `--headless-path` is omitted, try only the standard Windows Steam install root, then let the actual launcher execution decide whether the environment supports it.
+- Do not substitute unrelated machine-local copies when the configured headless path is wrong. If the provided path does not contain a launcher, stop and point to the standard installed-path guide in `references/workflow.md`.
 - This skill does not bridge environments. If ResoniteLink uses `localhost`, run sender, listener, and headless in the same environment and document that assumption in the run notes.
 
 ## Guide Surface

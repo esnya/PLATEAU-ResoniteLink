@@ -24,6 +24,17 @@
 - ResoniteLink が `localhost` を使う場合は、sender、listener、headless を同一 environment で動かします。その前提は skill 内で吸収せず、run note に明記します。
 - clean base から resend するつもりの run では、removal の直後に pre-send root dump を取り、その dump に stale dataset content が残っていれば contaminated run と扱います。
 
+## Headless Launcher Path Guide
+
+- `--headless-path` がある場合は、explicit な launcher root または launcher file として扱います。誤った path を無関係な local copy へ黙って置き換えません。
+- resolver が確認するのは、指定された file または directory と、その近傍の次の候補だけです。
+  `Resonite.dll`、`Resonite.exe`、`Headless/Resonite.dll`、`Headless/Resonite.exe`
+- Windows で `--headless-path` を省略した場合、tool が自動で確認するのは標準 Steam install root だけです。
+  `C:\Program Files (x86)\Steam\steamapps\common\Resonite`
+- machine に separate headless-only install がある場合は、その install root、またはその `Resonite.exe` / `Resonite.dll` を `--headless-path` に渡します。
+- configured path に accepted launcher candidate が無ければ、別 directory を推測せず、missing launcher をそのまま報告して止まります。
+- headless startup が version-matched runtime file、writable metadata cache、machine-local auth/config に依存する場合は、copy された sandbox より installed app tree を優先します。
+
 ## Fixed Run Worksheet
 
 comparison run 間でこれらの事実を固定するか、明示的に更新します。
@@ -42,7 +53,7 @@ comparison run 間でこれらの事実を固定するか、明示的に更新�
 
 disposable な headless validation では、次の operator sequence を優先します。
 
-1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --headless-path <headless> --resonitelink-port 19001`
+1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --resonitelink-port 19001`
 2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot --runtime-root <headless-runtime> --output <repo>/runtime/windows/resonite/root-dumps/baseline.json`
 3. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
 4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/post-removal-pre-send.json`
@@ -169,7 +180,7 @@ direct `dotnet` 実行では、session tool script や CLI が on demand で reb
 
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session`
   UDP `12512` から live ResoniteLink announcement を取得します。
-- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --headless-path <headless> --resonitelink-port <port>`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json [--headless-path <headless>] --resonitelink-port <port>`
   disposable な headless session を直接起動し、announcement された ResoniteLink port を検証します。launcher は指定 file または directory と、その近傍の少数の標準候補から解決し、`.dll` launcher は environment の `dotnet` command 経由で起動します。
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
   experiment 用に起動した tracked headless PID、または明示指定した PID を停止します。
