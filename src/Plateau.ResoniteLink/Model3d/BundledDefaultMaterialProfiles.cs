@@ -2,11 +2,10 @@ namespace Plateau.ResoniteLink.Domain.Importing;
 
 public static class BundledDefaultMaterialProfiles
 {
-    private const double DefaultFacadeFloorHeightMeters = 3.25;
-    public static readonly ResoniteFloat2 FacadeDefaultTilesPerMeter = CreateFacadeTilesPerMeter(13.0);
-    public static readonly ResoniteFloat2 Facade018ATilesPerMeter = CreateFacadeTilesPerMeter(13.0);
-    public static readonly ResoniteFloat2 Facade019ATilesPerMeter = CreateFacadeTilesPerMeter(13.0);
-    public static readonly ResoniteFloat2 Facade020ATilesPerMeter = CreateFacadeTilesPerMeter(13.0);
+    public static readonly ResoniteFloat2 FacadeDefaultTilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
+    public static readonly ResoniteFloat2 Facade018ATilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
+    public static readonly ResoniteFloat2 Facade019ATilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
+    public static readonly ResoniteFloat2 Facade020ATilesPerMeter = CreateTilesPerMeter(13.0, 13.0);
     public static readonly ResoniteFloat2 ConcreteDefaultTilesPerMeter = BundledDefaultMaterialTiling.DefaultTilesPerMeter;
     public static readonly ResoniteFloat2 RoofingTiles012ATilesPerMeter = CreateTilesPerMeter(2.9, 2.9);
     public static readonly ResoniteFloat2 RoofingTiles014BTilesPerMeter = CreateTilesPerMeter(2.9, 2.9);
@@ -39,10 +38,5 @@ public static class BundledDefaultMaterialProfiles
     private static ResoniteFloat2 CreateTilesPerMeter(double widthMeters, double heightMeters)
     {
         return new ResoniteFloat2(1.0 / widthMeters, 1.0 / heightMeters);
-    }
-
-    private static ResoniteFloat2 CreateFacadeTilesPerMeter(double facadeWidthMeters)
-    {
-        return CreateTilesPerMeter(facadeWidthMeters, DefaultFacadeFloorHeightMeters);
     }
 }

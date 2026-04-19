@@ -17,7 +17,6 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public static partial class LocalCityGmlObjectProjection
 {
-    public const double DefaultFacadeFloorHeightMeters = 3.25;
     public const string DefaultDemTerrainTexturePath = "dem/plateau-ortho";
     public const string DefaultDemTerrainTextureUrlTemplate = "https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png";
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
@@ -71,8 +70,6 @@ public static partial class LocalCityGmlObjectProjection
             sharedAcrossMeshCodes && string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? ResolveConcreteActualMeshCode(displayName!, objectId, actualMeshCode)
                 : actualMeshCode;
-        int? floorsAboveGround = TryParseStoreysAboveGround(cityObjectElement);
-        double? measuredHeightMeters = TryParseMeasuredHeightMeters(cityObjectElement);
 
         // Detect if this is a Marking object
         bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
@@ -138,9 +135,7 @@ public static partial class LocalCityGmlObjectProjection
             relativeSourceFile,
             sourceUnitIdentity,
             sourceIdentity,
-            SharedAcrossMeshCodes: sharedAcrossMeshCodes,
-            FloorsAboveGround: floorsAboveGround,
-            MeasuredHeightMeters: measuredHeightMeters);
+            SharedAcrossMeshCodes: sharedAcrossMeshCodes);
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
@@ -1707,9 +1702,7 @@ public static partial class LocalCityGmlObjectProjection
             && surface.TexturePayload is null
             && material.Projection == ResoniteMaterialProjection.Uv
                 ? CreateGeneratedSurfaceUvProjection(
-                    cityObject,
                     surface,
-                    material,
                     cityObject.PackageName,
                     cityObjectOrigin,
                     cityObjectCartesian)
@@ -2014,9 +2007,7 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     private static SurfaceUvProjection? CreateGeneratedSurfaceUvProjection(
-        ParsedCityObject cityObject,
         ParsedSurface surface,
-        ResolvedMaterial material,
         string packageName,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
@@ -2042,10 +2033,7 @@ public static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        return new SurfaceUvProjection(
-            surfaceAxes.AxisU,
-            surfaceAxes.AxisV,
-            TryCreateFacadeRepeatPlan(cityObject, surface, material, cityObjectOrigin, cityObjectCartesian));
+        return new SurfaceUvProjection(surfaceAxes.AxisU, surfaceAxes.AxisV);
     }
 
     private static ResoniteFloat2 CreateGeneratedSurfaceUv(
@@ -2056,56 +2044,8 @@ public static partial class LocalCityGmlObjectProjection
     {
         ResoniteFloat3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
         double u = Dot(position, projection.AxisU);
-        double v = projection.FacadeRepeatPlan is null
-            ? Dot(position, projection.AxisV)
-            : projection.FacadeRepeatPlan.Value.CreateVerticalUv(position.Y);
+        double v = Dot(position, projection.AxisV);
         return new ResoniteFloat2(u, v);
-    }
-
-    private static FacadeRepeatPlan? TryCreateFacadeRepeatPlan(
-        ParsedCityObject cityObject,
-        ParsedSurface surface,
-        ResolvedMaterial material,
-        GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
-    {
-        if (!IsBuildingPackage(cityObject.PackageName)
-            || surface.Semantic is not ParsedSurfaceSemantic.Wall
-            || material.AssetScope != ResoniteMaterialAssetScope.Common
-            || material.MaterialType != ResoniteMaterialType.Standard
-            || material.Projection != ResoniteMaterialProjection.Uv
-            || !string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        ResoniteFloat3[] allPositions = cityObject.Surfaces
-            .SelectMany(static parsedSurface => parsedSurface.Vertices)
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        if (allPositions.Length == 0)
-        {
-            return null;
-        }
-
-        double minY = allPositions.Min(static position => position.Y);
-        double maxY = allPositions.Max(static position => position.Y);
-        double geometryHeight = maxY - minY;
-        if (geometryHeight <= 1e-6)
-        {
-            return null;
-        }
-
-        double referenceHeight = cityObject.MeasuredHeightMeters is > 1e-6
-            ? cityObject.MeasuredHeightMeters.Value
-            : geometryHeight;
-        int effectiveFloorCount = cityObject.FloorsAboveGround is > 0
-            ? cityObject.FloorsAboveGround.Value
-            : Math.Max(
-                1,
-                (int)Math.Round(referenceHeight / DefaultFacadeFloorHeightMeters, MidpointRounding.AwayFromZero));
-
-        return new FacadeRepeatPlan(minY, geometryHeight, effectiveFloorCount, DefaultFacadeFloorHeightMeters);
     }
 
     private static SurfaceUvAxes? TryCreateSurfaceUvAxes(ResoniteFloat3 normal)
@@ -2614,34 +2554,6 @@ public static partial class LocalCityGmlObjectProjection
         return element.Attribute(attributeName)?.Value;
     }
 
-    private static int? TryParseStoreysAboveGround(XElement cityObjectElement)
-    {
-        XElement? element = cityObjectElement.Elements()
-            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "storeysAboveGround", StringComparison.Ordinal));
-        if (element is null)
-        {
-            return null;
-        }
-
-        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value) && value >= 0
-            ? value
-            : null;
-    }
-
-    private static double? TryParseMeasuredHeightMeters(XElement cityObjectElement)
-    {
-        XElement? element = cityObjectElement.Elements()
-            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "measuredHeight", StringComparison.Ordinal));
-        if (element is null)
-        {
-            return null;
-        }
-
-        return double.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out double value) && value > 0.0
-            ? value
-            : null;
-    }
-
     private static double[] ParseDoubles(string value)
     {
         return value
@@ -2884,12 +2796,6 @@ public static partial class LocalCityGmlObjectProjection
         foreach (ResoniteConstructionCityObject cityObject in alignedCityObjects)
         {
             yield return cityObject;
-
-            ResoniteConstructionCityObject? skirtCityObject = CreateDemPerimeterSkirtCityObject(cityObject);
-            if (skirtCityObject is not null && HasRenderableGeometry(skirtCityObject))
-            {
-                yield return skirtCityObject;
-            }
         }
 
         foreach (ResoniteConstructionCityObject markingObject in generatedRoadMarkings)
@@ -3172,16 +3078,6 @@ public static partial class LocalCityGmlObjectProjection
         HeightMapChunkAlignmentState State,
         int SampleIndex,
         DemBoundarySampleKey Key);
-
-    private sealed record UndirectedMeshEdge(
-        int FirstIndex,
-        int SecondIndex);
-
-    private sealed record BoundaryMeshEdgeCandidate(
-        ResoniteMeshVertex First,
-        ResoniteMeshVertex Second,
-        string MaterialKey,
-        int Count);
 
     private static bool TryMaterializeDemHeightMapCityObject(
         ParsedCityObject cityObject,
@@ -3477,239 +3373,6 @@ public static partial class LocalCityGmlObjectProjection
             MaxLatitude: Math.Min(left.MaxLatitude, right.MaxLatitude),
             MinLongitude: Math.Max(left.MinLongitude, right.MinLongitude),
             MaxLongitude: Math.Min(left.MaxLongitude, right.MaxLongitude));
-    }
-
-    private static ResoniteConstructionCityObject? CreateDemPerimeterSkirtCityObject(ResoniteConstructionCityObject cityObject)
-    {
-        if (!string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            || cityObject.Materials.Count == 0)
-        {
-            return null;
-        }
-
-        return cityObject.Geometry switch
-        {
-            ResoniteTriangleMeshGeometry triangleMesh => CreateTriangleMeshDemPerimeterSkirtCityObject(cityObject, triangleMesh.Mesh),
-            ResoniteHeightMapGridGeometry heightMap => CreateHeightMapDemPerimeterSkirtCityObject(cityObject, heightMap),
-            _ => null,
-        };
-    }
-
-    private static ResoniteConstructionCityObject? CreateTriangleMeshDemPerimeterSkirtCityObject(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteImportedMesh mesh)
-    {
-        Dictionary<UndirectedMeshEdge, BoundaryMeshEdgeCandidate> edgeCandidates = [];
-        foreach (ResoniteMeshSubmesh submesh in mesh.Submeshes)
-        {
-            for (int index = 0; index + 2 < submesh.TriangleVertexIndices.Count; index += 3)
-            {
-                int first = submesh.TriangleVertexIndices[index];
-                int second = submesh.TriangleVertexIndices[index + 1];
-                int third = submesh.TriangleVertexIndices[index + 2];
-                RegisterBoundaryEdge(edgeCandidates, mesh, submesh.MaterialKey, first, second);
-                RegisterBoundaryEdge(edgeCandidates, mesh, submesh.MaterialKey, second, third);
-                RegisterBoundaryEdge(edgeCandidates, mesh, submesh.MaterialKey, third, first);
-            }
-        }
-
-        BoundaryMeshEdgeCandidate[] boundaryEdges = edgeCandidates.Values
-            .Where(static candidate => candidate.Count == 1)
-            .ToArray();
-        if (boundaryEdges.Length == 0)
-        {
-            return null;
-        }
-
-        ResoniteFloat3 origin = cityObject.Transform.Position;
-        List<ResoniteMeshVertex> vertices = [];
-        List<ResoniteMeshSubmesh> submeshes = [];
-        List<ResoniteMaterialBinding> materials = [];
-        foreach (IGrouping<string, BoundaryMeshEdgeCandidate> group in boundaryEdges.GroupBy(static edge => edge.MaterialKey, StringComparer.Ordinal))
-        {
-            int submeshIndex = submeshes.Count;
-            List<int> indices = [];
-            foreach (BoundaryMeshEdgeCandidate edge in group)
-            {
-                ResoniteFloat3 firstWorld = TransformPointToWorld(cityObject.Transform, edge.First.Position);
-                ResoniteFloat3 secondWorld = TransformPointToWorld(cityObject.Transform, edge.Second.Position);
-                AppendSkirtQuad(vertices, indices, origin, firstWorld, secondWorld, DefaultDemPerimeterSkirtDepthMeters);
-            }
-
-            if (indices.Count == 0)
-            {
-                continue;
-            }
-
-            submeshes.Add(new ResoniteMeshSubmesh(submeshIndex, group.Key, indices));
-            ResoniteMaterialBinding material = cityObject.Materials.FirstOrDefault(material => material.MaterialKey == group.Key)
-                ?? cityObject.Materials[0];
-            materials.Add(material with { SubmeshIndices = [submeshIndex] });
-        }
-
-        if (submeshes.Count == 0)
-        {
-            return null;
-        }
-
-        return new ResoniteConstructionCityObject(
-            SlotKey: $"{cityObject.SlotKey}_perimeter_skirt",
-            DisplayName: $"{cityObject.DisplayName} Skirt",
-            PackageName: cityObject.PackageName,
-            ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
-            Transform: new ResoniteTransform(origin),
-            Mesh: new ResoniteImportedMesh(vertices, submeshes),
-            Materials: materials,
-            CollisionEnabled: false,
-            SourceObjectKey: cityObject.SourceObjectKey is null ? null : $"{cityObject.SourceObjectKey}_perimeter_skirt",
-            SourceUnitKey: cityObject.SourceUnitKey,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
-    }
-
-    private static ResoniteConstructionCityObject? CreateHeightMapDemPerimeterSkirtCityObject(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteHeightMapGridGeometry geometry)
-    {
-        if (geometry.Width < 2 || geometry.Height < 2)
-        {
-            return null;
-        }
-
-        ResoniteFloat3 origin = cityObject.Transform.Position;
-        List<ResoniteMeshVertex> vertices = [];
-        List<int> indices = [];
-        for (int row = 0; row < geometry.Height - 1; row++)
-        {
-            AppendSkirtQuad(
-                vertices,
-                indices,
-                origin,
-                GetHeightMapWorldPosition(cityObject, geometry, row, 0),
-                GetHeightMapWorldPosition(cityObject, geometry, row + 1, 0),
-                DefaultDemPerimeterSkirtDepthMeters);
-            AppendSkirtQuad(
-                vertices,
-                indices,
-                origin,
-                GetHeightMapWorldPosition(cityObject, geometry, row + 1, geometry.Width - 1),
-                GetHeightMapWorldPosition(cityObject, geometry, row, geometry.Width - 1),
-                DefaultDemPerimeterSkirtDepthMeters);
-        }
-
-        for (int column = 0; column < geometry.Width - 1; column++)
-        {
-            AppendSkirtQuad(
-                vertices,
-                indices,
-                origin,
-                GetHeightMapWorldPosition(cityObject, geometry, geometry.Height - 1, column),
-                GetHeightMapWorldPosition(cityObject, geometry, geometry.Height - 1, column + 1),
-                DefaultDemPerimeterSkirtDepthMeters);
-            AppendSkirtQuad(
-                vertices,
-                indices,
-                origin,
-                GetHeightMapWorldPosition(cityObject, geometry, 0, column + 1),
-                GetHeightMapWorldPosition(cityObject, geometry, 0, column),
-                DefaultDemPerimeterSkirtDepthMeters);
-        }
-
-        if (indices.Count == 0)
-        {
-            return null;
-        }
-
-        ResoniteMaterialBinding material = cityObject.Materials[0] with { SubmeshIndices = [0] };
-        return new ResoniteConstructionCityObject(
-            SlotKey: $"{cityObject.SlotKey}_perimeter_skirt",
-            DisplayName: $"{cityObject.DisplayName} Skirt",
-            PackageName: cityObject.PackageName,
-            ActualMeshCode: cityObject.ActualMeshCode,
-            LodLevel: cityObject.LodLevel,
-            Transform: new ResoniteTransform(origin),
-            Mesh: new ResoniteImportedMesh(vertices, [new ResoniteMeshSubmesh(0, material.MaterialKey, indices)]),
-            Materials: [material],
-            CollisionEnabled: false,
-            SourceObjectKey: cityObject.SourceObjectKey is null ? null : $"{cityObject.SourceObjectKey}_perimeter_skirt",
-            SourceUnitKey: cityObject.SourceUnitKey,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
-    }
-
-    private static ResoniteFloat3 GetHeightMapWorldPosition(
-        ResoniteConstructionCityObject cityObject,
-        ResoniteHeightMapGridGeometry geometry,
-        int row,
-        int column)
-    {
-        double u = geometry.Width == 1 ? 0.0 : (double)column / (geometry.Width - 1);
-        double v = geometry.Height == 1 ? 0.0 : (double)row / (geometry.Height - 1);
-        double x = (cityObject.Transform.Position.X - (geometry.Size.X / 2.0)) + (geometry.Size.X * u);
-        double z = (cityObject.Transform.Position.Z - (geometry.Size.Y / 2.0)) + (geometry.Size.Y * v);
-        double baseHeight = cityObject.Transform.Position.Y - geometry.MaxHeight;
-        double y = baseHeight + geometry.HeightSamples[(row * geometry.Width) + column];
-        return new ResoniteFloat3(x, y, z);
-    }
-
-    private static void RegisterBoundaryEdge(
-        IDictionary<UndirectedMeshEdge, BoundaryMeshEdgeCandidate> edgeCandidates,
-        ResoniteImportedMesh mesh,
-        string materialKey,
-        int firstIndex,
-        int secondIndex)
-    {
-        UndirectedMeshEdge key = new(Math.Min(firstIndex, secondIndex), Math.Max(firstIndex, secondIndex));
-        if (edgeCandidates.TryGetValue(key, out BoundaryMeshEdgeCandidate? existing))
-        {
-            edgeCandidates[key] = existing with { Count = existing.Count + 1 };
-            return;
-        }
-
-        edgeCandidates.Add(
-            key,
-            new BoundaryMeshEdgeCandidate(
-                mesh.Vertices[firstIndex],
-                mesh.Vertices[secondIndex],
-                materialKey,
-                Count: 1));
-    }
-
-    private static void AppendSkirtQuad(
-        List<ResoniteMeshVertex> vertices,
-        List<int> indices,
-        ResoniteFloat3 origin,
-        ResoniteFloat3 firstWorld,
-        ResoniteFloat3 secondWorld,
-        double skirtDepthMeters)
-    {
-        ResoniteFloat3 bottomFirst = new(firstWorld.X, firstWorld.Y - skirtDepthMeters, firstWorld.Z);
-        ResoniteFloat3 bottomSecond = new(secondWorld.X, secondWorld.Y - skirtDepthMeters, secondWorld.Z);
-        ResoniteFloat3 normal = ComputeQuadNormal(firstWorld, secondWorld, bottomSecond);
-        int baseIndex = vertices.Count;
-        vertices.Add(new ResoniteMeshVertex(Subtract(firstWorld, origin), normal, new ResoniteFloat2(0.0, 0.0)));
-        vertices.Add(new ResoniteMeshVertex(Subtract(secondWorld, origin), normal, new ResoniteFloat2(1.0, 0.0)));
-        vertices.Add(new ResoniteMeshVertex(Subtract(bottomSecond, origin), normal, new ResoniteFloat2(1.0, 1.0)));
-        vertices.Add(new ResoniteMeshVertex(Subtract(bottomFirst, origin), normal, new ResoniteFloat2(0.0, 1.0)));
-        indices.Add(baseIndex);
-        indices.Add(baseIndex + 1);
-        indices.Add(baseIndex + 2);
-        indices.Add(baseIndex);
-        indices.Add(baseIndex + 2);
-        indices.Add(baseIndex + 3);
-    }
-
-    private static ResoniteFloat3 ComputeQuadNormal(
-        ResoniteFloat3 firstWorld,
-        ResoniteFloat3 secondWorld,
-        ResoniteFloat3 thirdWorld)
-    {
-        ResoniteFloat3 firstEdge = Subtract(secondWorld, firstWorld);
-        ResoniteFloat3 secondEdge = Subtract(thirdWorld, firstWorld);
-        ResoniteFloat3 cross = Cross3(firstEdge, secondEdge);
-        double length = Math.Sqrt((cross.X * cross.X) + (cross.Y * cross.Y) + (cross.Z * cross.Z));
-        return length <= 1e-8
-            ? new ResoniteFloat3(0.0, 0.0, 1.0)
-            : new ResoniteFloat3(cross.X / length, cross.Y / length, cross.Z / length);
     }
 
     private static ResoniteFloat3 TransformPointToWorld(ResoniteTransform transform, ResoniteFloat3 localPosition)
@@ -4026,9 +3689,7 @@ public static partial class LocalCityGmlObjectProjection
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
-        GeodeticPoint? OriginOverride = null,
-        int? FloorsAboveGround = null,
-        double? MeasuredHeightMeters = null);
+        GeodeticPoint? OriginOverride = null);
 
     internal sealed record SourceFileDescriptor(
         string RelativePath,
@@ -4255,21 +3916,7 @@ public static partial class LocalCityGmlObjectProjection
 
     private sealed record SurfaceUvProjection(
         ResoniteFloat3 AxisU,
-        ResoniteFloat3 AxisV,
-        FacadeRepeatPlan? FacadeRepeatPlan = null);
-
-    private readonly record struct FacadeRepeatPlan(
-        double BaseY,
-        double GeometryHeight,
-        int EffectiveFloorCount,
-        double CanonicalFloorHeightMeters)
-    {
-        public double CreateVerticalUv(double y)
-        {
-            double normalizedY = Math.Clamp((y - BaseY) / GeometryHeight, 0.0, 1.0);
-            return normalizedY * EffectiveFloorCount * CanonicalFloorHeightMeters;
-        }
-    }
+        ResoniteFloat3 AxisV);
 
     private readonly record struct DemUvProjection(
         double West,

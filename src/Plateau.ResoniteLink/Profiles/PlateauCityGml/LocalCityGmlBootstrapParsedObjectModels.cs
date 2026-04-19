@@ -85,9 +85,7 @@ internal sealed record BootstrapParsedCityObject(
     string SourceIdentity,
     bool SharedAcrossMeshCodes,
     bool TerrainAligned = false,
-    GeodeticPoint? OriginOverride = null,
-    int? FloorsAboveGround = null,
-    double? MeasuredHeightMeters = null)
+    GeodeticPoint? OriginOverride = null)
 {
     internal LocalCityGmlObjectProjection.ParsedCityObject ToLegacy()
     {
@@ -104,9 +102,7 @@ internal sealed record BootstrapParsedCityObject(
             SourceIdentity,
             SharedAcrossMeshCodes,
             TerrainAligned,
-            OriginOverride?.ToLegacy(),
-            FloorsAboveGround,
-            MeasuredHeightMeters);
+            OriginOverride?.ToLegacy());
     }
 
     internal static BootstrapParsedCityObject FromLegacy(LocalCityGmlObjectProjection.ParsedCityObject cityObject)
@@ -124,8 +120,6 @@ internal sealed record BootstrapParsedCityObject(
             cityObject.SourceIdentity,
             cityObject.SharedAcrossMeshCodes,
             cityObject.TerrainAligned,
-            cityObject.OriginOverride is null ? null : GeodeticPoint.FromLegacy(cityObject.OriginOverride),
-            cityObject.FloorsAboveGround,
-            cityObject.MeasuredHeightMeters);
+            cityObject.OriginOverride is null ? null : GeodeticPoint.FromLegacy(cityObject.OriginOverride));
     }
 }
