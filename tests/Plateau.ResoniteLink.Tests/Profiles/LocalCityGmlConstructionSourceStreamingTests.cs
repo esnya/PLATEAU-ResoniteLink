@@ -10,6 +10,9 @@ namespace Plateau.ResoniteLink.Tests.Profiles;
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class LocalCityGmlConstructionSourceStreamingTests
 {
+    private static readonly ICityGmlCommonMaterialEnumerator CommonMaterialEnumerator =
+        new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver());
+
     [Fact]
     public async Task ReadCityObjectsAsync_AllowsNonDemFilesToAdvanceBeforeDelayedDemPipelineCompletes()
     {
@@ -72,7 +75,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             metadata,
             request,
             documentSet,
-            geometryProjector);
+            geometryProjector,
+            CommonMaterialEnumerator);
         TaskCompletionSource<IReadOnlyList<string>> firstTwoPackagesObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
         List<ResoniteConstructionCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
