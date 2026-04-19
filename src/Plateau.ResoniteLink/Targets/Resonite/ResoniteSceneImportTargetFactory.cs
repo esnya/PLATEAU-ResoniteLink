@@ -48,6 +48,7 @@ public static class ResoniteSceneImportTargetFactory
                     terrainTileCacheRoot,
                     disableTerrainTileCache),
                 new Execution.ResoniteSceneBootstrapInterpreter(new Execution.ResoniteSceneSlotLocator()),
+                new Execution.ResoniteDatasetLicenseWriter(),
                 new Execution.ResoniteGeometryAssetAssembler(),
                 new Execution.ResoniteMaterialPlanning(),
                 new Execution.ResoniteBatchEmissionPlanner(),

@@ -59,6 +59,7 @@ public sealed partial class Issue80ArchitectureContractTests
         string[] allowedFiles =
         [
             "ResoniteSceneBootstrapInterpreter.cs",
+            "ResoniteDatasetLicenseWriter.cs",
             "ResoniteSceneAnchorResolver.cs",
             "ResoniteSceneSlotSnapshot.cs",
             "IResoniteSlotCreator.cs",

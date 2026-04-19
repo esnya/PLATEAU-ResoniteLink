@@ -19,37 +19,28 @@ public sealed class PlateauImportRequestSourceTests
         Assert.Equal(DatasetSourceKind.Remote, typedRemoteSource.SourceKind);
     }
 
-    [Fact]
-    public void LegacyConstructorMapsLocalSourceIntoTypedSource()
+    [Theory]
+    [InlineData("/data/plateau", DatasetSourceKind.Local)]
+    [InlineData("https://example.invalid/plateau.zip", DatasetSourceKind.Remote)]
+    public void FromInputParsesSourceKind(string sourceInput, DatasetSourceKind expectedKind)
     {
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/data/plateau",
-            ServerUri: null);
+        PlateauImportSource source = PlateauImportSource.FromInput(sourceInput);
 
-        PlateauLocalImportSource localSource = Assert.IsType<PlateauLocalImportSource>(request.Source);
-        Assert.Equal("/data/plateau", localSource.LocalSourcePath);
-        Assert.Equal(DatasetSourceKind.Local, request.Source.SourceKind);
-        Assert.Equal("/data/plateau", request.LocalSourcePath);
-        Assert.Null(request.ServerUri);
+        Assert.Equal(expectedKind, source.SourceKind);
     }
 
     [Fact]
-    public void TypedConstructorKeepsRemoteSourceExplicit()
+    public void RequestExposesOptionalDemTextureSource()
     {
-        Uri serverUri = new("https://example.invalid/plateau.zip");
-
+        Uri orthoUri = new("https://example.invalid/53394525.tif");
         PlateauImportRequest request = new(
             "tokyo23ku",
             "53394525",
-            new PlateauRemoteImportSource(serverUri));
+            PlateauImportSource.Remote(new Uri("https://example.invalid/plateau.zip")),
+            DemTextureSource: PlateauImportSource.Remote(orthoUri));
 
-        PlateauRemoteImportSource remoteSource = Assert.IsType<PlateauRemoteImportSource>(request.Source);
-        Assert.Equal(serverUri, remoteSource.ServerUri);
         Assert.Equal(DatasetSourceKind.Remote, request.Source.SourceKind);
-        Assert.Equal(serverUri, request.ServerUri);
-        Assert.Null(request.LocalSourcePath);
+        Assert.Equal(DatasetSourceKind.Remote, request.DemTextureSourceKind);
+        Assert.Equal(orthoUri, request.DemTextureServerUri);
     }
 }

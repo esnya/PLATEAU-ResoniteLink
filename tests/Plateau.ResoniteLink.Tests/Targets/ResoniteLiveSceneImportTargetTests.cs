@@ -24,12 +24,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
             GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
             MaxTextureSize: 512);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            requestedOverlay => new ResoniteRawTextureImport(
-                2,
-                2,
-                ResoniteTextureColorProfiles.Srgb,
-                new byte[16],
-                $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"));
+            requestedOverlay => new TerrainTextureGenerationResult(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
+                requestedOverlay.PrimarySource));
         ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,

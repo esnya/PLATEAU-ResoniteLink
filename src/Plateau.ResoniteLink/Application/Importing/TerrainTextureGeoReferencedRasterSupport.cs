@@ -8,7 +8,7 @@ using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Application.Importing;
 
 internal static class TerrainTextureGeoReferencedRasterMetadataReader
 {
@@ -222,11 +222,10 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
     {
         if (geoKeyDirectory is null || geoKeyDirectory.Length < 8)
         {
-            return null;
+            return TryResolveCoordinateSystemIdentifierFromAuxiliaryMetadata(geoAsciiParams);
         }
 
         _ = geoDoubleParams;
-        _ = geoAsciiParams;
 
         int keyCount = geoKeyDirectory[3];
         for (int index = 0; index < keyCount; index++)
@@ -248,11 +247,107 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
 
             if (keyId == GeographicTypeGeoKey || keyId == ProjectedCSTypeGeoKey)
             {
+                if (valueOffset == 32767)
+                {
+                    return TryResolveCoordinateSystemIdentifierFromAuxiliaryMetadata(geoAsciiParams);
+                }
+
                 return $"EPSG:{valueOffset}";
             }
         }
 
+        return TryResolveCoordinateSystemIdentifierFromAuxiliaryMetadata(geoAsciiParams);
+    }
+
+    private static string? TryResolveCoordinateSystemIdentifierFromAuxiliaryMetadata(string? geoAsciiParams)
+    {
+        if (string.IsNullOrWhiteSpace(geoAsciiParams))
+        {
+            return null;
+        }
+
+        if (geoAsciiParams.Contains("Pseudo-Mercator", StringComparison.OrdinalIgnoreCase))
+        {
+            return "EPSG:3857";
+        }
+
+        if (TryResolveJapanPlaneRectangularCoordinateSystemIdentifier(geoAsciiParams, out string? japanPlaneCoordinateSystemIdentifier))
+        {
+            return japanPlaneCoordinateSystemIdentifier;
+        }
+
+        if (geoAsciiParams.Contains("WGS 84", StringComparison.OrdinalIgnoreCase))
+        {
+            return "EPSG:4326";
+        }
+
         return null;
+    }
+
+    private static bool TryResolveJapanPlaneRectangularCoordinateSystemIdentifier(
+        string geoAsciiParams,
+        out string? coordinateSystemIdentifier)
+    {
+        const string marker = "Japan Plane Rectangular CS ";
+        int markerIndex = geoAsciiParams.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (markerIndex < 0)
+        {
+            coordinateSystemIdentifier = null;
+            return false;
+        }
+
+        int zoneStartIndex = markerIndex + marker.Length;
+        int zoneEndIndex = geoAsciiParams.IndexOf('|', zoneStartIndex);
+        if (zoneEndIndex < 0)
+        {
+            zoneEndIndex = geoAsciiParams.Length;
+        }
+
+        string zoneToken = geoAsciiParams[zoneStartIndex..zoneEndIndex].Trim();
+        if (!TryParseJapanPlaneRectangularZoneToken(zoneToken, out int zone))
+        {
+            coordinateSystemIdentifier = null;
+            return false;
+        }
+
+        coordinateSystemIdentifier = $"EPSG:{6668 + zone}";
+        return true;
+    }
+
+    private static bool TryParseJapanPlaneRectangularZoneToken(
+        string zoneToken,
+        out int zone)
+    {
+        if (int.TryParse(zoneToken, out zone))
+        {
+            return zone is >= 1 and <= 19;
+        }
+
+        zone = zoneToken.ToUpperInvariant() switch
+        {
+            "I" => 1,
+            "II" => 2,
+            "III" => 3,
+            "IV" => 4,
+            "V" => 5,
+            "VI" => 6,
+            "VII" => 7,
+            "VIII" => 8,
+            "IX" => 9,
+            "X" => 10,
+            "XI" => 11,
+            "XII" => 12,
+            "XIII" => 13,
+            "XIV" => 14,
+            "XV" => 15,
+            "XVI" => 16,
+            "XVII" => 17,
+            "XVIII" => 18,
+            "XIX" => 19,
+            _ => 0,
+        };
+
+        return zone is >= 1 and <= 19;
     }
 
     private static GeographicRectangle? TryConvertToGeographicBounds(
@@ -272,6 +367,17 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
                 modelBounds.MaxY,
                 modelBounds.MinX,
                 modelBounds.MaxX);
+        }
+
+        if (string.Equals(coordinateSystemIdentifier, "EPSG:3857", StringComparison.OrdinalIgnoreCase))
+        {
+            (double mercatorMinLatitude, double mercatorMinLongitude) = ReverseWebMercator(modelBounds.MinX, modelBounds.MinY);
+            (double mercatorMaxLatitude, double mercatorMaxLongitude) = ReverseWebMercator(modelBounds.MaxX, modelBounds.MaxY);
+            return new GeographicRectangle(
+                MinLatitude: Math.Min(mercatorMinLatitude, mercatorMaxLatitude),
+                MaxLatitude: Math.Max(mercatorMinLatitude, mercatorMaxLatitude),
+                MinLongitude: Math.Min(mercatorMinLongitude, mercatorMaxLongitude),
+                MaxLongitude: Math.Max(mercatorMinLongitude, mercatorMaxLongitude));
         }
 
         if (!TryParseJapanPlaneRectangularZone(coordinateSystemIdentifier, out int zone))
@@ -337,6 +443,15 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
     {
         (double latitude, double longitude) = projection.Reverse(centralMeridian, x, y + originNorthing);
         return (latitude, longitude);
+    }
+
+    private static (double Latitude, double Longitude) ReverseWebMercator(double x, double y)
+    {
+        double normalizedX = 0.5 + (x / WebMercatorEarthCircumferenceMeters);
+        double normalizedY = 0.5 - (y / WebMercatorEarthCircumferenceMeters);
+        return (
+            WebMercatorTileMath.NormalizedYToLatitude(normalizedY),
+            WebMercatorTileMath.NormalizedXToLongitude(normalizedX));
     }
 
     private static bool TryParseJapanPlaneRectangularZone(
@@ -408,6 +523,7 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
     }
 
     private const double JapanPlaneRectangularCentralScale = 0.9999;
+    private const double WebMercatorEarthCircumferenceMeters = 2.0 * Math.PI * 6_378_137.0;
 
     private static readonly (double Latitude, double Longitude)[] JapanPlaneRectangularZoneOrigins =
     [
@@ -471,8 +587,7 @@ internal static class TerrainTextureGeoReferencedRasterCropper
 
         double u0 = (intersection.MinLongitude - rasterBounds.MinLongitude) / (rasterBounds.MaxLongitude - rasterBounds.MinLongitude);
         double u1 = (intersection.MaxLongitude - rasterBounds.MinLongitude) / (rasterBounds.MaxLongitude - rasterBounds.MinLongitude);
-        double v0 = (rasterBounds.MaxLatitude - intersection.MaxLatitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude);
-        double v1 = (rasterBounds.MaxLatitude - intersection.MinLatitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude);
+        (double v0, double v1) = GetVerticalCropRange(metadata, rasterBounds, intersection);
 
         int left = Math.Clamp((int)Math.Floor(u0 * sourceImage.Width), 0, sourceImage.Width - 1);
         int top = Math.Clamp((int)Math.Floor(v0 * sourceImage.Height), 0, sourceImage.Height - 1);
@@ -480,5 +595,27 @@ internal static class TerrainTextureGeoReferencedRasterCropper
         int bottom = Math.Clamp((int)Math.Ceiling(v1 * sourceImage.Height), top + 1, sourceImage.Height);
 
         return sourceImage.Clone(context => context.Crop(new Rectangle(left, top, right - left, bottom - top)));
+    }
+
+    private static (double Top, double Bottom) GetVerticalCropRange(
+        GeoReferencedRasterMetadata metadata,
+        GeographicRectangle rasterBounds,
+        GeographicRectangle intersection)
+    {
+        if (string.Equals(metadata.CoordinateSystemIdentifier, "EPSG:3857", StringComparison.OrdinalIgnoreCase))
+        {
+            double rasterTop = WebMercatorTileMath.LatitudeToNormalizedY(rasterBounds.MaxLatitude);
+            double rasterBottom = WebMercatorTileMath.LatitudeToNormalizedY(rasterBounds.MinLatitude);
+            double intersectionTop = WebMercatorTileMath.LatitudeToNormalizedY(intersection.MaxLatitude);
+            double intersectionBottom = WebMercatorTileMath.LatitudeToNormalizedY(intersection.MinLatitude);
+            double height = rasterBottom - rasterTop;
+            return (
+                (intersectionTop - rasterTop) / height,
+                (intersectionBottom - rasterTop) / height);
+        }
+
+        return (
+            (rasterBounds.MaxLatitude - intersection.MaxLatitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude),
+            (rasterBounds.MaxLatitude - intersection.MinLatitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude));
     }
 }

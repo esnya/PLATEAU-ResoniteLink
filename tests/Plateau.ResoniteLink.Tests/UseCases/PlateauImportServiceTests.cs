@@ -13,14 +13,13 @@ public sealed class PlateauImportServiceTests
     [Fact]
     public async Task ExecuteAsync_UsesNormalizedRequestForConnectionAndResolvedRequestForBootstrapAndSourceCreation()
     {
-        using TemporaryDirectory rawSourceRoot = new();
         using TemporaryDirectory resolvedSourceRoot = new();
         using TemporaryDirectory workRoot = new();
 
         PlateauImportRequest rawRequest = new(
             Dataset: " tokyo23ku ",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(rawSourceRoot.Path),
+            Source: PlateauImportSource.Remote(new Uri("https://example.test/tokyo23ku.zip")),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = new(
             Dataset: "tokyo23ku",
@@ -53,7 +52,7 @@ public sealed class PlateauImportServiceTests
         Assert.NotNull(sceneBuilder.ConnectedRequest);
         Assert.Equal("tokyo23ku", sceneBuilder.ConnectedRequest!.Dataset);
         Assert.Equal("53394525", sceneBuilder.ConnectedRequest.MeshCode);
-        Assert.Equal(rawSourceRoot.Path, sceneBuilder.ConnectedRequest.LocalSourcePath);
+        Assert.Equal(new Uri("https://example.test/tokyo23ku.zip"), sceneBuilder.ConnectedRequest.ServerUri);
         Assert.Equal(["bldg"], sceneBuilder.ConnectedRequest.PackageNames);
         Assert.NotNull(documentReader.LastRequest);
         Assert.Equal("tokyo23ku", documentReader.LastRequest!.Dataset);
@@ -68,6 +67,7 @@ public sealed class PlateauImportServiceTests
         Assert.Same(documentSet, constructionSourceFactory.LastDocumentSet);
         Assert.NotNull(sceneBuilder.BeginRequest);
         Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
+        Assert.Null(sceneBuilder.BeginRequest.Metadata.Request.ServerUri);
         Assert.Same(datasetSource, sceneBuilder.BeginRequest.DatasetContentSource);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);

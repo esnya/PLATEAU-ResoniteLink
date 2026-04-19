@@ -289,27 +289,26 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
 
-        List<DatasetLicenseDefinition> licenses =
+        return
         [
             new(
                 DatasetLicenseRole.PrimaryPlateau,
                 setupInfo.DatasetLicense,
                 CreateDatasetLicenseMembers(setupInfo.DatasetLicense)),
         ];
-        if (setupInfo.RequiresGsiFallbackLicense)
-        {
-            ResoniteLicenseComponentMetadata gsiLicense = new(
-                RequireCredit: true,
-                CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
-                LicenseName: GsiLicenseName,
-                LicenseUrl: GsiLicenseUrl);
-            licenses.Add(new(
-                DatasetLicenseRole.GsiFallback,
-                gsiLicense,
-                CreateDatasetLicenseMembers(gsiLicense)));
-        }
+    }
 
-        return licenses.ToArray();
+    private static DatasetLicenseDefinition CreateGsiFallbackLicenseDefinition()
+    {
+        ResoniteLicenseComponentMetadata gsiLicense = new(
+            RequireCredit: true,
+            CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
+            LicenseName: GsiLicenseName,
+            LicenseUrl: GsiLicenseUrl);
+        return new(
+            DatasetLicenseRole.GsiFallback,
+            gsiLicense,
+            CreateDatasetLicenseMembers(gsiLicense));
     }
 
     private static HashSet<DatasetLicenseRole> MatchExistingLicenseRoles(

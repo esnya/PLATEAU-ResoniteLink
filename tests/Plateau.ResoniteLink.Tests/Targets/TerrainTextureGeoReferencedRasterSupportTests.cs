@@ -1,5 +1,6 @@
 using System.Net;
 
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -55,6 +56,110 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.NotNull(metadata);
         Assert.False(metadata.IsUsable);
         Assert.Null(metadata.CoordinateSystemIdentifier);
+    }
+
+    [Fact]
+    public void TryCreateMetadataResolvesWebMercatorBounds()
+    {
+        const double westLongitude = 139.0;
+        const double eastLongitude = 139.01;
+        const double southLatitude = 35.71;
+        const double northLatitude = 35.72;
+        double west = ToWebMercatorX(westLongitude);
+        double east = ToWebMercatorX(eastLongitude);
+        double south = ToWebMercatorY(southLatitude);
+        double north = ToWebMercatorY(northLatitude);
+        ushort[] geoKeyDirectory =
+        [
+            1, 1, 0, 1,
+            3072, 0, 1, 3857,
+        ];
+
+        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+            pixelWidth: 100,
+            pixelHeight: 100,
+            modelTiePoint: [0.0, 0.0, 0.0, west, north, 0.0],
+            pixelScale: [(east - west) / 100.0, (north - south) / 100.0, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: geoKeyDirectory,
+            geoDoubleParams: null,
+            geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
+        Assert.InRange(metadata.GeographicBounds.MinLatitude, 35.71, 35.72);
+        Assert.InRange(metadata.GeographicBounds.MaxLatitude, 35.71, 35.73);
+        Assert.InRange(metadata.GeographicBounds.MinLongitude, 138.99, 139.01);
+        Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.00, 139.02);
+        Assert.InRange(metadata.PixelWidthMeters, 11.0, 12.0);
+        Assert.InRange(metadata.PixelHeightMeters, 13.0, 15.0);
+    }
+
+    [Fact]
+    public void TryCreateMetadataResolvesUserDefinedPseudoMercatorFromAsciiCitation()
+    {
+        const double westLongitude = 139.0;
+        const double eastLongitude = 139.01;
+        const double southLatitude = 35.71;
+        const double northLatitude = 35.72;
+        double west = ToWebMercatorX(westLongitude);
+        double east = ToWebMercatorX(eastLongitude);
+        double south = ToWebMercatorY(southLatitude);
+        double north = ToWebMercatorY(northLatitude);
+        ushort[] geoKeyDirectory =
+        [
+            1, 1, 0, 1,
+            3072, 0, 1, 32767,
+        ];
+
+        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+            pixelWidth: 100,
+            pixelHeight: 100,
+            modelTiePoint: [0.0, 0.0, 0.0, west, north, 0.0],
+            pixelScale: [(east - west) / 100.0, (north - south) / 100.0, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: geoKeyDirectory,
+            geoDoubleParams: null,
+            geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
+    }
+
+    [Fact]
+    public void TryCreateMetadataResolvesUserDefinedJapanPlaneCitation()
+    {
+        ushort[] geoKeyDirectory =
+        [
+            1, 1, 0, 1,
+            3072, 0, 1, 32767,
+        ];
+
+        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+            pixelWidth: 100,
+            pixelHeight: 50,
+            modelTiePoint: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            pixelScale: [1.0, 1.0, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: geoKeyDirectory,
+            geoDoubleParams: null,
+            geoAsciiParams: "JGD2011 / Japan Plane Rectangular CS IX|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:6677", metadata.CoordinateSystemIdentifier);
+    }
+
+    private static double ToWebMercatorX(double longitude)
+    {
+        return (WebMercatorTileMath.LongitudeToNormalizedX(longitude) - 0.5) * (2.0 * Math.PI * 6_378_137.0);
+    }
+
+    private static double ToWebMercatorY(double latitude)
+    {
+        return (0.5 - WebMercatorTileMath.LatitudeToNormalizedY(latitude)) * (2.0 * Math.PI * 6_378_137.0);
     }
 
     [Fact]
@@ -114,6 +219,32 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
 
         Assert.Equal(4, handler.RequestCount);
         Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.Identity, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryCropUsesMercatorVerticalInterpolationForEpsg3857()
+    {
+        GeographicRectangle rasterBounds = new(35.0, 36.0, 139.0, 140.0);
+        GeographicRectangle requestedBounds = new(35.2, 35.4, 139.2, 139.4);
+        GeoReferencedRasterMetadata metadata = new(rasterBounds, "EPSG:3857", 10.0, 10.0);
+        using Image<Rgba32> raster = new(10, 100);
+        for (int y = 0; y < raster.Height; y++)
+        {
+            raster.ProcessPixelRows(accessor =>
+            {
+                Span<Rgba32> row = accessor.GetRowSpan(y);
+                row.Fill(new Rgba32((byte)y, 0, 0, 255));
+            });
+        }
+
+        using Image<Rgba32>? cropped = TerrainTextureGeoReferencedRasterCropper.TryCrop(raster, metadata, requestedBounds);
+
+        Assert.NotNull(cropped);
+        double rasterTop = WebMercatorTileMath.LatitudeToNormalizedY(rasterBounds.MaxLatitude);
+        double rasterBottom = WebMercatorTileMath.LatitudeToNormalizedY(rasterBounds.MinLatitude);
+        double requestTop = WebMercatorTileMath.LatitudeToNormalizedY(requestedBounds.MaxLatitude);
+        int expectedTop = (int)Math.Floor(((requestTop - rasterTop) / (rasterBottom - rasterTop)) * raster.Height);
+        Assert.Equal((byte)expectedTop, cropped![0, 0].R);
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler

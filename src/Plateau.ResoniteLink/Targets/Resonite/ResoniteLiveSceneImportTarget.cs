@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Channels;
@@ -33,6 +34,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private readonly Action<string>? progressReporter;
 #pragma warning disable CA1859
     private readonly IResoniteSceneBootstrapInterpreter sceneBootstrapInterpreter;
+    private readonly IResoniteDatasetLicenseWriter datasetLicenseWriter;
 #pragma warning restore CA1859
     private int executionClaimed;
 
@@ -187,6 +189,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         sceneBootstrapInterpreter = dependencies.SceneBootstrapInterpreter;
+        datasetLicenseWriter = dependencies.DatasetLicenseWriter;
         geometryAssetAssembler = dependencies.GeometryAssetAssembler;
         materialPlanning = dependencies.MaterialPlanning;
         batchEmissionPlanner = dependencies.BatchEmissionPlanner;
@@ -216,6 +219,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             diagnostics,
             terrainTextureAssetGenerator,
             new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator()),
+            new ResoniteDatasetLicenseWriter(),
             new ResoniteGeometryAssetAssembler(),
             new ResoniteMaterialPlanning(),
             new ResoniteBatchEmissionPlanner(),
@@ -386,11 +390,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                "Bootstrap fixed dataset license metadata/component before city-object streaming starts."));
+                "Bootstrap fixed dataset license metadata/component before city-object streaming starts. "
+                + "Actual fallback-source licenses may still be added later if used during terrain texture preparation."));
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Dataset metadata/license phase complete during bootstrap. "
+                $"Primary dataset metadata/license phase complete during bootstrap. "
                 + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
         ClientSessionInternal.BeginWorkerClientTracking();
         LiveSendQueuePlan runtimePlan = runPlan.Queue;
@@ -418,6 +423,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             Placement = placement,
             ImportedTextureUriCache = new AsyncCompletedResultCache<TextureImportCacheKey, Uri>(),
             Runtime = runtime,
+            GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
+            ReportedDemSourceIdentities = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal),
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         Diagnostics.StartSendWindow(connectionCount);
@@ -1018,7 +1025,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .ToArray();
 
         Task<PreparedTextureReference>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
-            .Select(terrainTextureOverlay => PrepareTerrainOverlayTextureReferenceAsync(terrainTextureOverlay, cancellationToken))
+            .Select(terrainTextureOverlay => PrepareTerrainOverlayTextureReferenceAsync(state, terrainTextureOverlay, cancellationToken))
             .ToArray();
         Task<PreparedTextureReference>[] texturePreparationTasks = [];
 
@@ -1062,18 +1069,94 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     }
 
     private async Task<PreparedTextureReference> PrepareTerrainOverlayTextureReferenceAsync(
+        LiveSendRunState state,
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
-        ResoniteTextureImport terrainTextureImport = await terrainTextureAssetGenerator.EnsureTextureAsync(
+        TerrainTextureGenerationResult terrainTexture = await terrainTextureAssetGenerator.EnsureTextureWithSourceAsync(
             terrainTextureOverlay,
             cancellationToken);
+        string usedSourceIdentity = terrainTexture.UsedSource.IdentityKey;
+        if (state.ReportedDemSourceIdentities.TryAdd(usedSourceIdentity, 0))
+        {
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
+                    + $"to {DescribeTerrainTextureSource(terrainTexture.UsedSource)}."));
+        }
+        if (IsGsiFallbackSource(terrainTexture.UsedSource))
+        {
+            await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
+        }
 
         return new PreparedTextureReference(
             TextureIdentity: null,
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            TextureImport: terrainTextureImport,
+            TextureImport: terrainTexture.TextureImport,
             TerrainOverlay: terrainTextureOverlay);
+    }
+
+    private async Task EnsureGsiFallbackLicenseAsync(
+        LiveSendRunState state,
+        CancellationToken cancellationToken)
+    {
+        if (Volatile.Read(ref state.GsiFallbackLicenseEnsured) != 0)
+        {
+            return;
+        }
+
+        await state.GsiFallbackLicenseGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (state.GsiFallbackLicenseEnsured != 0)
+            {
+                return;
+            }
+
+            await datasetLicenseWriter.EnsureGsiFallbackLicenseAsync(
+                GetRoutedClient(),
+                state.Context.DatasetRootSlot,
+                cancellationToken);
+            Volatile.Write(ref state.GsiFallbackLicenseEnsured, 1);
+        }
+        finally
+        {
+            state.GsiFallbackLicenseGate.Release();
+        }
+    }
+
+    private static bool IsGsiFallbackSource(TerrainTextureSource source)
+    {
+        return source is TerrainTextureTileSource tileSource
+            && string.Equals(
+                tileSource.UrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                StringComparison.Ordinal)
+            && tileSource.ZoomLevel == LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel;
+    }
+
+    private static string DescribeTerrainTextureSource(TerrainTextureSource source)
+    {
+        return source switch
+        {
+            TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
+                CultureInfo.InvariantCulture,
+                $"GeoTIFF(path='{Path.GetFileName(rasterSource.SourcePath)}', crs='{rasterSource.Metadata?.CoordinateSystemIdentifier ?? "unknown"}')"),
+            TerrainTextureTileSource tileSource when IsGsiFallbackSource(tileSource) => string.Create(
+                CultureInfo.InvariantCulture,
+                $"GSI18(url='{tileSource.UrlTemplate}')"),
+            TerrainTextureTileSource tileSource when tileSource.ZoomLevel == LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Ortho19(url='{tileSource.UrlTemplate}')"),
+            TerrainTextureTileSource tileSource when tileSource.ZoomLevel == LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Ortho18(url='{tileSource.UrlTemplate}')"),
+            TerrainTextureTileSource tileSource => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Tile(z={tileSource.ZoomLevel}, url='{tileSource.UrlTemplate}')"),
+            _ => source.GetType().Name,
+        };
     }
 
     private Task<PreparedTextureReference> PrepareDirectMaterialTextureReferenceAsync(

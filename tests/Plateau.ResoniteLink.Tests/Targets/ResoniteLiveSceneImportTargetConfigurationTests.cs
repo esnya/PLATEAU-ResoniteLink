@@ -46,6 +46,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
                 new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator()),
+                new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(),
                 new ResoniteBatchEmissionPlanner(),

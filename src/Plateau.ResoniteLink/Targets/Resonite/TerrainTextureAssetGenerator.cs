@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -11,9 +12,21 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal interface ITerrainTextureAssetGenerator
 {
-    Task<ResoniteRawTextureImport> EnsureTextureAsync(
+    Task<TerrainTextureGenerationResult> EnsureTextureWithSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken);
+
+    Task<ResoniteRawTextureImport> EnsureTextureAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        CancellationToken cancellationToken)
+    {
+        return EnsureTextureWithSourceAsync(terrainTextureOverlay, cancellationToken)
+            .ContinueWith(
+                static task => task.GetAwaiter().GetResult().TextureImport,
+                cancellationToken,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+    }
 }
 
 internal sealed class TerrainTextureAssetGenerator(
@@ -31,13 +44,22 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
+        return (await EnsureTextureWithSourceAsync(terrainTextureOverlay, cancellationToken)).TextureImport;
+    }
+
+    public async Task<TerrainTextureGenerationResult> EnsureTextureWithSourceAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
         CachedTerrainTexture cachedTexture = await cachedTextures.GetOrCreateAsync(
             terrainTextureOverlay,
             ct => CreateTextureAsync(terrainTextureOverlay, ct),
             cancellationToken);
-        return cachedTexture.TextureImport;
+        return new TerrainTextureGenerationResult(
+            cachedTexture.TextureImport,
+            cachedTexture.UsedSource);
     }
 
     private async Task<CachedTerrainTexture> CreateTextureAsync(
@@ -306,6 +328,10 @@ internal sealed class TerrainTextureAssetGenerator(
         ResoniteRawTextureImport TextureImport,
         TerrainTextureSource UsedSource);
 }
+
+internal sealed record TerrainTextureGenerationResult(
+    ResoniteRawTextureImport TextureImport,
+    TerrainTextureSource UsedSource);
 
 internal sealed class PersistentTerrainTileCache
 {

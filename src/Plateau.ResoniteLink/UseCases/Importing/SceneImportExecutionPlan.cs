@@ -6,23 +6,30 @@ public sealed record SceneImportExecutionPlan
 {
     public SceneImportExecutionPlan(
         PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
         SceneBuildRequest sceneBuildRequest)
     {
         ArgumentNullException.ThrowIfNull(normalizedRequest);
+        ArgumentNullException.ThrowIfNull(resolvedRequest);
         ArgumentNullException.ThrowIfNull(sceneBuildRequest);
 
-        ValidateRequestConsistency(normalizedRequest, sceneBuildRequest.Metadata.Request);
+        ValidateNormalizedAndResolvedRequestConsistency(normalizedRequest, resolvedRequest, sceneBuildRequest.DatasetContentSource);
+        ValidateResolvedAndBuildRequestConsistency(resolvedRequest, sceneBuildRequest.Metadata.Request);
 
         NormalizedRequest = normalizedRequest;
+        ResolvedRequest = resolvedRequest;
         SceneBuildRequest = sceneBuildRequest;
     }
 
     public PlateauImportRequest NormalizedRequest { get; }
 
+    public PlateauImportRequest ResolvedRequest { get; }
+
     public SceneBuildRequest SceneBuildRequest { get; }
 
     public static SceneImportExecutionPlan Create(
         PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
         ConstructionMetadata metadata,
         IPlateauDatasetContentSource datasetContentSource,
         string workRoot)
@@ -33,45 +40,131 @@ public sealed record SceneImportExecutionPlan
 
         return new SceneImportExecutionPlan(
             normalizedRequest,
+            resolvedRequest,
             new SceneBuildRequest(
                 metadata,
                 datasetContentSource,
                 workRoot));
     }
 
-    private static void ValidateRequestConsistency(
+    private static void ValidateNormalizedAndResolvedRequestConsistency(
         PlateauImportRequest normalizedRequest,
-        PlateauImportRequest buildRequest)
+        PlateauImportRequest resolvedRequest,
+        IPlateauDatasetContentSource datasetContentSource)
     {
-        if (!string.Equals(normalizedRequest.Dataset, buildRequest.Dataset, StringComparison.Ordinal)
-            || !string.Equals(normalizedRequest.MeshCode, buildRequest.MeshCode, StringComparison.Ordinal)
-            || !HasCompatibleSourceResolution(normalizedRequest, buildRequest)
-            || normalizedRequest.IncludeMarkingAlways != buildRequest.IncludeMarkingAlways
-            || normalizedRequest.DemTerrainMode != buildRequest.DemTerrainMode
-            || normalizedRequest.DemHeightmapMetersPerVertex != buildRequest.DemHeightmapMetersPerVertex
-            || normalizedRequest.DemHeightmapMaxResolution != buildRequest.DemHeightmapMaxResolution
-            || !SequenceEqual(normalizedRequest.PackageNames, buildRequest.PackageNames)
-            || !SetEqual(normalizedRequest.GlobalExcludeLodLevels, buildRequest.GlobalExcludeLodLevels)
-            || !DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, buildRequest.ExcludeLodLevelsByPackage)
-            || !DictionaryEqual(normalizedRequest.PackagePatterns, buildRequest.PackagePatterns))
+        List<string> mismatches = [];
+        if (!string.Equals(normalizedRequest.Dataset, resolvedRequest.Dataset, StringComparison.Ordinal))
+        {
+            mismatches.Add("dataset");
+        }
+
+        if (!string.Equals(normalizedRequest.MeshCode, resolvedRequest.MeshCode, StringComparison.Ordinal))
+        {
+            mismatches.Add("mesh");
+        }
+
+        if (!HasCompatibleSourceResolution(normalizedRequest, resolvedRequest, datasetContentSource))
+        {
+            mismatches.Add("source");
+        }
+
+        if (!HasCompatibleDemTextureSourceResolution(normalizedRequest, resolvedRequest, datasetContentSource.SourcePath))
+        {
+            mismatches.Add("dem-source");
+        }
+
+        if (normalizedRequest.IncludeMarkingAlways != resolvedRequest.IncludeMarkingAlways)
+        {
+            mismatches.Add("include-marking");
+        }
+
+        if (normalizedRequest.DemTerrainMode != resolvedRequest.DemTerrainMode)
+        {
+            mismatches.Add("dem-mode");
+        }
+
+        if (normalizedRequest.DemHeightmapMetersPerVertex != resolvedRequest.DemHeightmapMetersPerVertex)
+        {
+            mismatches.Add("dem-meters-per-vertex");
+        }
+
+        if (normalizedRequest.DemHeightmapMaxResolution != resolvedRequest.DemHeightmapMaxResolution)
+        {
+            mismatches.Add("dem-max-resolution");
+        }
+
+        if (!SequenceEqual(normalizedRequest.PackageNames, resolvedRequest.PackageNames))
+        {
+            mismatches.Add("packages");
+        }
+
+        if (!SetEqual(normalizedRequest.GlobalExcludeLodLevels, resolvedRequest.GlobalExcludeLodLevels))
+        {
+            mismatches.Add("global-exclude-lods");
+        }
+
+        if (!DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, resolvedRequest.ExcludeLodLevelsByPackage))
+        {
+            mismatches.Add("package-exclude-lods");
+        }
+
+        if (!DictionaryEqual(normalizedRequest.PackagePatterns, resolvedRequest.PackagePatterns))
+        {
+            mismatches.Add("package-patterns");
+        }
+
+        if (mismatches.Count > 0)
         {
             throw new ArgumentException(
-                "Scene import execution plan requires normalized and build requests to match for execution identity and import options. Only source-resolved location values may differ.",
+                "Scene import execution plan requires normalized and resolved requests to preserve execution identity and import options. "
+                + $"Mismatches: {string.Join(", ", mismatches)}.",
+                nameof(resolvedRequest));
+        }
+    }
+
+    private static void ValidateResolvedAndBuildRequestConsistency(
+        PlateauImportRequest resolvedRequest,
+        PlateauImportRequest buildRequest)
+    {
+        if (!Equals(resolvedRequest, buildRequest))
+        {
+            throw new ArgumentException(
+                "Scene import execution plan requires resolved and build requests to match exactly.",
                 nameof(buildRequest));
         }
     }
 
     private static bool HasCompatibleSourceResolution(
         PlateauImportRequest normalizedRequest,
-        PlateauImportRequest buildRequest)
+        PlateauImportRequest buildRequest,
+        IPlateauDatasetContentSource datasetContentSource)
     {
-        if (normalizedRequest.SourceKind == buildRequest.SourceKind)
+        if (Equals(normalizedRequest.Source, buildRequest.Source))
         {
             return true;
         }
 
-        return normalizedRequest.SourceKind == DatasetSourceKind.Remote
-            && buildRequest.SourceKind == DatasetSourceKind.Local;
+        return normalizedRequest.Source is PlateauRemoteImportSource
+            && buildRequest.Source is PlateauLocalImportSource localSource
+            && string.Equals(localSource.LocalSourcePath, datasetContentSource.SourcePath, StringComparison.Ordinal);
+    }
+
+    private static bool HasCompatibleDemTextureSourceResolution(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest buildRequest,
+        string datasetContentSourcePath)
+    {
+        if (Equals(normalizedRequest.DemTextureSource, buildRequest.DemTextureSource))
+        {
+            return true;
+        }
+
+        return normalizedRequest.DemTextureSource is PlateauRemoteImportSource { ServerUri: not null } remoteDemTextureSource
+            && buildRequest.DemTextureSource is PlateauLocalImportSource localDemTextureSource
+            && string.Equals(
+                localDemTextureSource.LocalSourcePath,
+                WorkRootLayout.GetRemoteResourcePath(datasetContentSourcePath, remoteDemTextureSource.ServerUri, "source-ortho"),
+                StringComparison.Ordinal);
     }
 
     private static bool SequenceEqual(

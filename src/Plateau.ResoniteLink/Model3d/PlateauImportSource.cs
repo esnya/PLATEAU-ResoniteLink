@@ -2,6 +2,20 @@ namespace Plateau.ResoniteLink.Domain.Importing;
 
 public abstract record PlateauImportSource(DatasetSourceKind SourceKind)
 {
+    public static PlateauImportSource FromInput(string sourceInput)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceInput);
+
+        string trimmedInput = sourceInput.Trim();
+        if (trimmedInput.Contains("://", StringComparison.Ordinal)
+            && Uri.TryCreate(trimmedInput, UriKind.Absolute, out Uri? uri))
+        {
+            return Remote(uri);
+        }
+
+        return Local(trimmedInput);
+    }
+
     public static PlateauImportSource Local(string? localSourcePath)
     {
         return new PlateauLocalImportSource(localSourcePath);

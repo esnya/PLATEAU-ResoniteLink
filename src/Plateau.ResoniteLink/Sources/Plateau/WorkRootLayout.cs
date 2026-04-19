@@ -62,6 +62,28 @@ internal static class WorkRootLayout
         return $"{fileStem}-{digest[..12]}";
     }
 
+    public static string GetRemoteResourcePath(string datasetRoot, Uri resourceUri, string resourcePrefix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
+        ArgumentNullException.ThrowIfNull(resourceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePrefix);
+
+        string fileName = Path.GetFileName(resourceUri.LocalPath);
+        string extension = Path.GetExtension(fileName);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            throw new PlateauImportValidationException(
+                [$"The online resource '{resourceUri}' does not expose a valid file extension."]);
+        }
+
+        string digest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(resourceUri.AbsoluteUri)))
+            .ToLowerInvariant();
+        return Path.Combine(
+            Path.GetFullPath(datasetRoot),
+            $"{resourcePrefix}-{digest[..12]}{extension.ToLowerInvariant()}");
+    }
+
     private static string GetSourceArchiveFileStem(Uri archiveUri)
     {
         string archiveIdentity = archiveUri.AbsoluteUri;

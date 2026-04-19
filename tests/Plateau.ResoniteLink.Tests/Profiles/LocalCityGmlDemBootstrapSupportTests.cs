@@ -51,7 +51,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
     }
 
     [Fact]
-    public void CreateDemTerrainTextureOverlaysReturnsDemTextureMetadata()
+    public async Task CreateDemTerrainTextureOverlaysReturnsDemTextureMetadata()
     {
         DemTerrainBounds demBounds = new(
             SouthLatitude: 35.0,
@@ -59,20 +59,39 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             WestLongitude: 139.0,
             EastLongitude: 139.0001);
 
-        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+        TerrainTextureOverlay[] result = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
             demBounds,
-            ["53394525"]);
+            ["53394525"],
+            demRasterCatalog: null,
+            CancellationToken.None);
 
         TerrainTextureOverlay overlay = Assert.Single(result);
         Assert.Equal("dem", overlay.PackageName);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, overlay.FallbackUrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
-        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
+        Assert.Collection(
+            overlay.Sources,
+            source =>
+            {
+                TerrainTextureTileSource tileSource = Assert.IsType<TerrainTextureTileSource>(source);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, tileSource.UrlTemplate);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, tileSource.ZoomLevel);
+            },
+            source =>
+            {
+                TerrainTextureTileSource tileSource = Assert.IsType<TerrainTextureTileSource>(source);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, tileSource.UrlTemplate);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, tileSource.ZoomLevel);
+            },
+            source =>
+            {
+                TerrainTextureTileSource tileSource = Assert.IsType<TerrainTextureTileSource>(source);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, tileSource.UrlTemplate);
+                Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, tileSource.ZoomLevel);
+            });
+        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
     }
 
     [Fact]
-    public void CreateDemTerrainTextureOverlaysDeduplicatesExpandedThirdMeshCodes()
+    public async Task CreateDemTerrainTextureOverlaysDeduplicatesExpandedThirdMeshCodes()
     {
         DemTerrainBounds demBounds = new(
             SouthLatitude: 36.225,
@@ -80,9 +99,11 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             WestLongitude: 137.9666666,
             EastLongitude: 137.9791667);
 
-        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+        TerrainTextureOverlay[] result = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
             demBounds,
-            ["543727", "54372778"]);
+            ["543727", "54372778"],
+            demRasterCatalog: null,
+            CancellationToken.None);
 
         Assert.Equal(4, result.Length);
         Assert.Equal(

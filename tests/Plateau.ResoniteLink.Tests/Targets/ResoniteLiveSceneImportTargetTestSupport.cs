@@ -130,10 +130,12 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ResoniteConstructionMetadata metadata,
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
+        PlateauImportRequest? resolvedRequest = null,
         IPlateauDatasetContentSource? datasetContentSource = null)
     {
         return SceneImportExecutionPlan.Create(
             normalizedRequest ?? metadata.Request,
+            resolvedRequest ?? metadata.Request,
             SceneImportContractMapper.ToContract(metadata),
             datasetContentSource ?? new TestDatasetContentSource(metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata))),
             workDirectory);
@@ -582,8 +584,13 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         };
     }
 
-    private static string TryResolveLocalId(string id, IReadOnlyDictionary<string, string> localIds)
+    private static string? TryResolveLocalId(string? id, IReadOnlyDictionary<string, string> localIds)
     {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return id;
+        }
+
         return localIds.TryGetValue(id, out string? resolvedId)
             ? resolvedId
             : id;
@@ -591,11 +598,11 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 }
 
 internal sealed class RecordingTerrainTextureAssetGenerator(
-    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory) : ITerrainTextureAssetGenerator
+    Func<TerrainTextureOverlay, TerrainTextureGenerationResult> textureFactory) : ITerrainTextureAssetGenerator
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
-    public Task<ResoniteRawTextureImport> EnsureTextureAsync(
+    public Task<TerrainTextureGenerationResult> EnsureTextureWithSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
