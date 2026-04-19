@@ -24,7 +24,16 @@ public sealed class CliApplicationTests
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))));
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))),
+            new ArchiveFileLayoutPolicy());
+    }
+
+    private static DatasetInspectionService CreateDatasetInspectionService()
+    {
+        return new DatasetInspectionService(
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()));
     }
 
     [Fact]
@@ -39,7 +48,8 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory);
+            importServiceFactory,
+            CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
             [
@@ -75,7 +85,8 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory);
+            importServiceFactory,
+            CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
             BuildLiveArgs(fixturePath));
@@ -96,7 +107,8 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory);
+            importServiceFactory,
+            CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
             BuildLiveArgs(fixturePath));
@@ -120,7 +132,8 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory);
+            importServiceFactory,
+            CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
             [
@@ -144,7 +157,8 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory);
+            importServiceFactory,
+            CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
             [
@@ -169,7 +183,8 @@ public sealed class CliApplicationTests
         CliApplication application = new(
             standardOutput,
             standardError,
-            importServiceFactory);
+            importServiceFactory,
+            CreateDatasetInspectionService());
 
         using CancellationTokenSource cancellationTokenSource = new();
         await cancellationTokenSource.CancelAsync();

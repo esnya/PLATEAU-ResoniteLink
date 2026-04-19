@@ -22,18 +22,6 @@ public sealed class CliApplication
     internal CliApplication(
         TextWriter standardOutput,
         TextWriter standardError,
-        IImportServiceFactory importServiceFactory)
-        : this(
-            standardOutput,
-            standardError,
-            importServiceFactory,
-            new DatasetInspectionService())
-    {
-    }
-
-    internal CliApplication(
-        TextWriter standardOutput,
-        TextWriter standardError,
         IImportServiceFactory importServiceFactory,
         DatasetInspectionService datasetInspectionService)
     {

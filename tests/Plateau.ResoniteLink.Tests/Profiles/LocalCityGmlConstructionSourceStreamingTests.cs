@@ -102,7 +102,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 ],
                 []),
             Attribution: new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(false, string.Empty, string.Empty, string.Empty),
+                new LicenseAttributionMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
             LocalOrigin: new ResoniteLocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         RecordingGeometryProjector geometryProjector = new();
@@ -214,7 +214,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 []),
             Attribution: new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(false, string.Empty, string.Empty, string.Empty),
+                new LicenseAttributionMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
             LocalOrigin: new ResoniteLocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         LocalCityGmlDocumentSet documentSet = new(

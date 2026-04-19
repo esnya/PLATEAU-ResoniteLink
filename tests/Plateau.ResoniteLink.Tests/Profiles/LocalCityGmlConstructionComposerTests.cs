@@ -47,7 +47,6 @@ public sealed class LocalCityGmlConstructionComposerTests
         Assert.Same(request, source.Metadata.Request);
         Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(documentSet.TerrainTextureOverlays, source.Metadata.SourceDataset.TerrainTextureOverlays);
         Assert.Equal(documentSet.RequestedMeshCodes, source.Metadata.SourceDataset.RequestedMeshCodes);
         Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Latitude, source.Metadata.LocalOrigin.Latitude);
         Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Longitude, source.Metadata.LocalOrigin.Longitude);

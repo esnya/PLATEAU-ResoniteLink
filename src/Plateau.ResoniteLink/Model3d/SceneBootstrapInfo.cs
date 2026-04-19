@@ -7,7 +7,7 @@ public sealed record SceneBootstrapInfo(
     IReadOnlyList<string> PackageNames,
     IReadOnlyList<string> SourceFiles,
     IReadOnlyList<string> RequestedMeshCodes,
-    ResoniteLicenseComponentMetadata DatasetLicense,
+    LicenseAttributionMetadata DatasetLicense,
     bool RequiresGsiFallbackLicense)
 {
     public static SceneBootstrapInfo CreateFromMetadata(

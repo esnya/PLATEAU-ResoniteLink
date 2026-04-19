@@ -203,7 +203,7 @@ public sealed class PlateauImportServiceTests
             Request: request,
             SourceDataset: new PlateauSourceDataset(packageNames, sourceFiles, [], ["53394525"]),
             Attribution: new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(false, "credit", "license", "https://example.invalid/license"),
+                new LicenseAttributionMetadata(false, "credit", "license", "https://example.invalid/license"),
                 []),
             LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
     }

@@ -85,7 +85,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 TerrainTextureOverlays: terrainTextureOverlays ?? [],
                 RequestedMeshCodes: requestedMeshCodes),
             Attribution: new ResoniteAttribution(
-                DatasetLicense: new ResoniteLicenseComponentMetadata(
+                DatasetLicense: new LicenseAttributionMetadata(
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",

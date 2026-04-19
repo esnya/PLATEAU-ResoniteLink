@@ -95,7 +95,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 ServerUri: null),
             SourceDataset: new PlateauSourceDataset([], [], [], []),
             Attribution: new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(
+                new LicenseAttributionMetadata(
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",

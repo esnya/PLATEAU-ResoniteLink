@@ -24,7 +24,8 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))));
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))),
+            archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
 
     [Fact]

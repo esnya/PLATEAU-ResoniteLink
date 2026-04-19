@@ -298,7 +298,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         ];
         if (setupInfo.RequiresGsiFallbackLicense)
         {
-            ResoniteLicenseComponentMetadata gsiLicense = new(
+            LicenseAttributionMetadata gsiLicense = new(
                 RequireCredit: true,
                 CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
                 LicenseName: GsiLicenseName,
@@ -605,7 +605,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     }
 
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(
-        ResoniteLicenseComponentMetadata license)
+        LicenseAttributionMetadata license)
     {
         return new Dictionary<string, Member>(StringComparer.Ordinal)
         {
@@ -673,6 +673,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
     private sealed record DatasetLicenseDefinition(
         DatasetLicenseRole Role,
-        ResoniteLicenseComponentMetadata License,
+        LicenseAttributionMetadata License,
         IReadOnlyDictionary<string, Member> Members);
 }

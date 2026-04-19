@@ -92,7 +92,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             Request: request,
             SourceDataset: new PlateauSourceDataset([], [], terrainTextureOverlays ?? [], []),
             Attribution: new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(
+                new LicenseAttributionMetadata(
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",

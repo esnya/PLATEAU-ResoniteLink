@@ -4,6 +4,7 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal static class BundledDefaultMaterialAssetStore
 {
+    private const string ResourceRoot = "Plateau.ResoniteLink.Assets.DefaultMaterials.";
     private static readonly object SyncRoot = new();
     private static readonly Assembly Assembly = typeof(BundledDefaultMaterialAssetStore).Assembly;
     private static readonly HashSet<string> ResourceNames = Assembly
@@ -94,14 +95,14 @@ internal static class BundledDefaultMaterialAssetStore
 
         string relativePath = logicalPath[logicalPrefix.Length..];
         string resourceSuffix = relativePath.Replace('/', '.');
-        resourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{resourceSuffix}";
+        resourceName = $"{ResourceRoot}{resourceSuffix}";
         if (ResourceNames.Contains(resourceName))
         {
             return true;
         }
 
         string normalizedResourceSuffix = CreateNormalizedResourceSuffix(relativePath);
-        string normalizedResourceName = $"Plateau.ResoniteLink.Cli.Assets.DefaultMaterials.{normalizedResourceSuffix}";
+        string normalizedResourceName = $"{ResourceRoot}{normalizedResourceSuffix}";
         if (ResourceNames.Contains(normalizedResourceName))
         {
             resourceName = normalizedResourceName;

@@ -176,7 +176,7 @@ public sealed class ImportServiceFactoryTests
                 request,
                 new PlateauSourceDataset(["bldg"], [], [], []),
                 new ResoniteAttribution(
-                    new ResoniteLicenseComponentMetadata(true, "credit", "license", "https://example.invalid"),
+                    new LicenseAttributionMetadata(true, "credit", "license", "https://example.invalid"),
                     []),
                 new ResoniteLocalOrigin(35.0, 139.0, 0.0));
 

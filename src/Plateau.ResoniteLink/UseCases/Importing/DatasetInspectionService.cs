@@ -6,13 +6,6 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed class DatasetInspectionService(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
 {
-    public DatasetInspectionService()
-        : this(new DefaultPlateauDatasetContentSourceFactory(
-            new RemoteArchiveDistributionPolicy(),
-            new ArchiveFileLayoutPolicy()))
-    {
-    }
-
     [SuppressMessage(
         "Performance",
         "CA1822:Mark members as static",

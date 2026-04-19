@@ -1,5 +1,5 @@
 namespace Plateau.ResoniteLink.Domain.Importing;
 
 public sealed record ResoniteAttribution(
-    ResoniteLicenseComponentMetadata DatasetLicense,
+    LicenseAttributionMetadata DatasetLicense,
     IReadOnlyList<ResoniteMaterialAttribution> MaterialLicenses);

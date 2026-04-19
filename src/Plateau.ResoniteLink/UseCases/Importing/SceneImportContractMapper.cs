@@ -120,7 +120,7 @@ internal static class SceneImportContractMapper
             attribution.License is null ? null : ToContract(attribution.License));
     }
 
-    private static LicenseMetadata ToContract(InternalModel.ResoniteLicenseComponentMetadata metadata)
+    private static LicenseMetadata ToContract(InternalModel.LicenseAttributionMetadata metadata)
     {
         return new LicenseMetadata(
             metadata.RequireCredit,
@@ -216,9 +216,9 @@ internal static class SceneImportContractMapper
             attribution.License is null ? null : ToInternal(attribution.License));
     }
 
-    private static InternalModel.ResoniteLicenseComponentMetadata ToInternal(LicenseMetadata metadata)
+    private static InternalModel.LicenseAttributionMetadata ToInternal(LicenseMetadata metadata)
     {
-        return new InternalModel.ResoniteLicenseComponentMetadata(
+        return new InternalModel.LicenseAttributionMetadata(
             metadata.RequireCredit,
             metadata.CreditText,
             metadata.LicenseName,

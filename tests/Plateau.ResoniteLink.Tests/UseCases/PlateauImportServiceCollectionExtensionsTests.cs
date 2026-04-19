@@ -163,7 +163,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             new PlateauImportRequest("stub", "53394525", DatasetSourceKind.Local, "/tmp", null),
             new PlateauSourceDataset([], [], [], []),
             new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(true, "credit", "license", "https://example.invalid"),
+                new LicenseAttributionMetadata(true, "credit", "license", "https://example.invalid"),
                 []),
             new ResoniteLocalOrigin(35.0, 139.0, 0.0));
 

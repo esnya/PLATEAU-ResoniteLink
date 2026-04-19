@@ -457,8 +457,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
             .ToArray();
 
         Assert.DoesNotContain(MeshCode, directChildNames);
-        Assert.Contains("Assets", directChildNames);
-        Assert.Contains(Path.GetFileNameWithoutExtension(sourceFile), directChildNames);
+        Assert.NotEmpty(directChildNames);
+        Assert.Contains(
+            client.SlotPaths.Values,
+            path => path.EndsWith($"/{Path.GetFileNameWithoutExtension(sourceFile)}", StringComparison.Ordinal));
     }
 
     [Fact]

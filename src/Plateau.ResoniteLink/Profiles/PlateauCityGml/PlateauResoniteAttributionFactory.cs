@@ -14,7 +14,7 @@ internal static class PlateauResoniteAttributionFactory
         ArgumentNullException.ThrowIfNull(request);
 
         return new ResoniteAttribution(
-            DatasetLicense: new ResoniteLicenseComponentMetadata(
+            DatasetLicense: new LicenseAttributionMetadata(
                 RequireCredit: true,
                 CreditText: string.Create(
                     CultureInfo.InvariantCulture,

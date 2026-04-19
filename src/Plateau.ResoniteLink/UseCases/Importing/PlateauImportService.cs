@@ -14,22 +14,6 @@ public sealed class PlateauImportService(
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
-    public PlateauImportService(
-        ISceneImportTarget sceneBuilder,
-        IPlateauDatasetSourceResolver datasetSourceResolver,
-        ICityGmlDocumentReader documentReader,
-        IResoniteConstructionSourceFactory constructionSourceFactory,
-        Action<string>? progressReporter = null)
-        : this(
-            sceneBuilder,
-            datasetSourceResolver,
-            documentReader,
-            constructionSourceFactory,
-            new ArchiveFileLayoutPolicy(),
-            progressReporter)
-    {
-    }
-
     private readonly ISceneImportTarget sceneBuilder =
         sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =

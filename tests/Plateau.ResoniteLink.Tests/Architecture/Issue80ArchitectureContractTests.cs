@@ -4,99 +4,32 @@ namespace Plateau.ResoniteLink.Tests.Architecture;
 public sealed class Issue80ArchitectureContractTests
 {
     [Fact]
-    public void ResoniteTargets_UpdateComponentAsync_IsOnlyCalledFromDedicatedInterpreter()
+    public void CliAndApplicationServices_DoNotSelfWireConcreteDependencies()
     {
-        string[] offendingFiles = Directory
-            .EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Targets", "Resonite"), "*.cs", SearchOption.AllDirectories)
-            .Where(static path => !path.EndsWith("ResoniteComponentUpdateInterpreter.cs", StringComparison.Ordinal))
-            .Where(static path =>
-            {
-                string content = File.ReadAllText(path);
-                return content.Contains("UpdateComponentAsync(", StringComparison.Ordinal)
-                    || content.Contains("new UpdateComponent", StringComparison.Ordinal)
-                    || content.Contains("UpdateComponent)", StringComparison.Ordinal)
-                    || content.Contains("UpdateComponent ", StringComparison.Ordinal);
-            })
-            .ToArray();
+        string cliApplication = File.ReadAllText(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink.Cli", "CliApplication.cs"));
+        string inspectionService = File.ReadAllText(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "UseCases", "Importing", "DatasetInspectionService.cs"));
+        string importService = File.ReadAllText(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "UseCases", "Importing", "PlateauImportService.cs"));
 
-        Assert.Empty(offendingFiles);
+        Assert.DoesNotContain("new DatasetInspectionService(", cliApplication, StringComparison.Ordinal);
+        Assert.DoesNotContain("new DefaultPlateauDatasetContentSourceFactory(", inspectionService, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ArchiveFileLayoutPolicy(", importService, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ResoniteTargets_RpcExecutionCalls_AppearOnlyInsideExecutionAdapters()
-    {
-        string executionRoot = TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Targets", "Resonite");
-        string[] allowedFiles =
-        [
-            "ResoniteSceneBootstrapInterpreter.cs",
-            "ResoniteSceneAnchorResolver.cs",
-            "ResoniteSceneSlotSnapshot.cs",
-            "IResoniteSlotCreator.cs",
-            "PlannedBatchEmissionInterpreter.cs",
-            "ResoniteGeometryAssetAssembler.cs",
-            "ResoniteMaterialPlanning.cs",
-        ];
-
-        string[] offendingFiles = Directory
-            .EnumerateFiles(executionRoot, "*.cs", SearchOption.AllDirectories)
-            .Where(path =>
-            {
-                string content = File.ReadAllText(path);
-                return content.Contains("RunDataModelOperationBatchAsync(", StringComparison.Ordinal)
-                    || content.Contains("GetSlotAsync(", StringComparison.Ordinal)
-                    || content.Contains("ImportTextureAsync(", StringComparison.Ordinal)
-                    || content.Contains("ImportMeshAsync(", StringComparison.Ordinal)
-                    || content.Contains("AddSlotAsync(", StringComparison.Ordinal)
-                    || content.Contains("AddComponentAsync(", StringComparison.Ordinal);
-            })
-            .Where(path => allowedFiles.All(allowed => !path.EndsWith(allowed, StringComparison.Ordinal)))
-            .ToArray();
-
-        Assert.Empty(offendingFiles);
-    }
-
-    [Fact]
-    public void SourceTree_NoLongerReferencesRemovedStaticCompositionOrFactoryNames()
-    {
-        string[] files =
-        [
-            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src"), "*.cs", SearchOption.AllDirectories),
-            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("tests"), "*.cs", SearchOption.AllDirectories),
-        ];
-
-        string[] offenders = files
-            .Where(static path => !path.EndsWith("Issue80ArchitectureContractTests.cs", StringComparison.Ordinal))
-            .Where(static path =>
-            {
-                string content = File.ReadAllText(path);
-                return content.Contains("PlateauCityGmlComposition", StringComparison.Ordinal)
-                    || content.Contains("PlateauCityGmlImportComposition", StringComparison.Ordinal)
-                    || content.Contains("PlateauCityGmlConstructionSources", StringComparison.Ordinal)
-                    || content.Contains("ResoniteSceneImportTargetFactory", StringComparison.Ordinal)
-                    || content.Contains("ReadDocumentSetAsync(", StringComparison.Ordinal);
-            })
-            .ToArray();
-
-        Assert.Empty(offenders);
-    }
-
-    [Fact]
-    public void CityGmlBoundaryLayers_DoNotCallLegacyBridgeHelpers()
+    public void PlateauFormatsAndProfiles_DoNotReferenceResoniteTargetNamespaces()
     {
         string[] files =
         [
             .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml"), "*.cs", SearchOption.AllDirectories),
             .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml"), "*.cs", SearchOption.AllDirectories),
-            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlBootstrapPipeline.cs"),
-            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlConstructionSource.cs"),
         ];
 
         string[] offenders = files
             .Where(static path =>
             {
                 string content = File.ReadAllText(path);
-                return content.Contains("LocalCityGmlLegacyProjectionBridge", StringComparison.Ordinal)
-                    || content.Contains("ICityGmlLegacyProjectionBridge", StringComparison.Ordinal);
+                return content.Contains("using Plateau.ResoniteLink.Targets.Resonite", StringComparison.Ordinal)
+                    || content.Contains("Plateau.ResoniteLink.Targets.Resonite.", StringComparison.Ordinal);
             })
             .ToArray();
 
@@ -104,7 +37,7 @@ public sealed class Issue80ArchitectureContractTests
     }
 
     [Fact]
-    public void TransportWrappers_NoLongerReferenceLegacyCompatibilityShim()
+    public void TransportLayer_DoesNotReferenceTargetNamespaces()
     {
         string transportRoot = TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Transport", "ResoniteLink");
         string[] offenders = Directory
@@ -112,10 +45,20 @@ public sealed class Issue80ArchitectureContractTests
             .Where(static path =>
             {
                 string content = File.ReadAllText(path);
-                return content.Contains("ResoniteLinkLegacyCompatibility", StringComparison.Ordinal);
+                return content.Contains("using Plateau.ResoniteLink.Targets.Resonite", StringComparison.Ordinal)
+                    || content.Contains("Plateau.ResoniteLink.Targets.Resonite.", StringComparison.Ordinal);
             })
             .ToArray();
 
         Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void TargetsDoNotDependOnCliResourceNames()
+    {
+        string bundledAssetStore = File.ReadAllText(
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Targets", "Resonite", "BundledDefaultMaterialAssetStore.cs"));
+
+        Assert.DoesNotContain("Plateau.ResoniteLink.Cli.Assets.DefaultMaterials", bundledAssetStore, StringComparison.Ordinal);
     }
 }

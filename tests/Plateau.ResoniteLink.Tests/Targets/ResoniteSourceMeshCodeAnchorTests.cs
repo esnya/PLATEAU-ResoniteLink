@@ -66,7 +66,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
                 TerrainTextureOverlays: [],
                 RequestedMeshCodes: ["53394525", "53394526"]),
             Attribution: new ResoniteAttribution(
-                new ResoniteLicenseComponentMetadata(true, "credit", "name", "url"),
+                new LicenseAttributionMetadata(true, "credit", "name", "url"),
                 []),
             LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
     }

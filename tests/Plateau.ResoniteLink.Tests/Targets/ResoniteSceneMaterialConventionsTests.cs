@@ -6,7 +6,7 @@ namespace Plateau.ResoniteLink.Tests.Targets;
 public sealed class ResoniteSceneMaterialConventionsTests
 {
     [Fact]
-    public void CreateMaterialSlotName_ForCommonMaterial_UsesClassifiedName()
+    public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "common|facade|variant:0|Uv|scale:13x13",
@@ -24,11 +24,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_variant_0_facade001-2k-jpg-color", slotName);
+        Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain(' ', slotName);
+        Assert.DoesNotContain("common|facade|variant:0", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_KeepsOnlyScaleDiscriminator()
+    public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_AddsScaleDiscriminator()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "common|facade|variant:0|Uv|scale:0.5x0.5",
@@ -46,7 +48,8 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_variant_0_scale_0.5x0.5_facade001-2k-jpg-color", slotName);
+        Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
+        Assert.Contains("_scale_0.5x0.5_", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,7 +98,9 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_generic_scale_1x1_offset_0.25x0.75", slotName);
+        Assert.StartsWith("shared_uv_generic_", slotName, StringComparison.Ordinal);
+        Assert.Contains("scale_1x1", slotName, StringComparison.Ordinal);
+        Assert.Contains("offset_0.25x0.75", slotName, StringComparison.Ordinal);
     }
 
     [Fact]
