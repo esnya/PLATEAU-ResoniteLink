@@ -430,7 +430,7 @@ async Task<int> ExecuteStartHeadlessAsync(string[] commandArgs)
     {
         announcements = await CaptureAnnouncementsAsync(12512, Math.Clamp(discoveryTimeoutSeconds, 1, 30), 10, CancellationToken.None);
     }
-    catch (InvalidOperationException)
+    catch (Exception ex) when (ex is InvalidOperationException or SocketException)
     {
         announcements = Array.Empty<DiscoveryAnnouncement>();
     }
@@ -679,7 +679,14 @@ HeadlessLauncher ResolveHeadlessLauncherOrDefault(string? configuredPath)
         checkedRoots.Add(candidateRoot);
         if (Directory.Exists(candidateRoot))
         {
-            return ResolveHeadlessLauncher(candidateRoot);
+            try
+            {
+                return ResolveHeadlessLauncher(candidateRoot);
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
         }
     }
 
@@ -691,6 +698,16 @@ HeadlessLauncher ResolveHeadlessLauncherOrDefault(string? configuredPath)
 
 IReadOnlyList<string> GetStandardHeadlessInstallRoots()
 {
+    string? configuredRoots = Environment.GetEnvironmentVariable("RESONITE_SESSION_TOOL_STANDARD_INSTALL_ROOTS");
+    if (!string.IsNullOrWhiteSpace(configuredRoots))
+    {
+        return configuredRoots
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     if (!OperatingSystem.IsWindows())
     {
         return Array.Empty<string>();
@@ -761,10 +778,24 @@ HeadlessLauncher ResolveHeadlessLauncher(string configuredPath)
             "On a standard Windows Steam install, start with 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Resonite'.");
     }
 
+    if (!IsAcceptedLauncherFileName(Path.GetFileName(resolvedPath)))
+    {
+        throw new InvalidOperationException(
+            $"The configured headless file '{resolvedPath}' is not a supported Resonite launcher. " +
+            "Expected Resonite.dll or Resonite.exe. " +
+            "On a standard Windows Steam install, start with 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Resonite'.");
+    }
+
     return new(
         resolvedPath,
         Path.GetDirectoryName(resolvedPath) ?? throw new InvalidOperationException($"Cannot resolve a working directory for '{resolvedPath}'."),
         resolvedPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase));
+}
+
+bool IsAcceptedLauncherFileName(string? fileName)
+{
+    return string.Equals(fileName, "Resonite.dll", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(fileName, "Resonite.exe", StringComparison.OrdinalIgnoreCase);
 }
 
 HeadlessLaunch ResolveHeadlessLaunch(HeadlessLauncher launcher, string configPath)
@@ -1310,7 +1341,16 @@ DiscoveryAnnouncement? TryParseAnnouncement(UdpReceiveResult received)
         JsonElement root = document.RootElement;
         string? sessionName = root.TryGetProperty("sessionName", out JsonElement sessionNameElement) ? sessionNameElement.GetString() : null;
         string? sessionId = root.TryGetProperty("sessionID", out JsonElement sessionIdElement) ? sessionIdElement.GetString() : null;
-        int? linkPort = root.TryGetProperty("linkPort", out JsonElement linkPortElement) ? linkPortElement.GetInt32() : null;
+        int? linkPort = null;
+        if (root.TryGetProperty("linkPort", out JsonElement linkPortElement))
+        {
+            if (linkPortElement.ValueKind != JsonValueKind.Number || !linkPortElement.TryGetInt32(out int parsedLinkPort))
+            {
+                return null;
+            }
+
+            linkPort = parsedLinkPort;
+        }
 
         if (string.IsNullOrWhiteSpace(sessionName) || string.IsNullOrWhiteSpace(sessionId) || (linkPort is null))
         {
@@ -1319,7 +1359,7 @@ DiscoveryAnnouncement? TryParseAnnouncement(UdpReceiveResult received)
 
         return new(sessionName, sessionId, linkPort.Value, received.RemoteEndPoint.Address.ToString(), DateTimeOffset.UtcNow);
     }
-    catch (JsonException)
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
     {
         return null;
     }
