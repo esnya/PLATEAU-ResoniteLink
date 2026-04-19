@@ -201,7 +201,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncPacksMixedSizeTexturesIntoSingleAtlasBatch()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 16, tilePaddingPixels: 0);
 
         await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreatePayload("textures/a.png", new Rgba32(255, 0, 0, 255), 7, 7), 0, "unit-a"));
         await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreatePayload("textures/b.png", new Rgba32(0, 255, 0, 255), 1, 7), 2, "unit-a"));
@@ -209,8 +209,26 @@ public sealed class Lod2AtlasCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
-        Assert.Equal(8, atlasPayload.Width);
-        Assert.Equal(10, atlasPayload.Height);
+        Assert.Equal(16, atlasPayload.Width);
+        Assert.Equal(8, atlasPayload.Height);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncFallsBackWhenSingleCandidateNeedsNonPowerOfTwoEdgeBeyondBudget()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+
+        ResoniteConstructionCityObject oversizedCandidate = CreateLod2Building(
+            "building-a",
+            CreatePayload("textures/a.png", new Rgba32(255, 0, 0, 255), 9, 3),
+            0,
+            "unit-a");
+
+        await AssertBufferedAsync(baker, oversizedCandidate);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal(oversizedCandidate.SlotKey, cityObject.SlotKey);
+        Assert.DoesNotContain(cityObject.Materials, static material => material.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
     [Fact]
