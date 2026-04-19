@@ -170,62 +170,62 @@ public sealed class ImportServiceFactoryTests
         {
             CreateWithDocumentSetCallCount++;
 
-            ResoniteConstructionMetadata metadata = new(
+            ConstructionMetadata metadata = new(
                 "3.0",
                 $"PLATEAU {request.Dataset} {request.MeshCode}",
                 request,
                 new PlateauSourceDataset(["bldg"], [], [], []),
-                new ResoniteAttribution(
-                    new LicenseAttributionMetadata(true, "credit", "license", "https://example.invalid"),
+                new Attribution(
+                    new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                     []),
-                new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+                new LocalOrigin(35.0, 139.0, 0.0));
 
             return Task.FromResult<IResoniteConstructionSource>(new StubConstructionSource(metadata));
         }
     }
 
-    private sealed class StubConstructionSource(ResoniteConstructionMetadata metadata) : IResoniteConstructionSource
+    private sealed class StubConstructionSource(ConstructionMetadata metadata) : IResoniteConstructionSource
     {
-        public ResoniteConstructionMetadata Metadata { get; } = metadata;
+        public ConstructionMetadata Metadata { get; } = metadata;
 
         [Obsolete]
-        public IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(CancellationToken cancellationToken = default)
+        public IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(CancellationToken cancellationToken = default)
         {
-            return AsyncEnumerable.Empty<ResoniteMaterialBinding>();
+            return AsyncEnumerable.Empty<MaterialBinding>();
         }
 
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
+        public IEnumerable<ImportedCityObject> ReadCityObjects()
         {
             return [];
         }
 
-        public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            yield return new ResoniteConstructionCityObject(
+            yield return new ImportedCityObject(
                 "object-1",
                 "Object 1",
                 "bldg",
                 "53394525",
                 1,
-                new ResoniteTransform(new ResoniteFloat3(0, 0, 0)),
-                new ResoniteImportedMesh(
+                new Transform3d(new Float3(0, 0, 0)),
+                new TriangleMeshGeometry(new ImportedMesh(
                     [
-                        new ResoniteMeshVertex(new ResoniteFloat3(0, 0, 0), new ResoniteFloat3(0, 1, 0), new ResoniteFloat2(0, 0)),
-                        new ResoniteMeshVertex(new ResoniteFloat3(1, 0, 0), new ResoniteFloat3(0, 1, 0), new ResoniteFloat2(1, 0)),
-                        new ResoniteMeshVertex(new ResoniteFloat3(0, 0, 1), new ResoniteFloat3(0, 1, 0), new ResoniteFloat2(0, 1)),
+                        new MeshVertex(new Float3(0, 0, 0), new Float3(0, 1, 0), new Float2(0, 0)),
+                        new MeshVertex(new Float3(1, 0, 0), new Float3(0, 1, 0), new Float2(1, 0)),
+                        new MeshVertex(new Float3(0, 0, 1), new Float3(0, 1, 0), new Float2(0, 1)),
                     ],
                     [
-                        new ResoniteMeshSubmesh(0, "mat", [0, 1, 2]),
-                    ]),
+                        new MeshSubmesh(0, "mat", [0, 1, 2]),
+                    ])),
                 [
-                    new ResoniteMaterialBinding(
+                    new MaterialBinding(
                         "mat",
-                        new ResoniteColor(1, 1, 1, 1),
-                        ResoniteMaterialType.Standard,
+                        new ColorRgba(1, 1, 1, 1),
+                        MaterialType.Standard,
                         null,
-                        ResoniteTextureSourceKind.Dataset,
-                        ResoniteMaterialProjection.Uv,
+                        TextureSourceKind.Dataset,
+                        MaterialProjection.Uv,
                         null,
                         [0]),
                 ]);

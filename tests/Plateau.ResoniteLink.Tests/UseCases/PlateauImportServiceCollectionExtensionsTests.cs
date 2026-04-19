@@ -13,9 +13,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
-            ServerUri: null);
+            Source: PlateauImportSource.Local(TestData.GetFixturePath("LocalPlateauDataset")));
         LocalCityGmlDocumentSet expectedDocumentSet = new(
             new StubDatasetContentSource(request.LocalSourcePath!),
             [],
@@ -157,26 +155,26 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
 
     private sealed class StubConstructionSource : IResoniteConstructionSource
     {
-        public ResoniteConstructionMetadata Metadata { get; } = new(
+        public ConstructionMetadata Metadata { get; } = new(
             "3.0",
             "stub",
-            new PlateauImportRequest("stub", "53394525", DatasetSourceKind.Local, "/tmp", null),
+            new PlateauImportRequest("stub", "53394525", PlateauImportSource.Local("/tmp")),
             new PlateauSourceDataset([], [], [], []),
-            new ResoniteAttribution(
-                new LicenseAttributionMetadata(true, "credit", "license", "https://example.invalid"),
+            new Attribution(
+                new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                 []),
-            new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+            new LocalOrigin(35.0, 139.0, 0.0));
 
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects() => [];
+        public IEnumerable<ImportedCityObject> ReadCityObjects() => [];
 
-        public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;
             yield break;
         }
 
-        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;

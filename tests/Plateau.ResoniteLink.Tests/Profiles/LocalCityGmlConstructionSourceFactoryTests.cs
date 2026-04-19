@@ -84,9 +84,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
     private sealed class StubConstructionSource : IResoniteConstructionSource
     {
-        public ResoniteConstructionMetadata Metadata { get; } = new(
+        public ConstructionMetadata Metadata { get; } = new(
             SchemaVersion: "3.0",
-            WorldName: "stub",
+            SceneName: "stub",
             Request: new PlateauImportRequest(
                 Dataset: "stub",
                 MeshCode: "53394525",
@@ -94,28 +94,28 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 LocalSourcePath: "/tmp/plateau",
                 ServerUri: null),
             SourceDataset: new PlateauSourceDataset([], [], [], []),
-            Attribution: new ResoniteAttribution(
-                new LicenseAttributionMetadata(
+            Attribution: new Attribution(
+                new LicenseMetadata(
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",
                     LicenseUrl: "https://example.invalid"),
                 []),
-            LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
 
-        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;
             yield break;
         }
 
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
+        public IEnumerable<ImportedCityObject> ReadCityObjects()
         {
             return [];
         }
 
-        public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;

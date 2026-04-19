@@ -38,14 +38,14 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             globalOriginPoint,
             [bldgPipeline]);
 
-        List<ResoniteConstructionCityObject> yieldedObjects = [];
-        await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+        List<ImportedCityObject> yieldedObjects = [];
+        await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
         {
             yieldedObjects.Add(cityObject);
         }
 
         Assert.False(parseTaskInvoked);
-        ResoniteConstructionCityObject yielded = Assert.Single(yieldedObjects);
+        ImportedCityObject yielded = Assert.Single(yieldedObjects);
         Assert.Equal("bldg", yielded.PackageName);
     }
 
@@ -89,9 +89,9 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             MeshCode: "53394525",
             Source: PlateauImportSource.Local("/tmp/streaming"),
             PackageNames: ["bldg", "dem", "tran"]);
-        ResoniteConstructionMetadata metadata = new(
+        ConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
-            WorldName: "test",
+            SceneName: "test",
             Request: request,
             SourceDataset: new PlateauSourceDataset(
                 ["bldg", "dem", "tran"],
@@ -101,10 +101,10 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                     demPipeline.SourceFile.RelativePath,
                 ],
                 []),
-            Attribution: new ResoniteAttribution(
-                new LicenseAttributionMetadata(false, string.Empty, string.Empty, string.Empty),
+            Attribution: new Attribution(
+                new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
-            LocalOrigin: new ResoniteLocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
+            LocalOrigin: new LocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         RecordingGeometryProjector geometryProjector = new();
 
         LocalCityGmlConstructionSource source = new(
@@ -113,11 +113,11 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             documentSet,
             geometryProjector,
             CommonMaterialEnumerator);
-        List<ResoniteConstructionCityObject> yieldedObjects = [];
+        List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
             async () =>
             {
-                await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+                await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
                 {
                     yieldedObjects.Add(cityObject);
                 }
@@ -205,18 +205,18 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             MeshCode: "53394525",
             Source: PlateauImportSource.Local("/tmp/streaming"),
             PackageNames: packageNames);
-        ResoniteConstructionMetadata metadata = new(
+        ConstructionMetadata metadata = new(
             SchemaVersion: "3.0",
-            WorldName: "test",
+            SceneName: "test",
             Request: request,
             SourceDataset: new PlateauSourceDataset(
                 packageNames,
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 []),
-            Attribution: new ResoniteAttribution(
-                new LicenseAttributionMetadata(false, string.Empty, string.Empty, string.Empty),
+            Attribution: new Attribution(
+                new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
-            LocalOrigin: new ResoniteLocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
+            LocalOrigin: new LocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         LocalCityGmlDocumentSet documentSet = new(
             new EmptyDatasetContentSource(),
             sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),

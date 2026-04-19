@@ -79,7 +79,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(1, sceneBuilder.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneBuilder.DisposeCount);
-        Assert.Equal(source.Metadata.WorldName, result.Metadata.SceneName);
+        Assert.Equal(source.Metadata.SceneName, result.Metadata.SceneName);
         Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
         Assert.Equal(["stub://destination"], result.Destinations);
     }
@@ -192,20 +192,20 @@ public sealed class PlateauImportServiceTests
             terrainHeightSampler: null);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(
+    private static ConstructionMetadata CreateMetadata(
         PlateauImportRequest request,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<string> sourceFiles)
     {
-        return new ResoniteConstructionMetadata(
+        return new ConstructionMetadata(
             SchemaVersion: "3.0",
-            WorldName: "stub",
+            SceneName: "stub",
             Request: request,
             SourceDataset: new PlateauSourceDataset(packageNames, sourceFiles, [], ["53394525"]),
-            Attribution: new ResoniteAttribution(
-                new LicenseAttributionMetadata(false, "credit", "license", "https://example.invalid/license"),
+            Attribution: new Attribution(
+                new LicenseMetadata(false, "credit", "license", "https://example.invalid/license"),
                 []),
-            LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
     }
 
     private sealed class RecordingSceneBuilder : ISceneImportTarget
@@ -311,28 +311,28 @@ public sealed class PlateauImportServiceTests
     }
 
     private sealed class StubConstructionSource(
-        ResoniteConstructionMetadata metadata,
-        IReadOnlyList<ResoniteConstructionCityObject>? cityObjects = null)
+        ConstructionMetadata metadata,
+        IReadOnlyList<ImportedCityObject>? cityObjects = null)
         : IResoniteConstructionSource
     {
-        public ResoniteConstructionMetadata Metadata { get; } = metadata;
+        public ConstructionMetadata Metadata { get; } = metadata;
 
-        public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             await Task.CompletedTask;
             yield break;
         }
 
-        public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
+        public IEnumerable<ImportedCityObject> ReadCityObjects()
         {
             return cityObjects ?? [CreateCityObject()];
         }
 
-        public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            foreach (ResoniteConstructionCityObject cityObject in cityObjects ?? [CreateCityObject()])
+            foreach (ImportedCityObject cityObject in cityObjects ?? [CreateCityObject()])
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return cityObject;
@@ -341,22 +341,22 @@ public sealed class PlateauImportServiceTests
             await Task.CompletedTask;
         }
 
-        private static ResoniteConstructionCityObject CreateCityObject()
+        private static ImportedCityObject CreateCityObject()
         {
-            return new ResoniteConstructionCityObject(
-                SlotKey: "city-object",
+            return new ImportedCityObject(
+                ObjectKey: "city-object",
                 DisplayName: "City Object",
                 PackageName: "bldg",
                 ActualMeshCode: "53394525",
                 LodLevel: 1,
-                Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-                Mesh: new ResoniteImportedMesh(
+                Transform: new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                Geometry: new TriangleMeshGeometry(new ImportedMesh(
                     [
-                        new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
-                        new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
-                        new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                        new MeshVertex(new Float3(0.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 0.0)),
+                        new MeshVertex(new Float3(1.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(1.0, 0.0)),
+                        new MeshVertex(new Float3(0.0, 0.0, 1.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
                     ],
-                    [new ResoniteMeshSubmesh(0, "material", [0, 1, 2])]),
+                    [new MeshSubmesh(0, "material", [0, 1, 2])])),
                 Materials: [],
                 SourceObjectKey: "source-object",
                 SourceUnitKey: "source-unit",

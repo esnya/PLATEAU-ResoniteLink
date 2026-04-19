@@ -26,8 +26,8 @@ public sealed class LocalCityGmlConstructionSourceTests
             new TrackingGeometryProjector(),
             CommonMaterialEnumerator);
 
-        List<ResoniteConstructionCityObject> cityObjects = [];
-        await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+        List<ImportedCityObject> cityObjects = [];
+        await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
         {
             cityObjects.Add(cityObject);
         }
@@ -72,8 +72,8 @@ public sealed class LocalCityGmlConstructionSourceTests
             geometryProjector,
             CommonMaterialEnumerator);
 
-        List<ResoniteConstructionCityObject> cityObjects = [];
-        await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+        List<ImportedCityObject> cityObjects = [];
+        await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
         {
             cityObjects.Add(cityObject);
         }
@@ -83,23 +83,23 @@ public sealed class LocalCityGmlConstructionSourceTests
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(
+    private static ConstructionMetadata CreateMetadata(
         PlateauImportRequest request,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
-        return new ResoniteConstructionMetadata(
+        return new ConstructionMetadata(
             SchemaVersion: "3.0",
-            WorldName: "test-world",
+            SceneName: "test-world",
             Request: request,
             SourceDataset: new PlateauSourceDataset([], [], terrainTextureOverlays ?? [], []),
-            Attribution: new ResoniteAttribution(
-                new LicenseAttributionMetadata(
+            Attribution: new Attribution(
+                new LicenseMetadata(
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",
                     LicenseUrl: "https://example.invalid"),
                 []),
-            LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
     }
 
     private static LocalCityGmlDocumentSet CreateDocumentSet(int sourceFileCount)

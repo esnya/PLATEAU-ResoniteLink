@@ -1,18 +1,16 @@
-using Plateau.ResoniteLink.Domain.Importing;
-
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public interface IResoniteConstructionSource
 {
-    ResoniteConstructionMetadata Metadata { get; }
+    ConstructionMetadata Metadata { get; }
 
     [Obsolete(
         "ReadCommonMaterialsAsync is obsolete. Runtime common-material setup uses package catalog instead of source enumeration.")]
-    IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+    IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
         CancellationToken cancellationToken = default);
 
-    IEnumerable<ResoniteConstructionCityObject> ReadCityObjects();
+    IEnumerable<ImportedCityObject> ReadCityObjects();
 
-    IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+    IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
         CancellationToken cancellationToken = default);
 }

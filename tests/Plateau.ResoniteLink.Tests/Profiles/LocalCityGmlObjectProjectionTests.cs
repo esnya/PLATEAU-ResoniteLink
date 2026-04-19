@@ -51,7 +51,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         IResoniteConstructionSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
-        Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.WorldName);
+        Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
         Assert.Same(request, source.Metadata.Request);
         Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
         Assert.Contains("53394525", source.Metadata.SourceDataset.RequestedMeshCodes!);

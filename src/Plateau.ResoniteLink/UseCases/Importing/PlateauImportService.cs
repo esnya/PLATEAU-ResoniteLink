@@ -62,7 +62,7 @@ public sealed class PlateauImportService(
             sourceStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
-            ConstructionMetadata metadata = SceneImportContractMapper.ToContract(source.Metadata);
+            ConstructionMetadata metadata = source.Metadata;
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
                 metadata,
@@ -75,7 +75,7 @@ public sealed class PlateauImportService(
 
             ReportProgress(PlateauLog.Info("import", "Starting city object streaming."));
 
-            await using IAsyncEnumerator<ResoniteConstructionCityObject> cityObjectEnumerator =
+            await using IAsyncEnumerator<ImportedCityObject> cityObjectEnumerator =
                 source.ReadCityObjectsAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
             if (!await cityObjectEnumerator.MoveNextAsync())
             {
@@ -124,19 +124,19 @@ public sealed class PlateauImportService(
     }
 
     private static async IAsyncEnumerable<ImportedCityObject> ReadImportedCityObjectsAsync(
-        ResoniteConstructionCityObject firstCityObject,
-        IAsyncEnumerator<ResoniteConstructionCityObject> remainingCityObjects,
+        ImportedCityObject firstCityObject,
+        IAsyncEnumerator<ImportedCityObject> remainingCityObjects,
         Action onReadAdditionalCityObject,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        yield return SceneImportContractMapper.ToContract(firstCityObject);
+        yield return firstCityObject;
 
         while (await remainingCityObjects.MoveNextAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
             onReadAdditionalCityObject();
-            yield return SceneImportContractMapper.ToContract(remainingCityObjects.Current);
+            yield return remainingCityObjects.Current;
         }
     }
 }

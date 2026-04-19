@@ -43,7 +43,7 @@ public sealed class LocalCityGmlConstructionComposerTests
         IResoniteConstructionSource source = composer.Compose(request, documentSet);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
-        Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.WorldName);
+        Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
         Assert.Same(request, source.Metadata.Request);
         Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);

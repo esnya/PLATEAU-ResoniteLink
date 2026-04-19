@@ -22,6 +22,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
     private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
+    private readonly ConstructionMetadata metadata;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
@@ -32,7 +33,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
         Action<string>? progressReporter = null)
     {
-        Metadata = metadata;
+        this.metadata = SceneImportContractMapper.ToContract(metadata);
         this.request = request;
         sourceFiles = documentSet.BootstrapSourceFilePipelines.ToArray();
         bootstrapTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
@@ -41,12 +42,12 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
-            Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
+            this.metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
     }
 
-    public ResoniteConstructionMetadata Metadata { get; }
+    public ConstructionMetadata Metadata => metadata;
 
-    public async IAsyncEnumerable<ResoniteMaterialBinding> ReadCommonMaterialsAsync(
+    public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         HashSet<string> emittedMaterialKeys = new(StringComparer.Ordinal);
@@ -69,13 +70,13 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                              emittedMaterialKeys))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    yield return material;
+                    yield return SceneImportContractMapper.ToContract(material);
                 }
             }
         }
     }
 
-    public IEnumerable<ResoniteConstructionCityObject> ReadCityObjects()
+    public IEnumerable<ImportedCityObject> ReadCityObjects()
     {
         foreach (SourceFilePipeline sourceFile in sourceFiles)
         {
@@ -95,20 +96,20 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                              requestedMeshAreas,
                              request))
                 {
-                    yield return cityObject;
+                    yield return SceneImportContractMapper.ToContract(cityObject);
                 }
             }
         }
     }
 
-    public async IAsyncEnumerable<ResoniteConstructionCityObject> ReadCityObjectsAsync(
+    public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ReportProgress(
             PlateauLog.Info(
                 "import",
                 $"City object streaming pipeline starting (source_files={sourceFiles.Length})."));
-        Channel<ResoniteConstructionCityObject> channel = Channel.CreateBounded<ResoniteConstructionCityObject>(
+        Channel<ImportedCityObject> channel = Channel.CreateBounded<ImportedCityObject>(
             new BoundedChannelOptions(32)
             {
                 SingleReader = true,
@@ -135,7 +136,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
             .ToArray();
         Task completionTask = CompleteWriterWhenFinishedAsync(channel.Writer, producers);
 
-        await foreach (ResoniteConstructionCityObject cityObject in channel.Reader.ReadAllAsync(cancellationToken))
+        await foreach (ImportedCityObject cityObject in channel.Reader.ReadAllAsync(cancellationToken))
         {
             yield return cityObject;
         }
@@ -155,7 +156,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     }
 
     private async Task ProduceCityObjectsAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
+        ChannelWriter<ImportedCityObject> writer,
         SourceFilePipeline sourceFile,
         int fileIndex,
         int totalFiles,
@@ -169,7 +170,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                 + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}'."));
 
         int yieldedCount = 0;
-        await foreach (ResoniteConstructionCityObject cityObject in StreamMaterializedCityObjectsAsync(
+        await foreach (ImportedCityObject cityObject in StreamMaterializedCityObjectsAsync(
                            sourceFile,
                            cancellationToken))
         {
@@ -186,7 +187,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     }
 
     private async Task ProduceCityObjectsUntilDrainedAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
+        ChannelWriter<ImportedCityObject> writer,
         ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles,
         int totalFiles,
         CancellationToken cancellationToken)
@@ -203,7 +204,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     }
 
     private static async Task CompleteWriterWhenFinishedAsync(
-        ChannelWriter<ResoniteConstructionCityObject> writer,
+        ChannelWriter<ImportedCityObject> writer,
         IReadOnlyList<Task> producers)
     {
         Task allProducers = Task.WhenAll(producers);
@@ -226,7 +227,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         writer.TryComplete(completionException);
     }
 
-    private async IAsyncEnumerable<ResoniteConstructionCityObject> StreamMaterializedCityObjectsAsync(
+    private async IAsyncEnumerable<ImportedCityObject> StreamMaterializedCityObjectsAsync(
         SourceFilePipeline sourceFile,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -255,7 +256,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yieldedCount++;
-                yield return cityObject;
+                yield return SceneImportContractMapper.ToContract(cityObject);
             }
         }
 
