@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 using GeographicLib;
 using GeographicLib.Projections;
 
@@ -12,6 +14,12 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal static class TerrainTextureGeoReferencedRasterMetadataReader
 {
+    private const int ModelPixelScaleTagId = 33550;
+    private const int ModelTiePointTagId = 33922;
+    private const int ModelTransformTagId = 34264;
+    private const int GeoKeyDirectoryTagId = 34735;
+    private const int GeoDoubleParamsTagId = 34736;
+    private const int GeoAsciiParamsTagId = 34737;
     private const int GeographicTypeGeoKey = 2048;
     private const int ProjectedCSTypeGeoKey = 3072;
     public static async Task<GeoReferencedRasterMetadata?> TryReadMetadataAsync(
@@ -35,17 +43,20 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         }
 
         ExifProfile? exifProfile = imageInfo.Metadata.ExifProfile;
-        if (exifProfile is null)
-        {
-            return null;
-        }
+        GeoTiffTagBundle? geoTiffTags = GeoTiffTagReader.TryRead(sourcePath);
 
-        double[]? tiePoints = TryGetDoubleArray(exifProfile, ExifTag.ModelTiePoint);
-        double[]? pixelScale = TryGetDoubleArray(exifProfile, ExifTag.PixelScale);
-        double[]? modelTransform = TryGetDoubleArray(exifProfile, ExifTag.ModelTransform);
-        ushort[]? geoKeyDirectory = TryGetUnsignedShortArray(exifProfile, "GeoKeyDirectoryTag");
-        double[]? geoDoubleParams = TryGetNamedDoubleArray(exifProfile, "GeoDoubleParamsTag");
-        string? geoAsciiParams = TryGetNamedString(exifProfile, "GeoAsciiParamsTag");
+        double[]? tiePoints = TryGetDoubleArray(exifProfile, ExifTag.ModelTiePoint, ModelTiePointTagId)
+            ?? geoTiffTags?.ModelTiePoint;
+        double[]? pixelScale = TryGetDoubleArray(exifProfile, ExifTag.PixelScale, ModelPixelScaleTagId)
+            ?? geoTiffTags?.ModelPixelScale;
+        double[]? modelTransform = TryGetDoubleArray(exifProfile, ExifTag.ModelTransform, ModelTransformTagId)
+            ?? geoTiffTags?.ModelTransform;
+        ushort[]? geoKeyDirectory = TryGetUnsignedShortArray(exifProfile, "GeoKeyDirectoryTag", GeoKeyDirectoryTagId)
+            ?? geoTiffTags?.GeoKeyDirectory;
+        double[]? geoDoubleParams = TryGetNamedDoubleArray(exifProfile, "GeoDoubleParamsTag", GeoDoubleParamsTagId)
+            ?? geoTiffTags?.GeoDoubleParams;
+        string? geoAsciiParams = TryGetNamedString(exifProfile, "GeoAsciiParamsTag", GeoAsciiParamsTagId)
+            ?? geoTiffTags?.GeoAsciiParams;
 
         return TryCreateMetadata(
             imageInfo.Width,
@@ -479,39 +490,78 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         return Math.Abs(degrees) * 111_320.0 * Math.Cos(latitude * (Math.PI / 180.0));
     }
 
-    private static double[]? TryGetDoubleArray(ExifProfile exifProfile, ExifTag<double[]> tag)
+    private static double[]? TryGetDoubleArray(ExifProfile? exifProfile, ExifTag<double[]> tag, int fallbackTagId)
     {
-        return exifProfile.TryGetValue(tag, out IExifValue<double[]>? exifValue)
-            ? exifValue.Value
-            : null;
-    }
-
-    private static ushort[]? TryGetUnsignedShortArray(ExifProfile exifProfile, string tagName)
-    {
-        object? value = TryGetNamedValue(exifProfile, tagName);
-        return value switch
+        if (exifProfile is null)
         {
-            ushort[] ushortArray => ushortArray,
-            short[] shortArray => shortArray.Select(static item => unchecked((ushort)item)).ToArray(),
+            return null;
+        }
+
+        if (exifProfile.TryGetValue(tag, out IExifValue<double[]>? exifValue))
+        {
+            return exifValue.Value;
+        }
+
+        object? fallbackValue = TryGetNamedValue(exifProfile, tag.ToString(), fallbackTagId);
+        return fallbackValue switch
+        {
+            double[] doubleArray => doubleArray,
+            float[] floatArray => floatArray.Select(static value => (double)value).ToArray(),
+            decimal[] decimalArray => decimalArray.Select(static value => (double)value).ToArray(),
             _ => null,
         };
     }
 
-    private static double[]? TryGetNamedDoubleArray(ExifProfile exifProfile, string tagName)
+    private static ushort[]? TryGetUnsignedShortArray(ExifProfile? exifProfile, string tagName, int tagId)
     {
-        return TryGetNamedValue(exifProfile, tagName) as double[];
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
+        object? value = TryGetNamedValue(exifProfile, tagName, tagId);
+        return value switch
+        {
+            ushort[] ushortArray => ushortArray,
+            short[] shortArray => shortArray.Select(static item => unchecked((ushort)item)).ToArray(),
+            byte[] byteArray => byteArray.Select(static item => (ushort)item).ToArray(),
+            _ => null,
+        };
     }
 
-    private static string? TryGetNamedString(ExifProfile exifProfile, string tagName)
+    private static double[]? TryGetNamedDoubleArray(ExifProfile? exifProfile, string tagName, int tagId)
     {
-        return TryGetNamedValue(exifProfile, tagName) as string;
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
+        object? value = TryGetNamedValue(exifProfile, tagName, tagId);
+        return value switch
+        {
+            double[] doubleArray => doubleArray,
+            float[] floatArray => floatArray.Select(static item => (double)item).ToArray(),
+            decimal[] decimalArray => decimalArray.Select(static item => (double)item).ToArray(),
+            _ => null,
+        };
     }
 
-    private static object? TryGetNamedValue(ExifProfile exifProfile, string tagName)
+    private static string? TryGetNamedString(ExifProfile? exifProfile, string tagName, int tagId)
+    {
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
+        return TryGetNamedValue(exifProfile, tagName, tagId) as string;
+    }
+
+    private static object? TryGetNamedValue(ExifProfile exifProfile, string tagName, int tagId)
     {
         foreach (IExifValue value in exifProfile.Values)
         {
-            if (!string.Equals(value.Tag.ToString(), tagName, StringComparison.Ordinal))
+            if (!string.Equals(value.Tag.ToString(), tagName, StringComparison.Ordinal)
+                && !HasTagIdentifier(value.Tag, tagId))
             {
                 continue;
             }
@@ -520,6 +570,47 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         }
 
         return null;
+    }
+
+    private static bool HasTagIdentifier(object tag, int tagId)
+    {
+        return tag switch
+        {
+            ushort ushortTag => ushortTag == tagId,
+            short shortTag => shortTag == tagId,
+            int intTag => intTag == tagId,
+            long longTag => longTag == tagId,
+            _ => TryConvertTagIdentifier(tag, out int convertedTagId) && convertedTagId == tagId,
+        };
+    }
+
+    private static bool TryConvertTagIdentifier(object tag, out int tagId)
+    {
+        try
+        {
+            tagId = Convert.ToInt32(tag, System.Globalization.CultureInfo.InvariantCulture);
+            return true;
+        }
+        catch (InvalidCastException) when (tag is not null)
+        {
+            tagId = 0;
+            return false;
+        }
+        catch (FormatException) when (tag is not null)
+        {
+            tagId = 0;
+            return false;
+        }
+        catch (OverflowException) when (tag is not null)
+        {
+            tagId = 0;
+            return false;
+        }
+        catch (NotSupportedException) when (tag is not null)
+        {
+            tagId = 0;
+            return false;
+        }
     }
 
     private const double JapanPlaneRectangularCentralScale = 0.9999;
@@ -558,6 +649,224 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         {
             return new GeographicRectangle(MinY, MaxY, MinX, MaxX);
         }
+    }
+}
+
+internal sealed record GeoTiffTagBundle(
+    double[]? ModelPixelScale,
+    double[]? ModelTiePoint,
+    double[]? ModelTransform,
+    ushort[]? GeoKeyDirectory,
+    double[]? GeoDoubleParams,
+    string? GeoAsciiParams);
+
+internal static class GeoTiffTagReader
+{
+    private const ushort ClassicTiffMagic = 42;
+    private const ushort ModelPixelScaleTagId = 33550;
+    private const ushort ModelTiePointTagId = 33922;
+    private const ushort ModelTransformTagId = 34264;
+    private const ushort GeoKeyDirectoryTagId = 34735;
+    private const ushort GeoDoubleParamsTagId = 34736;
+    private const ushort GeoAsciiParamsTagId = 34737;
+
+    public static GeoTiffTagBundle? TryRead(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            return null;
+        }
+
+        using FileStream stream = File.OpenRead(sourcePath);
+        return TryRead(stream);
+    }
+
+    internal static GeoTiffTagBundle? TryRead(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+
+        if (!stream.CanSeek || stream.Length < 8)
+        {
+            return null;
+        }
+
+        Span<byte> header = stackalloc byte[8];
+        stream.Position = 0;
+        if (stream.Read(header) != header.Length)
+        {
+            return null;
+        }
+
+        bool isLittleEndian = header[0] == (byte)'I' && header[1] == (byte)'I';
+        if (!isLittleEndian && !(header[0] == (byte)'M' && header[1] == (byte)'M'))
+        {
+            return null;
+        }
+
+        ushort magic = ReadUInt16(header[2..4], isLittleEndian);
+        if (magic != ClassicTiffMagic)
+        {
+            return null;
+        }
+
+        uint ifdOffset = ReadUInt32(header[4..8], isLittleEndian);
+        if (ifdOffset >= stream.Length)
+        {
+            return null;
+        }
+
+        stream.Position = ifdOffset;
+        Span<byte> entryCountBytes = stackalloc byte[2];
+        if (stream.Read(entryCountBytes) != entryCountBytes.Length)
+        {
+            return null;
+        }
+
+        ushort entryCount = ReadUInt16(entryCountBytes, isLittleEndian);
+        double[]? modelPixelScale = null;
+        double[]? modelTiePoint = null;
+        double[]? modelTransform = null;
+        ushort[]? geoKeyDirectory = null;
+        double[]? geoDoubleParams = null;
+        string? geoAsciiParams = null;
+        byte[] entryBytes = new byte[12];
+
+        for (int index = 0; index < entryCount; index++)
+        {
+            if (stream.Read(entryBytes) != entryBytes.Length)
+            {
+                return null;
+            }
+
+            ushort tagId = ReadUInt16(entryBytes.AsSpan(0, 2), isLittleEndian);
+            ushort fieldType = ReadUInt16(entryBytes.AsSpan(2, 2), isLittleEndian);
+            uint valueCount = ReadUInt32(entryBytes.AsSpan(4, 4), isLittleEndian);
+            int elementSize = GetElementSize(fieldType);
+            if (elementSize == 0)
+            {
+                continue;
+            }
+
+            long byteCount = (long)elementSize * valueCount;
+            if (byteCount <= 0)
+            {
+                continue;
+            }
+
+            byte[] valueBytes = new byte[byteCount];
+            if (byteCount <= 4)
+            {
+                entryBytes[8..(8 + (int)byteCount)].CopyTo(valueBytes);
+            }
+            else
+            {
+                uint valueOffset = ReadUInt32(entryBytes.AsSpan(8, 4), isLittleEndian);
+                if (valueOffset + byteCount > stream.Length)
+                {
+                    continue;
+                }
+
+                long resumePosition = stream.Position;
+                stream.Position = valueOffset;
+                if (stream.Read(valueBytes, 0, valueBytes.Length) != valueBytes.Length)
+                {
+                    return null;
+                }
+
+                stream.Position = resumePosition;
+            }
+
+            switch (tagId)
+            {
+                case ModelPixelScaleTagId:
+                    modelPixelScale = fieldType == 12 ? ReadDoubleArray(valueBytes, valueCount, isLittleEndian) : null;
+                    break;
+                case ModelTiePointTagId:
+                    modelTiePoint = fieldType == 12 ? ReadDoubleArray(valueBytes, valueCount, isLittleEndian) : null;
+                    break;
+                case ModelTransformTagId:
+                    modelTransform = fieldType == 12 ? ReadDoubleArray(valueBytes, valueCount, isLittleEndian) : null;
+                    break;
+                case GeoKeyDirectoryTagId:
+                    geoKeyDirectory = fieldType == 3 ? ReadUInt16Array(valueBytes, valueCount, isLittleEndian) : null;
+                    break;
+                case GeoDoubleParamsTagId:
+                    geoDoubleParams = fieldType == 12 ? ReadDoubleArray(valueBytes, valueCount, isLittleEndian) : null;
+                    break;
+                case GeoAsciiParamsTagId:
+                    geoAsciiParams = fieldType == 2 ? ReadAsciiString(valueBytes) : null;
+                    break;
+            }
+        }
+
+        return new GeoTiffTagBundle(
+            modelPixelScale,
+            modelTiePoint,
+            modelTransform,
+            geoKeyDirectory,
+            geoDoubleParams,
+            geoAsciiParams);
+    }
+
+    private static int GetElementSize(ushort fieldType)
+    {
+        return fieldType switch
+        {
+            2 => 1,
+            3 => 2,
+            12 => 8,
+            _ => 0,
+        };
+    }
+
+    private static ushort[] ReadUInt16Array(byte[] bytes, uint count, bool isLittleEndian)
+    {
+        ushort[] values = new ushort[count];
+        for (int index = 0; index < values.Length; index++)
+        {
+            values[index] = ReadUInt16(bytes.AsSpan(index * 2, 2), isLittleEndian);
+        }
+
+        return values;
+    }
+
+    private static double[] ReadDoubleArray(byte[] bytes, uint count, bool isLittleEndian)
+    {
+        double[] values = new double[count];
+        byte[] buffer = new byte[8];
+        for (int index = 0; index < values.Length; index++)
+        {
+            bytes.AsSpan(index * 8, 8).CopyTo(buffer);
+            if (!isLittleEndian)
+            {
+                Array.Reverse(buffer);
+            }
+
+            values[index] = BitConverter.ToDouble(buffer, 0);
+        }
+
+        return values;
+    }
+
+    private static string ReadAsciiString(byte[] bytes)
+    {
+        int terminatorIndex = Array.IndexOf(bytes, (byte)0);
+        int length = terminatorIndex >= 0 ? terminatorIndex : bytes.Length;
+        return System.Text.Encoding.ASCII.GetString(bytes, 0, length);
+    }
+
+    private static ushort ReadUInt16(ReadOnlySpan<byte> bytes, bool isLittleEndian)
+    {
+        return isLittleEndian
+            ? BinaryPrimitives.ReadUInt16LittleEndian(bytes)
+            : BinaryPrimitives.ReadUInt16BigEndian(bytes);
+    }
+
+    private static uint ReadUInt32(ReadOnlySpan<byte> bytes, bool isLittleEndian)
+    {
+        return isLittleEndian
+            ? BinaryPrimitives.ReadUInt32LittleEndian(bytes)
+            : BinaryPrimitives.ReadUInt32BigEndian(bytes);
     }
 }
 

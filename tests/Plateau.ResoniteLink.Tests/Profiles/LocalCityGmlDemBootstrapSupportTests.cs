@@ -111,6 +111,50 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             result.Select(static overlay => overlay.GeographicBounds).Distinct().Count());
     }
 
+    [Fact]
+    public void OrderAvailableSourcesPrefersExplicitGeoReferencedRasterOverTileSources()
+    {
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            "ortho.tif",
+            new GeoReferencedRasterMetadata(
+                new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                "EPSG:4326",
+                PixelWidthMeters: 0.8,
+                PixelHeightMeters: 0.8));
+        TerrainTextureTileSource ortho19Source = new(
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel);
+        TerrainTextureTileSource ortho18Source = new(
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
+
+        TerrainTextureSource[] result = LocalCityGmlDemBootstrapSupport.OrderAvailableSources(
+        [
+            new DemTerrainTextureSourceDescriptor(
+                DemTerrainTextureSourcePreference.Ortho19,
+                ortho19Source,
+                IsAvailable: true,
+                IsExplicit: false,
+                EffectiveResolutionMeters: 0.3),
+            new DemTerrainTextureSourceDescriptor(
+                DemTerrainTextureSourcePreference.GeoReferencedRaster,
+                rasterSource,
+                IsAvailable: true,
+                IsExplicit: true,
+                EffectiveResolutionMeters: 0.8),
+            new DemTerrainTextureSourceDescriptor(
+                DemTerrainTextureSourcePreference.Ortho18,
+                ortho18Source,
+                IsAvailable: true,
+                IsExplicit: false,
+                EffectiveResolutionMeters: 0.6),
+        ]);
+
+        Assert.Same(rasterSource, result[0]);
+        Assert.Same(ortho19Source, result[1]);
+        Assert.Same(ortho18Source, result[2]);
+    }
+
     private static BootstrapParsedCityObject CreateCityObject()
     {
         GeodeticPoint[] vertices =

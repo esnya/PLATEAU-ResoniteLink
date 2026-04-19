@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Collections.Concurrent;
 
 using GeographicLib;
 
@@ -168,7 +169,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
 
     private sealed class RecordingGeometryProjector : ICityGmlGeometryProjector
     {
-        public List<string> Calls { get; } = [];
+        public ConcurrentQueue<string> Calls { get; } = [];
 
         public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
             CachedSourceFileDescriptor sourceFile,
@@ -193,7 +194,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                     continue;
                 }
 
-                Calls.Add(cityObject.PackageName);
+                Calls.Enqueue(cityObject.PackageName);
                 yield return new ResoniteConstructionCityObject(
                     cityObject.SlotKey,
                     cityObject.DisplayName,

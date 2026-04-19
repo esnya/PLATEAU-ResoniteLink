@@ -13,7 +13,11 @@ public sealed record SceneImportExecutionPlan
         ArgumentNullException.ThrowIfNull(resolvedRequest);
         ArgumentNullException.ThrowIfNull(sceneBuildRequest);
 
-        ValidateNormalizedAndResolvedRequestConsistency(normalizedRequest, resolvedRequest, sceneBuildRequest.DatasetContentSource);
+        ValidateNormalizedAndResolvedRequestConsistency(
+            normalizedRequest,
+            resolvedRequest,
+            sceneBuildRequest.DatasetContentSource,
+            sceneBuildRequest.WorkRoot);
         ValidateResolvedAndBuildRequestConsistency(resolvedRequest, sceneBuildRequest.Metadata.Request);
 
         NormalizedRequest = normalizedRequest;
@@ -50,7 +54,8 @@ public sealed record SceneImportExecutionPlan
     private static void ValidateNormalizedAndResolvedRequestConsistency(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest resolvedRequest,
-        IPlateauDatasetContentSource datasetContentSource)
+        IPlateauDatasetContentSource datasetContentSource,
+        string workRoot)
     {
         List<string> mismatches = [];
         if (!string.Equals(normalizedRequest.Dataset, resolvedRequest.Dataset, StringComparison.Ordinal))
@@ -68,7 +73,7 @@ public sealed record SceneImportExecutionPlan
             mismatches.Add("source");
         }
 
-        if (!HasCompatibleDemTextureSourceResolution(normalizedRequest, resolvedRequest, datasetContentSource.SourcePath))
+        if (!HasCompatibleDemTextureSourceResolution(normalizedRequest, resolvedRequest, datasetContentSource.SourcePath, workRoot))
         {
             mismatches.Add("dem-source");
         }
@@ -152,7 +157,8 @@ public sealed record SceneImportExecutionPlan
     private static bool HasCompatibleDemTextureSourceResolution(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest buildRequest,
-        string datasetContentSourcePath)
+        string datasetContentSourcePath,
+        string workRoot)
     {
         if (Equals(normalizedRequest.DemTextureSource, buildRequest.DemTextureSource))
         {
@@ -163,8 +169,21 @@ public sealed record SceneImportExecutionPlan
             && buildRequest.DemTextureSource is PlateauLocalImportSource localDemTextureSource
             && string.Equals(
                 localDemTextureSource.LocalSourcePath,
-                WorkRootLayout.GetRemoteResourcePath(datasetContentSourcePath, remoteDemTextureSource.ServerUri, "source-ortho"),
+                ResolveExpectedDemTextureSourcePath(normalizedRequest, buildRequest, datasetContentSourcePath, workRoot, remoteDemTextureSource.ServerUri),
                 StringComparison.Ordinal);
+    }
+
+    private static string ResolveExpectedDemTextureSourcePath(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest buildRequest,
+        string datasetContentSourcePath,
+        string workRoot,
+        Uri remoteDemTextureSourceUri)
+    {
+        return normalizedRequest.DemTextureSource is PlateauRemoteImportSource
+            && buildRequest.DemTextureSource is PlateauLocalImportSource
+            ? WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureSourceUri, "source-ortho")
+            : WorkRootLayout.GetRemoteResourcePath(datasetContentSourcePath, remoteDemTextureSourceUri, "source-ortho");
     }
 
     private static bool SequenceEqual(

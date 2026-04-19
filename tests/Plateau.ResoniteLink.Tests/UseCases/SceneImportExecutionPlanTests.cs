@@ -200,6 +200,7 @@ public sealed class SceneImportExecutionPlanTests
     public void Constructor_AllowsResolvedLocalDemTextureSourceForRemoteInput()
     {
         string datasetRoot = "resolved-source";
+        string workRoot = "work";
         Uri remoteDemTextureUri = new("https://example.test/ortho-a.tif");
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
@@ -210,7 +211,7 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest resolvedRequest = normalizedRequest with
         {
             DemTextureSource = PlateauImportSource.Local(
-                WorkRootLayout.GetRemoteResourcePath(datasetRoot, remoteDemTextureUri, "source-ortho")),
+                WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho")),
         };
 
         SceneImportExecutionPlan plan = new(
@@ -219,10 +220,73 @@ public sealed class SceneImportExecutionPlanTests
             new SceneBuildRequest(
                 CreateMetadata(resolvedRequest),
                 new StubDatasetContentSource(datasetRoot),
-                "work"));
+                workRoot));
 
         Assert.Equal(
-            WorkRootLayout.GetRemoteResourcePath(datasetRoot, remoteDemTextureUri, "source-ortho"),
+            WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
+            plan.SceneBuildRequest.Metadata.Request.DemTextureLocalSourcePath);
+    }
+
+    [Fact]
+    public void Constructor_AllowsResolvedLocalDemTextureSourceForRemoteCityGmlAndRemoteOrthoInput()
+    {
+        string workRoot = "C:\\work\\plateau-13213-higashimurayama-shi-2020";
+        Uri remoteCityGmlUri = new("https://example.test/higashimurayama.zip");
+        Uri remoteDemTextureUri = new("https://example.test/higashimurayama-ortho.7z");
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "higashimurayama",
+            MeshCode: "53395325",
+            Source: PlateauImportSource.Remote(remoteCityGmlUri),
+            PackageNames: ["bldg"],
+            DemTextureSource: PlateauImportSource.Remote(remoteDemTextureUri));
+        PlateauImportRequest resolvedRequest = normalizedRequest with
+        {
+            Source = PlateauImportSource.Local(Path.Combine(workRoot, "source-archive-123.zip")),
+            DemTextureSource = PlateauImportSource.Local(
+                WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho")),
+        };
+
+        SceneImportExecutionPlan plan = new(
+            normalizedRequest,
+            resolvedRequest,
+            new SceneBuildRequest(
+                CreateMetadata(resolvedRequest),
+                new StubDatasetContentSource(resolvedRequest.LocalSourcePath!),
+                workRoot));
+
+        Assert.Equal(
+            WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
+            plan.SceneBuildRequest.Metadata.Request.DemTextureLocalSourcePath);
+    }
+
+    [Fact]
+    public void Constructor_AllowsResolvedLocalDemTextureSourceForLocalCityGmlAndRemoteOrthoInput()
+    {
+        string datasetRoot = "C:\\data\\plateau-13213-higashimurayama-shi-2020";
+        string workRoot = "C:\\work\\plateau-13213-higashimurayama-shi-2020";
+        Uri remoteDemTextureUri = new("https://example.test/higashimurayama-ortho.7z");
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "higashimurayama",
+            MeshCode: "53395325",
+            Source: PlateauImportSource.Local(datasetRoot),
+            PackageNames: ["bldg"],
+            DemTextureSource: PlateauImportSource.Remote(remoteDemTextureUri));
+        PlateauImportRequest resolvedRequest = normalizedRequest with
+        {
+            DemTextureSource = PlateauImportSource.Local(
+                WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho")),
+        };
+
+        SceneImportExecutionPlan plan = new(
+            normalizedRequest,
+            resolvedRequest,
+            new SceneBuildRequest(
+                CreateMetadata(resolvedRequest),
+                new StubDatasetContentSource(datasetRoot),
+                workRoot));
+
+        Assert.Equal(
+            WorkRootLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
             plan.SceneBuildRequest.Metadata.Request.DemTextureLocalSourcePath);
     }
 
@@ -230,6 +294,7 @@ public sealed class SceneImportExecutionPlanTests
     public void Constructor_RejectsResolvedLocalDemTextureSourceThatDoesNotMatchExpectedRemoteMaterializationPath()
     {
         string datasetRoot = "resolved-source";
+        string workRoot = "work";
         Uri remoteDemTextureUri = new("https://example.test/ortho-a.tif");
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
@@ -247,9 +312,9 @@ public sealed class SceneImportExecutionPlanTests
                 normalizedRequest,
                 resolvedRequest,
                 new SceneBuildRequest(
-                    CreateMetadata(resolvedRequest),
-                    new StubDatasetContentSource(datasetRoot),
-                    "work")));
+                CreateMetadata(resolvedRequest),
+                new StubDatasetContentSource(datasetRoot),
+                workRoot)));
     }
 
     private static ConstructionMetadata CreateMetadata(PlateauImportRequest request)

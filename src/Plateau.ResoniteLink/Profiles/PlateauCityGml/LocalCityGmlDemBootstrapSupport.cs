@@ -201,16 +201,12 @@ internal static class LocalCityGmlDemBootstrapSupport
                     DemTerrainTextureSourcePreference.GeoReferencedRaster,
                     rasterSource,
                     IsAvailable: true,
+                    IsExplicit: true,
                     EffectiveResolutionMeters: Math.Max(metadata.PixelWidthMeters, metadata.PixelHeightMeters)));
             }
         }
 
-        TerrainTextureSource[] orderedSources = candidates
-            .Where(static descriptor => descriptor.IsAvailable)
-            .OrderBy(static descriptor => descriptor.EffectiveResolutionMeters)
-            .ThenBy(static descriptor => (int)descriptor.Preference)
-            .Select(static descriptor => descriptor.Source)
-            .ToArray();
+        TerrainTextureSource[] orderedSources = OrderAvailableSources(candidates);
 
         return new TerrainTextureOverlay(
             PackageName: "dem",
@@ -218,6 +214,20 @@ internal static class LocalCityGmlDemBootstrapSupport
             MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
             Sources: orderedSources,
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
+    }
+
+    internal static TerrainTextureSource[] OrderAvailableSources(
+        IEnumerable<DemTerrainTextureSourceDescriptor> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+
+        return candidates
+            .Where(static descriptor => descriptor.IsAvailable)
+            .OrderByDescending(static descriptor => descriptor.IsExplicit)
+            .ThenBy(static descriptor => descriptor.EffectiveResolutionMeters)
+            .ThenBy(static descriptor => (int)descriptor.Preference)
+            .Select(static descriptor => descriptor.Source)
+            .ToArray();
     }
 
     private static DemTerrainTextureSourceDescriptor CreateTileDescriptor(
@@ -237,6 +247,7 @@ internal static class LocalCityGmlDemBootstrapSupport
             preference,
             source,
             IsAvailable: true,
+            IsExplicit: false,
             effectiveResolutionMeters);
     }
 
@@ -344,4 +355,5 @@ internal sealed record DemTerrainTextureSourceDescriptor(
     DemTerrainTextureSourcePreference Preference,
     TerrainTextureSource Source,
     bool IsAvailable,
+    bool IsExplicit,
     double EffectiveResolutionMeters);

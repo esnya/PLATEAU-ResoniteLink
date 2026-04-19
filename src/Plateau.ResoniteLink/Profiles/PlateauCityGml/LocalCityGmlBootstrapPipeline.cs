@@ -167,7 +167,7 @@ internal static class LocalCityGmlBootstrapPipeline
             demRasterCatalog,
             cancellationToken);
         if (request.DemTextureSource is not null
-            && terrainTextureOverlays.All(static overlay => !overlay.EnumerateGeoReferencedRasterSources().Any()))
+            && terrainTextureOverlays.Any(static overlay => !overlay.EnumerateGeoReferencedRasterSources().Any()))
         {
             throw new PlateauImportValidationException(
                 [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
