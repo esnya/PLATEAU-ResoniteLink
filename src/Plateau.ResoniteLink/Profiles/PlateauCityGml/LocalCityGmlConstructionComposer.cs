@@ -2,9 +2,12 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlConstructionComposer(ICityGmlGeometryProjector geometryProjector) : IResoniteConstructionComposer
+internal sealed class LocalCityGmlConstructionComposer(
+    ICityGmlGeometryProjector geometryProjector,
+    ICityGmlCommonMaterialEnumerator? commonMaterialEnumerator = null) : IResoniteConstructionComposer
 {
     private readonly ICityGmlGeometryProjector geometryProjector = geometryProjector;
+    private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator = commonMaterialEnumerator ?? new LocalCityGmlCommonMaterialEnumerator();
 
     public IResoniteConstructionSource Compose(
         PlateauImportRequest request,
@@ -35,6 +38,7 @@ internal sealed class LocalCityGmlConstructionComposer(ICityGmlGeometryProjector
             request,
             documentSet,
             geometryProjector,
+            commonMaterialEnumerator,
             progressReporter);
     }
 }

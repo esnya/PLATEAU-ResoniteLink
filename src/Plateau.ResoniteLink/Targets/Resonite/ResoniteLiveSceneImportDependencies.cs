@@ -12,20 +12,4 @@ internal sealed record ResoniteLiveSceneImportDependencies(
     Execution.IResoniteSlotCreator SlotCreator,
     IResoniteBufferedCityObjectBakerFactory CityObjectBakerFactory)
 {
-    internal ResoniteLiveSceneImportDependencies(
-        ILiveSendClientSession clientSession,
-        ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
-        : this(
-            clientSession,
-            ResoniteLinkSendDiagnostics.Disabled,
-            terrainTextureAssetGenerator,
-            new Execution.ResoniteSceneBootstrapInterpreter(new Execution.ResoniteSceneSlotLocator()),
-            new Execution.ResoniteGeometryAssetAssembler(),
-            new Execution.ResoniteMaterialPlanning(),
-            new Execution.ResoniteBatchEmissionPlanner(),
-            new Execution.PlannedBatchEmissionInterpreter(),
-            new Execution.ResoniteSlotCreator(),
-            new ResoniteBufferedCityObjectBakerFactory())
-    {
-    }
 }

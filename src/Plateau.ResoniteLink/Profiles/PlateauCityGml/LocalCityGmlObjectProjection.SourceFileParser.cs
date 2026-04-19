@@ -15,17 +15,6 @@ public static partial class LocalCityGmlObjectProjection
         return requestedMeshArea?.GetCenter();
     }
 
-    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetAsync(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await LocalCityGmlBootstrapPipeline.ReadDocumentSetCoreAsync(
-            request,
-            progressReporter,
-            cancellationToken);
-    }
-
     internal static Task<global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(
         IReadOnlyList<global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
@@ -77,7 +66,11 @@ public static partial class LocalCityGmlObjectProjection
         List<ParsedCityObject> cityObjects = [];
         CoordinateReferenceSystem? coordinateReferenceSystem = null;
         await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
-                           sourceFile.ToLegacy(),
+                           new SourceFileDescriptor(
+                               sourceFile.RelativePath,
+                               sourceFile.PackageName,
+                               sourceFile.MatchedMeshCode,
+                               sourceFile.RequiresMeshAreaFilter),
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
@@ -128,7 +121,11 @@ public static partial class LocalCityGmlObjectProjection
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
-                           sourceFile.ToLegacy(),
+                           new SourceFileDescriptor(
+                               sourceFile.RelativePath,
+                               sourceFile.PackageName,
+                               sourceFile.MatchedMeshCode,
+                               sourceFile.RequiresMeshAreaFilter),
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,

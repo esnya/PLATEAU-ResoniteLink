@@ -41,18 +41,12 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
 
     public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
-        return ResoniteLinkLegacyCompatibility.AddComponentAsync(
-            RouteForAuthoritative("add_component"),
-            request,
-            cancellationToken);
+        return RouteForAuthoritative("add_component").AddComponentAsync(request, cancellationToken);
     }
 
     public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
-        return ResoniteLinkLegacyCompatibility.AddSlotAsync(
-            RouteForAuthoritative("add_slot"),
-            request,
-            cancellationToken);
+        return RouteForAuthoritative("add_slot").AddSlotAsync(request, cancellationToken);
     }
 
     public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -71,10 +65,7 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
 
     public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
     {
-        return ResoniteLinkLegacyCompatibility.GetComponentAsync(
-            RouteForAuthoritative("get_component"),
-            componentId,
-            cancellationToken);
+        return RouteForAuthoritative("get_component").GetComponentAsync(componentId, cancellationToken);
     }
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)

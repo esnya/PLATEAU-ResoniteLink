@@ -34,14 +34,6 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
 
     private IResoniteLinkClient[]? ConnectedClients { get; set; }
 
-    public void BeginWorkerClientTracking()
-    {
-        reportProgress?.Invoke(
-            PlateauLog.Info(
-                "live",
-                "Live-send routes are connected eagerly during setup; BeginWorkerClientTracking is non-blocking."));
-    }
-
     public async Task EnsureConnectedAsync(
         PlateauImportRequest request,
         CancellationToken cancellationToken)
@@ -118,13 +110,6 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
                 // Session disposed while setup was in progress.
             }
         }
-    }
-
-    public Task EnsureSetupClientConnectedAsync(
-        PlateauImportRequest request,
-        CancellationToken cancellationToken)
-    {
-        return EnsureConnectedAsync(request, cancellationToken);
     }
 
     public async ValueTask ResetClientsAsync(CancellationToken cancellationToken = default)

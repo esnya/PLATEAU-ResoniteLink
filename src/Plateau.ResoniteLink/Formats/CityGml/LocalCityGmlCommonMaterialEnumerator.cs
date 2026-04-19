@@ -4,30 +4,25 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver materialResolver) : ICityGmlGeometryProjector
+internal sealed class LocalCityGmlCommonMaterialEnumerator : ICityGmlCommonMaterialEnumerator
 {
-    private readonly IDefaultMaterialResolver materialResolver = materialResolver;
-
-    public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+    public IEnumerable<ResoniteMaterialBinding> Enumerate(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
-        Func<BootstrapParsedCityObject, bool>? predicate = null)
+        ISet<string>? emittedMaterialKeys = null)
     {
-        return LocalCityGmlObjectProjection.MaterializeCityObjects(
+        return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
             sourceFile,
             referenceSystem,
             globalOriginPoint,
             globalCartesian,
             demTerrainTextureOverlays,
-            requestedMeshAreas,
             terrainHeightSampler: null,
             request,
-            materialResolver,
-            predicate);
+            emittedMaterialKeys);
     }
 }

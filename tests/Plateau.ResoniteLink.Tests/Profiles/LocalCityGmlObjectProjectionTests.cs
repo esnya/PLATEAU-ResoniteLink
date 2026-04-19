@@ -23,7 +23,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                    new LocalCityGmlCommonMaterialEnumerator())));
     }
 
     [Fact]
@@ -31,7 +32,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         "Performance",
         "CA1849:Call async methods when in an async method",
         Justification = "This test intentionally compares the sync wrapper against the async entrypoint.")]
-    public async Task CreateConstructionSourceAsyncMatchesCreateConstructionSourceForCanonicalBootstrap()
+    public async Task ConstructionSourceFactoryComposesExpectedBootstrapMetadata()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         PlateauImportRequest request = new(
@@ -41,18 +42,19 @@ public sealed class LocalCityGmlObjectProjectionTests
             LocalSourcePath: fixturePath,
             ServerUri: null);
 
-        IResoniteConstructionSource asyncSource = await PlateauCityGmlConstructionSources.CreateAsync(request);
-        IResoniteConstructionSource syncSource = PlateauCityGmlConstructionSources.Create(request);
+        LocalCityGmlConstructionSourceFactory factory = new(
+            new LocalCityGmlDocumentReader(),
+            new LocalCityGmlConstructionComposer(
+                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                new LocalCityGmlCommonMaterialEnumerator()));
+        IResoniteConstructionSource source = await factory.CreateAsync(request);
 
-        Assert.Equal(asyncSource.Metadata.SchemaVersion, syncSource.Metadata.SchemaVersion);
-        Assert.Equal(asyncSource.Metadata.WorldName, syncSource.Metadata.WorldName);
-        Assert.Same(request, asyncSource.Metadata.Request);
-        Assert.Same(request, syncSource.Metadata.Request);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.PackageNames, syncSource.Metadata.SourceDataset.PackageNames);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.SourceFiles, syncSource.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.TerrainTextureOverlays, syncSource.Metadata.SourceDataset.TerrainTextureOverlays);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.RequestedMeshCodes, syncSource.Metadata.SourceDataset.RequestedMeshCodes);
-        Assert.Equal(asyncSource.Metadata.LocalOrigin, syncSource.Metadata.LocalOrigin);
+        Assert.Equal("3.0", source.Metadata.SchemaVersion);
+        Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.WorldName);
+        Assert.Same(request, source.Metadata.Request);
+        Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
+        Assert.Contains("53394525", source.Metadata.SourceDataset.RequestedMeshCodes!);
+        Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
     }
 
     [Fact]

@@ -73,8 +73,10 @@ public sealed class LocalCityGmlConstructionSourceTests
         }
 
         Assert.Equal(2, cityObjects.Count);
-        Assert.Equal(0, geometryProjector.OverlayCountsByPackage["bldg"]);
-        Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+        Assert.True(geometryProjector.OverlayCountsByPackage.TryGetValue("bldg", out int bldgOverlayCount));
+        Assert.True(geometryProjector.OverlayCountsByPackage.TryGetValue("dem", out int demOverlayCount));
+        Assert.Equal(0, bldgOverlayCount);
+        Assert.Equal(1, demOverlayCount);
     }
 
     private static ResoniteConstructionMetadata CreateMetadata(

@@ -102,7 +102,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
     public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
-            static (client, state, ct) => ResoniteLinkLegacyCompatibility.AddComponentAsync(client, state, ct),
+            static (client, state, ct) => client.AddComponentAsync(state, ct),
             request,
             "AddComponent",
             cancellationToken,
@@ -112,7 +112,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
     public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
-            static (client, state, ct) => ResoniteLinkLegacyCompatibility.AddSlotAsync(client, state, ct),
+            static (client, state, ct) => client.AddSlotAsync(state, ct),
             request,
             "AddSlot",
             cancellationToken,
@@ -122,7 +122,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
     public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
     {
         return ExecuteWithReconnectAsync(
-            static (client, state, ct) => ResoniteLinkLegacyCompatibility.GetComponentAsync(client, state, ct),
+            static (client, state, ct) => client.GetComponentAsync(state, ct),
             componentId,
             "GetComponent",
             cancellationToken,

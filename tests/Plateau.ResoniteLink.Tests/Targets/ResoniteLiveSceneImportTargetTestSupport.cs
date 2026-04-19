@@ -189,16 +189,31 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         bool enableMeshBake = true,
         DelegatingClientSession? session = null)
     {
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         return new ResoniteLiveSceneImportTarget(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            PlateauImportMemoryProfile.Large,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                enableMeshBake,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
-            enableMeshBake,
-            progressReporter: null);
+                diagnostics,
+                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                new ResoniteSceneBootstrapInterpreter(
+                    new ResoniteSceneSlotLocator(),
+                    new ResoniteMaterialPlanning(),
+                    new ResoniteSceneAnchorResolver()),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
     }
 
     private static async IAsyncEnumerable<ImportedCityObject> CreateImportedCityObjectsAsync(
@@ -615,8 +630,6 @@ internal sealed class DelegatingClientSession(
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; } = ResoniteLinkSendDiagnostics.Disabled;
 
-    public int BeginWorkerClientTrackingCallCount { get; private set; }
-
     public int EnsureConnectedCallCount { get; private set; }
 
     public int DisposeClientsCallCount { get; private set; }
@@ -624,11 +637,6 @@ internal sealed class DelegatingClientSession(
     public int ResetClientsCallCount { get; private set; }
 
     public List<PlateauImportRequest> EnsureConnectedRequests { get; } = [];
-
-    public void BeginWorkerClientTracking()
-    {
-        BeginWorkerClientTrackingCallCount++;
-    }
 
     public Task EnsureConnectedAsync(
         PlateauImportRequest request,

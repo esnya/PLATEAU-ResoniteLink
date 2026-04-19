@@ -104,8 +104,8 @@ internal static class LocalCityGmlBootstrapPipeline
             request.MeshCode,
             request.PackageNames);
         IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles = discoveryResult.SourceFiles;
-        LocalCityGmlObjectProjection.SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
-            .Select(static descriptor => new LocalCityGmlObjectProjection.SourceFileDescriptor(
+        SourceFileDescriptor[] sourceFiles = discoveredSourceFiles
+            .Select(static descriptor => new SourceFileDescriptor(
                 descriptor.RelativePath,
                 descriptor.PackageName,
                 descriptor.MatchedMeshCode,
@@ -132,8 +132,8 @@ internal static class LocalCityGmlBootstrapPipeline
             packagePatterns: request.PackagePatterns,
             includeMarkingAlways: request.IncludeMarkingAlways);
 
-        LocalCityGmlObjectProjection.SourceFilePipeline[] sourceFilePipelines =
-            await LocalCityGmlObjectProjection.CreateSourceFilePipelinesAsync(
+        SourceFilePipeline[] sourceFilePipelines =
+            await LocalCityGmlObjectProjection.CreateSourceFilePipelinesCoreAsync(
                 sourceFiles,
                 datasetSource,
                 requestedMeshAreas,
@@ -146,7 +146,6 @@ internal static class LocalCityGmlBootstrapPipeline
             sourceFilePipelines
                 .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
                 .Select(static pipeline => pipeline.GetParseTask())))
-            .Select(ParsedSourceFileResult.FromLegacy)
             .ToArray();
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
@@ -181,11 +180,11 @@ internal static class LocalCityGmlBootstrapPipeline
                 .ToArray(),
             terrainTextureOverlays,
             discoveryResult.RequestedMeshCodes,
-            sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline)).ToArray(),
-            [],
-            referenceSystem: null,
-            GeodeticPoint.FromLegacy(globalOriginPoint),
-            terrainHeightSampler: null);
+            sourceFilePipelines,
+            new GeodeticPoint(
+                globalOriginPoint.Latitude,
+                globalOriginPoint.Longitude,
+                globalOriginPoint.Altitude));
     }
 
     private static TerrainTextureOverlay[] CreateBootstrapTerrainTextureOverlays(

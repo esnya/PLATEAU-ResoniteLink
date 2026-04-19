@@ -20,13 +20,13 @@ internal sealed class MetricsResoniteLinkClient(
     public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("add_component");
-        return await ResoniteLinkLegacyCompatibility.AddComponentAsync(inner, request, cancellationToken);
+        return await inner.AddComponentAsync(request, cancellationToken);
     }
 
     public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("add_slot");
-        return await ResoniteLinkLegacyCompatibility.AddSlotAsync(inner, request, cancellationToken);
+        return await inner.AddSlotAsync(request, cancellationToken);
     }
 
     public async Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -46,7 +46,7 @@ internal sealed class MetricsResoniteLinkClient(
     public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("get_component");
-        return await ResoniteLinkLegacyCompatibility.GetComponentAsync(inner, componentId, cancellationToken);
+        return await inner.GetComponentAsync(componentId, cancellationToken);
     }
 
     public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)

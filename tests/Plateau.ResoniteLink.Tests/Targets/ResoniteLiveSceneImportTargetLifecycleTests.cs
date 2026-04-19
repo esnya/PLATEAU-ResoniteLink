@@ -19,13 +19,28 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory secondWorkDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
             new ResoniteLiveSceneImportDependencies(
                 session,
-                new TerrainTextureAssetGenerator()));
+                diagnostics,
+                new TerrainTextureAssetGenerator(),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
 
         PlateauImportRequest normalizedRequest = CreateRequest(rawDatasetDirectory.Path);
         ResoniteConstructionMetadata metadata = CreateMetadata(
@@ -56,13 +71,28 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory workDirectory = new();
         DelegatingClientSession session = new(
             ensureConnectedAsync: static (_, _) => Task.FromException(new InvalidOperationException("connect failed")));
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
             new ResoniteLiveSceneImportDependencies(
                 session,
-                new TerrainTextureAssetGenerator()));
+                diagnostics,
+                new TerrainTextureAssetGenerator(),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ResoniteConstructionMetadata metadata = CreateMetadata(
@@ -92,13 +122,28 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 enteredEnsureConnected.TrySetResult();
                 await releaseEnsureConnected.Task.WaitAsync(cancellationToken);
             });
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
             new ResoniteLiveSceneImportDependencies(
                 session,
-                new TerrainTextureAssetGenerator()));
+                diagnostics,
+                new TerrainTextureAssetGenerator(),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ResoniteConstructionMetadata metadata = CreateMetadata(
             request,
@@ -130,13 +175,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory secondWorkDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
-        await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLiveSceneImportDependencies(
-                session,
-                new TerrainTextureAssetGenerator()));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ResoniteConstructionMetadata metadata = CreateMetadata(
             request,
@@ -151,17 +190,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateImportedCityObjects(
                 CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
-        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
-        Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(routedClient, "PLATEAU tokyo23ku/Assets");
-
-        Assert.Equal(
-            2,
-            routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
-                && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(
-            2,
-            routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
-                && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(2, session.EnsureConnectedCallCount);
+        Assert.Equal(0, session.ResetClientsCallCount);
+        Assert.DoesNotContain(
+            routedClient.Batches.SelectMany(static operations => operations),
+            static operation => operation is UpdateComponent);
     }
 
     [Fact]
@@ -172,13 +205,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory secondWorkDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
-        await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLiveSceneImportDependencies(
-                session,
-                new TerrainTextureAssetGenerator()));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ResoniteConstructionMetadata metadata = CreateMetadata(
             request,
@@ -209,13 +236,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory workDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
-        await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLiveSceneImportDependencies(
-                session,
-                new TerrainTextureAssetGenerator()));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -224,7 +245,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             PackageNames: ["dem"],
             ServerUri: null);
         LocalCityGmlDocumentSet documentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
-        ResoniteConstructionMetadata metadata = new LocalCityGmlConstructionComposer(new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))
+        ResoniteConstructionMetadata metadata = new LocalCityGmlConstructionComposer(
+                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                new LocalCityGmlCommonMaterialEnumerator())
             .Compose(request, documentSet)
             .Metadata;
 
@@ -250,13 +273,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         using TemporaryDirectory secondWorkDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
         DelegatingClientSession session = new(routedClient);
-        await using ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLiveSceneImportDependencies(
-                session,
-                new TerrainTextureAssetGenerator()));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
         ResoniteConstructionMetadata metadata = CreateMetadata(
             request,
@@ -280,13 +297,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     public async Task DisposeAsync_DisposesInjectedSession()
     {
         DelegatingClientSession session = new();
-        ResoniteLiveSceneImportTarget builder = new(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            new ResoniteLiveSceneImportDependencies(
-                session,
-                new TerrainTextureAssetGenerator()));
+        using SceneBuilderRecordingClient routedClient = new();
+        ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
 
         try
         {
