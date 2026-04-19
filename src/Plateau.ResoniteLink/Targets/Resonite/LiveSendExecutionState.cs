@@ -50,7 +50,7 @@ internal sealed class CommonMaterialAssetCache
 {
     public ConcurrentDictionary<string, Task> CommonMaterialFamilyWarmupTasks { get; } = new(StringComparer.Ordinal);
 
-    public ConcurrentDictionary<string, Task<CreatedMaterialAsset>> CommonMaterialCreationTasks { get; } = new(StringComparer.Ordinal);
+    public AsyncInFlightResultCache<string, CreatedMaterialAsset> CommonMaterialCreationTasks { get; } = new();
 }
 
 internal sealed record LiveSendRunPlan(

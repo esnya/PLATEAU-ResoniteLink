@@ -311,7 +311,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 + $"anchor_source_file_root='{bootstrapState.SceneAnchor.ReferenceSourceFileRootId ?? "<pending>"}')."));
         foreach ((string materialKey, CreatedMaterialAsset materialAsset) in bootstrapState.CommonMaterialAssetsByKey)
         {
-            materials.CommonMaterialCreationTasks[materialKey] = Task.FromResult(materialAsset);
+            materials.CommonMaterialCreationTasks.Remember(materialKey, materialAsset);
         }
 
         foreach (string family in bootstrapState.CommonMaterialFamilies)
@@ -1406,17 +1406,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 await familyWarmupTask.WaitAsync(ct);
             }
 
-            Task<CreatedMaterialAsset> materialCreationTask = runState.Materials.CommonMaterialCreationTasks.GetOrAdd(
+            CreatedMaterialAsset existingMaterialAsset = await runState.Materials.CommonMaterialCreationTasks.GetOrCreateAsync(
                 materialKey,
-                static (key, state) => state.CreateLazySharedMaterialTask(key),
-                new LazySharedMaterialTaskFactory(
+                () => new LazySharedMaterialTaskFactory(
                     runState,
                     client,
                     normalizedSharedMaterial,
                     familySlotName,
-                    CreateComponentAsync));
-
-            CreatedMaterialAsset existingMaterialAsset = await materialCreationTask.WaitAsync(ct);
+                    CreateComponentAsync).CreateLazySharedMaterialTask(materialKey),
+                ct);
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
                 existingMaterialAsset.MaterialComponentId);
