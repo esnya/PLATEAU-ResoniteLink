@@ -8,10 +8,22 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
+    private readonly IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy;
+    private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy;
 
     public CkanPlateauDatasetSourceResolver(HttpClient httpClient)
+        : this(httpClient, new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy())
+    {
+    }
+
+    public CkanPlateauDatasetSourceResolver(
+        HttpClient httpClient,
+        IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy,
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
     {
         this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        this.remoteArchiveDistributionPolicy = remoteArchiveDistributionPolicy ?? throw new ArgumentNullException(nameof(remoteArchiveDistributionPolicy));
+        this.archiveFileLayoutPolicy = archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
     }
 
     public async Task<ValidatedPlateauImportRequest> ResolveAsync(
@@ -29,14 +41,14 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
         ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)request.Source;
 
-        _ = WorkRootLayout.CreateSafePathSegment(request.Dataset);
+        _ = archiveFileLayoutPolicy.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
         Uri archiveUri = remoteSource.ServerUri;
 
-        string archiveFileName = GetArchiveFileName(archiveUri);
-        string archivePath = WorkRootLayout.GetSourceArchivePath(workRoot, archiveUri, archiveFileName);
-        string archiveMetadataPath = WorkRootLayout.GetSourceArchiveMetadataPath(archivePath);
+        string archiveFileName = remoteArchiveDistributionPolicy.GetArchiveFileName(archiveUri);
+        string archivePath = remoteArchiveDistributionPolicy.GetSourceArchivePath(workRoot, archiveUri, archiveFileName);
+        string archiveMetadataPath = remoteArchiveDistributionPolicy.GetSourceArchiveMetadataPath(archivePath);
 
         Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
 
@@ -155,7 +167,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
     }
 
-    private static void InvalidateTemporaryMaterializedFiles(string datasetRoot, string archivePath)
+    private void InvalidateTemporaryMaterializedFiles(string datasetRoot, string archivePath)
     {
         string runRoot = Path.Combine(Path.GetFullPath(datasetRoot), "run");
         if (!Directory.Exists(runRoot))
@@ -163,7 +175,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             return;
         }
 
-        string archiveCacheName = WorkRootLayout.GetMaterializedArchiveCacheKey(archivePath);
+        string archiveCacheName = archiveFileLayoutPolicy.GetMaterializedArchiveCacheKey(archivePath);
         try
         {
             foreach (string materializedRoot in Directory.EnumerateDirectories(
@@ -316,23 +328,11 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
     }
 
-    private static string GetArchiveFileName(Uri archiveUri)
-    {
-        string fileName = Path.GetFileName(archiveUri.LocalPath);
-        if (string.IsNullOrWhiteSpace(fileName))
-        {
-            throw new PlateauImportValidationException(
-                [$"The online resource '{archiveUri}' does not expose a valid archive file name."]);
-        }
-
-        return fileName;
-    }
-
-    private static bool TryCreateSafePathSegment(string value, out string? safePathSegment)
+    private bool TryCreateSafePathSegment(string value, out string? safePathSegment)
     {
         try
         {
-            safePathSegment = WorkRootLayout.CreateSafePathSegment(value);
+            safePathSegment = archiveFileLayoutPolicy.CreateSafePathSegment(value);
             return true;
         }
         catch (PlateauImportValidationException)

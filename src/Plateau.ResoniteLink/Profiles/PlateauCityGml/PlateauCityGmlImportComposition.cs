@@ -4,9 +4,10 @@ namespace Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
 internal static class PlateauCityGmlImportComposition
 {
-    public static ICityGmlDocumentReader CreateDocumentReader()
+    public static ICityGmlDocumentReader CreateDocumentReader(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
     {
-        return new LocalCityGmlDocumentReader();
+        ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
+        return new LocalCityGmlDocumentReader(datasetContentSourceFactory);
     }
 
     public static IDefaultMaterialResolver CreateMaterialResolver()
@@ -33,14 +34,5 @@ internal static class PlateauCityGmlImportComposition
         ArgumentNullException.ThrowIfNull(documentReader);
         ArgumentNullException.ThrowIfNull(constructionComposer);
         return new LocalCityGmlConstructionSourceFactory(documentReader, constructionComposer);
-    }
-
-    public static IResoniteConstructionSourceFactory CreateConstructionSourceFactory()
-    {
-        IDefaultMaterialResolver materialResolver = CreateMaterialResolver();
-        ICityGmlGeometryProjector geometryProjector = CreateGeometryProjector(materialResolver);
-        IResoniteConstructionComposer constructionComposer = CreateConstructionComposer(geometryProjector);
-        ICityGmlDocumentReader documentReader = CreateDocumentReader();
-        return CreateConstructionSourceFactory(documentReader, constructionComposer);
     }
 }

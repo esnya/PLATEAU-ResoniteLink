@@ -2,8 +2,15 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
+public sealed class LocalCityGmlDocumentReader(IPlateauDatasetContentSourceFactory datasetContentSourceFactory) : ICityGmlDocumentReader
 {
+    public LocalCityGmlDocumentReader()
+        : this(new DefaultPlateauDatasetContentSourceFactory(
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy()))
+    {
+    }
+
     public async Task<LocalCityGmlDocumentSet> ReadAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
@@ -11,6 +18,7 @@ public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
     {
         return await LocalCityGmlBootstrapPipeline.ReadAsync(
             request,
+            datasetContentSourceFactory,
             progressReporter,
             cancellationToken);
     }

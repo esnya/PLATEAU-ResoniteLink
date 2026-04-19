@@ -13,11 +13,13 @@ public sealed class ImportServiceFactoryTests
         StubSceneImportTargetFactory sceneImportTargetFactory = new();
         StubCityGmlDocumentReader documentReader = new();
         StubConstructionSourceFactory constructionSourceFactory = new();
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
         DefaultImportServiceFactory factory = new(
             datasetResolverFactory,
             sceneImportTargetFactory,
             documentReader,
-            constructionSourceFactory);
+            constructionSourceFactory,
+            archiveFileLayoutPolicy);
 
         BuildCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
         BuildCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);

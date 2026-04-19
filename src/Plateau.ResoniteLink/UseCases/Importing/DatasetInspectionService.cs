@@ -4,8 +4,15 @@ using System.Xml;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public sealed class DatasetInspectionService
+public sealed class DatasetInspectionService(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
 {
+    public DatasetInspectionService()
+        : this(new DefaultPlateauDatasetContentSourceFactory(
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy()))
+    {
+    }
+
     [SuppressMessage(
         "Performance",
         "CA1822:Mark members as static",
@@ -18,7 +25,7 @@ public sealed class DatasetInspectionService
     {
         try
         {
-            IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
+            IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
             LocalCityGmlSourceFileDiscoveryResult discovery = LocalCityGmlSourceFileDiscovery.Discover(
                 datasetSource.EnumerateFiles(),
                 meshCode,
@@ -53,7 +60,7 @@ public sealed class DatasetInspectionService
     {
         try
         {
-            IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
+            IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(sourcePath, cancellationToken);
             LocalCityGmlDatasetSourceFileCandidate[] candidates = LocalCityGmlSourceFileDiscovery
                 .EnumerateCandidates(datasetSource.EnumerateFiles(), packageNames)
                 .Where(static candidate => candidate.IsRequestedPackage)

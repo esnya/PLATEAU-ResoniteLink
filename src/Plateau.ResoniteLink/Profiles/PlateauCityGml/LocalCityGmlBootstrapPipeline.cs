@@ -12,7 +12,22 @@ internal static class LocalCityGmlBootstrapPipeline
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await ReadDocumentSetCoreAsync(request, progressReporter, cancellationToken);
+        return await ReadAsync(
+            request,
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            progressReporter,
+            cancellationToken);
+    }
+
+    public static async Task<LocalCityGmlDocumentSet> ReadAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ReadDocumentSetCoreAsync(request, datasetContentSourceFactory, progressReporter, cancellationToken);
     }
 
     internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
@@ -20,7 +35,23 @@ internal static class LocalCityGmlBootstrapPipeline
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
+        return await ReadDocumentSetCoreAsync(
+            request,
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            progressReporter,
+            cancellationToken);
+    }
+
+    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Action<string>? progressReporter = null,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
 
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
@@ -28,7 +59,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);
         }
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+        IPlateauDatasetContentSource datasetSource = await datasetContentSourceFactory.CreateAsync(
             localSource.LocalSourcePath!,
             cancellationToken);
         MeshCodeBounds? requestedMeshArea =

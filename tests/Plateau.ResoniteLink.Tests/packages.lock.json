@@ -366,7 +366,6 @@
         "dependencies": {
           "GeographicLib.NET": "[2.3.2, )",
           "LibTessDotNet": "[1.1.15, )",
-          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "NetTopologySuite": "[2.6.0, )",
           "SharpCompress": "[0.47.4, )",
           "SixLabors.ImageSharp": "[3.1.12, )",
@@ -376,6 +375,7 @@
       "plateau.resonitelink.cli": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[10.0.0, )",
           "Microsoft.Extensions.Hosting": "[10.0.0, )",
           "Microsoft.Extensions.Http": "[10.0.0, )",
           "Plateau.ResoniteLink": "[1.0.0, )"
