@@ -1,19 +1,19 @@
 ---
 name: resonite-live-send-debug
-description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, run cleanup, log capture, and inspection of the resulting Resonite world state.
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, targeted slot removal, log capture, and inspection of the resulting Resonite world state.
 ---
 
 # Resonite Live Send Debug
 
 Use this skill only for real ResoniteLink runs. Prefer local tests first, then switch to this skill when the question depends on a live session, a destructive cleanup cycle, or the resulting Resonite world state.
 
-This file is the Coding Agent entrypoint for the live-send workflow in this repository and the authoritative live-send workflow reference for the public helper command surface. Keep detailed operational guidance in [references/workflow.md](./references/workflow.md) and use this file for trigger, guardrail, and output contracts.
+This file is the Coding Agent entrypoint for the live-send workflow in this repository and the authoritative live-send workflow reference for the public operator surface. Keep detailed operational guidance in [references/workflow.md](./references/workflow.md) and keep this file focused on trigger, guardrail, and output contracts.
 
 ## When To Use
 
 - Real live-send reproduction against an actual ResoniteLink listener.
 - Validation that requires observing logs, process state, or the resulting live world.
-- Session cleanup, root dumps, or headless-session bring-up as part of the verification loop.
+- Targeted slot removal, slot dumps, or headless-session bring-up as part of the verification loop.
 
 ## When Not To Use
 
@@ -23,12 +23,16 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 
 ## Guardrails
 
-- Treat cleanup as destructive. It can remove live dataset roots, stop matching live-send CLI processes from this repo, and delete local runtime artifacts.
+- Treat slot removal as destructive. It can remove live content from the current world.
 - Do not ask the user to run the live send if you can run it directly.
-- Do not compare runs until cleanup has been verified for the relevant dataset root.
+- Do not compare runs until targeted removal has been verified and a post-removal pre-send root dump confirms the base world state.
+- Do not encode dataset-root, shared-assets, or common-material naming semantics into the tool. Use `dump-slot` and `remove-slot` as thin primitives only.
 - Keep the final successful `DatasetRoot` in place unless cleanup is explicitly requested.
 - Treat interrupted or partial runs as provisional unless cleanup and post-run state were both verified.
-- When exact runtime behavior, fixtures, environment selection, or reference values matter, use [references/workflow.md](./references/workflow.md) instead of copying assumptions into the run.
+- Use direct `dotnet` commands as the operator surface. Do not recreate thin wrapper scripts or a project-based session tool.
+- `start-headless` is part of the direct tool surface. If `--headless-path` is present, resolve the launcher from that path and a few standard nearby candidates only. If `--headless-path` is omitted, try only the standard Windows Steam install root, then let the actual launcher execution decide whether the environment supports it.
+- Do not substitute unrelated machine-local copies when the configured headless path is wrong. If the provided path does not contain a launcher, stop and point to the standard installed-path guide in `references/workflow.md`.
+- This skill does not bridge environments. If ResoniteLink uses `localhost`, run sender, listener, and headless in the same environment and document that assumption in the run notes.
 
 ## Guide Surface
 
@@ -38,37 +42,31 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 Use the guide for:
 
 - recommended datasets and fixture values
-- environment-dependent execution choices
 - fixed run worksheets and comparison checklists
 - component discovery and BoxCollider inspection procedures
 - version-scoped readback limits and reference artifacts
+- direct command examples for the CLI and session tool script
 
-## Public Helper Commands
+## Operator Surface
 
-Use only these operator-facing helper scripts directly:
+Use only these operator-facing direct commands:
 
-- `scripts/discover-session.ps1`
-- `scripts/start-headless-session.ps1`
-- `scripts/stop-headless-session.ps1`
-- `scripts/cleanup-session.ps1`
-- `scripts/dump-root-session.ps1`
-- `scripts/run-live-send.ps1`
-- `scripts/run-live-send-monitored.ps1`
+- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless ...`
 
-The shared Windows build resolver remains internal and is not part of the operator-facing command surface.
-
-When executing the public helper scripts yourself:
-
-- Prefer PowerShell 7 with `pwsh.exe -NoProfile -File ...` over Windows PowerShell 5.1.
-- If script execution is blocked by Windows execution policy, rerun with an explicit allowed execution mode instead of switching to ad hoc commands.
-- In sandboxed environments, expect the helper scripts to trigger `dotnet restore` for the CLI or session tool. If that hits first-use or permission restrictions, rerun the helper with the required sandbox escalation rather than rewriting the workflow.
+In sandboxed environments, these direct commands can still require restore/build escalation. If `dotnet restore`, `dotnet run`, or `dotnet <script>.cs` fails on .NET first-use or permission setup, rerun the same direct command with the required sandbox escalation instead of replacing it with an ad hoc workflow.
 
 ## Required Outputs
 
 Summarize each live run with:
 
 - listener endpoint
-- cleanup verification result
+- slot-removal verification result
+- post-removal pre-send dump result
 - process status and exit code
 - exact mode and mesh code
 - last timestamped `import` line

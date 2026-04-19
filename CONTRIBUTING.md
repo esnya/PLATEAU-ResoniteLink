@@ -33,6 +33,14 @@ dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --dis
 dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
+Skill-owned tests under `.agents/skills/` are intentionally kept outside `Plateau.ResoniteLink.sln`.
+When you change `.agents/skills/resonite-live-send-debug/tools/session-tool.cs` or its skill-local test contracts, run this additional verification command before push or PR update:
+
+```bash
+dotnet restore .agents/skills/resonite-live-send-debug/tools/tests/ResoniteLiveSendDebug.ToolTests.csproj --disable-build-servers
+dotnet test .agents/skills/resonite-live-send-debug/tools/tests/ResoniteLiveSendDebug.ToolTests.csproj --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
+```
+
 For quick non-slow iteration between low-conflict changes, use:
 
 ```bash
