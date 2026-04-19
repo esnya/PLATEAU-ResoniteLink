@@ -92,6 +92,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             texture.CanvasScale);
         Assert.Equal(new ResoniteFloat2(0.0, 0.0), texture.CanvasOffset);
         int occupiedTop = image.Height - layout.CropHeight;
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, image[0, 0]);
         AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
         AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
         Assert.True(occupiedTop > 0);

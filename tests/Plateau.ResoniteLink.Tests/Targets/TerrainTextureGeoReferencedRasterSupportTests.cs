@@ -149,8 +149,48 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             texture.TextureImport.Width,
             texture.TextureImport.Height);
         int occupiedTop = outputImage.Height - layout.CropHeight;
-        Assert.Equal(new Rgba32(0, 0, 0, 0), outputImage[0, 0]);
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, occupiedTop]);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFlattensTransparentGeoReferencedRasterPixelsToGroundColor()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
+        using (Image<Rgba32> rasterImage = new(2, 2))
+        {
+            rasterImage[0, 0] = new Rgba32(0, 0, 0, 0);
+            rasterImage[1, 0] = new Rgba32(12, 34, 56, 255);
+            rasterImage[0, 1] = new Rgba32(0, 0, 0, 0);
+            rasterImage[1, 1] = new Rgba32(78, 90, 12, 255);
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        GeographicRectangle bounds = new(35.0, 35.001, 139.0, 139.001);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 16,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 10.0, 10.0)),
+            ]);
+
+        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
+        Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[1, 0]);
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 1]);
+        Assert.Equal(new Rgba32(78, 90, 12, 255), outputImage[1, 1]);
     }
 
     [Fact]

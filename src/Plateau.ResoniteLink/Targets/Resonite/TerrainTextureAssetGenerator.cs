@@ -27,6 +27,8 @@ internal sealed class TerrainTextureAssetGenerator(
     bool disablePersistentCache = false) : ITerrainTextureAssetGenerator
 {
     private const int MaxTileDownloadAttempts = 4;
+    // Approximate dry brown soil tone (Munsell 10YR 5/3 family) for uncovered DEM texels.
+    internal static readonly Rgba32 DefaultDemGroundFillColor = new(181, 176, 166, byte.MaxValue);
 
     private readonly HttpClient httpClient = httpClient ?? new HttpClient();
     private readonly AsyncCompletedResultCache<TerrainTextureOverlay, CachedTerrainTexture> cachedTextures = new();
@@ -174,14 +176,15 @@ internal sealed class TerrainTextureAssetGenerator(
         string identity)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
+        using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
 
-        if (TryCreatePowerOfTwoCanvasTexture(image, maxTextureSize, identity, out GeneratedTerrainTexture? generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, identity, out GeneratedTerrainTexture? generatedTexture))
         {
             return generatedTexture!;
         }
 
         int fallbackMaxTextureSize = RoundDownToPowerOfTwo(maxTextureSize);
-        using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(image, fallbackMaxTextureSize);
+        using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(opaqueImage, fallbackMaxTextureSize);
         if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, identity, out generatedTexture))
         {
             return generatedTexture!;
@@ -205,7 +208,7 @@ internal sealed class TerrainTextureAssetGenerator(
             return false;
         }
 
-        using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight);
+        using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight, DefaultDemGroundFillColor);
         canvasImage.Mutate(context => context.DrawImage(
             image,
             new Point(0, canvasHeight - image.Height),
@@ -215,6 +218,13 @@ internal sealed class TerrainTextureAssetGenerator(
             new ResoniteFloat2((double)image.Width / canvasWidth, (double)image.Height / canvasHeight),
             new ResoniteFloat2(0.0, 0.0));
         return true;
+    }
+
+    private static Image<Rgba32> CreateOpaqueGroundImage(Image<Rgba32> image)
+    {
+        Image<Rgba32> opaqueImage = new(image.Width, image.Height, DefaultDemGroundFillColor);
+        opaqueImage.Mutate(context => context.DrawImage(image, new Point(0, 0), 1.0f));
+        return opaqueImage;
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
