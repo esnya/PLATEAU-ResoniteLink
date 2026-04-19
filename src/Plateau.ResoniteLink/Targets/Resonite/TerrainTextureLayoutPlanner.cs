@@ -10,11 +10,17 @@ internal static class TerrainTextureLayoutPlanner
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
-        GeographicRectangle bounds = terrainTextureOverlay.GeographicBounds;
-        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MinLongitude, terrainTextureOverlay.ZoomLevel);
-        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MaxLongitude, terrainTextureOverlay.ZoomLevel);
-        double topPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MaxLatitude, terrainTextureOverlay.ZoomLevel);
-        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MinLatitude, terrainTextureOverlay.ZoomLevel);
+        return Create(terrainTextureOverlay.GeographicBounds, terrainTextureOverlay.ZoomLevel);
+    }
+
+    public static TerrainTextureLayoutPlan Create(
+        GeographicRectangle bounds,
+        int zoomLevel)
+    {
+        double leftPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MinLongitude, zoomLevel);
+        double rightPixel = WebMercatorTileMath.LongitudeToPixelX(bounds.MaxLongitude, zoomLevel);
+        double topPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MaxLatitude, zoomLevel);
+        double bottomPixel = WebMercatorTileMath.LatitudeToPixelY(bounds.MinLatitude, zoomLevel);
 
         if (rightPixel - leftPixel <= PixelEpsilon || bottomPixel - topPixel <= PixelEpsilon)
         {

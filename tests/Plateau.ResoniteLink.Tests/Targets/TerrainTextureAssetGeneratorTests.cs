@@ -23,7 +23,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         ResoniteRawTextureImport secondTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Same(firstTexture, secondTexture);
-        Assert.Contains("terrain-overlay/dem/1/", firstTexture.Identity, StringComparison.Ordinal);
+        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", firstTexture.Identity, StringComparison.Ordinal);
 
         using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(firstTexture.RawRgba32Bytes, firstTexture.Width, firstTexture.Height);
         Assert.Equal(512, image.Width);
@@ -122,7 +122,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         ResoniteRawTextureImport texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, secondHandler.RequestCount);
-        Assert.Contains("terrain-overlay/dem/1/", texture.Identity, StringComparison.Ordinal);
+        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", texture.Identity, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -244,6 +244,34 @@ public sealed class TerrainTextureAssetGeneratorTests
         using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
         AssertColor(image[128, 128], 255, 0, 0);
         AssertColor(image[384, 128], 0, 255, 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncUsesFallbackSourceZoomLevelIndependently()
+    {
+        using ZoomAwareFallbackMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        const int primaryZoomLevel = 2;
+        GeographicRectangle bounds = new(
+            MinLatitude: WebMercatorTileMath.PixelYToLatitude(WebMercatorTileMath.TileSizePixels, primaryZoomLevel),
+            MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, primaryZoomLevel),
+            MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, primaryZoomLevel),
+            MaxLongitude: WebMercatorTileMath.PixelXToLongitude(WebMercatorTileMath.TileSizePixels, primaryZoomLevel));
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 4096,
+            PrimarySource: new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", primaryZoomLevel),
+            FallbackSource: new TerrainTextureTileSource("https://fallback.example/{z}/{x}/{y}.png", 1));
+
+        _ = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        string[] requestedSources = handler.Requests
+            .Select(static request => $"{request.Host}|{request.ZoomLevel}")
+            .ToArray();
+        Assert.Contains($"primary.example|{primaryZoomLevel}", requestedSources);
+        Assert.Contains("fallback.example|1", requestedSources);
     }
 
     private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)
@@ -371,6 +399,32 @@ public sealed class TerrainTextureAssetGeneratorTests
             string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
             int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
             int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+
+            using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class ZoomAwareFallbackMapTileHandler : HttpMessageHandler
+    {
+        public List<(string Host, int ZoomLevel, int TileX, int TileY)> Requests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int zoomLevel = int.Parse(segments[^3], CultureInfo.InvariantCulture);
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+            Requests.Add((request.RequestUri.Host, zoomLevel, tileX, tileY));
+
+            if (string.Equals(request.RequestUri.Host, "primary.example", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
 
             using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
             MemoryStream stream = new();

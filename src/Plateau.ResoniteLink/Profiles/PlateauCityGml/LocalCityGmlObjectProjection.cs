@@ -20,7 +20,8 @@ public static partial class LocalCityGmlObjectProjection
     public const string DefaultDemTerrainTexturePath = "dem/plateau-ortho";
     public const string DefaultDemTerrainTextureUrlTemplate = "https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png";
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
-    public const int DefaultDemTerrainTextureZoomLevel = 18;
+    public const int DefaultDemTerrainTextureZoomLevel = 19;
+    public const int DefaultDemTerrainTextureFallbackZoomLevel = 18;
     public const int DefaultDemTerrainTextureMaxSize = 4096;
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
@@ -2441,7 +2442,7 @@ public static partial class LocalCityGmlObjectProjection
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{terrainOverlay.PackageName.ToLowerInvariant()}|{terrainOverlay.ZoomLevel}|"
+            $"{terrainOverlay.PackageName.ToLowerInvariant()}|{terrainOverlay.SourceIdentityKey}|"
             + $"{terrainOverlay.GeographicBounds.MinLatitude:0.######},"
             + $"{terrainOverlay.GeographicBounds.MaxLatitude:0.######},"
             + $"{terrainOverlay.GeographicBounds.MinLongitude:0.######},"
