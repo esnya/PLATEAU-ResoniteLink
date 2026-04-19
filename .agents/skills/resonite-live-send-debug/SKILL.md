@@ -1,6 +1,6 @@
 ---
 name: resonite-live-send-debug
-description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, run cleanup, log capture, and inspection of the resulting Resonite world state.
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, targeted slot removal, log capture, and inspection of the resulting Resonite world state.
 ---
 
 # Resonite Live Send Debug
@@ -13,7 +13,7 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 
 - Real live-send reproduction against an actual ResoniteLink listener.
 - Validation that requires observing logs, process state, or the resulting live world.
-- Session cleanup, root dumps, or headless-session bring-up as part of the verification loop.
+- Targeted slot removal, slot dumps, or headless-session bring-up as part of the verification loop.
 
 ## When Not To Use
 
@@ -23,13 +23,15 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 
 ## Guardrails
 
-- Treat cleanup as destructive. It can remove live dataset roots and delete local runtime artifacts under `runtime/windows/resonite`.
+- Treat slot removal as destructive. It can remove live content from the current world.
 - Do not ask the user to run the live send if you can run it directly.
-- Do not compare runs until cleanup has been verified for the relevant dataset root.
+- Do not compare runs until targeted removal has been verified and a post-removal pre-send root dump confirms the base world state.
+- Do not encode dataset-root, shared-assets, or common-material naming semantics into the tool. Use `dump-slot` and `remove-slot` as thin primitives only.
 - Keep the final successful `DatasetRoot` in place unless cleanup is explicitly requested.
 - Treat interrupted or partial runs as provisional unless cleanup and post-run state were both verified.
-- Use direct `dotnet run --project ...` commands as the operator surface. Do not recreate thin wrapper scripts.
-- `--start-headless` is part of the direct tool surface, but the actual headless launcher path can still be Windows-only. Let the tool reject unsupported environments explicitly instead of routing through WSL-to-Windows helpers.
+- Use direct `dotnet` commands as the operator surface. Do not recreate thin wrapper scripts or a project-based session tool.
+- `start-headless` is part of the direct tool surface. Resolve the launcher from the provided path and a few standard nearby candidates only, then let the actual launcher execution decide whether the environment supports it.
+- This skill does not bridge environments. If ResoniteLink uses `localhost`, run sender, listener, and headless in the same environment and document that assumption in the run notes.
 
 ## Guide Surface
 
@@ -42,28 +44,28 @@ Use the guide for:
 - fixed run worksheets and comparison checklists
 - component discovery and BoxCollider inspection procedures
 - version-scoped readback limits and reference artifacts
-- direct command examples for the CLI and session tool
+- direct command examples for the CLI and session tool script
 
 ## Operator Surface
 
 Use only these operator-facing direct commands:
 
 - `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --remove-slot ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless ...`
 
-In sandboxed environments, these direct commands can still require restore/build escalation. If `dotnet restore` or `dotnet run` fails on .NET first-use or permission setup, rerun the same direct command with the required sandbox escalation instead of replacing it with an ad hoc workflow.
+In sandboxed environments, these direct commands can still require restore/build escalation. If `dotnet restore`, `dotnet run`, or `dotnet <script>.cs` fails on .NET first-use or permission setup, rerun the same direct command with the required sandbox escalation instead of replacing it with an ad hoc workflow.
 
 ## Required Outputs
 
 Summarize each live run with:
 
 - listener endpoint
-- cleanup verification result
+- slot-removal verification result
+- post-removal pre-send dump result
 - process status and exit code
 - exact mode and mesh code
 - last timestamped `import` line

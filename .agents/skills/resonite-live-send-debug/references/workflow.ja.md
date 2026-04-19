@@ -8,19 +8,21 @@
 
 - task で別 fixture が必要でない限り、`plateau-20202-matsumoto-shi-2020` と mesh `54372778` / `54372788` を使います。
 - `frn` または city-furniture validation のときだけ Yokohama mesh `53391530` に切り替えます。
-- これらの default は selector であり、cache path の保証ではありません。cleanup や send の前に actual resolved local source path を確認します。
+- これらの default は selector であり、cache path の保証ではありません。removal や send の前に actual resolved local source path を確認します。
 - destructive step の前に、requested dataset root が local に存在し、requested mesh が current local evidence または fixture で support されていることを確認します。
 
 ## Agent Guardrails
 
 - comparison rerun ごとに listener discovery をやり直し、`sessionName`、`sessionID`、`linkPort` を記録します。
 - listener port、process ID、log path、session identity を推測しません。discovery output、direct command の stdout、CLI log を使います。
-- cleanup は destructive とみなします。dataset root を除去し、local runtime artifact も削除し得ます。
-- `--cleanup-dataset-root` は exact-match の dataset root cleanup に過ぎません。一致した dataset root subtree を除去します。current `YellowDogMan.ResoniteLink 0.13.1` の `RemoveSlot` surface には Resonite の asset-preserving delete mode が出ていないため、この command では in-world asset を退避したまま dataset root を消すことはできません。direct root match の外側にある stale content が消えた証明にはなりません。
-- user が明示的に cleanup を要求しない限り、最後に成功した `DatasetRoot` は残します。
+- `dump-slot` と `remove-slot` は thin primitive として扱います。dataset root、shared assets、common materials の naming semantics を tool surface に埋め込みません。
+- slot removal は destructive とみなします。current world の live content を削除し得ます。
+- user が明示的に removal を要求しない限り、最後に成功した `DatasetRoot` は残します。
 - `stdout` を解釈する前に `stderr` を確認します。`stderr` が空でも stalled と判断する前に timestamp 付き log read を少なくとも 2 回取ります。
-- public operator surface は direct `dotnet run --project ...` command に限定します。.ps1 wrapper や WSL から Windows への bridge guidance は再導入しません。
-- clean base から resend するつもりの run では、cleanup の直後に pre-send root dump を取り、その dump に stale dataset content が残っていれば contaminated run と扱います。
+- public operator surface は direct `dotnet` command に限定します。.ps1 wrapper、project-based session tool、cross-environment bridge guidance は再導入しません。
+- `dump-slot --root-child-name` と `remove-slot --root-child-name` は `Root` 直下の exact direct child だけを解決します。0 件は fail、複数件も mutate せず fail にします。
+- ResoniteLink が `localhost` を使う場合は、sender、listener、headless を同一 environment で動かします。その前提は skill 内で吸収せず、run note に明記します。
+- clean base から resend するつもりの run では、removal の直後に pre-send root dump を取り、その dump に stale dataset content が残っていれば contaminated run と扱います。
 
 ## Fixed Run Worksheet
 
@@ -40,35 +42,37 @@ comparison run 間でこれらの事実を固定するか、明示的に更新�
 
 disposable な headless validation では、次の operator sequence を優先します。
 
-1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless --repo-path <repo> --headless-path <headless>`
-2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root --repo-path <repo> --label baseline`
-3. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
-4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label post-cleanup-pre-send`
+1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --headless-path <headless> --resonitelink-port 19001`
+2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot --runtime-root <headless-runtime> --output <repo>/runtime/windows/resonite/root-dumps/baseline.json`
+3. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
+4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/post-removal-pre-send.json`
 5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
-6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label after-send`
-7. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
+6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/after-send.json`
+7. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
 
 固定 Matsumoto `54372778 -> 54372788` の base/append validation を `19001` で行うときは、direct command をこの順で実行します。
 
-1. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:19001/ plateau-20202-matsumoto-shi-2020 --repo-path <repo>`
-2. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-post-cleanup-pre-send`
+1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
+2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
 3. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
-4. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-base-heightmap-after-send`
+4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-base-heightmap-after-send.json`
 5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372788 --resonitelink-connections 1`
-6. `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:19001/ --repo-path <repo> --label matsumoto-append-heightmap-after-send`
+6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
+
+world に `PLATEAU Shared Assets` や `Common Materials` のような stale root が追加で残っている場合は、root dump を見て exact な slot ID または exact な root-child name を選び、`remove-slot` で 1 つずつ除去します。それらの name を stable API とみなしません。
 
 ## Component Type Discovery
 
 - live inspection で exact component type name が必要なときは、guess ではなく ResoniteLink reflection を優先します。
 - primary path は local ResoniteLink library または official REPL helper に接続し、まず `GetComponentTypeList`、次に candidate に対する `GetComponentDefinition` を使います。
 - 可能なら category query を使います。`GetComponentTypeList("*")` は narrower category が分からない場合に限り、session が empty list を返した事実も記録します。
-- reflection が unavailable か有用な情報を返さない場合は、fallback evidence source として root dump 内の既存 `componentType` を調べます。
+- reflection が unavailable か有用な情報を返さない場合は、fallback evidence source として slot dump 内の既存 `componentType` を調べます。
 - UI label と runtime type string を混同しません。`Texture2D Metadata` のような picker label は exact `AddComponent` type name の証拠にはなりません。
 
 ## BoxCollider Bounds Inspection
 
 - imported slot に BoxCollider probe を付けて bounds を read back し、rendered occupancy や position/mesh regression を見積もる必要があるときにこの procedure を使います。
-- successful live send と post-send root dump を起点にします。failed run や partial run では bounds inspection を始めません。
+- successful live send と post-send slot dump を起点にします。failed run や partial run では bounds inspection を始めません。
 - まず target slot が dump に既に存在することを確認し、その identity を記録します。dataset root name、slot name、slot tag、slot transform、既存 collider evidence を含めます。
 - 現在観測している Matsumoto run では、imported slot に `[FrooxEngine]FrooxEngine.MeshCollider` があり、さらに `[FrooxEngine]FrooxEngine.BoxCollider` probe も受け付けました。これは timeless guarantee ではなく current evidence として扱います。
 - target slot に既に十分な collider shape があるなら、まず dump-based evidence を優先します。user が明示的に BoxCollider-based bounds probe を求めた場合だけ world を mutate します。
@@ -82,7 +86,7 @@ disposable な headless validation では、次の operator sequence を優先�
 - standard procedure は readback 後に BoxCollider probe を remove して、inspected world を pre-probe state に戻すことです。manual follow-up のため intentionally 残す場合は、その deviation を run note に明記します。
 - 現在の workspace session には exploratory validation 由来で意図的に残された BoxCollider probe があります。これは baseline cleanup policy ではなく temporary evidence とみなします。
 - session が usable な local-bounds update path を expose しない場合は止めて、automatic な BoxCollider-based bounds readback workflow は current session では証明できなかったと報告します。
-- reflection が有用な component type や callable surface を返さない場合は、root-dump evidence に戻し、BoxCollider bounds path は unverified と扱います。guess で type や method 名を埋めません。
+- reflection が有用な component type や callable surface を返さない場合は、slot-dump evidence に戻し、BoxCollider bounds path は unverified と扱います。guess で type や method 名を埋めません。
 
 ## Bounds Regression Checklist
 
@@ -149,29 +153,33 @@ disposable な headless validation では、次の operator sequence を優先�
 
 この skill 配下には、少なくとも次の tracked file がある前提です。
 
-- `tools/ResoniteSessionTool/ResoniteSessionTool.csproj`
+- `tools/session-tool.cs`
 - `src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj`
 
-direct `dotnet run --project ...` 実行では、session tool や CLI が on demand で rebuild されます。dump、cleanup、headless、live-send command に fresh local build output が含まれるのは expected execution path です。
+direct `dotnet` 実行では、session tool script や CLI が on demand で rebuild されます。dump、removal、headless、live-send command に fresh local build output が含まれるのは expected execution path です。
 
 ## Read-Only Inspection
 
-- `--dump-root` が書き出す JSON を primary read artifact とします。
+- `dump-slot` が書き出す JSON を primary read artifact とします。
 - `jq` は post-dump inspection 用の optional convenience です。cleanup convergence や slot selection を `jq` 依存にしません。
 - Example:
-  `jq '.Root.Children[] | { id: .ID, name: .Name.Value }' runtime/windows/resonite/root-dumps/<dump>.json`
+  `jq '.Slot.children[] | { id: .id, name: .name.value }' <dump>.json`
 
 ## Direct Command Surface
 
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session`
   UDP `12512` から live ResoniteLink announcement を取得します。
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless --repo-path <repo> --headless-path <headless>`
-  disposable な headless session を直接起動し、announcement された ResoniteLink port を検証します。command surface 自体は platform-independent ですが、underlying headless binary は依然として Windows を要求し得ます。
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless --repo-path <repo>`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --headless-path <headless> --resonitelink-port <port>`
+  disposable な headless session を直接起動し、announcement された ResoniteLink port を検証します。launcher は指定 file または directory と、その近傍の少数の標準候補から解決し、`.dll` launcher は environment の `dotnet` command 経由で起動します。
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
   experiment 用に起動した tracked headless PID、または明示指定した PID を停止します。
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ws://localhost:<port>/ --repo-path <repo> --label <label>`
-  tracked された session、または明示 endpoint の session から recursive Root snapshot を取得します。
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ws://localhost:<port>/ <dataset> --repo-path <repo>`
-  exact-match の dataset root を live world から cleanup し、convergence 後に local runtime artifact を削除します。current `YellowDogMan.ResoniteLink 0.13.1` の `RemoveSlot` 呼び出しでは、Resonite の asset-preserving delete mode は要求できません。
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:<port>/ --slot-id Root --output <dump>.json`
+  tracked された session、または明示 endpoint の session から recursive slot snapshot を取得します。
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:<port>/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020" --depth 1`
+  `Root` 直下の exact direct child を解決して、その slot を dump します。
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:<port>/ --slot-id <slot-id>`
+  明示した slot を 1 つ remove します。
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:<port>/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
+  `Root` 直下の exact direct child を 1 つ解決して remove します。これは operator workflow の convenience であり、semantic cleanup API ではありません。
 - `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --source local --local-source-path <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --mesh-code <mesh> --resonitelink-connections <n>`
   `runtime/windows/resonite` 配下へ explicit log を出しながら、direct live send を 1 回実行します。

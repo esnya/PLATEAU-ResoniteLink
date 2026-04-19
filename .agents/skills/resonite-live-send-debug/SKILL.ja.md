@@ -1,6 +1,6 @@
 ---
 name: resonite-live-send-debug
-description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, run cleanup, log capture, and inspection of the resulting Resonite world state.
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, targeted slot removal, log capture, and inspection of the resulting Resonite world state.
 ---
 
 # Resonite Live Send Debug
@@ -13,7 +13,7 @@ description: Run and debug PLATEAU-ResoniteLink live-send reproductions against 
 
 - actual ResoniteLink listener に対する real live-send reproduction。
 - log、process state、または結果の live world 観測が必要な検証。
-- verification loop の一部としての session cleanup、root dump、headless-session bring-up。
+- verification loop の一部としての targeted slot removal、slot dump、headless-session bring-up。
 
 ## When Not To Use
 
@@ -23,13 +23,15 @@ description: Run and debug PLATEAU-ResoniteLink live-send reproductions against 
 
 ## Guardrails
 
-- cleanup は destructive とみなします。live dataset root を削除し、`runtime/windows/resonite` 配下の local runtime artifact も消し得ます。
+- slot removal は destructive とみなします。current world の live content を削除し得ます。
 - 自分で直接 live send を実行できるなら、user に実行を依頼しません。
-- relevant dataset root の cleanup が検証されるまで、run 同士を比較しません。
+- targeted removal が検証され、さらに post-removal pre-send root dump で base world state が確認できるまで、run 同士を比較しません。
+- dataset root、shared assets、common materials の naming semantics を tool に埋め込みません。`dump-slot` と `remove-slot` は thin primitive としてだけ使います。
 - cleanup が明示的に要求されない限り、最後に成功した `DatasetRoot` は残します。
 - cleanup と post-run state の両方が検証されるまで、中断 run や partial run は provisional とみなします。
-- operator surface は direct `dotnet run --project ...` command に限定します。thin wrapper script を再導入しません。
-- `--start-headless` も direct tool surface の一部ですが、actual headless launcher path 自体は Windows-only のままになり得ます。unsupported environment は tool に明示的に拒否させ、WSL から Windows へ橋渡しする helper は使いません。
+- operator surface は direct `dotnet` command に限定します。thin wrapper script や project-based session tool を再導入しません。
+- `start-headless` も direct tool surface の一部です。launcher は指定 path とその近傍の少数の標準候補だけから解決し、実際にその launcher が起動できるかで environment support を判断します。
+- この skill は environment bridge を持ちません。ResoniteLink が `localhost` を使う場合は、sender、listener、headless を同一 environment で動かし、その前提を run note に残します。
 
 ## Guide Surface
 
@@ -42,34 +44,34 @@ description: Run and debug PLATEAU-ResoniteLink live-send reproductions against 
 - fixed run worksheet と comparison checklist
 - component discovery と BoxCollider inspection procedure
 - version-scoped readback limit と reference artifact
-- CLI / session tool の direct command example
+- CLI / session tool script の direct command example
 
 ## Operator Surface
 
 operator-facing direct command は次だけを使います。
 
 - `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --dump-root ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --remove-slot ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --cleanup-dataset-root ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --start-headless ...`
-- `dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --stop-headless ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless ...`
 
-sandboxed environment では、これらの direct command でも restore/build の escalation が必要になることがあります。`dotnet restore` や `dotnet run` が .NET first-use や permission setup で失敗したら、ad hoc workflow に置き換えず、同じ direct command を必要な sandbox escalation 付きで再実行します。
+sandboxed environment では、これらの direct command でも restore/build の escalation が必要になることがあります。`dotnet restore`、`dotnet run`、または `dotnet <script>.cs` が .NET first-use や permission setup で失敗したら、ad hoc workflow に置き換えず、同じ direct command を必要な sandbox escalation 付きで再実行します。
 
 ## Required Outputs
 
 各 live run は次を要約します。
 
 - listener endpoint
-- cleanup verification result
+- slot-removal verification result
+- post-removal pre-send dump result
 - process status と exit code
 - exact mode と mesh code
 - 最後の timestamped `import` line
 - 最後の timestamped `live` line
 - `stderr` が空だったか
 - world snapshot summary
-- root dump path
-- observation timestamp
+- root dump paths
+- observation timestamps
 - conclusion が valid か contaminated か

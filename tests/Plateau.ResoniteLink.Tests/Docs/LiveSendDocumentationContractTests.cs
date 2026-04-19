@@ -53,13 +53,28 @@ public sealed partial class LiveSendDocumentationContractTests
     {
         string skill = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "SKILL.md"));
         string skillJa = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "SKILL.ja.md"));
+        string promptConfig = File.ReadAllText(TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "agents", "openai.yaml"));
 
         Assert.Contains("references/workflow.md", skill, StringComparison.Ordinal);
         Assert.Contains("references/workflow.md", skillJa, StringComparison.Ordinal);
         Assert.Contains("dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build", skill, StringComparison.Ordinal);
         Assert.Contains("dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build", skillJa, StringComparison.Ordinal);
-        Assert.Contains("dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session", skill, StringComparison.Ordinal);
-        Assert.Contains("dotnet run --project .agents/skills/resonite-live-send-debug/tools/ResoniteSessionTool/ResoniteSessionTool.csproj -- --discover-session", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless", skillJa, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless", skill, StringComparison.Ordinal);
+        Assert.Contains("dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless", skillJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("cleanup-dataset-root", skill, StringComparison.Ordinal);
+        Assert.DoesNotContain("cleanup-dataset-root", skillJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteSessionTool.csproj", skill, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteSessionTool.csproj", skillJa, StringComparison.Ordinal);
+        Assert.Contains("file-based session-tool.cs commands", promptConfig, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteSessionTool", promptConfig, StringComparison.Ordinal);
 
         foreach (string deprecated in DeprecatedHelperScripts)
         {
@@ -96,6 +111,20 @@ public sealed partial class LiveSendDocumentationContractTests
         Assert.DoesNotContain("## Environment Selection", workflowJa, StringComparison.Ordinal);
         Assert.DoesNotContain("Run helpers from Windows when", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("WSL-driven sender is valid", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("runtime/windows/headless", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("runtime/windows/headless", workflowJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet.exe", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("dotnet.exe", workflowJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("cleanup-dataset-root", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("cleanup-dataset-root", workflowJa, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteSessionTool.csproj", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResoniteSessionTool.csproj", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("tools/session-tool.cs", workflow, StringComparison.Ordinal);
+        Assert.Contains("tools/session-tool.cs", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("same environment", workflow, StringComparison.Ordinal);
+        Assert.Contains("同一 environment", workflowJa, StringComparison.Ordinal);
+        Assert.Contains("--resonitelink-port 19001", workflow, StringComparison.Ordinal);
+        Assert.Contains("--resonitelink-port 19001", workflowJa, StringComparison.Ordinal);
 
         foreach (string fixtureOnlyString in FixtureOnlyStrings)
         {
@@ -103,8 +132,6 @@ public sealed partial class LiveSendDocumentationContractTests
             Assert.Contains(fixtureOnlyString, workflowJa, StringComparison.Ordinal);
         }
 
-        Assert.Contains("ResoniteSessionTool.csproj", workflow, StringComparison.Ordinal);
-        Assert.Contains("ResoniteSessionTool.csproj", workflowJa, StringComparison.Ordinal);
         Assert.Contains("Plateau.ResoniteLink.Cli.csproj", workflow, StringComparison.Ordinal);
         Assert.Contains("Plateau.ResoniteLink.Cli.csproj", workflowJa, StringComparison.Ordinal);
         Assert.Contains("`jq` is optional convenience", workflow, StringComparison.Ordinal);
@@ -139,6 +166,16 @@ public sealed partial class LiveSendDocumentationContractTests
         }
 
         Assert.Empty(Directory.GetFiles(scriptsRoot, "*.ps1", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
+    public void SkillToolSurfaceUsesSingleFileScript()
+    {
+        string toolsRoot = TestData.GetRepositoryPath(".agents", "skills", "resonite-live-send-debug", "tools");
+        string scriptPath = Path.Combine(toolsRoot, "session-tool.cs");
+
+        Assert.True(File.Exists(scriptPath));
+        Assert.False(File.Exists(Path.Combine(toolsRoot, "ResoniteSessionTool", "ResoniteSessionTool.csproj")));
     }
 
     private static string[] GetHeadings(string markdown)
