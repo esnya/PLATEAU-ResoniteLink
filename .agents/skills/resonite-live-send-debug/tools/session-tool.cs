@@ -879,7 +879,7 @@ StartedProcess StartProcess(HeadlessLaunch launch, string stdoutPath, string std
         RedirectStandardError = false,
         CreateNoWindow = true,
     };
-    startInfo.ArgumentList.Add("-lc");
+    startInfo.ArgumentList.Add("-c");
     startInfo.ArgumentList.Add(shellCommand);
 
     Process process = new()

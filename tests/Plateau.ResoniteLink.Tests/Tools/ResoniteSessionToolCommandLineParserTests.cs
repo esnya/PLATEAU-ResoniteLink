@@ -398,6 +398,15 @@ public sealed class ResoniteSessionToolCommandLineParserTests
     }
 
     [Fact]
+    public void SessionToolSourceUsesNonLoginShellForPosixLaunch()
+    {
+        string source = File.ReadAllText(ScriptPath);
+
+        Assert.Contains("startInfo.ArgumentList.Add(\"-c\");", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("startInfo.ArgumentList.Add(\"-lc\");", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task StopHeadlessRejectsMissingLocator()
     {
         ProcessResult result = await RunSessionToolAsync("stop-headless");
