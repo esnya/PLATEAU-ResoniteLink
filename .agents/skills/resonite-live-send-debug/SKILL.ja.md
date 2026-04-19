@@ -1,80 +1,78 @@
 ---
 name: resonite-live-send-debug
-description: 実際の ResoniteLink session に対して PLATEAU-ResoniteLink の live-send 再現と調査を行う skill。simulated test ではなく machine-level の検証が必要なときに使い、listener discovery、run cleanup、log 採取、生成された Resonite world state の確認を扱います。
+description: Run and debug PLATEAU-ResoniteLink live-send reproductions against a real ResoniteLink session. Use when the user wants actual machine-level validation instead of simulated tests, including listener discovery, targeted slot removal, log capture, and inspection of the resulting Resonite world state.
 ---
 
 # Resonite Live Send Debug
 
-この skill は実際の ResoniteLink run にだけ使ってください。まず local test を優先し、論点が live session、destructive cleanup cycle、または生成された Resonite world state に依存するときだけこの skill に切り替えます。
+この skill は real ResoniteLink run でのみ使います。まず local test を優先し、論点が live session、destructive cleanup cycle、または結果としての Resonite world state に依存するときだけこの skill に切り替えます。
 
-この file は、この repository における live-send workflow の Coding Agent entrypoint であり、public helper command surface に対する authoritative な live-send workflow reference です。詳細な運用 guidance は [references/workflow.md](./references/workflow.md) に集約し、この file には trigger、guardrail、output contract を残します。
+この file は repository における live-send workflow の Coding Agent entrypoint であり、public operator surface の authoritative reference です。詳細な運用手順は [references/workflow.md](./references/workflow.md) に置き、この file では trigger、guardrail、output contract に集中します。
 
 ## When To Use
 
-- 実際の ResoniteLink listener に対する live-send 再現。
-- log、process state、または live world の結果を観測しないと成立しない検証。
-- headless session 起動、session cleanup、root dump を含む検証ループ。
+- actual ResoniteLink listener に対する real live-send reproduction。
+- log、process state、または結果の live world 観測が必要な検証。
+- verification loop の一部としての targeted slot removal、slot dump、headless-session bring-up。
 
 ## When Not To Use
 
 - code-only review、static log 読み、documentation 作業。
 - live session なしで十分に証明できる local/unit/integration test。
-- 現在の dataset root を破壊できない task。
+- current dataset root の destructive cleanup を許容できない task。
 
 ## Guardrails
 
-- cleanup は destructive として扱う。live dataset root を消し、この repo から起動した matching live-send CLI process を止め、local runtime artifact を削除しうる。
-- 自分で live send を実行できるなら、user に代行させない。
-- 比較対象の dataset root について cleanup が確認できるまでは run を比較しない。
-- successful な最終 `DatasetRoot` は、明示的な cleanup 指示がない限り残す。
-- interrupted / partial run の結論は、cleanup と post-run state の両方が確認できるまでは provisional とする。
-- exact runtime behavior、fixture、environment selection、reference value が重要なときは、仮定を転記せず [references/workflow.md](./references/workflow.md) を使う。
+- slot removal は destructive とみなします。current world の live content を削除し得ます。
+- 自分で直接 live send を実行できるなら、user に実行を依頼しません。
+- targeted removal が検証され、さらに post-removal pre-send root dump で base world state が確認できるまで、run 同士を比較しません。
+- dataset root、shared assets、common materials の naming semantics を tool に埋め込みません。`dump-slot` と `remove-slot` は thin primitive としてだけ使います。
+- cleanup が明示的に要求されない限り、最後に成功した `DatasetRoot` は残します。
+- cleanup と post-run state の両方が検証されるまで、中断 run や partial run は provisional とみなします。
+- operator surface は direct `dotnet` command に限定します。thin wrapper script や project-based session tool を再導入しません。
+- `start-headless` も direct tool surface の一部です。`--headless-path` がある場合は、その path とその近傍の少数の標準候補だけから launcher を解決します。`--headless-path` が無い場合だけ、標準 Windows Steam install root を試し、その launcher が実際に起動できるかで environment support を判断します。
+- 指定した headless path が誤っているときに、無関係な machine-local copy へ勝手に置き換えません。provided path に launcher が無ければ止まり、`references/workflow.md` の標準インストールパス案内を示します。
+- この skill は environment bridge を持ちません。ResoniteLink が `localhost` を使う場合は、sender、listener、headless を同一 environment で動かし、その前提を run note に残します。
 
 ## Guide Surface
 
-- canonical guide: [references/workflow.md](./references/workflow.md)
+- Canonical guide: [references/workflow.md](./references/workflow.md)
 - Japanese mirror: [references/workflow.ja.md](./references/workflow.ja.md)
 
-guide は次の用途で使います。
+次の内容は guide を使います。
 
-- 推奨 dataset と fixture 値
-- 環境依存の実行判断
+- recommended dataset と fixture value
 - fixed run worksheet と comparison checklist
-- component discovery と BoxCollider inspection 手順
-- version-scoped な readback limitation と reference artifact
+- component discovery と BoxCollider inspection procedure
+- version-scoped readback limit と reference artifact
+- CLI / session tool script の direct command example
 
-## Public Helper Commands
+## Operator Surface
 
-operator-facing な helper script として直接使うのは次の 7 本だけです。
+operator-facing direct command は次だけを使います。
 
-- `scripts/discover-session.ps1`
-- `scripts/start-headless-session.ps1`
-- `scripts/stop-headless-session.ps1`
-- `scripts/cleanup-session.ps1`
-- `scripts/dump-root-session.ps1`
-- `scripts/run-live-send.ps1`
-- `scripts/run-live-send-monitored.ps1`
+- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless ...`
+- `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless ...`
 
-shared な Windows build resolver は internal helper であり、operator-facing command surface には含めません。
-
-public helper script を自分で実行するときは次を守ります。
-
-- Windows PowerShell 5.1 より `pwsh.exe -NoProfile -File ...` による PowerShell 7 を優先します。
-- Windows execution policy により script 実行が止まる場合は、ad hoc command に切り替えるのではなく explicit な許可 execution mode で helper を再実行します。
-- sandbox 付き環境では、helper script が CLI や session tool の `dotnet restore` を引くことがあります。.NET first-use や permission 制約に当たったら、workflow を書き換えず helper 自体を必要な sandbox escalation 付きで再実行します。
+sandboxed environment では、これらの direct command でも restore/build の escalation が必要になることがあります。`dotnet restore`、`dotnet run`、または `dotnet <script>.cs` が .NET first-use や permission setup で失敗したら、ad hoc workflow に置き換えず、同じ direct command を必要な sandbox escalation 付きで再実行します。
 
 ## Required Outputs
 
-各 live run は次で要約してください。
+各 live run は次を要約します。
 
 - listener endpoint
-- cleanup verification result
+- slot-removal verification result
+- post-removal pre-send dump result
 - process status と exit code
-- exact な mode と mesh code
+- exact mode と mesh code
 - 最後の timestamped `import` line
 - 最後の timestamped `live` line
 - `stderr` が空だったか
 - world snapshot summary
-- root dump path
-- 観測 timestamp
-- 結論が valid か contaminated か
+- root dump paths
+- observation timestamps
+- conclusion が valid か contaminated か

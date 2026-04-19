@@ -17,6 +17,8 @@ internal static class LocalCityGmlBootstrapPipeline
             new DefaultPlateauDatasetContentSourceFactory(
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector(),
             progressReporter,
             cancellationToken);
     }
@@ -24,10 +26,18 @@ internal static class LocalCityGmlBootstrapPipeline
     public static async Task<LocalCityGmlDocumentSet> ReadAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await ReadDocumentSetCoreAsync(request, datasetContentSourceFactory, progressReporter, cancellationToken);
+        return await ReadDocumentSetCoreAsync(
+            request,
+            datasetContentSourceFactory,
+            progressReporter,
+            appearanceStoreFactory,
+            lodSelector,
+            cancellationToken);
     }
 
     internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
@@ -41,6 +51,8 @@ internal static class LocalCityGmlBootstrapPipeline
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
             progressReporter,
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector(),
             cancellationToken);
     }
 
@@ -48,10 +60,31 @@ internal static class LocalCityGmlBootstrapPipeline
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         Action<string>? progressReporter = null,
+        ICityGmlAppearanceStoreFactory? appearanceStoreFactory = null,
+        ICityGmlLodSelector? lodSelector = null,
         CancellationToken cancellationToken = default)
+    {
+        return await ReadDocumentSetCoreInternalAsync(
+            request,
+            datasetContentSourceFactory,
+            progressReporter,
+            appearanceStoreFactory ?? new CityGmlAppearanceStoreFactory(),
+            lodSelector ?? new CityGmlLodSelector(),
+            cancellationToken);
+    }
+
+    private static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreInternalAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        Action<string>? progressReporter,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
+        ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
+        ArgumentNullException.ThrowIfNull(lodSelector);
 
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
@@ -106,6 +139,8 @@ internal static class LocalCityGmlBootstrapPipeline
                 requestedMeshAreas,
                 progressReporter,
                 lodFilteringStrategy,
+                appearanceStoreFactory,
+                lodSelector,
                 cancellationToken);
         ParsedSourceFileResult[] demParsedSourceFiles = (await Task.WhenAll(
             sourceFilePipelines
@@ -187,5 +222,4 @@ internal static class LocalCityGmlBootstrapPipeline
         throw new PlateauImportValidationException(
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
     }
-
 }

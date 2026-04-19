@@ -32,6 +32,8 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken)
     {
         return Task.FromResult(
@@ -45,12 +47,16 @@ public static partial class LocalCityGmlObjectProjection
                             requestedMeshAreas,
                             progressReporter,
                             lodFilteringStrategy,
+                            appearanceStoreFactory,
+                            lodSelector,
                             cancellationToken),
                         streamFactory: cancellationToken => StreamBootstrapParsedCityObjectsCoreAsync(
                             sourceFile,
                             datasetSource,
                             requestedMeshAreas,
                             lodFilteringStrategy,
+                            appearanceStoreFactory,
+                            lodSelector,
                             cancellationToken)))
                 .ToArray());
     }
@@ -61,6 +67,8 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -73,6 +81,8 @@ public static partial class LocalCityGmlObjectProjection
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
+                           appearanceStoreFactory,
+                           lodSelector,
                            parsedReferenceSystem: parsedReferenceSystem => coordinateReferenceSystem ??= parsedReferenceSystem,
                            cancellationToken))
         {
@@ -113,6 +123,8 @@ public static partial class LocalCityGmlObjectProjection
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
@@ -120,6 +132,8 @@ public static partial class LocalCityGmlObjectProjection
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
+                           appearanceStoreFactory,
+                           lodSelector,
                            parsedReferenceSystem: null,
                            cancellationToken))
         {
@@ -132,6 +146,8 @@ public static partial class LocalCityGmlObjectProjection
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -144,6 +160,8 @@ public static partial class LocalCityGmlObjectProjection
                                datasetSource,
                                requestedMeshAreas,
                                lodFilteringStrategy,
+                               appearanceStoreFactory,
+                               lodSelector,
                                parsedReferenceSystem,
                                cancellationToken))
             {
@@ -160,6 +178,8 @@ public static partial class LocalCityGmlObjectProjection
             datasetSource,
             requestedMeshAreas,
             lodFilteringStrategy,
+            appearanceStoreFactory,
+            lodSelector,
             parsedReferenceSystem,
             cancellationToken))
         {
@@ -225,13 +245,13 @@ public static partial class LocalCityGmlObjectProjection
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         lodFilteringStrategy ??= new LodFilteringStrategy();
-        Dictionary<string, ResoniteColor> colorsByPolygonId = new(StringComparer.Ordinal);
-        Dictionary<string, TextureAssignment> texturesByPolygonId = new(StringComparer.Ordinal);
-        AppearanceLibrary appearanceLibrary = new(colorsByPolygonId, datasetSource, texturesByPolygonId);
+        ICityGmlAppearanceStore appearanceStore = appearanceStoreFactory.Create(sourceFile.RelativePath, datasetSource);
         CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse((string?)null);
 
         using XmlReader reader = XmlReader.Create(stream, CreateStreamingReaderSettings());
@@ -265,11 +285,7 @@ public static partial class LocalCityGmlObjectProjection
                         using (XmlReader textureSubtreeReader = reader.ReadSubtree())
                         {
                             XElement textureElement = await XElement.LoadAsync(textureSubtreeReader, LoadOptions.None, cancellationToken);
-                            AppearanceLibrary.ParseParameterizedTexture(
-                                textureElement,
-                                sourceFile.RelativePath,
-                                datasetSource,
-                                texturesByPolygonId);
+                            appearanceStore.ApplyAppearanceElement(textureElement);
                         }
 
                         continue;
@@ -277,7 +293,15 @@ public static partial class LocalCityGmlObjectProjection
                         using (XmlReader materialSubtreeReader = reader.ReadSubtree())
                         {
                             XElement materialElement = await XElement.LoadAsync(materialSubtreeReader, LoadOptions.None, cancellationToken);
-                            AppearanceLibrary.ParseX3DMaterial(materialElement, colorsByPolygonId);
+                            appearanceStore.ApplyAppearanceElement(materialElement);
+                        }
+
+                        continue;
+                    case "GeoreferencedTexture":
+                        using (XmlReader textureSubtreeReader = reader.ReadSubtree())
+                        {
+                            XElement textureElement = await XElement.LoadAsync(textureSubtreeReader, LoadOptions.None, cancellationToken);
+                            appearanceStore.ApplyAppearanceElement(textureElement);
                         }
 
                         continue;
@@ -304,7 +328,8 @@ public static partial class LocalCityGmlObjectProjection
                 sourceFile.RelativePath,
                 sourceFile.MatchedMeshCode,
                 sourceFile.RequiresMeshAreaFilter,
-                appearanceLibrary,
+                appearanceStore,
+                lodSelector,
                 coordinateReferenceSystem,
                 sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
                 lodFilteringStrategy);
@@ -322,6 +347,8 @@ public static partial class LocalCityGmlObjectProjection
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         Action<CoordinateReferenceSystem>? parsedReferenceSystem,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -330,10 +357,8 @@ public static partial class LocalCityGmlObjectProjection
         XDocument cityModel = await XDocument.LoadAsync(stream, LoadOptions.None, cancellationToken);
         CoordinateReferenceSystem coordinateReferenceSystem = CoordinateReferenceSystem.Parse(cityModel);
         parsedReferenceSystem?.Invoke(coordinateReferenceSystem);
-        AppearanceLibrary appearanceLibrary = AppearanceLibrary.Parse(
-            cityModel,
-            sourceFile.RelativePath,
-            datasetSource);
+        ICityGmlAppearanceStore appearanceStore = appearanceStoreFactory.Create(sourceFile.RelativePath, datasetSource);
+        appearanceStore.LoadFromDocument(cityModel);
 
         if (cityModel.Root is null)
         {
@@ -355,7 +380,8 @@ public static partial class LocalCityGmlObjectProjection
                 sourceFile.RelativePath,
                 sourceFile.MatchedMeshCode,
                 sourceFile.RequiresMeshAreaFilter,
-                appearanceLibrary,
+                appearanceStore,
+                lodSelector,
                 coordinateReferenceSystem,
                 sourceFile.RequiresMeshAreaFilter ? requestedMeshAreas : null,
                 lodFilteringStrategy);

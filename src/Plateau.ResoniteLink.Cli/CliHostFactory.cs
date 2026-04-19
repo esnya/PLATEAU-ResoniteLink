@@ -117,6 +117,7 @@ internal sealed class DefaultSceneImportTargetFactory(IHttpClientFactory httpCli
             options.ResoniteLinkUri!,
             options.ResoniteLinkConnectionCount,
             options.EnableSendMetrics,
+            options.MemoryProfile,
             options.EnableMeshBake,
             options.TerrainTileCacheRoot,
             options.DisableTerrainTileCache,

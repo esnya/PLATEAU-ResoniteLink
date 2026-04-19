@@ -4,10 +4,15 @@ namespace Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
 internal static class PlateauCityGmlImportComposition
 {
-    public static ICityGmlDocumentReader CreateDocumentReader(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
+    public static ICityGmlDocumentReader CreateDocumentReader(
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector)
     {
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
-        return new LocalCityGmlDocumentReader(datasetContentSourceFactory);
+        ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
+        ArgumentNullException.ThrowIfNull(lodSelector);
+        return new LocalCityGmlDocumentReader(datasetContentSourceFactory, appearanceStoreFactory, lodSelector);
     }
 
     public static IDefaultMaterialResolver CreateMaterialResolver()

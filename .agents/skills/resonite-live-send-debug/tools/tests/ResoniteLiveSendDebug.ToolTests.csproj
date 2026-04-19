@@ -1,6 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <NoWarn>$(NoWarn);IDE0130;CA1822;CA1859</NoWarn>
   </PropertyGroup>
@@ -8,7 +11,6 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="SharpCompress" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
   </ItemGroup>
@@ -18,12 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="Tools\ResoniteSessionToolCommandLineParserTests.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\src\Plateau.ResoniteLink\Plateau.ResoniteLink.csproj" />
-    <ProjectReference Include="..\..\src\Plateau.ResoniteLink.Cli\Plateau.ResoniteLink.Cli.csproj" />
+    <Compile Include="..\..\..\..\..\tests\Plateau.ResoniteLink.Tests\TestData.cs" Link="TestData.cs" />
+    <Compile Include="..\..\..\..\..\tests\Plateau.ResoniteLink.Tests\Tools\ResoniteSessionToolCommandLineParserTests.cs" Link="ResoniteSessionToolCommandLineParserTests.cs" />
   </ItemGroup>
 
 </Project>

@@ -56,6 +56,7 @@ public sealed class ImportServiceFactoryTests
             "local",
             new Uri("ws://localhost:12345/"),
             4,
+            PlateauImportMemoryProfile.Large,
             enableMeshBake,
             TerrainTileCacheRoot: null,
             DisableTerrainTileCache: false,

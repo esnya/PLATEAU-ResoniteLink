@@ -10,6 +10,8 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken)
     {
         global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[] pipelines = await CreateSourceFilePipelinesCoreAsync(
@@ -18,6 +20,8 @@ public static partial class LocalCityGmlObjectProjection
             requestedMeshAreas,
             progressReporter,
             lodFilteringStrategy,
+            appearanceStoreFactory,
+            lodSelector,
             cancellationToken);
 
         return pipelines.Select(static pipeline => pipeline.ToLegacy()).ToArray();
@@ -29,6 +33,8 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         Action<string>? progressReporter,
         LodFilteringStrategy lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken)
     {
         return ParseSourceFileCoreAsync(
@@ -37,6 +43,8 @@ public static partial class LocalCityGmlObjectProjection
                 requestedMeshAreas,
                 progressReporter,
                 lodFilteringStrategy,
+                appearanceStoreFactory,
+                lodSelector,
                 cancellationToken)
             .ContinueWith(
                 static task => task.GetAwaiter().GetResult().ToLegacy(),
@@ -50,6 +58,8 @@ public static partial class LocalCityGmlObjectProjection
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken = default)
     {
         return StreamParsedCityObjectsCoreAsync(
@@ -57,6 +67,8 @@ public static partial class LocalCityGmlObjectProjection
             datasetSource,
             requestedMeshAreas,
             lodFilteringStrategy,
+            appearanceStoreFactory,
+            lodSelector,
             parsedReferenceSystem: null,
             cancellationToken);
     }

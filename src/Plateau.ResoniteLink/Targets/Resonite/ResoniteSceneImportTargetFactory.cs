@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Plateau.ResoniteLink.Application.Importing;
+using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Targets.Resonite;
 
@@ -11,6 +12,7 @@ public static class ResoniteSceneImportTargetFactory
         Uri endpoint,
         int connectionCount,
         bool enableSendMetrics,
+        PlateauImportMemoryProfile memoryProfile,
         bool enableMeshBake,
         string? terrainTileCacheRoot,
         bool disableTerrainTileCache,
@@ -28,6 +30,7 @@ public static class ResoniteSceneImportTargetFactory
             endpoint,
             connectionCount,
             diagnostics,
+            memoryProfile,
             new ResoniteLiveSceneImportDependencies(
                 Transport.ResoniteLink.ResoniteLinkTransportSessionFactory.Create(
                     endpoint,

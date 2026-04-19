@@ -6,7 +6,10 @@ public static class PlateauCityGmlComposition
 {
     public static ICityGmlDocumentReader CreateDocumentReader(IPlateauDatasetContentSourceFactory datasetContentSourceFactory)
     {
-        return PlateauCityGmlImportComposition.CreateDocumentReader(datasetContentSourceFactory);
+        return PlateauCityGmlImportComposition.CreateDocumentReader(
+            datasetContentSourceFactory,
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
     }
 
     public static IResoniteConstructionSourceFactory CreateConstructionSourceFactory(

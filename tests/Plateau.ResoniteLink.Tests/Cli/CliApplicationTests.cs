@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Cli;
+using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Tests.Cli;
 
@@ -102,6 +103,7 @@ public sealed class CliApplicationTests
         Assert.Equal(0, exitCode);
         BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions.Request.PackageNames);
+        Assert.Equal(PlateauImportMemoryProfile.Large, capturedOptions.MemoryProfile);
         Assert.Equal(string.Empty, standardError.ToString());
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
     }

@@ -33,6 +33,7 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
         Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
+        Assert.Equal(PlateauImportMemoryProfile.Large, result.Options.MemoryProfile);
         Assert.True(result.Options.EnableMeshBake);
         Assert.Null(result.Options.TerrainTileCacheRoot);
         Assert.False(result.Options.DisableTerrainTileCache);
@@ -540,6 +541,74 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         Assert.True(result.Options!.EnableSendMetrics);
+    }
+
+    [Fact]
+    public void ParseParsesMemoryProfile()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--memory-profile",
+                "small",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(PlateauImportMemoryProfile.Small, result.Options!.MemoryProfile);
+    }
+
+    [Fact]
+    public void ParseRejectsInvalidMemoryProfile()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--memory-profile",
+                "tiny",
+            ]);
+
+        Assert.Equal(
+            "The value 'tiny' is not a valid memory profile. Use 'small' or 'large'.",
+            result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsNumericMemoryProfile()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--memory-profile",
+                "2",
+            ]);
+
+        Assert.Equal(
+            "The value '2' is not a valid memory profile. Use 'small' or 'large'.",
+            result.Error);
     }
 
     [Fact]

@@ -47,6 +47,8 @@ public static class CliArgumentsParser
           --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
           --resonitelink-connections <count>
                                 Optional. Parallel ResoniteLink connection count for live sends. Default: 4.
+          --memory-profile <small|large>
+                                Optional. Texture/import memory budget profile. Default: large.
           --no-mesh-bake         Optional. Disable fixed-cell mesh baking for eligible LOD1 building city objects.
           --send-metrics         Optional. Enable opt-in live send metrics and CLI summary output.
           --verbose              Optional. Include debug-level progress logs.
@@ -89,6 +91,7 @@ public static class CliArgumentsParser
         bool disableTerrainTileCache = false;
         Uri? resoniteLinkUri = null;
         int resoniteLinkConnectionCount = CliDefaultOptions.ResoniteLinkConnectionCount;
+        PlateauImportMemoryProfile memoryProfile = CliDefaultOptions.MemoryProfile;
         bool enableMeshBake = true;
         bool enableSendMetrics = false;
         bool verboseLogging = false;
@@ -200,6 +203,18 @@ public static class CliArgumentsParser
                             {
                                 return CliParseResult.Failure(
                                     $"The value '{connectionCountValue}' is not a valid ResoniteLink connection count.");
+                            }
+
+                            break;
+                        }
+                    case "--memory-profile":
+                        {
+                            string memoryProfileValue = ReadValue(args, ref index, token);
+                            if (!Enum.TryParse(memoryProfileValue, ignoreCase: true, out memoryProfile)
+                                || !Enum.IsDefined(memoryProfile))
+                            {
+                                return CliParseResult.Failure(
+                                    $"The value '{memoryProfileValue}' is not a valid memory profile. Use 'small' or 'large'.");
                             }
 
                             break;
@@ -373,6 +388,7 @@ public static class CliArgumentsParser
                 workRoot,
                 resoniteLinkUri,
                 resoniteLinkConnectionCount,
+                memoryProfile,
                 enableMeshBake,
                 terrainTileCacheRoot,
                 disableTerrainTileCache,

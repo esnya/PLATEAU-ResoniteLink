@@ -16,6 +16,8 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         Assert.NotNull(provider.GetRequiredService<IArchiveFileLayoutPolicy>());
         Assert.NotNull(provider.GetRequiredService<IRemoteArchiveDistributionPolicy>());
         Assert.NotNull(provider.GetRequiredService<IPlateauDatasetContentSourceFactory>());
+        Assert.NotNull(provider.GetRequiredService<ICityGmlAppearanceStoreFactory>());
+        Assert.NotNull(provider.GetRequiredService<ICityGmlLodSelector>());
         Assert.NotNull(provider.GetRequiredService<IDefaultMaterialResolver>());
         Assert.NotNull(provider.GetRequiredService<IResoniteConstructionComposer>());
         Assert.NotNull(provider.GetRequiredService<ICityGmlDocumentReader>());

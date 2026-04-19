@@ -15,10 +15,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
     int tilePaddingPixels = 2,
     IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
     int maxBufferedSourceUnits = 32,
-    int maxBufferedCityObjectsPerSourceUnit = 256) : IResoniteBufferedCityObjectBaker
+    int maxBufferedCityObjectsPerSourceUnit = 256,
+    ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
+    private const byte BackgroundDetectionAlphaThreshold = 16;
 
     private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
     private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
@@ -32,6 +34,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
     public int BakedInputCityObjectCount { get; private set; }
 
     public int BakedOutputCityObjectCount { get; private set; }
+
+    private int EffectiveMaxAtlasSize => Math.Max(1, Math.Min(maxAtlasSize, resourceBudget?.MaxAtlasSize ?? maxAtlasSize));
+
+    private int EffectiveMaxAtlasTextureEdge
+    {
+        get
+        {
+            int profileMaxTileEdge = resourceBudget?.MaxAtlasTextureEdge ?? EffectiveMaxAtlasSize;
+            return Math.Max(1, Math.Min(EffectiveMaxAtlasSize - (tilePaddingPixels * 2), profileMaxTileEdge));
+        }
+    }
 
     public async ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
@@ -311,15 +324,21 @@ internal sealed class Lod2AtlasCityObjectBaker(
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
             ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
+        Rgba32 detectedBackgroundColor = DetectRepresentativeBackgroundColor(sourceImage);
+        using Image<Rgba32> preparedSourceImage = sourceImage.Clone();
+        FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
 
-        int maxTileWidth = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
-        int maxTileHeight = Math.Max(1, maxAtlasSize - (tilePaddingPixels * 2));
+        int maxTileWidth = EffectiveMaxAtlasTextureEdge;
+        int maxTileHeight = EffectiveMaxAtlasTextureEdge;
         int targetWidth = Math.Max(1, Math.Min(maxTileWidth, (int)Math.Ceiling(sourceImage.Width * uvBounds.Width)));
         int targetHeight = Math.Max(1, Math.Min(maxTileHeight, (int)Math.Ceiling(sourceImage.Height * uvBounds.Height)));
-        using Image<Rgba32> bakedImage = BakeUsedUvRegion(sourceImage, uvBounds, targetWidth, targetHeight);
+        using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
 
         ApplyBaseColor(bakedImage, material.BaseColor);
-        return new MaterialAtlasTile(material.TexturePayload.Identity ?? material.MaterialKey, bakedImage.Clone());
+        return new MaterialAtlasTile(
+            material.TexturePayload.Identity ?? material.MaterialKey,
+            bakedImage.Clone(),
+            MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor)));
     }
 
     private static MaterialAtlasTile CreateSolidColorTile(ResoniteColor color)
@@ -327,7 +346,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
         using Image<Rgba32> image = new(1, 1, ToPixel(color));
         return new MaterialAtlasTile(
             $"solid:{color.R:0.###},{color.G:0.###},{color.B:0.###},{color.A:0.###}",
-            image.Clone());
+            image.Clone(),
+            ToPixel(color));
     }
 
     private static bool CanBufferCityObjectMaterials(
@@ -482,14 +502,22 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         using Image<Rgba32>? atlasImage = layout is null
             ? null
-            : new Image<Rgba32>(layout.Width, layout.Height, new Rgba32(255, 255, 255, 255));
+            : new Image<Rgba32>(layout.Width, layout.Height, new Rgba32(0, 0, 0, 0));
+        bool[]? atlasCoverage = layout is null
+            ? null
+            : new bool[layout.Width * layout.Height];
         if (layout is not null)
         {
             foreach (AtlasPlacement placement in layout.Placements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                DrawAtlasTile(atlasImage!, placement);
+                DrawAtlasTile(atlasImage!, atlasCoverage!, layout.Width, placement);
             }
+
+            FillUncoveredAtlasPixels(
+                atlasImage!,
+                atlasCoverage!,
+                ComputeAtlasBackgroundColor(layout.Placements));
         }
 
         ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
@@ -677,13 +705,19 @@ internal sealed class Lod2AtlasCityObjectBaker(
             : new ResoniteFloat3(minX, minY, minZ);
     }
 
-    private void DrawAtlasTile(Image<Rgba32> atlasImage, AtlasPlacement placement)
+    private void DrawAtlasTile(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, AtlasPlacement placement)
     {
         for (int y = 0; y < placement.Entry.Tile.Image.Height; y++)
         {
             for (int x = 0; x < placement.Entry.Tile.Image.Width; x++)
             {
-                atlasImage[placement.InnerRect.X + x, placement.InnerRect.Y + y] = placement.Entry.Tile.Image[x, y];
+                SetAtlasPixel(
+                    atlasImage,
+                    atlasCoverage,
+                    atlasWidth,
+                    placement.InnerRect.X + x,
+                    placement.InnerRect.Y + y,
+                    placement.Entry.Tile.Image[x, y]);
             }
         }
 
@@ -693,8 +727,20 @@ internal sealed class Lod2AtlasCityObjectBaker(
             Rgba32 rightEdge = atlasImage[placement.InnerRect.X + placement.InnerRect.Width - 1, placement.InnerRect.Y + y];
             for (int pad = 1; pad <= tilePaddingPixels; pad++)
             {
-                atlasImage[placement.InnerRect.X - pad, placement.InnerRect.Y + y] = leftEdge;
-                atlasImage[placement.InnerRect.X + placement.InnerRect.Width - 1 + pad, placement.InnerRect.Y + y] = rightEdge;
+                SetAtlasPixel(
+                    atlasImage,
+                    atlasCoverage,
+                    atlasWidth,
+                    placement.InnerRect.X - pad,
+                    placement.InnerRect.Y + y,
+                    leftEdge);
+                SetAtlasPixel(
+                    atlasImage,
+                    atlasCoverage,
+                    atlasWidth,
+                    placement.InnerRect.X + placement.InnerRect.Width - 1 + pad,
+                    placement.InnerRect.Y + y,
+                    rightEdge);
             }
         }
 
@@ -708,8 +754,20 @@ internal sealed class Lod2AtlasCityObjectBaker(
             for (int x = 0; x < fullWidth; x++)
             {
                 int sampleX = placement.InnerRect.X - tilePaddingPixels + x;
-                atlasImage[sampleX, targetTopY] = atlasImage[sampleX, sourceTopY];
-                atlasImage[sampleX, targetBottomY] = atlasImage[sampleX, sourceBottomY];
+                SetAtlasPixel(
+                    atlasImage,
+                    atlasCoverage,
+                    atlasWidth,
+                    sampleX,
+                    targetTopY,
+                    atlasImage[sampleX, sourceTopY]);
+                SetAtlasPixel(
+                    atlasImage,
+                    atlasCoverage,
+                    atlasWidth,
+                    sampleX,
+                    targetBottomY,
+                    atlasImage[sampleX, sourceBottomY]);
             }
         }
     }
@@ -718,49 +776,166 @@ internal sealed class Lod2AtlasCityObjectBaker(
         IReadOnlyList<AtlasBatchEntry> entries,
         out AtlasLayout? layout)
     {
+        int atlasMaxSize = EffectiveMaxAtlasSize;
         List<AtlasPlacement> placements = [];
-        int cursorX = 0;
-        int cursorY = 0;
-        int rowHeight = 0;
+        List<Rect> freeRectangles = [new Rect(0, 0, atlasMaxSize, atlasMaxSize)];
         int usedWidth = 0;
+        int usedHeight = 0;
 
         foreach (AtlasBatchEntry entry in entries)
         {
             int paddedWidth = entry.Tile.Image.Width + (tilePaddingPixels * 2);
             int paddedHeight = entry.Tile.Image.Height + (tilePaddingPixels * 2);
-            if (paddedWidth > maxAtlasSize || paddedHeight > maxAtlasSize)
+            if (paddedWidth > atlasMaxSize || paddedHeight > atlasMaxSize)
             {
                 layout = null;
                 return false;
             }
 
-            if (cursorX > 0 && cursorX + paddedWidth > maxAtlasSize)
-            {
-                cursorX = 0;
-                cursorY += rowHeight;
-                rowHeight = 0;
-            }
-
-            if (cursorY + paddedHeight > maxAtlasSize)
+            if (!TryChooseFreeRectangle(freeRectangles, paddedWidth, paddedHeight, out Rect selectedRect))
             {
                 layout = null;
                 return false;
             }
 
-            Rect outerRect = new(cursorX, cursorY, paddedWidth, paddedHeight);
-            Rect innerRect = new(cursorX + tilePaddingPixels, cursorY + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
+            Rect outerRect = new(selectedRect.X, selectedRect.Y, paddedWidth, paddedHeight);
+            Rect innerRect = new(selectedRect.X + tilePaddingPixels, selectedRect.Y + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
             placements.Add(new AtlasPlacement(entry, outerRect, innerRect));
-            cursorX += paddedWidth;
-            rowHeight = Math.Max(rowHeight, paddedHeight);
-            usedWidth = Math.Max(usedWidth, cursorX);
+            SplitFreeRectangles(freeRectangles, outerRect);
+            PruneFreeRectangles(freeRectangles);
+            usedWidth = Math.Max(usedWidth, outerRect.X + outerRect.Width);
+            usedHeight = Math.Max(usedHeight, outerRect.Y + outerRect.Height);
         }
 
-        int usedHeight = cursorY + rowHeight;
         layout = new AtlasLayout(
             Math.Max(1, usedWidth),
             Math.Max(1, usedHeight),
             placements);
         return true;
+    }
+
+    private static bool TryChooseFreeRectangle(
+        IReadOnlyList<Rect> freeRectangles,
+        int requiredWidth,
+        int requiredHeight,
+        out Rect selectedRect)
+    {
+        selectedRect = default;
+        bool found = false;
+        int bestAreaFit = int.MaxValue;
+        int bestShortSideFit = int.MaxValue;
+
+        foreach (Rect freeRect in freeRectangles)
+        {
+            if (requiredWidth > freeRect.Width || requiredHeight > freeRect.Height)
+            {
+                continue;
+            }
+
+            int areaFit = (freeRect.Width * freeRect.Height) - (requiredWidth * requiredHeight);
+            int shortSideFit = Math.Min(freeRect.Width - requiredWidth, freeRect.Height - requiredHeight);
+            if (areaFit < bestAreaFit
+                || (areaFit == bestAreaFit && shortSideFit < bestShortSideFit)
+                || (areaFit == bestAreaFit && shortSideFit == bestShortSideFit
+                    && (freeRect.Y < selectedRect.Y
+                        || (freeRect.Y == selectedRect.Y && freeRect.X < selectedRect.X))))
+            {
+                selectedRect = freeRect;
+                bestAreaFit = areaFit;
+                bestShortSideFit = shortSideFit;
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    private static void SplitFreeRectangles(List<Rect> freeRectangles, Rect usedRect)
+    {
+        for (int index = freeRectangles.Count - 1; index >= 0; index--)
+        {
+            Rect freeRect = freeRectangles[index];
+            if (!Intersects(freeRect, usedRect))
+            {
+                continue;
+            }
+
+            freeRectangles.RemoveAt(index);
+
+            if (usedRect.X > freeRect.X)
+            {
+                freeRectangles.Add(new Rect(
+                    freeRect.X,
+                    freeRect.Y,
+                    usedRect.X - freeRect.X,
+                    freeRect.Height));
+            }
+
+            if (usedRect.X + usedRect.Width < freeRect.X + freeRect.Width)
+            {
+                freeRectangles.Add(new Rect(
+                    usedRect.X + usedRect.Width,
+                    freeRect.Y,
+                    (freeRect.X + freeRect.Width) - (usedRect.X + usedRect.Width),
+                    freeRect.Height));
+            }
+
+            if (usedRect.Y > freeRect.Y)
+            {
+                freeRectangles.Add(new Rect(
+                    freeRect.X,
+                    freeRect.Y,
+                    freeRect.Width,
+                    usedRect.Y - freeRect.Y));
+            }
+
+            if (usedRect.Y + usedRect.Height < freeRect.Y + freeRect.Height)
+            {
+                freeRectangles.Add(new Rect(
+                    freeRect.X,
+                    usedRect.Y + usedRect.Height,
+                    freeRect.Width,
+                    (freeRect.Y + freeRect.Height) - (usedRect.Y + usedRect.Height)));
+            }
+        }
+    }
+
+    private static void PruneFreeRectangles(List<Rect> freeRectangles)
+    {
+        for (int leftIndex = freeRectangles.Count - 1; leftIndex >= 0; leftIndex--)
+        {
+            Rect left = freeRectangles[leftIndex];
+            for (int rightIndex = freeRectangles.Count - 1; rightIndex >= 0; rightIndex--)
+            {
+                if (leftIndex == rightIndex)
+                {
+                    continue;
+                }
+
+                Rect right = freeRectangles[rightIndex];
+                if (Contains(right, left))
+                {
+                    freeRectangles.RemoveAt(leftIndex);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static bool Intersects(Rect left, Rect right)
+    {
+        return left.X < right.X + right.Width
+            && left.X + left.Width > right.X
+            && left.Y < right.Y + right.Height
+            && left.Y + left.Height > right.Y;
+    }
+
+    private static bool Contains(Rect outer, Rect inner)
+    {
+        return inner.X >= outer.X
+            && inner.Y >= outer.Y
+            && inner.X + inner.Width <= outer.X + outer.Width
+            && inner.Y + inner.Height <= outer.Y + outer.Height;
     }
 
     private static void ApplyBaseColor(Image<Rgba32> image, ResoniteColor color)
@@ -783,6 +958,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
     private static byte MultiplyChannel(byte left, byte right)
     {
         return (byte)Math.Clamp((left * right + 127) / 255, 0, 255);
+    }
+
+    private static Rgba32 MultiplyPixel(Rgba32 left, Rgba32 right)
+    {
+        return new Rgba32(
+            MultiplyChannel(left.R, right.R),
+            MultiplyChannel(left.G, right.G),
+            MultiplyChannel(left.B, right.B),
+            MultiplyChannel(left.A, right.A));
     }
 
     private static Rgba32 ToPixel(ResoniteColor color)
@@ -922,6 +1106,198 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return bakedImage;
     }
 
+    private static Rgba32 DetectRepresentativeBackgroundColor(Image<Rgba32> image)
+    {
+        if (TryAverageBoundaryOpaquePixels(image, out Rgba32 boundaryAverage))
+        {
+            return boundaryAverage;
+        }
+
+        if (TryAverageOpaquePixels(image, out Rgba32 opaqueAverage))
+        {
+            return opaqueAverage;
+        }
+
+        if (TryAverageAllPixels(image, out Rgba32 allPixelAverage))
+        {
+            return new Rgba32(allPixelAverage.R, allPixelAverage.G, allPixelAverage.B, byte.MaxValue);
+        }
+
+        return new Rgba32(255, 255, 255, 255);
+    }
+
+    private static void FillTransparentRgb(Image<Rgba32> image, Rgba32 backgroundColor)
+    {
+        for (int y = 0; y < image.Height; y++)
+        {
+            for (int x = 0; x < image.Width; x++)
+            {
+                Rgba32 pixel = image[x, y];
+                if (pixel.A == byte.MaxValue)
+                {
+                    continue;
+                }
+
+                double alpha = pixel.A / 255.0;
+                image[x, y] = new Rgba32(
+                    BlendBackgroundChannel(pixel.R, backgroundColor.R, alpha),
+                    BlendBackgroundChannel(pixel.G, backgroundColor.G, alpha),
+                    BlendBackgroundChannel(pixel.B, backgroundColor.B, alpha),
+                    pixel.A);
+            }
+        }
+    }
+
+    private static bool TryAverageBoundaryOpaquePixels(Image<Rgba32> image, out Rgba32 color)
+    {
+        long sumR = 0;
+        long sumG = 0;
+        long sumB = 0;
+        long count = 0;
+        for (int y = 0; y < image.Height; y++)
+        {
+            for (int x = 0; x < image.Width; x++)
+            {
+                Rgba32 pixel = image[x, y];
+                if (pixel.A <= BackgroundDetectionAlphaThreshold || !TouchesTransparentNeighbor(image, x, y))
+                {
+                    continue;
+                }
+
+                sumR += pixel.R;
+                sumG += pixel.G;
+                sumB += pixel.B;
+                count++;
+            }
+        }
+
+        color = count == 0
+            ? default
+            : new Rgba32(
+                (byte)Math.Clamp(Math.Round(sumR / (double)count), 0.0, 255.0),
+                (byte)Math.Clamp(Math.Round(sumG / (double)count), 0.0, 255.0),
+                (byte)Math.Clamp(Math.Round(sumB / (double)count), 0.0, 255.0),
+                byte.MaxValue);
+        return count > 0;
+    }
+
+    private static bool TouchesTransparentNeighbor(Image<Rgba32> image, int x, int y)
+    {
+        return IsTransparentOrOutOfBounds(image, x - 1, y)
+            || IsTransparentOrOutOfBounds(image, x + 1, y)
+            || IsTransparentOrOutOfBounds(image, x, y - 1)
+            || IsTransparentOrOutOfBounds(image, x, y + 1);
+    }
+
+    private static bool IsTransparentOrOutOfBounds(Image<Rgba32> image, int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= image.Width || y >= image.Height)
+        {
+            return true;
+        }
+
+        return image[x, y].A <= BackgroundDetectionAlphaThreshold;
+    }
+
+    private static bool TryAverageOpaquePixels(Image<Rgba32> image, out Rgba32 color)
+    {
+        return TryAveragePixels(image, static pixel => pixel.A > BackgroundDetectionAlphaThreshold, out color);
+    }
+
+    private static bool TryAverageAllPixels(Image<Rgba32> image, out Rgba32 color)
+    {
+        return TryAveragePixels(image, static _ => true, out color);
+    }
+
+    private static bool TryAveragePixels(Image<Rgba32> image, Func<Rgba32, bool> predicate, out Rgba32 color)
+    {
+        long sumR = 0;
+        long sumG = 0;
+        long sumB = 0;
+        long count = 0;
+        for (int y = 0; y < image.Height; y++)
+        {
+            for (int x = 0; x < image.Width; x++)
+            {
+                Rgba32 pixel = image[x, y];
+                if (!predicate(pixel))
+                {
+                    continue;
+                }
+
+                sumR += pixel.R;
+                sumG += pixel.G;
+                sumB += pixel.B;
+                count++;
+            }
+        }
+
+        color = count == 0
+            ? default
+            : new Rgba32(
+                (byte)Math.Clamp(Math.Round(sumR / (double)count), 0.0, 255.0),
+                (byte)Math.Clamp(Math.Round(sumG / (double)count), 0.0, 255.0),
+                (byte)Math.Clamp(Math.Round(sumB / (double)count), 0.0, 255.0),
+                byte.MaxValue);
+        return count > 0;
+    }
+
+    private static byte BlendBackgroundChannel(byte foreground, byte background, double alpha)
+    {
+        double blended = (foreground * alpha) + (background * (1.0 - alpha));
+        return (byte)Math.Clamp(Math.Round(blended), 0.0, 255.0);
+    }
+
+    private static Rgba32 ComputeAtlasBackgroundColor(IReadOnlyList<AtlasPlacement> placements)
+    {
+        long sumR = 0;
+        long sumG = 0;
+        long sumB = 0;
+        long totalWeight = 0;
+        foreach (AtlasPlacement placement in placements)
+        {
+            long weight = Math.Max(1, placement.Entry.Tile.Image.Width * placement.Entry.Tile.Image.Height);
+            sumR += placement.Entry.Tile.BackgroundColor.R * weight;
+            sumG += placement.Entry.Tile.BackgroundColor.G * weight;
+            sumB += placement.Entry.Tile.BackgroundColor.B * weight;
+            totalWeight += weight;
+        }
+
+        if (totalWeight == 0)
+        {
+            return new Rgba32(255, 255, 255, 255);
+        }
+
+        return new Rgba32(
+            (byte)Math.Clamp(Math.Round(sumR / (double)totalWeight), 0.0, 255.0),
+            (byte)Math.Clamp(Math.Round(sumG / (double)totalWeight), 0.0, 255.0),
+            (byte)Math.Clamp(Math.Round(sumB / (double)totalWeight), 0.0, 255.0),
+            byte.MaxValue);
+    }
+
+    private static void FillUncoveredAtlasPixels(Image<Rgba32> atlasImage, bool[] atlasCoverage, Rgba32 backgroundColor)
+    {
+        for (int y = 0; y < atlasImage.Height; y++)
+        {
+            for (int x = 0; x < atlasImage.Width; x++)
+            {
+                int offset = (y * atlasImage.Width) + x;
+                if (atlasCoverage[offset])
+                {
+                    continue;
+                }
+
+                atlasImage[x, y] = backgroundColor;
+            }
+        }
+    }
+
+    private static void SetAtlasPixel(Image<Rgba32> atlasImage, bool[] atlasCoverage, int atlasWidth, int x, int y, Rgba32 pixel)
+    {
+        atlasImage[x, y] = pixel;
+        atlasCoverage[(y * atlasWidth) + x] = true;
+    }
+
     private static Rgba32 SampleWrappedPixelBilinear(Image<Rgba32> sourceImage, double u, double v)
     {
         double wrappedU = WrapUvCoordinate(u);
@@ -1013,42 +1389,29 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
     {
-        if (material.MaterialType == ResoniteMaterialType.VertexColor)
+        ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
+        if (normalizedMaterial.MaterialType != ResoniteMaterialType.Standard
+            || normalizedMaterial.TexturePayload is not null
+            || normalizedMaterial.TerrainOverlay is not null
+            || string.IsNullOrWhiteSpace(normalizedMaterial.Family)
+            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled)
         {
-            return material with
+            return normalizedMaterial;
+        }
+
+        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(
+            normalizedMaterial with
             {
-                MaterialKey = "preserved-vertex-color",
-            };
-        }
-
-        if (material.MaterialType == ResoniteMaterialType.Standard
-            && material.TexturePayload is null
-            && material.AssetScope != ResoniteMaterialAssetScope.Common
-            && string.IsNullOrWhiteSpace(material.Family))
-        {
-            return material with
-            {
-                MaterialKey = "preserved-standard-textureless",
-            };
-        }
-
-        if (material.AssetScope != ResoniteMaterialAssetScope.Common
-            || (material.Family != BundledDefaultMaterialFamilies.Facade
-                && material.Family != BundledDefaultMaterialFamilies.Roof))
-        {
-            return material;
-        }
-
-        int bundledVariantIndex = 0;
-        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family, bundledVariantIndex);
-        return material with
-        {
-            MaterialKey = $"common-{material.Family}-variant:{bundledVariantIndex}",
-            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-            TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
-            TextureOffset = null,
-            BundledVariantIndex = bundledVariantIndex,
-        };
+                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                TexturePayload = null,
+                TerrainOverlay = null,
+                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                TextureScale = null,
+                TextureOffset = null,
+                DepthOffset = null,
+                AssetScope = ResoniteMaterialAssetScope.Common,
+                BundledVariantIndex = 0,
+            });
     }
 
     private async Task EmitAtlasBatchAsync(
@@ -1121,7 +1484,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
     }
 
-    private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image);
+    private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image, Rgba32 BackgroundColor);
 
     private readonly record struct BufferedCityObject(
         ResoniteConstructionCityObject CityObject,

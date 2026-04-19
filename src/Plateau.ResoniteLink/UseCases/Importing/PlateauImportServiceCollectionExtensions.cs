@@ -14,6 +14,8 @@ public static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
+        services.AddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
+        services.AddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.AddSingleton<IDefaultMaterialResolver>(_ =>
             PlateauCityGmlImportComposition.CreateMaterialResolver());
         services.AddSingleton<IResoniteConstructionComposer>(provider =>
@@ -21,11 +23,14 @@ public static class PlateauImportServiceCollectionExtensions
                 PlateauCityGmlImportComposition.CreateGeometryProjector(
                     provider.GetRequiredService<IDefaultMaterialResolver>())));
         services.AddSingleton<ICityGmlDocumentReader>(provider =>
-            PlateauCityGmlComposition.CreateDocumentReader(
-                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>()));
+            PlateauCityGmlImportComposition.CreateDocumentReader(
+                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
+                provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
+                provider.GetRequiredService<ICityGmlLodSelector>()));
         services.AddSingleton<IResoniteConstructionSourceFactory>(provider =>
-            PlateauCityGmlComposition.CreateConstructionSourceFactory(
-                provider.GetRequiredService<IPlateauDatasetContentSourceFactory>()));
+            PlateauCityGmlImportComposition.CreateConstructionSourceFactory(
+                provider.GetRequiredService<ICityGmlDocumentReader>(),
+                provider.GetRequiredService<IResoniteConstructionComposer>()));
 
         return services;
     }

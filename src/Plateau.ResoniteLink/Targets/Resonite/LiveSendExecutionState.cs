@@ -50,7 +50,7 @@ internal sealed class CommonMaterialAssetCache
 {
     public ConcurrentDictionary<string, Task> CommonMaterialFamilyWarmupTasks { get; } = new(StringComparer.Ordinal);
 
-    public ConcurrentDictionary<string, Task<CreatedMaterialAsset>> CommonMaterialCreationTasks { get; } = new(StringComparer.Ordinal);
+    public AsyncInFlightResultCache<string, CreatedMaterialAsset> CommonMaterialCreationTasks { get; } = new();
 }
 
 internal sealed record LiveSendRunPlan(
@@ -58,6 +58,7 @@ internal sealed record LiveSendRunPlan(
     string ResolvedWorkRoot,
     ResoniteLocalOrigin RequestLocalOrigin,
     IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,
+    ResoniteImportBudgetProfile ResourceBudget,
     LiveSendQueuePlan Queue,
     bool MeshBakeEnabled);
 
@@ -69,6 +70,7 @@ internal sealed record LiveSendQueuePlan(
 internal sealed record LiveSendRunContext(
     LiveSendRunPlan Plan,
     CreatedSlot DatasetRootSlot,
+    CreatedSlot CommonAssetsRootSlot,
     CompositeCityObjectBaker? CityObjectBaker);
 
 internal sealed class LiveSendRunState

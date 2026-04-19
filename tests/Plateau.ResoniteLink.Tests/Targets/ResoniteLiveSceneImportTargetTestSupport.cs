@@ -193,6 +193,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             new Uri("ws://localhost:12345/"),
             1,
             ResoniteLinkSendDiagnostics.Disabled,
+            PlateauImportMemoryProfile.Large,
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
