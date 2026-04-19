@@ -2,6 +2,7 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal sealed record ResoniteLiveSceneImportDependencies(
     ILiveSendClientSession ClientSession,
+    ResoniteLinkSendDiagnostics Diagnostics,
     ITerrainTextureAssetGenerator TerrainTextureAssetGenerator,
     Execution.IResoniteSceneBootstrapInterpreter SceneBootstrapInterpreter,
     Execution.IResoniteGeometryAssetAssembler GeometryAssetAssembler,
@@ -16,6 +17,7 @@ internal sealed record ResoniteLiveSceneImportDependencies(
         ITerrainTextureAssetGenerator terrainTextureAssetGenerator)
         : this(
             clientSession,
+            ResoniteLinkSendDiagnostics.Disabled,
             terrainTextureAssetGenerator,
             new Execution.ResoniteSceneBootstrapInterpreter(new Execution.ResoniteSceneSlotLocator()),
             new Execution.ResoniteGeometryAssetAssembler(),

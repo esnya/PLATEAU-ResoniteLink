@@ -211,7 +211,10 @@ public static class CliArgumentsParser
                         {
                             string memoryProfileValue = ReadValue(args, ref index, token);
                             if (!Enum.TryParse(memoryProfileValue, ignoreCase: true, out memoryProfile)
-                                || !Enum.IsDefined(memoryProfile))
+                                || !string.Equals(
+                                    Enum.GetName(memoryProfile),
+                                    memoryProfileValue,
+                                    StringComparison.OrdinalIgnoreCase))
                             {
                                 return CliParseResult.Failure(
                                     $"The value '{memoryProfileValue}' is not a valid memory profile. Use 'small' or 'large'.");

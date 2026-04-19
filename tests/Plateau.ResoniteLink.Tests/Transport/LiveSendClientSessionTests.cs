@@ -14,6 +14,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
+            ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
@@ -35,6 +36,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
+            ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
@@ -59,6 +61,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 3,
+            ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
@@ -103,6 +106,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 2,
+            ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
@@ -126,6 +130,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount,
+            ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();
@@ -142,6 +147,7 @@ public sealed class LiveSendClientSessionTests
             clientFactory.Create,
             new Uri("ws://localhost:12345/"),
             connectionCount: 2,
+            ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
         PlateauImportRequest request = CreateRequest();

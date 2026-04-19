@@ -15,9 +15,12 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.AddScoped<IResoniteGeometryAssetAssembler, ResoniteGeometryAssetAssembler>();
         services.AddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
         services.AddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
-        services.AddScoped<IResoniteSceneBootstrapInterpreter, ResoniteSceneBootstrapInterpreter>();
         services.AddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.AddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
+        services.AddScoped<IResoniteSceneBootstrapInterpreter>(
+            static serviceProvider => new ResoniteSceneBootstrapInterpreter(
+                serviceProvider.GetRequiredService<IResoniteSceneSlotLocator>(),
+                serviceProvider.GetRequiredService<IResoniteMaterialPlanning>()));
         services.AddScoped<IResoniteLiveSceneImportDependencyFactory, ResoniteLiveSceneImportDependencyFactory>();
         services.AddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
 
@@ -33,7 +36,6 @@ public interface IResoniteLiveSceneImportFactory
 }
 
 internal sealed class ResoniteLiveSceneImportFactory(
-    IServiceProvider serviceProvider,
     IResoniteLiveSceneImportDependencyFactory dependencyFactory) : IResoniteLiveSceneImportFactory
 {
     public ResoniteLiveSceneImportTarget CreateTarget(
@@ -43,10 +45,7 @@ internal sealed class ResoniteLiveSceneImportFactory(
         ResoniteLiveSceneImportDependencies dependencies = dependencyFactory.Create(
             options,
             terrainTextureAssetHttpClient);
-        return ActivatorUtilities.CreateInstance<ResoniteLiveSceneImportTarget>(
-            serviceProvider,
-            options,
-            dependencies);
+        return new ResoniteLiveSceneImportTarget(options, dependencies);
     }
 }
 
@@ -66,15 +65,17 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(IServiceProvider 
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
+        ResoniteLinkSendDiagnostics diagnostics = options.EnableSendMetrics
+            ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
+            : ResoniteLinkSendDiagnostics.Disabled;
 
         return new ResoniteLiveSceneImportDependencies(
             ResoniteLinkTransportSessionFactory.Create(
                 options.Endpoint,
                 options.ConnectionCount,
-                options.EnableSendMetrics
-                    ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
-                    : ResoniteLinkSendDiagnostics.Disabled,
+                diagnostics,
                 options.ProgressReporter),
+            diagnostics,
             new TerrainTextureAssetGenerator(
                 terrainTextureAssetHttpClient,
                 options.TerrainTileCacheRoot,

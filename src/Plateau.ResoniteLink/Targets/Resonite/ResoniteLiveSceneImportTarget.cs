@@ -20,7 +20,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private const string HeightMapAssetSlotSuffix = "_heightmap";
     private readonly Uri endpoint;
     private readonly int connectionCount;
-    private readonly ResoniteLinkSendDiagnostics diagnostics;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
     private readonly IResoniteGeometryAssetAssembler geometryAssetAssembler;
     private readonly IResoniteMaterialPlanning materialPlanning;
@@ -29,7 +28,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private readonly IResoniteSlotCreator slotCreator;
     private readonly IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory;
 #pragma warning disable CA1859
-    private readonly ILiveSendClientSession clientSession;
+    private ILiveSendClientSession ClientSessionInternal { get; }
 #pragma warning restore CA1859
     private readonly Action<string>? progressReporter;
 #pragma warning disable CA1859
@@ -183,9 +182,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         endpoint = options.Endpoint;
         connectionCount = options.ConnectionCount;
         MemoryProfile = options.MemoryProfile;
-        diagnostics = options.EnableSendMetrics
-            ? ResoniteLinkSendDiagnostics.CreateEnabled(options.ProgressReporter)
-            : ResoniteLinkSendDiagnostics.Disabled;
+        Diagnostics = dependencies.Diagnostics;
         this.terrainTextureAssetGenerator = dependencies.TerrainTextureAssetGenerator;
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
@@ -196,7 +193,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         batchEmitter = dependencies.BatchEmitter;
         slotCreator = dependencies.SlotCreator;
         cityObjectBakerFactory = dependencies.CityObjectBakerFactory;
-        clientSession = dependencies.ClientSession;
+        ClientSessionInternal = dependencies.ClientSession;
     }
 
     internal static ResoniteLiveSceneImportDependencies CreateDefaultDependencies(
@@ -216,6 +213,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 diagnostics,
                 progressReporter,
                 baseClientFactory),
+            diagnostics,
             terrainTextureAssetGenerator,
             new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator()),
             new ResoniteGeometryAssetAssembler(),
@@ -227,6 +225,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     }
 
     internal bool MeshBakeEnabled { get; }
+
+    internal ResoniteLinkSendDiagnostics Diagnostics { get; }
+
+    internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
     internal PlateauImportMemoryProfile MemoryProfile { get; }
 
@@ -312,7 +314,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
-        await clientSession.EnsureConnectedAsync(normalizedRequest, cancellationToken);
+        await ClientSessionInternal.EnsureConnectedAsync(normalizedRequest, cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -390,7 +392,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Dataset metadata/license phase complete during bootstrap. "
                 + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
-        clientSession.BeginWorkerClientTracking();
+        ClientSessionInternal.BeginWorkerClientTracking();
         LiveSendQueuePlan runtimePlan = runPlan.Queue;
         ReportProgress(
             PlateauLog.Info(
@@ -418,7 +420,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             Runtime = runtime,
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
-        diagnostics.StartSendWindow(connectionCount);
+        Diagnostics.StartSendWindow(connectionCount);
         runtime.Start(CreateProcessingTasks(state, runtime));
         ReportProgress(
             PlateauLog.Info(
@@ -693,7 +695,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 $"Awaiting {runtime.ProcessingTaskCount} send lane task(s) to drain after queue close."));
         await runtime.AwaitCompletionAsync(cancellationToken);
         ReportProgress(PlateauLog.Info("live", "All send lanes drained and completion barrier passed."));
-        diagnostics.CompleteSendWindow();
+        Diagnostics.CompleteSendWindow();
         ReportProgress(
             PlateauLog.Info(
                 "live",
@@ -727,11 +729,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
         if (disposeClients)
         {
-            clientSession.DisposeClients();
+            ClientSessionInternal.DisposeClients();
         }
         else if (resetClients)
         {
-            await clientSession.ResetClientsAsync();
+            await ClientSessionInternal.ResetClientsAsync();
         }
     }
 
@@ -926,7 +928,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private IResoniteLinkClient GetRoutedClient()
     {
-        return clientSession.RoutedClient
+        return ClientSessionInternal.RoutedClient
             ?? throw new ObjectDisposedException(nameof(ILiveSendClientSession), "Routed ResoniteLink client is not connected.");
     }
 
@@ -1040,7 +1042,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                     .ToArray()));
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
         stopwatch.Stop();
-        diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
+        Diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
 
         if (Interlocked.CompareExchange(ref state.Progress.FirstPreparedCityObjectLogged, 1, 0) == 0)
         {
@@ -1096,7 +1098,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     {
         IResoniteLinkClient routedClient = GetRoutedClient();
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
-        using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = diagnostics.BeginCityObjectSend(cityObject.PackageName);
+        using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = Diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
         ReportBuildStep(cityObject, "Creating object slot hierarchy.");
         Stopwatch slotHierarchyStopwatch = Stopwatch.StartNew();

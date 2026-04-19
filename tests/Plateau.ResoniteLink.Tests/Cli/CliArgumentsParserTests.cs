@@ -588,6 +588,32 @@ public sealed class CliArgumentsParserTests
             result.Error);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("2")]
+    public void ParseRejectsNumericMemoryProfile(string memoryProfileValue)
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset",
+                "tokyo23ku",
+                "--mesh-code",
+                "53394525",
+                "--local-source-path",
+                "/data/plateau",
+                "--resonitelink-port",
+                "12345",
+                "--memory-profile",
+                memoryProfileValue,
+            ]);
+
+        Assert.Equal(
+            $"The value '{memoryProfileValue}' is not a valid memory profile. Use 'small' or 'large'.",
+            result.Error);
+    }
+
     [Fact]
     public void ParseRejectsNumericMemoryProfile()
     {

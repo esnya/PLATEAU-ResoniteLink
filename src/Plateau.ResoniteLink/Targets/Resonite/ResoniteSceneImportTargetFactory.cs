@@ -42,6 +42,7 @@ public static class ResoniteSceneImportTargetFactory
                     connectionCount,
                     diagnostics,
                     progressReporter),
+                diagnostics,
                 new TerrainTextureAssetGenerator(
                     terrainTextureAssetHttpClient,
                     terrainTileCacheRoot,
