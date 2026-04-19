@@ -90,7 +90,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             state = await CreateRunStateAsync(
                 CreateBootstrapInfo(request),
                 request.WorkRoot,
-                request.DatasetContentSource,
                 CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
                 plan.NormalizedRequest,
                 SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
@@ -127,14 +126,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private async Task<LiveSendRunState> CreateRunStateAsync(
         SceneBootstrapInfo bootstrapInfo,
         string workRoot,
-        IPlateauDatasetContentSource datasetContentSource,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
         ResoniteLocalOrigin requestLocalOrigin,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(bootstrapInfo);
-        ArgumentNullException.ThrowIfNull(datasetContentSource);
         ArgumentNullException.ThrowIfNull(commonMaterials);
         ArgumentNullException.ThrowIfNull(normalizedRequest);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
@@ -1601,7 +1598,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteConstructionMetadata metadata = SceneImportContractMapper.ToInternal(request.Metadata);
         return SceneBootstrapInfo.CreateFromMetadata(
             metadata,
-            request.DatasetContentSource.SourcePath);
+            request.ResolvedSourcePath);
     }
 
     internal sealed record QueuedCityObject(

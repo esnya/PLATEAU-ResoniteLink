@@ -129,13 +129,12 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static SceneImportExecutionPlan CreateExecutionPlan(
         ResoniteConstructionMetadata metadata,
         string workDirectory,
-        PlateauImportRequest? normalizedRequest = null,
-        IPlateauDatasetContentSource? datasetContentSource = null)
+        PlateauImportRequest? normalizedRequest = null)
     {
         return SceneImportExecutionPlan.Create(
             normalizedRequest ?? metadata.Request,
             SceneImportContractMapper.ToContract(metadata),
-            datasetContentSource ?? new TestDatasetContentSource(metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata))),
+            metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
             workDirectory);
     }
 
@@ -664,35 +663,6 @@ internal sealed class DelegatingClientSession(
         RoutedClient = null;
     }
 }
-
-internal sealed class TestDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
-{
-    public string SourcePath { get; } = sourcePath;
-
-    public IReadOnlyList<string> EnumerateFiles()
-    {
-        return [];
-    }
-
-    public bool FileExists(string relativePath)
-    {
-        return false;
-    }
-
-    public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-    {
-        throw new NotSupportedException();
-    }
-
-    public Task<string> MaterializeFileAsync(
-        string relativePath,
-        string outputRoot,
-        CancellationToken cancellationToken = default)
-    {
-        throw new NotSupportedException();
-    }
-}
-
 [CollectionDefinition(BundledCompanionTextureIsolationGroup.Name, DisableParallelization = true)]
 public sealed class BundledCompanionTextureIsolationGroup
 {

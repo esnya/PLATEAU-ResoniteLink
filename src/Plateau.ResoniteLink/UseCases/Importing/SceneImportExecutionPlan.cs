@@ -24,18 +24,18 @@ public sealed record SceneImportExecutionPlan
     public static SceneImportExecutionPlan Create(
         PlateauImportRequest normalizedRequest,
         ConstructionMetadata metadata,
-        IPlateauDatasetContentSource datasetContentSource,
+        string resolvedSourcePath,
         string workRoot)
     {
         ArgumentNullException.ThrowIfNull(metadata);
-        ArgumentNullException.ThrowIfNull(datasetContentSource);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resolvedSourcePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
         return new SceneImportExecutionPlan(
             normalizedRequest,
             new SceneBuildRequest(
                 metadata,
-                datasetContentSource,
+                resolvedSourcePath,
                 workRoot));
     }
 

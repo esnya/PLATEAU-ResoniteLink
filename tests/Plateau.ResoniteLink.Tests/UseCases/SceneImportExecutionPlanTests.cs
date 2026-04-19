@@ -25,7 +25,7 @@ public sealed class SceneImportExecutionPlanTests
             normalizedRequest,
             new SceneBuildRequest(
                 CreateMetadata(resolvedRequest),
-                new StubDatasetContentSource("resolved-source"),
+                "resolved-source",
                 "work"));
 
         Assert.Same(normalizedRequest, plan.NormalizedRequest);
@@ -49,7 +49,7 @@ public sealed class SceneImportExecutionPlanTests
             normalizedRequest,
             new SceneBuildRequest(
                 CreateMetadata(resolvedRequest),
-                new StubDatasetContentSource("resolved-source"),
+                "resolved-source",
                 "work"));
 
         Assert.Same(normalizedRequest, plan.NormalizedRequest);
@@ -75,7 +75,7 @@ public sealed class SceneImportExecutionPlanTests
                 normalizedRequest,
                 new SceneBuildRequest(
                     CreateMetadata(mismatchedRequest),
-                    new StubDatasetContentSource("resolved-source"),
+                    "resolved-source",
                     "work")));
     }
 
@@ -97,7 +97,7 @@ public sealed class SceneImportExecutionPlanTests
                 normalizedRequest,
                 new SceneBuildRequest(
                     CreateMetadata(mismatchedRequest),
-                    new StubDatasetContentSource("resolved-source"),
+                    "resolved-source",
                     "work")));
     }
 
@@ -112,27 +112,5 @@ public sealed class SceneImportExecutionPlanTests
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid/license"),
                 []),
             LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
-    }
-
-    private sealed class StubDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
-    {
-        public string SourcePath { get; } = sourcePath;
-
-        public IReadOnlyList<string> EnumerateFiles() => [];
-
-        public bool FileExists(string relativePath) => false;
-
-        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<string> MaterializeFileAsync(
-            string relativePath,
-            string outputRoot,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
     }
 }

@@ -68,7 +68,7 @@ public sealed class PlateauImportServiceTests
         Assert.Same(documentSet, constructionSourceFactory.LastDocumentSet);
         Assert.NotNull(sceneBuilder.BeginRequest);
         Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
-        Assert.Same(datasetSource, sceneBuilder.BeginRequest.DatasetContentSource);
+        Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest.ResolvedSourcePath);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);

@@ -66,7 +66,7 @@ public sealed class PlateauImportService(
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
                 metadata,
-                documentSet.DatasetSource,
+                documentSet.DatasetSource.SourcePath,
                 datasetWorkRoot);
             ReportProgress(
                 PlateauLog.Info(
