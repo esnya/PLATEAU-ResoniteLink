@@ -39,7 +39,7 @@ public static class PlateauDatasetContentSourceFactory
             throw new PlateauImportValidationException([$"The local source path '{sourcePath}' does not exist."]);
         }
 
-        if (!remoteArchiveDistributionPolicy.IsSupportedArchivePath(fullPath))
+        if (!archiveFileLayoutPolicy.IsSupportedArchivePath(fullPath))
         {
             throw new PlateauImportValidationException(
                 [$"The local source path '{sourcePath}' is not a supported dataset directory or archive."]);

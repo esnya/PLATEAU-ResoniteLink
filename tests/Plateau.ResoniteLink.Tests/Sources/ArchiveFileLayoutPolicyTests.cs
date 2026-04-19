@@ -7,6 +7,16 @@ namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class ArchiveFileLayoutPolicyTests
 {
+    [Theory]
+    [InlineData("sample.zip")]
+    [InlineData("sample.7z")]
+    public void IsSupportedArchivePathAcceptsConfiguredExtensions(string path)
+    {
+        ArchiveFileLayoutPolicy policy = new();
+
+        Assert.True(policy.IsSupportedArchivePath(path));
+    }
+
     [Fact]
     public void GetMaterializedArchiveCacheKeyUsesFileStemAndFullPathDigest()
     {

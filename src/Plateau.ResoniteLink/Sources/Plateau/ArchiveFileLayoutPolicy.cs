@@ -4,6 +4,13 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed class ArchiveFileLayoutPolicy : IArchiveFileLayoutPolicy
 {
+    public bool IsSupportedArchivePath(string path)
+    {
+        string extension = Path.GetExtension(path);
+        return string.Equals(extension, ".zip", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(extension, ".7z", StringComparison.OrdinalIgnoreCase);
+    }
+
     public string CreateSafePathSegment(string value)
     {
         string normalized = value.Trim();

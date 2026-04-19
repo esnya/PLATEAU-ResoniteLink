@@ -12,14 +12,15 @@ public sealed class RemoteArchiveDistributionPolicyTests
     {
         RemoteArchiveDistributionPolicy policy = new();
         Uri archiveUri = new("https://example.test/plateau/tokyo23ku.zip", UriKind.Absolute);
+        string datasetRoot = Path.Combine("work", "tokyo23ku");
 
-        string archivePath = policy.GetSourceArchivePath("C:\\work\\tokyo23ku", archiveUri, "tokyo23ku.zip");
+        string archivePath = policy.GetSourceArchivePath(datasetRoot, archiveUri, "tokyo23ku.zip");
 
         string digest = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.AbsoluteUri)))
             .ToLowerInvariant();
         Assert.Equal(
-            Path.Combine("C:\\work\\tokyo23ku", $"source-archive-{digest[..12]}.zip"),
+            Path.Combine(Path.GetFullPath(datasetRoot), $"source-archive-{digest[..12]}.zip"),
             archivePath);
     }
 
@@ -27,11 +28,12 @@ public sealed class RemoteArchiveDistributionPolicyTests
     public void GetSourceArchiveMetadataPathPlacesMetadataNextToArchive()
     {
         RemoteArchiveDistributionPolicy policy = new();
+        string archivePath = Path.Combine("work", "tokyo23ku", "source-archive-abcd1234.zip");
 
-        string metadataPath = policy.GetSourceArchiveMetadataPath("C:\\work\\tokyo23ku\\source-archive-abcd1234.zip");
+        string metadataPath = policy.GetSourceArchiveMetadataPath(archivePath);
 
         Assert.Equal(
-            "C:\\work\\tokyo23ku\\source-archive-abcd1234.zip.meta.json",
+            $"{archivePath}.meta.json",
             metadataPath);
     }
 
