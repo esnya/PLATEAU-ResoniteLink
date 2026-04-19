@@ -107,6 +107,24 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         Assert.Equal("textures/override.png", resolved);
     }
 
+    [Fact]
+    public async Task CreateAsyncAcceptsArchivePathAllowedOnlyByRemoteDistributionPolicy()
+    {
+        byte[] archiveBytes = CreateZipArchive(
+            ("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+
+        using TemporaryDirectory workRoot = new();
+        string archivePath = Path.Combine(workRoot.Path, "source-archive.custom");
+        await File.WriteAllBytesAsync(archivePath, archiveBytes);
+
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            archivePath,
+            new CustomRemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
+
+        Assert.Contains("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", datasetSource.EnumerateFiles());
+    }
+
     private static string GetMaterializedArchiveCacheKey(string archivePath)
     {
         string fullArchivePath = Path.GetFullPath(archivePath);
@@ -147,5 +165,13 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         public string ResolveDatasetRootPrefix(IEnumerable<string> relativePaths) => inner.ResolveDatasetRootPrefix(relativePaths);
         public string StripDatasetRootPrefix(string relativePath, string datasetRootPrefix) => inner.StripDatasetRootPrefix(relativePath, datasetRootPrefix);
         public string GetNestedArchivePrefix(string prefix, string entryKey) => inner.GetNestedArchivePrefix(prefix, entryKey);
+    }
+
+    private sealed class CustomRemoteArchiveDistributionPolicy : IRemoteArchiveDistributionPolicy
+    {
+        public bool IsSupportedArchivePath(string path) => string.Equals(Path.GetExtension(path), ".custom", StringComparison.OrdinalIgnoreCase);
+        public string GetArchiveFileName(Uri archiveUri) => Path.GetFileName(archiveUri.LocalPath);
+        public string GetSourceArchivePath(string datasetRoot, Uri archiveUri, string archiveFileName) => Path.Combine(datasetRoot, archiveFileName);
+        public string GetSourceArchiveMetadataPath(string archivePath) => $"{archivePath}.meta.json";
     }
 }
