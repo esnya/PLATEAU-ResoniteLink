@@ -19,7 +19,10 @@ internal sealed record ResoniteLiveSceneImportDependencies(
             clientSession,
             ResoniteLinkSendDiagnostics.Disabled,
             terrainTextureAssetGenerator,
-            new Execution.ResoniteSceneBootstrapInterpreter(new Execution.ResoniteSceneSlotLocator()),
+            new Execution.ResoniteSceneBootstrapInterpreter(
+                new Execution.ResoniteSceneSlotLocator(),
+                new Execution.ResoniteMaterialPlanning(),
+                new Execution.ResoniteSceneAnchorResolver()),
             new Execution.ResoniteGeometryAssetAssembler(),
             new Execution.ResoniteMaterialPlanning(),
             new Execution.ResoniteBatchEmissionPlanner(),

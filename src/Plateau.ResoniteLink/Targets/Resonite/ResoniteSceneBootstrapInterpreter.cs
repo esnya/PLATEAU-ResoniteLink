@@ -23,12 +23,12 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
     internal ResoniteSceneBootstrapInterpreter(
         IResoniteSceneSlotLocator sceneSlotLocator,
-        IResoniteMaterialPlanning? materialPlanning = null,
-        IResoniteSceneAnchorResolver? sceneAnchorResolver = null)
+        IResoniteMaterialPlanning materialPlanning,
+        IResoniteSceneAnchorResolver sceneAnchorResolver)
     {
         this.sceneSlotLocator = sceneSlotLocator ?? throw new ArgumentNullException(nameof(sceneSlotLocator));
-        this.materialPlanning = materialPlanning ?? new ResoniteMaterialPlanning();
-        this.sceneAnchorResolver = sceneAnchorResolver ?? new ResoniteSceneAnchorResolver();
+        this.materialPlanning = materialPlanning ?? throw new ArgumentNullException(nameof(materialPlanning));
+        this.sceneAnchorResolver = sceneAnchorResolver ?? throw new ArgumentNullException(nameof(sceneAnchorResolver));
     }
 
     public async Task<ResoniteSceneBootstrapState> BootstrapAsync(

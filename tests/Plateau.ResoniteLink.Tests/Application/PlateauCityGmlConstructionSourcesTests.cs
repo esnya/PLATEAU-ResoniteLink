@@ -1,6 +1,5 @@
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
-using Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
 namespace Plateau.ResoniteLink.Tests.Application;
 
@@ -25,7 +24,7 @@ public sealed class PlateauCityGmlConstructionSourcesTests
         }
         finally
         {
-            PlateauCityGmlConstructionSources.FactoryProvider = PlateauCityGmlComposition.CreateConstructionSourceFactory;
+            PlateauCityGmlConstructionSources.FactoryProvider = PlateauCityGmlConstructionSources.CreateDefaultConstructionSourceFactory;
         }
     }
 
@@ -42,7 +41,7 @@ public sealed class PlateauCityGmlConstructionSourcesTests
         }
         finally
         {
-            PlateauCityGmlConstructionSources.FactoryProvider = PlateauCityGmlComposition.CreateConstructionSourceFactory;
+            PlateauCityGmlConstructionSources.FactoryProvider = PlateauCityGmlConstructionSources.CreateDefaultConstructionSourceFactory;
         }
     }
 
@@ -57,7 +56,7 @@ public sealed class PlateauCityGmlConstructionSourcesTests
         }
         finally
         {
-            PlateauCityGmlConstructionSources.FactoryProvider = PlateauCityGmlComposition.CreateConstructionSourceFactory;
+            PlateauCityGmlConstructionSources.FactoryProvider = PlateauCityGmlConstructionSources.CreateDefaultConstructionSourceFactory;
         }
     }
 

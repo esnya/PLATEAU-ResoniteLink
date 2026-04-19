@@ -17,6 +17,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly SourceFilePipeline[] sourceFiles;
     private readonly GeodeticPoint globalOriginPoint;
     private readonly ICityGmlGeometryProjector geometryProjector;
+    private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
@@ -27,6 +28,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         PlateauImportRequest request,
         LocalCityGmlDocumentSet documentSet,
         ICityGmlGeometryProjector geometryProjector,
+        ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
         Action<string>? progressReporter = null)
     {
         Metadata = metadata;
@@ -34,6 +36,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         sourceFiles = documentSet.BootstrapSourceFilePipelines.ToArray();
         globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
         this.geometryProjector = geometryProjector;
+        this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
             Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
@@ -55,13 +58,12 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
             foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
-                foreach (ResoniteMaterialBinding material in LocalCityGmlObjectProjection.EnumerateCommonMaterials(
-                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]).ToLegacy(),
-                             resolvedReferenceSystem.ToLegacy(),
-                             globalOriginPoint.ToLegacy(),
+                foreach (ResoniteMaterialBinding material in commonMaterialEnumerator.EnumerateCommonMaterials(
+                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
+                             resolvedReferenceSystem,
+                             globalOriginPoint,
                              globalCartesian,
                              demTerrainTextureOverlays,
-                             terrainHeightSampler: null,
                              request,
                              emittedMaterialKeys))
                 {

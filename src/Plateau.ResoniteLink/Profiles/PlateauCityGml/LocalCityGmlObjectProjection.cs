@@ -2851,6 +2851,7 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
         ISet<string>? emittedMaterialKeys = null)
     {
         ValidateCompatibleReferenceSystem(
@@ -2865,7 +2866,8 @@ public static partial class LocalCityGmlObjectProjection
                          globalCartesian,
                          demTerrainTextureOverlays,
                          terrainHeightSampler,
-                         request))
+                         request,
+                         materialResolver))
             {
                 if (emittedMaterialKeys is not null && !emittedMaterialKeys.Add(material.MaterialKey))
                 {
@@ -2982,10 +2984,10 @@ public static partial class LocalCityGmlObjectProjection
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request)
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
-        IDefaultMaterialResolver materialResolver = new DefaultMaterialResolver();
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,

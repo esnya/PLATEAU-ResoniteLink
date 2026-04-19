@@ -190,15 +190,18 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         DelegatingClientSession? session = null)
     {
         return new ResoniteLiveSceneImportTarget(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            PlateauImportMemoryProfile.Large,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                enableMeshBake,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
-            enableMeshBake,
-            progressReporter: null);
+                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()));
     }
 
     private static async IAsyncEnumerable<ImportedCityObject> CreateImportedCityObjectsAsync(

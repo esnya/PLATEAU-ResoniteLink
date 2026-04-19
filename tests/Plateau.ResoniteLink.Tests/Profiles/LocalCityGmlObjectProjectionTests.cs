@@ -23,7 +23,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))));
     }
 
     [Fact]
