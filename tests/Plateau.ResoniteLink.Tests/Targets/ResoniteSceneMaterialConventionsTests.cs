@@ -24,7 +24,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_variant_0", slotName);
+        Assert.Equal("shared_uv_variant_0_facade001-2k-jpg-color", slotName);
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.Equal("shared_uv_variant_0_scale_0.5x0.5", slotName);
+        Assert.Equal("shared_uv_variant_0_scale_0.5x0.5_facade001-2k-jpg-color", slotName);
     }
 
     [Fact]
@@ -73,5 +73,28 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Contains("_0.5x0.25_", slotName, StringComparison.Ordinal);
         Assert.Contains("_0.125x0.75_", slotName, StringComparison.Ordinal);
         Assert.Contains("_2x3_", slotName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CreateMaterialSlotName_ForGenericSharedMaterial_UsesOnlyRenderingDiscriminators()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "generic|Uv|scale:1x1|offset:0.25x0.75|depth:none",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.25, 0.75),
+            Family: null,
+            BundledVariantIndex: null,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+
+        Assert.Equal("shared_uv_generic_scale_1x1_offset_0.25x0.75", slotName);
     }
 }

@@ -70,6 +70,7 @@ internal sealed record LiveSendQueuePlan(
 internal sealed record LiveSendRunContext(
     LiveSendRunPlan Plan,
     CreatedSlot DatasetRootSlot,
+    CreatedSlot CommonAssetsRootSlot,
     CompositeCityObjectBaker? CityObjectBaker);
 
 internal sealed class LiveSendRunState

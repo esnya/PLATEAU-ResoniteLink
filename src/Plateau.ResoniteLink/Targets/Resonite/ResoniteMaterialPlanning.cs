@@ -67,6 +67,8 @@ internal static class ResoniteMaterialPlanning
                 material.TerrainOverlay,
                 out ResoniteTextureImport? terrainOverlayTextureImport)
             ? ImportOptionalTextureAsync(importClient, terrainOverlayTextureImport, cancellationToken)
+            : !string.IsNullOrWhiteSpace(material.Family)
+            ? ImportBundledAlbedoTextureAsync(importClient, material, cancellationToken)
             : Task.FromResult<Uri?>(null);
 
         List<PlannedTextureAsset> textures = await PlanBundledCompanionTexturesAsync(
@@ -342,6 +344,25 @@ internal static class ResoniteMaterialPlanning
         CancellationToken cancellationToken)
     {
         return await importClient.ImportTextureAsync(textureImport, cancellationToken);
+    }
+
+    private static Task<Uri?> ImportBundledAlbedoTextureAsync(
+        IResoniteLinkClient importClient,
+        ResoniteMaterialBinding material,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(material.Family))
+        {
+            return Task.FromResult<Uri?>(null);
+        }
+
+        string albedoPath = BundledDefaultMaterialAssetStore.GetAbsolutePath(
+            BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0));
+        return ImportTextureFromFileAsync(
+            importClient,
+            albedoPath,
+            ResoniteTextureColorProfiles.Srgb,
+            cancellationToken);
     }
 
     private static void AddPlannedTextureAsset(

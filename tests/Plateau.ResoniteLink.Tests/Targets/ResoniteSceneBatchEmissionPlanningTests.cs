@@ -249,14 +249,68 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchComponentEmission propertyBlockComponent = Assert.Single(
             batchPlan.ComponentEmissions,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+        PlannedBatchSlotEmission assetSlot = Assert.Single(
+            batchPlan.SlotEmissions,
+            static slot => string.Equals(slot.Identity.Value, "plan:mesh-asset-slot", StringComparison.Ordinal));
         PlannedBatchComponentEmission overrideTexture = Assert.Single(
             batchPlan.ComponentEmissions,
             component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && string.Equals(component.ContainerId, meshRenderer.ContainerId, StringComparison.Ordinal));
+                && string.Equals(component.ContainerId, assetSlot.Identity.Value, StringComparison.Ordinal));
 
         Assert.Equal("shared-material-id", materialReference.TargetID);
         Assert.Equal(propertyBlockComponent.Identity.Value, propertyBlockReference.TargetID);
         Assert.Equal(propertyBlockComponent.ContainerId, meshRenderer.ContainerId);
         Assert.Equal(overrideTexture.Identity.Value, Assert.IsType<Reference>(propertyBlockComponent.Members["Texture"]).TargetID);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_UsesDistinctOverrideComponentIdsForSharedMaterialOverrides()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot("asset-lod-slot", "Asset LOD"),
+            new CreatedSlot("lod-slot", "LOD"),
+            "Triangle Object",
+            new Plateau.ResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            null);
+        PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), "shared-material-id");
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTriangleMeshGeometryAsset(
+                new GeometryIdentity("geom"),
+                "Triangle Object",
+                new Uri("resdb:///mesh/triangle")),
+            [reusableMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [
+                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                        reusableMaterial.Identity,
+                        new PlannedTextureAsset(new TextureIdentity("override-a"), new Uri("resdb:///texture/override-a"))),
+                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                        reusableMaterial.Identity,
+                        new PlannedTextureAsset(new TextureIdentity("override-b"), new Uri("resdb:///texture/override-b"))),
+                ]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                false));
+
+        PlannedBatchEmission batchPlan = ResoniteLiveSceneImportTarget.CreatePlannedBatchEmission(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission[] propertyBlocks = batchPlan.ComponentEmissions
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal))
+            .ToArray();
+        PlannedBatchComponentEmission[] textures = batchPlan.ComponentEmissions
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(2, propertyBlocks.Length);
+        Assert.Equal(2, textures.Length);
+        Assert.Equal(2, propertyBlocks.Select(static component => component.Identity.Value).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(2, textures.Select(static component => component.Identity.Value).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(
+            2,
+            propertyBlocks
+                .Select(component => Assert.IsType<Reference>(component.Members["Texture"]).TargetID)
+                .Distinct(StringComparer.Ordinal)
+                .Count());
     }
 }

@@ -69,6 +69,40 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncSharesBundledTriplanarRoofCommonMaterialAssets()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreateBundledTriangleCityObject(
+                    "shared-roof-one",
+                    family: BundledDefaultMaterialFamilies.Roof,
+                    projection: ResoniteMaterialProjection.Triplanar),
+                CreateBundledTriangleCityObject(
+                    "shared-roof-two",
+                    family: BundledDefaultMaterialFamilies.Roof,
+                    projection: ResoniteMaterialProjection.Triplanar),
+            ],
+            client);
+
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-two");
+        string commonMaterialContainerSlotId = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, firstMaterialId, StringComparison.Ordinal)).ContainerSlotId;
+
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.StartsWith(
+            "PLATEAU Shared Assets/Common Materials/",
+            client.SlotPaths[commonMaterialContainerSlotId],
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -643,6 +677,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     private static ResoniteConstructionCityObject CreateBundledTriangleCityObject(
         string objectIdentity,
         ResoniteFloat2? textureScale = null,
+        string family = BundledDefaultMaterialFamilies.Facade,
+        ResoniteMaterialProjection projection = ResoniteMaterialProjection.Uv,
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimarySourceFile,
         ResoniteFloat3? worldPosition = null,
@@ -664,11 +700,11 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-                    Projection: ResoniteMaterialProjection.Uv,
+                    Projection: projection,
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TextureScale: textureScale,
-                    Family: BundledDefaultMaterialFamilies.Facade,
+                    Family: family,
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0),
             ],
@@ -700,8 +736,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    Family: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
@@ -778,8 +814,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1],
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common),
+                    Family: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);

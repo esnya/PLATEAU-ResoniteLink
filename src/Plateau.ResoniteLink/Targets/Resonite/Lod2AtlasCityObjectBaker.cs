@@ -1389,42 +1389,29 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
     {
-        if (material.MaterialType == ResoniteMaterialType.VertexColor)
+        ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
+        if (normalizedMaterial.MaterialType != ResoniteMaterialType.Standard
+            || normalizedMaterial.TexturePayload is not null
+            || normalizedMaterial.TerrainOverlay is not null
+            || string.IsNullOrWhiteSpace(normalizedMaterial.Family)
+            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled)
         {
-            return material with
+            return normalizedMaterial;
+        }
+
+        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(
+            normalizedMaterial with
             {
-                MaterialKey = "preserved-vertex-color",
-            };
-        }
-
-        if (material.MaterialType == ResoniteMaterialType.Standard
-            && material.TexturePayload is null
-            && material.AssetScope != ResoniteMaterialAssetScope.Common
-            && string.IsNullOrWhiteSpace(material.Family))
-        {
-            return material with
-            {
-                MaterialKey = "preserved-standard-textureless",
-            };
-        }
-
-        if (material.AssetScope != ResoniteMaterialAssetScope.Common
-            || (material.Family != BundledDefaultMaterialFamilies.Facade
-                && material.Family != BundledDefaultMaterialFamilies.Roof))
-        {
-            return material;
-        }
-
-        int bundledVariantIndex = 0;
-        string canonicalTexturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family, bundledVariantIndex);
-        return material with
-        {
-            MaterialKey = $"common-{material.Family}-variant:{bundledVariantIndex}",
-            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-            TextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(canonicalTexturePath),
-            TextureOffset = null,
-            BundledVariantIndex = bundledVariantIndex,
-        };
+                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                TexturePayload = null,
+                TerrainOverlay = null,
+                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                TextureScale = null,
+                TextureOffset = null,
+                DepthOffset = null,
+                AssetScope = ResoniteMaterialAssetScope.Common,
+                BundledVariantIndex = 0,
+            });
     }
 
     private async Task EmitAtlasBatchAsync(

@@ -191,13 +191,41 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Equal(21.0, maxZ, 6);
     }
 
+    [Fact]
+    public void FlushAllMergesEquivalentBundledFamilyMaterialsAcrossObjects()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-a")), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-b", 18.0, 20.0, "unit-b", "common.gml", CreateBundledRoofMaterial("roof-b")), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        Assert.Single(baked.Mesh.Submeshes);
+        ResoniteMaterialBinding material = Assert.Single(baked.Materials);
+        Assert.Equal("common|roof|variant:2|Triplanar|scale:0.344828x0.344828", material.MaterialKey);
+        Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+        Assert.Equal(2, material.BundledVariantIndex);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,
         double z,
         string sourceUnitKey,
-        string? sourceFileRelativePath)
+        string? sourceFileRelativePath,
+        ResoniteMaterialBinding? material = null)
     {
+        material ??= new ResoniteMaterialBinding(
+            MaterialKey: "shared-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+
         return new ResoniteConstructionCityObject(
             SlotKey: slotKey,
             DisplayName: slotKey,
@@ -216,18 +244,27 @@ public sealed class FixedCellCityObjectMeshBakerTests
                 ]),
             Materials:
             [
-                new ResoniteMaterialBinding(
-                    MaterialKey: "shared-material",
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                    MaterialType: ResoniteMaterialType.Standard,
-                    TexturePayload: null,
-                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-                    Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
-                    SubmeshIndices: [0]),
+                material,
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
             SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteMaterialBinding CreateBundledRoofMaterial(string materialKey)
+    {
+        return new ResoniteMaterialBinding(
+            MaterialKey: materialKey,
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Triplanar,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.RoofingTiles012ATilesPerMeter,
+            Family: BundledDefaultMaterialFamilies.Roof,
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: 2);
     }
 }
