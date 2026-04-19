@@ -777,41 +777,126 @@ internal sealed class Lod2AtlasCityObjectBaker(
         out AtlasLayout? layout)
     {
         int atlasMaxSize = EffectiveMaxAtlasSize;
+        AtlasSizeRequirements requirements = ComputeAtlasSizeRequirements(entries, atlasMaxSize);
+        if (!requirements.IsValid)
+        {
+            layout = null;
+            return false;
+        }
+
+        foreach (AtlasCanvasCandidate candidate in EnumerateAtlasCanvasCandidates(requirements, atlasMaxSize))
+        {
+            if (TryCreateAtlasLayoutForCanvas(entries, candidate.Width, candidate.Height, out layout))
+            {
+                return true;
+            }
+        }
+
+        layout = null;
+        return false;
+    }
+
+    private bool TryCreateAtlasLayoutForCanvas(
+        IReadOnlyList<AtlasBatchEntry> entries,
+        int atlasWidth,
+        int atlasHeight,
+        out AtlasLayout? layout)
+    {
         List<AtlasPlacement> placements = [];
-        List<Rect> freeRectangles = [new Rect(0, 0, atlasMaxSize, atlasMaxSize)];
-        int usedWidth = 0;
-        int usedHeight = 0;
+        List<Rect> freeRectangles = [new Rect(0, 0, atlasWidth, atlasHeight)];
 
         foreach (AtlasBatchEntry entry in entries)
         {
-            int paddedWidth = entry.Tile.Image.Width + (tilePaddingPixels * 2);
-            int paddedHeight = entry.Tile.Image.Height + (tilePaddingPixels * 2);
-            if (paddedWidth > atlasMaxSize || paddedHeight > atlasMaxSize)
+            AtlasEntrySize entrySize = GetAtlasEntrySize(entry);
+            if (entrySize.PaddedWidth > atlasWidth || entrySize.PaddedHeight > atlasHeight)
             {
                 layout = null;
                 return false;
             }
 
-            if (!TryChooseFreeRectangle(freeRectangles, paddedWidth, paddedHeight, out Rect selectedRect))
+            if (!TryChooseFreeRectangle(freeRectangles, entrySize.PaddedWidth, entrySize.PaddedHeight, out Rect selectedRect))
             {
                 layout = null;
                 return false;
             }
 
-            Rect outerRect = new(selectedRect.X, selectedRect.Y, paddedWidth, paddedHeight);
+            Rect outerRect = new(selectedRect.X, selectedRect.Y, entrySize.PaddedWidth, entrySize.PaddedHeight);
             Rect innerRect = new(selectedRect.X + tilePaddingPixels, selectedRect.Y + tilePaddingPixels, entry.Tile.Image.Width, entry.Tile.Image.Height);
             placements.Add(new AtlasPlacement(entry, outerRect, innerRect));
             SplitFreeRectangles(freeRectangles, outerRect);
             PruneFreeRectangles(freeRectangles);
-            usedWidth = Math.Max(usedWidth, outerRect.X + outerRect.Width);
-            usedHeight = Math.Max(usedHeight, outerRect.Y + outerRect.Height);
         }
 
         layout = new AtlasLayout(
-            Math.Max(1, usedWidth),
-            Math.Max(1, usedHeight),
+            atlasWidth,
+            atlasHeight,
             placements);
         return true;
+    }
+
+    private AtlasSizeRequirements ComputeAtlasSizeRequirements(
+        IReadOnlyList<AtlasBatchEntry> entries,
+        int atlasMaxSize)
+    {
+        long requiredArea = 0;
+        int minWidth = 1;
+        int minHeight = 1;
+
+        foreach (AtlasBatchEntry entry in entries)
+        {
+            AtlasEntrySize entrySize = GetAtlasEntrySize(entry);
+            if (entrySize.PaddedWidth > atlasMaxSize || entrySize.PaddedHeight > atlasMaxSize)
+            {
+                return AtlasSizeRequirements.Invalid;
+            }
+
+            minWidth = Math.Max(minWidth, entrySize.PaddedWidth);
+            minHeight = Math.Max(minHeight, entrySize.PaddedHeight);
+            requiredArea += (long)entrySize.PaddedWidth * entrySize.PaddedHeight;
+        }
+
+        return new AtlasSizeRequirements(minWidth, minHeight, requiredArea);
+    }
+
+    private static IEnumerable<AtlasCanvasCandidate> EnumerateAtlasCanvasCandidates(
+        AtlasSizeRequirements requirements,
+        int atlasMaxSize)
+    {
+        List<int> widthCandidates = EnumeratePowerOfTwoEdges(requirements.MinWidth, atlasMaxSize).ToList();
+        List<int> heightCandidates = EnumeratePowerOfTwoEdges(requirements.MinHeight, atlasMaxSize).ToList();
+
+        return widthCandidates
+            .SelectMany(
+                width => heightCandidates,
+                (width, height) => new AtlasCanvasCandidate(width, height, requirements))
+            .OrderBy(static candidate => candidate.Area)
+            .ThenBy(static candidate => candidate.AreaSlack)
+            .ThenBy(static candidate => candidate.DimensionSlack)
+            .ThenBy(static candidate => candidate.Height)
+            .ThenBy(static candidate => candidate.Width);
+    }
+
+    private static IEnumerable<int> EnumeratePowerOfTwoEdges(int minimumEdge, int maxEdge)
+    {
+        if (minimumEdge > maxEdge)
+        {
+            yield break;
+        }
+
+        for (int edge = 1; edge > 0 && edge <= maxEdge; edge <<= 1)
+        {
+            if (edge >= minimumEdge)
+            {
+                yield return edge;
+            }
+        }
+    }
+
+    private AtlasEntrySize GetAtlasEntrySize(AtlasBatchEntry entry)
+    {
+        return new AtlasEntrySize(
+            entry.Tile.Image.Width + (tilePaddingPixels * 2),
+            entry.Tile.Image.Height + (tilePaddingPixels * 2));
     }
 
     private static bool TryChooseFreeRectangle(
@@ -1515,6 +1600,32 @@ internal sealed class Lod2AtlasCityObjectBaker(
         int Width,
         int Height,
         IReadOnlyList<AtlasPlacement> Placements);
+
+    private readonly record struct AtlasSizeRequirements(
+        int MinWidth,
+        int MinHeight,
+        long RequiredArea)
+    {
+        internal static AtlasSizeRequirements Invalid => new(0, 0, 0);
+
+        internal bool IsValid => MinWidth > 0 && MinHeight > 0;
+    }
+
+    private readonly record struct AtlasCanvasCandidate(
+        int Width,
+        int Height,
+        AtlasSizeRequirements Requirements)
+    {
+        internal long Area => (long)Width * Height;
+
+        internal long AreaSlack => Area - Requirements.RequiredArea;
+
+        internal int DimensionSlack => (Width - Requirements.MinWidth) + (Height - Requirements.MinHeight);
+    }
+
+    private readonly record struct AtlasEntrySize(
+        int PaddedWidth,
+        int PaddedHeight);
 
     private sealed record AtlasPlacement(
         AtlasBatchEntry Entry,
