@@ -4,9 +4,12 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver materialResolver) : ICityGmlGeometryProjector
+internal sealed class LocalCityGmlGeometryProjector(
+    IDefaultMaterialResolver materialResolver,
+    ICityGmlLegacyProjectionBridge? legacyProjectionBridge = null) : ICityGmlGeometryProjector
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
+    private readonly ICityGmlLegacyProjectionBridge legacyProjectionBridge = legacyProjectionBridge ?? new LocalCityGmlLegacyProjectionBridge();
 
     public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
@@ -18,7 +21,7 @@ internal sealed class LocalCityGmlGeometryProjector(IDefaultMaterialResolver mat
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
-        return LocalCityGmlObjectProjection.MaterializeCityObjects(
+        return legacyProjectionBridge.MaterializeCityObjects(
             sourceFile,
             referenceSystem,
             globalOriginPoint,

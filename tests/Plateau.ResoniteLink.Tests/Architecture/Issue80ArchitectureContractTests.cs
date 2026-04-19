@@ -86,11 +86,21 @@ public sealed class Issue80ArchitectureContractTests
         string[] files =
         [
             .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml"), "*.cs", SearchOption.AllDirectories),
+            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml"), "*.cs", SearchOption.AllDirectories),
             TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlBootstrapPipeline.cs"),
             TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlConstructionSource.cs"),
         ];
 
+        string[] allowedFiles =
+        [
+            "LocalCityGmlLegacyProjectionBridge.cs",
+            "LocalCityGmlBootstrapSourceFileModels.cs",
+            "LocalCityGmlBootstrapParsedObjectModels.cs",
+            "LocalCityGmlBootstrapGeometryModels.cs",
+        ];
+
         string[] offenders = files
+            .Where(path => allowedFiles.All(allowed => !path.EndsWith(allowed, StringComparison.Ordinal)))
             .Where(static path =>
             {
                 string content = File.ReadAllText(path);

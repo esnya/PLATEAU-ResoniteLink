@@ -99,10 +99,10 @@ public static partial class LocalCityGmlObjectProjection
                 + $"({sourceFile.PackageName}, {cityObjectArray.Length} city objects) "
                 + $"in {fileStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-        return new global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult(
+        return LocalCityGmlLegacyProjectionBridge.ToParsedSourceFileResult(
             sourceFile,
             cityObjectArray,
-            global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem.FromLegacy(coordinateReferenceSystem),
+            coordinateReferenceSystem,
             terrainTriangles,
             fileStopwatch.Elapsed);
     }
@@ -327,7 +327,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject);
+            yield return LocalCityGmlLegacyProjectionBridge.ToBootstrapParsedCityObject(cityObject);
         }
     }
 
@@ -379,7 +379,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject);
+            yield return LocalCityGmlLegacyProjectionBridge.ToBootstrapParsedCityObject(cityObject);
         }
     }
 

@@ -201,6 +201,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             2,
             routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
                 && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(0, session.ResetClientsCallCount);
     }
 
     [Fact]

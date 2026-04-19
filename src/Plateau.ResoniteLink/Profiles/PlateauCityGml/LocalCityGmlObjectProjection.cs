@@ -239,9 +239,7 @@ public static partial class LocalCityGmlObjectProjection
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(demBounds),
-            requestedMeshCodes);
+        return LocalCityGmlLegacyProjectionBridge.CreateDemTerrainTextureOverlays(demBounds, requestedMeshCodes);
     }
 
     private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(
@@ -563,19 +561,13 @@ public static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeBounds? fallbackBounds)
     {
-        global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
-            fallbackBounds is null ? null : global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(fallbackBounds));
-        return bounds?.ToLegacy();
+        return LocalCityGmlLegacyProjectionBridge.ResolveDemTerrainBounds(demParsedSourceFiles, fallbackBounds);
     }
 
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
-                cityObjects.Select(global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy))
-            .Select(static triangle => triangle.ToLegacy())
-            .ToArray();
+        return LocalCityGmlLegacyProjectionBridge.ExtractTerrainHeightTriangles(cityObjects);
     }
 
     private static ParsedCityObject ConformCityObjectToTerrain(
@@ -2807,31 +2799,6 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
-        global::Plateau.ResoniteLink.Application.Importing.CachedSourceFileDescriptor sourceFile,
-        global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,
-        global::Plateau.ResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        global::Plateau.ResoniteLink.Application.Importing.TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
-        Func<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null)
-    {
-        return MaterializeCityObjects(
-            sourceFile.ToLegacy(),
-            referenceSystem.ToLegacy(),
-            globalOriginPoint.ToLegacy(),
-            globalCartesian,
-            demTerrainTextureOverlays,
-            requestedMeshAreas,
-            terrainHeightSampler?.ToLegacy(),
-            request,
-            materialResolver,
-            predicate is null ? null : cityObject => predicate(global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject)));
-    }
-
-    internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2867,27 +2834,6 @@ public static partial class LocalCityGmlObjectProjection
                 yield return cityObject;
             }
         }
-    }
-
-    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterials(
-        global::Plateau.ResoniteLink.Application.Importing.CachedSourceFileDescriptor sourceFile,
-        global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,
-        global::Plateau.ResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        global::Plateau.ResoniteLink.Application.Importing.TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        ISet<string>? emittedMaterialKeys = null)
-    {
-        return EnumerateCommonMaterials(
-            sourceFile.ToLegacy(),
-            referenceSystem.ToLegacy(),
-            globalOriginPoint.ToLegacy(),
-            globalCartesian,
-            demTerrainTextureOverlays,
-            terrainHeightSampler?.ToLegacy(),
-            request,
-            emittedMaterialKeys);
     }
 
     internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterials(
