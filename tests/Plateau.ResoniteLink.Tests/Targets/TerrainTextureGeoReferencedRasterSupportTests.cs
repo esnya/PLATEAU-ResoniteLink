@@ -59,6 +59,42 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
+    public void TryCreateMetadataResolvesWebMercatorBoundsFromRealPlateauGeoTiffTags()
+    {
+        ushort[] geoKeyDirectory =
+        [
+            1, 1, 0, 7,
+            1024, 0, 1, 1,
+            1025, 0, 1, 1,
+            1026, 34737, 25, 0,
+            2049, 34737, 7, 25,
+            2054, 0, 1, 9102,
+            3072, 0, 1, 3857,
+            3076, 0, 1, 9001,
+        ];
+
+        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+            pixelWidth: 2822,
+            pixelHeight: 2318,
+            modelTiePoint: [0.0, 0.0, 0.0, 15522111.49748708, 4269705.744087971, 0.0],
+            pixelScale: [0.49308779137044045, 0.4932342623689913, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: geoKeyDirectory,
+            geoDoubleParams: null,
+            geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
+        Assert.InRange(metadata.GeographicBounds.MinLatitude, 35.76, 35.77);
+        Assert.InRange(metadata.GeographicBounds.MaxLatitude, 35.77, 35.78);
+        Assert.InRange(metadata.GeographicBounds.MinLongitude, 139.43, 139.45);
+        Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.44, 139.46);
+        Assert.True(metadata.PixelWidthMeters > 0.49);
+        Assert.True(metadata.PixelHeightMeters > 0.49);
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncUsesGeoReferencedRasterSourceBeforeTileFallback()
     {
         using TemporaryDirectory workDirectory = new();
