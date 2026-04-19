@@ -14,20 +14,20 @@ public static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
-        services.AddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
-        services.AddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
-        services.AddSingleton<IDefaultMaterialResolver>(_ =>
+        services.TryAddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
+        services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
+        services.TryAddSingleton<IDefaultMaterialResolver>(_ =>
             PlateauCityGmlImportComposition.CreateMaterialResolver());
-        services.AddSingleton<IResoniteConstructionComposer>(provider =>
+        services.TryAddSingleton<IResoniteConstructionComposer>(provider =>
             PlateauCityGmlImportComposition.CreateConstructionComposer(
                 PlateauCityGmlImportComposition.CreateGeometryProjector(
                     provider.GetRequiredService<IDefaultMaterialResolver>())));
-        services.AddSingleton<ICityGmlDocumentReader>(provider =>
+        services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
             PlateauCityGmlImportComposition.CreateDocumentReader(
                 provider.GetRequiredService<IPlateauDatasetContentSourceFactory>(),
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
-        services.AddSingleton<IResoniteConstructionSourceFactory>(provider =>
+        services.TryAddSingleton<IResoniteConstructionSourceFactory>(provider =>
             PlateauCityGmlImportComposition.CreateConstructionSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),
                 provider.GetRequiredService<IResoniteConstructionComposer>()));

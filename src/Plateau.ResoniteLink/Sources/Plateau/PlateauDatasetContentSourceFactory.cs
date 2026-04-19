@@ -77,9 +77,13 @@ public static class PlateauDatasetContentSourceFactory
                 .Where(static segment => segment.Length > 0));
     }
 
-    internal static string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+    internal static string? ResolveRelativePath(
+        string baseRelativePath,
+        string candidatePath,
+        IArchiveFileLayoutPolicy archiveFileLayoutPolicy)
     {
-        return new ArchiveFileLayoutPolicy().ResolveRelativePath(baseRelativePath, candidatePath);
+        ArgumentNullException.ThrowIfNull(archiveFileLayoutPolicy);
+        return archiveFileLayoutPolicy.ResolveRelativePath(baseRelativePath, candidatePath);
     }
 
     private sealed class LocalPlateauDatasetContentSource(
@@ -101,6 +105,14 @@ public static class PlateauDatasetContentSourceFactory
         {
             string absolutePath = Path.Combine(datasetRoot, archiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
             return File.Exists(absolutePath);
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return PlateauDatasetContentSourceFactory.ResolveRelativePath(
+                baseRelativePath,
+                candidatePath,
+                archiveFileLayoutPolicy);
         }
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
@@ -200,6 +212,14 @@ public static class PlateauDatasetContentSourceFactory
         public bool FileExists(string relativePath)
         {
             return Files.ContainsKey(ArchiveFileLayoutPolicy.NormalizeRelativePath(relativePath));
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return PlateauDatasetContentSourceFactory.ResolveRelativePath(
+                baseRelativePath,
+                candidatePath,
+                ArchiveFileLayoutPolicy);
         }
 
         public async ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)

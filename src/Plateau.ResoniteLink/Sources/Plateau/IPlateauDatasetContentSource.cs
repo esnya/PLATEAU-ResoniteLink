@@ -8,6 +8,14 @@ public interface IPlateauDatasetContentSource
 
     bool FileExists(string relativePath);
 
+    string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+    {
+        return PlateauDatasetContentSourceFactory.ResolveRelativePath(
+            baseRelativePath,
+            candidatePath,
+            new ArchiveFileLayoutPolicy());
+    }
+
     ValueTask<Stream> OpenReadAsync(
         string relativePath,
         CancellationToken cancellationToken = default);
