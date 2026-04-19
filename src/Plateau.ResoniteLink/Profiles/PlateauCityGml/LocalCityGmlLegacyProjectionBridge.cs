@@ -39,6 +39,7 @@ internal sealed class LocalCityGmlLegacyProjectionBridge : ICityGmlLegacyProject
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
         ISet<string>? emittedMaterialKeys = null)
     {
         return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
@@ -49,6 +50,7 @@ internal sealed class LocalCityGmlLegacyProjectionBridge : ICityGmlLegacyProject
             demTerrainTextureOverlays,
             terrainHeightSampler?.ToLegacy(),
             request,
+            materialResolver,
             emittedMaterialKeys);
     }
 

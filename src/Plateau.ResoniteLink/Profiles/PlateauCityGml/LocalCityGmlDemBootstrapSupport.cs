@@ -144,15 +144,24 @@ internal static class LocalCityGmlDemBootstrapSupport
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
-            UrlTemplate: LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-            FallbackUrlTemplate: LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-            ZoomLevel: LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel,
             GeographicBounds: new GeographicRectangle(
                 MinLatitude: bounds.SouthLatitude,
                 MaxLatitude: bounds.NorthLatitude,
                 MinLongitude: bounds.WestLongitude,
                 MaxLongitude: bounds.EastLongitude),
             MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
+            Sources:
+            [
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            ],
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
     }
 

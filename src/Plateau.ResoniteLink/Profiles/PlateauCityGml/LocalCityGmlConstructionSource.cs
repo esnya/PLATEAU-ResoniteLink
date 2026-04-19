@@ -28,7 +28,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         PlateauImportRequest request,
         LocalCityGmlDocumentSet documentSet,
         ICityGmlGeometryProjector geometryProjector,
-        ICityGmlCommonMaterialEnumerator? commonMaterialEnumerator = null,
+        ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
         Action<string>? progressReporter = null)
     {
         Metadata = metadata;
@@ -36,7 +36,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         sourceFiles = documentSet.BootstrapSourceFilePipelines.ToArray();
         globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
         this.geometryProjector = geometryProjector;
-        this.commonMaterialEnumerator = commonMaterialEnumerator ?? new LocalCityGmlCommonMaterialEnumerator();
+        this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
             Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);

@@ -66,8 +66,18 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
         TerrainTextureOverlay overlay = Assert.Single(result);
         Assert.Equal("dem", overlay.PackageName);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, overlay.FallbackUrlTemplate);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
+        Assert.Equal(3, overlay.Sources.Count);
+        TerrainTextureTileSource[] sources = overlay.EnumerateTileSources().ToArray();
+        Assert.Equal(3, sources.Length);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, sources[0].UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, sources[0].ZoomLevel);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, sources[1].UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, sources[1].ZoomLevel);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, sources[2].UrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, sources[2].ZoomLevel);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.FallbackUrlTemplate);
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, overlay.FallbackZoomLevel);
         Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize);
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }

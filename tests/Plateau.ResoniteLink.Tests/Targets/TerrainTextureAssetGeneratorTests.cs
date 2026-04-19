@@ -317,6 +317,36 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncUsesSecondaryPrimaryTilesBeforeGsiFallback()
+    {
+        using SecondaryPrimaryFallbackMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: 4096,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", 2),
+                new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", 1),
+                new TerrainTextureTileSource("https://fallback.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Contains("tile|1|https://primary.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.DoesNotContain("fallback.example", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.Contains(("primary.example", 2), handler.HostZoomRequests);
+        Assert.Contains(("primary.example", 1), handler.HostZoomRequests);
+        Assert.DoesNotContain(("fallback.example", 1), handler.HostZoomRequests);
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncUsesFallbackSourceZoomLevelIndependently()
     {
         using ZoomAwareFallbackMapTileHandler handler = new();
@@ -508,6 +538,38 @@ public sealed class TerrainTextureAssetGeneratorTests
             Requests.Add((request.RequestUri.Host, zoomLevel, tileX, tileY));
 
             if (string.Equals(request.RequestUri.Host, "primary.example", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class SecondaryPrimaryFallbackMapTileHandler : HttpMessageHandler
+    {
+        public List<(string Host, int ZoomLevel)> HostZoomRequests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int zoomLevel = int.Parse(segments[^3], CultureInfo.InvariantCulture);
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+            HostZoomRequests.Add((request.RequestUri.Host, zoomLevel));
+
+            if (string.Equals(request.RequestUri.Host, "primary.example", StringComparison.Ordinal)
+                && zoomLevel == 2)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (string.Equals(request.RequestUri.Host, "fallback.example", StringComparison.Ordinal))
             {
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
             }

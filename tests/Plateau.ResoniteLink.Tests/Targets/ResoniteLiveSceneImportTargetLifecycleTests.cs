@@ -254,7 +254,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         LocalCityGmlDocumentSet documentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
         ResoniteConstructionMetadata metadata = new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlCommonMaterialEnumerator())
+                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))
             .Compose(request, documentSet)
             .Metadata;
 

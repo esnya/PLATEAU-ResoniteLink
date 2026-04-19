@@ -26,5 +26,6 @@ internal interface ICityGmlLegacyProjectionBridge
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
         ISet<string>? emittedMaterialKeys = null);
 }

@@ -24,7 +24,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator())));
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))));
     }
 
     [Fact]
@@ -46,7 +46,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new LocalCityGmlDocumentReader(),
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlCommonMaterialEnumerator()));
+                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())));
         IResoniteConstructionSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
