@@ -1,5 +1,6 @@
 
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -152,6 +153,32 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
     }
 
+    [Theory]
+    [InlineData(PlateauImportMemoryProfile.Small, 512, 32768, 256)]
+    [InlineData(PlateauImportMemoryProfile.Large, 4096, 65535, 1024)]
+    public void BufferedCityObjectBakerFactoryScalesMeshBakeBudgetsByMemoryProfile(
+        PlateauImportMemoryProfile memoryProfile,
+        int expectedMaxCityObjectsPerBatch,
+        int expectedMaxVerticesPerBatch,
+        int expectedMaxBufferedCells)
+    {
+        ResoniteBufferedCityObjectBakerFactory factory = new();
+
+        CompositeCityObjectBaker baker = factory.Create(
+                enableMeshBake: true,
+                new ResoniteTextureImageLoader(),
+                ResoniteImportBudgetProfiles.ForProfile(memoryProfile))
+            ?? throw new InvalidOperationException("Expected mesh bake composite baker.");
+
+        IResoniteBufferedCityObjectBaker fixedCellBaker = Assert.Single(
+            GetPrivateField<IResoniteBufferedCityObjectBaker[]>(baker, "bakers"),
+            static candidate => candidate is FixedCellCityObjectMeshBaker);
+
+        Assert.Equal(expectedMaxCityObjectsPerBatch, GetPrivateField<int>(fixedCellBaker, "maxCityObjectsPerBatch"));
+        Assert.Equal(expectedMaxVerticesPerBatch, GetPrivateField<int>(fixedCellBaker, "maxVerticesPerBatch"));
+        Assert.Equal(expectedMaxBufferedCells, GetPrivateField<int>(fixedCellBaker, "maxBufferedCells"));
+    }
+
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
@@ -219,5 +246,13 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             cancellationToken.ThrowIfCancellationRequested();
             throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
         }
+    }
+
+    private static T GetPrivateField<T>(object instance, string fieldName)
+    {
+        FieldInfo field = instance.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException($"Field '{fieldName}' was not found on '{instance.GetType().Name}'.");
+        return (T)(field.GetValue(instance)
+            ?? throw new InvalidOperationException($"Field '{fieldName}' was null."));
     }
 }
