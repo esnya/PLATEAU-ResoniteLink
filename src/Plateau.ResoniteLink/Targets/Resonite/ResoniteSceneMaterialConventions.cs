@@ -159,11 +159,6 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if (material.TerrainOverlay is not null)
-        {
-            return false;
-        }
-
         if (!string.IsNullOrWhiteSpace(material.Family))
         {
             return false;

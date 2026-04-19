@@ -97,4 +97,39 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         Assert.Equal("shared_uv_generic_scale_1x1_offset_0.25x0.75", slotName);
     }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_AllowsTerrainOverlayAsMainTextureOverride()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512);
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "dem-overlay-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TerrainOverlay: overlay,
+            Family: null,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out ResoniteMaterialBinding normalizedMaterial,
+            out string familySlotName);
+
+        Assert.True(normalized);
+        Assert.Equal("generic", familySlotName);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
+        Assert.Equal("generic|Uv|scale:none|offset:none|depth:none", normalizedMaterial.MaterialKey);
+        Assert.Null(normalizedMaterial.TerrainOverlay);
+        Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), normalizedMaterial.BaseColor);
+    }
 }
