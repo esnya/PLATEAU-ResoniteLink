@@ -1,5 +1,6 @@
 using System.Net;
 
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
@@ -84,12 +85,72 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, handler.RequestCount);
-        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
-        Assert.Contains("georaster|", texture.Identity, StringComparison.Ordinal);
+        Assert.Contains("georaster|", texture.TextureImport.Identity, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncKeepsDefaultThirdMeshDemOverlayPixelPerfectWithinLargeBudget()
+    {
+        MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("54372778")
+            ?? throw new InvalidOperationException("Expected Matsumoto third mesh bounds.");
+        TerrainTextureOverlay tileOverlay = Assert.Single(
+            LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+                new DemTerrainBounds(
+                    meshBounds.SouthLatitude,
+                    meshBounds.NorthLatitude,
+                    meshBounds.WestLongitude,
+                    meshBounds.EastLongitude),
+                ["54372778"]));
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
+            tileOverlay.GeographicBounds,
+            tileOverlay.ZoomLevel);
+
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "default-third-mesh-dem.png");
+        using (Image<Rgba32> rasterImage = new(layout.CropWidth, layout.CropHeight, new Rgba32(12, 34, 56, 255)))
+        {
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        TerrainTextureOverlay rasterOverlay = tileOverlay with
+        {
+            Sources =
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(tileOverlay.GeographicBounds, "EPSG:4326", 1.0, 1.0)),
+            ],
+        };
+
+        using NeverCalledMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(rasterOverlay, CancellationToken.None);
+
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Equal(8192, texture.TextureImport.Width);
+        Assert.Equal(4096, texture.TextureImport.Height);
+        Assert.Equal(
+            new ResoniteFloat2(
+                (double)layout.CropWidth / texture.TextureImport.Width,
+                (double)layout.CropHeight / texture.TextureImport.Height),
+            texture.CanvasScale);
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
+        int occupiedTop = outputImage.Height - layout.CropHeight;
+        Assert.Equal(new Rgba32(0, 0, 0, 0), outputImage[0, 0]);
+        Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, occupiedTop]);
     }
 
     [Fact]
@@ -110,10 +171,10 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(4, handler.RequestCount);
-        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.Identity, StringComparison.Ordinal);
+        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler
