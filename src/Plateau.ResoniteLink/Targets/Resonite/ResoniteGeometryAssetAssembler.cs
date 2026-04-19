@@ -2,22 +2,44 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Targets.Resonite.Execution;
 
-internal sealed class ResoniteGeometryAssetAssembler(Action<string>? progressReporter = null)
+internal interface IResoniteGeometryAssetAssembler
+{
+    Task<PreparedGeometryAssetBatch> PrepareTriangleMeshAsync(
+        IResoniteLinkClient importClient,
+        string meshAssetSlotName,
+        string displayName,
+        ImportMeshRawData meshImport,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken);
+
+    Task<PreparedGeometryAssetBatch> PrepareHeightMapGridAsync(
+        IResoniteLinkClient importClient,
+        string meshAssetSlotName,
+        string heightMapAssetSlotName,
+        string displayName,
+        ResoniteHeightMapGridGeometry geometry,
+        ResoniteRawHdrTextureImport heightTextureImport,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAssembler
 {
     public async Task<PreparedGeometryAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string displayName,
         ImportMeshRawData meshImport,
+        Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        ReportProgress(
+        progressReporter?.Invoke(
             $"[live] Mesh '{displayName}' importing triangle mesh "
             + $"(vertices={meshImport.VertexCount}, submeshes={meshImport.Submeshes.Count}).");
         Uri assetUri = await importClient.ImportMeshAsync(meshImport, cancellationToken);
-        ReportProgress($"[live] Mesh '{displayName}' mesh import completed -> '{assetUri}'.");
+        progressReporter?.Invoke($"[live] Mesh '{displayName}' mesh import completed -> '{assetUri}'.");
         return new PreparedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
@@ -28,12 +50,13 @@ internal sealed class ResoniteGeometryAssetAssembler(Action<string>? progressRep
         string displayName,
         ResoniteHeightMapGridGeometry geometry,
         ResoniteRawHdrTextureImport heightTextureImport,
+        Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        ReportProgress(
+        progressReporter?.Invoke(
             $"[live] HeightMap '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
-        ReportProgress($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
+        progressReporter?.Invoke($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
         return new PreparedHeightMapGridAssetBatch(
             meshAssetSlotName,
             heightMapAssetSlotName,
@@ -57,11 +80,6 @@ internal sealed class ResoniteGeometryAssetAssembler(Action<string>? progressRep
             ["WrapModeV"] = new Field_Enum { Value = "Clamp" },
             ["FilterMode"] = new Field_Nullable_Enum { Value = "Point" },
         };
-    }
-
-    private void ReportProgress(string message)
-    {
-        progressReporter?.Invoke(message);
     }
 }
 

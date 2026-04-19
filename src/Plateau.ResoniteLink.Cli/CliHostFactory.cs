@@ -36,6 +36,7 @@ internal static class CliServiceCollectionExtensions
         services.AddHttpClient(CliHostFactory.TerrainTextureAssetsHttpClientName);
 
         services.AddPlateauCityGmlImportServices();
+        services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
@@ -99,22 +100,63 @@ internal sealed class DefaultPlateauDatasetSourceResolverFactory(IHttpClientFact
     }
 }
 
-internal sealed class DefaultSceneImportTargetFactory(IHttpClientFactory httpClientFactory)
+internal sealed class DefaultSceneImportTargetFactory(
+    IHttpClientFactory httpClientFactory,
+    IServiceScopeFactory serviceScopeFactory)
     : ISceneImportTargetFactory
 {
     public ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
-        return ResoniteSceneImportTargetFactory.Create(
-            options.ResoniteLinkUri!,
-            options.ResoniteLinkConnectionCount,
-            options.EnableSendMetrics,
-            options.MemoryProfile,
-            options.EnableMeshBake,
-            options.TerrainTileCacheRoot,
-            options.DisableTerrainTileCache,
-            httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName),
-            progressReporter);
+        AsyncServiceScope scope = serviceScopeFactory.CreateAsyncScope();
+        try
+        {
+            ResoniteLiveSceneImportTargetOptions targetOptions = new(
+                options.ResoniteLinkUri!,
+                options.ResoniteLinkConnectionCount,
+                options.EnableSendMetrics,
+                options.MemoryProfile,
+                options.EnableMeshBake,
+                options.TerrainTileCacheRoot,
+                options.DisableTerrainTileCache,
+                progressReporter);
+            IResoniteLiveSceneImportFactory targetFactory =
+                scope.ServiceProvider.GetRequiredService<IResoniteLiveSceneImportFactory>();
+            ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
+                targetOptions,
+                httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName));
+            return new ScopedSceneImportTarget(scope, target);
+        }
+        catch
+        {
+            scope.Dispose();
+            throw;
+        }
+    }
+}
+
+internal sealed class ScopedSceneImportTarget(
+    AsyncServiceScope scope,
+    ISceneImportTarget inner) : ISceneImportTarget
+{
+    public Task<SceneImportExecutionResult> ExecuteAsync(
+        SceneImportExecutionPlan plan,
+        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        CancellationToken cancellationToken = default)
+    {
+        return inner.ExecuteAsync(plan, cityObjects, cancellationToken);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await inner.DisposeAsync();
+        }
+        finally
+        {
+            await scope.DisposeAsync();
+        }
     }
 }

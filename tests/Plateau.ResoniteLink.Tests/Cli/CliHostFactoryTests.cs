@@ -30,4 +30,16 @@ public sealed class CliHostFactoryTests
         Assert.NotNull(host.Services.GetRequiredService<IResoniteConstructionComposer>());
         Assert.NotNull(host.Services.GetRequiredService<IResoniteConstructionSourceFactory>());
     }
+
+    [Fact]
+    public void CreateResolvesResoniteLiveSendFactoryServices()
+    {
+        using IHost host = CliHostFactory.Create([]);
+
+        Assert.NotNull(host.Services.GetRequiredService<IResoniteLiveSceneImportFactory>());
+        Assert.NotNull(host.Services.GetRequiredService<IResoniteBatchEmissionPlanner>());
+        Assert.NotNull(host.Services.GetRequiredService<IResoniteSceneBatchEmitter>());
+        Assert.NotNull(host.Services.GetRequiredService<IResoniteGeometryAssetAssembler>());
+        Assert.NotNull(host.Services.GetRequiredService<IResoniteMaterialPlanning>());
+    }
 }

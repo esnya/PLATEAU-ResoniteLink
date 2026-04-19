@@ -2,14 +2,32 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Targets.Resonite.Execution;
 
-internal static class ResoniteMaterialPlanning
+internal interface IResoniteMaterialPlanning
+{
+    Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
+        IResoniteLinkClient importClient,
+        ResoniteMaterialBinding material,
+        CancellationToken cancellationToken);
+
+    Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
+        IResoniteLinkClient importClient,
+        ResoniteMaterialBinding material,
+        int materialIndex,
+        string packageName,
+        IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
+        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
+        bool preserveDedicatedMaterialSlot,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
 
-    public static async Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
+    public async Task<PlannedDedicatedMaterialAsset> PlanCommonMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         CancellationToken cancellationToken)
@@ -41,7 +59,7 @@ internal static class ResoniteMaterialPlanning
             PreserveDedicatedMaterialSlot: false);
     }
 
-    public static async Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
+    public async Task<PlannedDedicatedMaterialAsset> PlanDedicatedMaterialAssetAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         int materialIndex,

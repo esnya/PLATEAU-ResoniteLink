@@ -1,6 +1,6 @@
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Targets.Resonite.Execution;
 
 internal sealed class ResoniteComponentUpdateInterpreter
 {

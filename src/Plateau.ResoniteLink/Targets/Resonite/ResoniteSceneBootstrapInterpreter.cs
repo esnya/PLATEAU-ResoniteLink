@@ -4,7 +4,7 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
-namespace Plateau.ResoniteLink.Targets.Resonite;
+namespace Plateau.ResoniteLink.Targets.Resonite.Execution;
 
 internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstrapInterpreter
 {
@@ -17,14 +17,17 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private const string GsiLicenseName = "GSI Maps Terms";
     private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
 
-    private readonly Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync;
+    private readonly IResoniteSceneSlotLocator sceneSlotLocator;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
+    private readonly IResoniteMaterialPlanning materialPlanning;
 
     internal ResoniteSceneBootstrapInterpreter(
-        Func<IResoniteLinkClient, string, CancellationToken, Task<CreatedSlot?>> tryGetDatasetRootAsync,
+        IResoniteSceneSlotLocator sceneSlotLocator,
+        IResoniteMaterialPlanning? materialPlanning = null,
         IResoniteSceneAnchorResolver? sceneAnchorResolver = null)
     {
-        this.tryGetDatasetRootAsync = tryGetDatasetRootAsync;
+        this.sceneSlotLocator = sceneSlotLocator ?? throw new ArgumentNullException(nameof(sceneSlotLocator));
+        this.materialPlanning = materialPlanning ?? new ResoniteMaterialPlanning();
         this.sceneAnchorResolver = sceneAnchorResolver ?? new ResoniteSceneAnchorResolver();
     }
 
@@ -47,7 +50,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         Slot? sharedCommonMaterialsSlot = sharedAssetsSlot is null
             ? null
             : GetReusableChildSlot(new ResoniteSceneSlotSnapshot(sharedAssetsSlot), SharedCommonMaterialsRootName, sharedAssetsSlot.ID!);
-        CreatedSlot? existingDatasetRoot = await tryGetDatasetRootAsync(
+        CreatedSlot? existingDatasetRoot = await sceneSlotLocator.TryGetDatasetRootAsync(
             setupClient,
             datasetRootName,
             cancellationToken);
@@ -197,7 +200,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             : null;
     }
 
-    private static async Task<ResoniteSceneBootstrapState> CreateInitialBootstrapStateAsync(
+    private async Task<ResoniteSceneBootstrapState> CreateInitialBootstrapStateAsync(
         IResoniteLinkClient setupClient,
         string datasetName,
         string completionMeshCode,
@@ -354,7 +357,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         return string.Equals(existingCreditString.Value, expectedCreditString.Value, StringComparison.Ordinal);
     }
 
-    private static async Task<(Dictionary<string, CreatedMaterialAsset> CommonMaterialAssetsByKey, HashSet<string> CommonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials)> PlanCommonMaterialOperationsAsync(
+    private async Task<(Dictionary<string, CreatedMaterialAsset> CommonMaterialAssetsByKey, HashSet<string> CommonMaterialFamilies, List<PlannedCommonMaterialBatchEntry> PlannedCommonMaterials)> PlanCommonMaterialOperationsAsync(
         IResoniteLinkClient setupClient,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         Slot? commonSlot,
@@ -428,7 +431,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 continue;
             }
 
-            PlannedDedicatedMaterialAsset plannedMaterial = await ResoniteMaterialPlanning.PlanCommonMaterialAssetAsync(
+            PlannedDedicatedMaterialAsset plannedMaterial = await this.materialPlanning.PlanCommonMaterialAssetAsync(
                 setupClient,
                 material,
                 cancellationToken);

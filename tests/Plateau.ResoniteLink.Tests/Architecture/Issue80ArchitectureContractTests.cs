@@ -53,6 +53,37 @@ public sealed partial class Issue80ArchitectureContractTests
     }
 
     [Fact]
+    public void ResoniteTargets_RpcExecutionCalls_AppearOnlyInsideExecutionAdapters()
+    {
+        string executionRoot = TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Targets", "Resonite");
+        string[] allowedFiles =
+        [
+            "ResoniteSceneBootstrapInterpreter.cs",
+            "ResoniteSceneAnchorResolver.cs",
+            "ResoniteSceneSlotSnapshot.cs",
+            "IResoniteSlotCreator.cs",
+            "ResonitePlannedBatchEmissionInterpreter.cs",
+            "ResoniteGeometryAssetAssembler.cs",
+            "ResoniteMaterialPlanning.cs",
+        ];
+
+        string[] offendingFiles = Directory
+            .EnumerateFiles(executionRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(path =>
+            {
+                string content = File.ReadAllText(path);
+                return content.Contains("RunDataModelOperationBatchAsync(", StringComparison.Ordinal)
+                    || content.Contains("GetSlotAsync(", StringComparison.Ordinal)
+                    || content.Contains("ImportTextureAsync(", StringComparison.Ordinal)
+                    || content.Contains("ImportMeshAsync(", StringComparison.Ordinal);
+            })
+            .Where(path => allowedFiles.All(allowed => !path.EndsWith(allowed, StringComparison.Ordinal)))
+            .ToArray();
+
+        Assert.Empty(offendingFiles);
+    }
+
+    [Fact]
     public void SourceTree_NoLongerReferencesRemovedIssue80Names()
     {
         string[] files =
