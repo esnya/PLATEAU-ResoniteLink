@@ -137,6 +137,102 @@ public static partial class LocalCityGmlObjectProjection
             SharedAcrossMeshCodes: sharedAcrossMeshCodes);
     }
 
+    private static ParsedCityObject? ParseCityObject(
+        XElement cityObjectElement,
+        string packageName,
+        string relativeSourceFile,
+        string actualMeshCode,
+        bool sharedAcrossMeshCodes,
+        ICityGmlAppearanceStore appearanceStore,
+        ICityGmlLodSelector lodSelector,
+        CoordinateReferenceSystem coordinateReferenceSystem,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
+        LodFilteringStrategy lodFilteringStrategy)
+    {
+        string objectTypeName = cityObjectElement.Name.LocalName;
+        string objectId = GetAttribute(cityObjectElement, Gml + "id") ?? objectTypeName;
+        string? displayName = cityObjectElement.Elements(Gml + "name").FirstOrDefault()?.Value.Trim();
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = objectId;
+        }
+
+        string resolvedActualMeshCode =
+            sharedAcrossMeshCodes && string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
+                ? ResolveConcreteActualMeshCode(displayName!, objectId, actualMeshCode)
+                : actualMeshCode;
+        int? floorsAboveGround = TryParseStoreysAboveGround(cityObjectElement);
+        double? measuredHeightMeters = TryParseMeasuredHeightMeters(cityObjectElement);
+
+        bool isMarking = displayName.Contains("Marking", StringComparison.OrdinalIgnoreCase)
+            || objectId.Contains("Marking", StringComparison.OrdinalIgnoreCase)
+            || objectId.Contains("_road_marking", StringComparison.Ordinal);
+
+        CityGmlLodSelection lodSelection = lodSelector.SelectPreferredSurfaceElements(
+            cityObjectElement,
+            packageName,
+            isMarking,
+            lodFilteringStrategy);
+        XElement[] preferredSurfaceElements = lodSelection.SurfaceElements;
+        int? lodLevel = lodSelection.LodLevel;
+
+        if (!lodFilteringStrategy.ShouldIncludeByPattern(packageName, objectId, isMarking))
+        {
+            return null;
+        }
+
+        if (preferredSurfaceElements.Length == 0 && lodFilteringStrategy.ShouldExcludeLod(packageName, lodLevel, isMarking))
+        {
+            return null;
+        }
+
+        ParsedSurface[] surfaces = preferredSurfaceElements
+            .Select(surfaceElement => ParseSurface(surfaceElement, appearanceStore))
+            .Where(static surface => surface is not null)
+            .Select(static surface => surface!)
+            .Select(surface => ApplyPackageSurfaceDefaults(packageName, surface))
+            .OrderBy(static surface => CreateStableSurfaceSortKey(surface), StringComparer.Ordinal)
+            .ToArray();
+
+        if (surfaces.Length == 0)
+        {
+            return null;
+        }
+
+        if (requestedMeshAreas is not null
+            && requestedMeshAreas.Count > 0
+            && coordinateReferenceSystem.IsGeographic)
+        {
+            bool intersectsRequestedMeshArea = sharedAcrossMeshCodes
+                && TryCreateMeshCodeBounds(resolvedActualMeshCode, out MeshCodeBounds? resolvedActualMeshArea)
+                    ? IntersectsMeshCodeBounds(resolvedActualMeshArea!, requestedMeshAreas)
+                    : IntersectsMeshCodeBounds(surfaces, requestedMeshAreas);
+            if (!intersectsRequestedMeshArea)
+            {
+                return null;
+            }
+        }
+
+        string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
+        string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
+        string sourceUnitIdentity = SanitizeIdentifier(relativeSourceFile);
+        string sourceIdentity = SanitizeIdentifier($"{relativeSourceFile}_{objectId}");
+        return new ParsedCityObject(
+            slotKey,
+            displayName!,
+            packageName,
+            resolvedActualMeshCode,
+            lodLevel,
+            surfaces,
+            coordinateReferenceSystem,
+            relativeSourceFile,
+            sourceUnitIdentity,
+            sourceIdentity,
+            SharedAcrossMeshCodes: sharedAcrossMeshCodes,
+            FloorsAboveGround: floorsAboveGround,
+            MeasuredHeightMeters: measuredHeightMeters);
+    }
+
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
@@ -355,6 +451,34 @@ public static partial class LocalCityGmlObjectProjection
     {
         meshCodeArea = MeshCodeBounds.TryParse(meshCode);
         return meshCodeArea is not null;
+    }
+
+    private static int? TryParseStoreysAboveGround(XElement cityObjectElement)
+    {
+        XElement? element = cityObjectElement.Elements()
+            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "storeysAboveGround", StringComparison.Ordinal));
+        if (element is null)
+        {
+            return null;
+        }
+
+        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value) && value >= 0
+            ? value
+            : null;
+    }
+
+    private static double? TryParseMeasuredHeightMeters(XElement cityObjectElement)
+    {
+        XElement? element = cityObjectElement.Elements()
+            .FirstOrDefault(static child => string.Equals(child.Name.LocalName, "measuredHeight", StringComparison.Ordinal));
+        if (element is null)
+        {
+            return null;
+        }
+
+        return double.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out double value) && value > 0.0
+            ? value
+            : null;
     }
 
     private static string CreateStableElementId(string prefix, XElement element)
@@ -1086,6 +1210,46 @@ public static partial class LocalCityGmlObjectProjection
 
         string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
         SurfaceAppearance appearance = appearanceLibrary.Resolve(polygonId);
+        ParsedRing? exteriorParsedRing = ParseRing(
+            exteriorRing,
+            appearance.RingUvsByRingId,
+            fallbackRingId: polygonId);
+        if (exteriorParsedRing is null)
+        {
+            return null;
+        }
+
+        ParsedRing[] interiorRings = polygonElement
+            .Elements(Gml + "interior")
+            .Select(interiorElement => ParseRing(
+                interiorElement.Element(Gml + "LinearRing"),
+                appearance.RingUvsByRingId,
+                fallbackRingId: null))
+            .Where(static ring => ring is not null)
+            .Select(static ring => ring!)
+            .ToArray();
+
+        return new ParsedSurface(
+            PolygonId: polygonId,
+            Semantic: ParseSurfaceSemantic(polygonElement),
+            ExteriorRing: exteriorParsedRing,
+            InteriorRings: interiorRings,
+            BaseColor: appearance.BaseColor,
+            TexturePayload: appearance.TexturePayload);
+    }
+
+    private static ParsedSurface? ParseSurface(XElement polygonElement, ICityGmlAppearanceStore appearanceStore)
+    {
+        XElement? exteriorRing = polygonElement
+            .Element(Gml + "exterior")
+            ?.Element(Gml + "LinearRing");
+        if (exteriorRing is null)
+        {
+            return null;
+        }
+
+        string polygonId = GetAttribute(polygonElement, Gml + "id") ?? CreateStableElementId("polygon", polygonElement);
+        CityGmlResolvedAppearance appearance = appearanceStore.Resolve(polygonId);
         ParsedRing? exteriorParsedRing = ParseRing(
             exteriorRing,
             appearance.RingUvsByRingId,
@@ -2553,7 +2717,7 @@ public static partial class LocalCityGmlObjectProjection
         return element.Attribute(attributeName)?.Value;
     }
 
-    private static double[] ParseDoubles(string value)
+    internal static double[] ParseDoubles(string value)
     {
         return value
             .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
@@ -2561,7 +2725,7 @@ public static partial class LocalCityGmlObjectProjection
             .ToArray();
     }
 
-    private static List<ResoniteFloat2> ParseTextureCoordinates(string value)
+    internal static List<ResoniteFloat2> ParseTextureCoordinates(string value)
     {
         double[] ordinates = ParseDoubles(value);
         List<ResoniteFloat2> coordinates = [];
@@ -3718,7 +3882,9 @@ public static partial class LocalCityGmlObjectProjection
         string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
-        GeodeticPoint? OriginOverride = null);
+        GeodeticPoint? OriginOverride = null,
+        int? FloorsAboveGround = null,
+        double? MeasuredHeightMeters = null);
 
     internal sealed record SourceFileDescriptor(
         string RelativePath,

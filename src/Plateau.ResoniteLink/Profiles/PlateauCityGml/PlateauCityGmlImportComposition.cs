@@ -6,7 +6,18 @@ internal static class PlateauCityGmlImportComposition
 {
     public static ICityGmlDocumentReader CreateDocumentReader()
     {
-        return new LocalCityGmlDocumentReader();
+        return new LocalCityGmlDocumentReader(
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
+    }
+
+    public static ICityGmlDocumentReader CreateDocumentReader(
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector)
+    {
+        ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
+        ArgumentNullException.ThrowIfNull(lodSelector);
+        return new LocalCityGmlDocumentReader(appearanceStoreFactory, lodSelector);
     }
 
     public static IDefaultMaterialResolver CreateMaterialResolver()

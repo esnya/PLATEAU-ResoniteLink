@@ -9,18 +9,24 @@ internal static class LocalCityGmlBootstrapPipeline
 {
     public static async Task<LocalCityGmlDocumentSet> ReadAsync(
         PlateauImportRequest request,
+        ICityGmlAppearanceStoreFactory? appearanceStoreFactory = null,
+        ICityGmlLodSelector? lodSelector = null,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await ReadDocumentSetCoreAsync(request, progressReporter, cancellationToken);
+        return await ReadDocumentSetCoreAsync(request, progressReporter, appearanceStoreFactory, lodSelector, cancellationToken);
     }
 
     internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
+        ICityGmlAppearanceStoreFactory? appearanceStoreFactory = null,
+        ICityGmlLodSelector? lodSelector = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
+        appearanceStoreFactory ??= new CityGmlAppearanceStoreFactory();
+        lodSelector ??= new CityGmlLodSelector();
 
         if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
@@ -75,6 +81,8 @@ internal static class LocalCityGmlBootstrapPipeline
                 requestedMeshAreas,
                 progressReporter,
                 lodFilteringStrategy,
+                appearanceStoreFactory,
+                lodSelector,
                 cancellationToken);
         ParsedSourceFileResult[] demParsedSourceFiles = (await Task.WhenAll(
             sourceFilePipelines
