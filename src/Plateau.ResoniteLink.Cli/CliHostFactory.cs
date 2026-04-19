@@ -37,9 +37,6 @@ internal static class CliServiceCollectionExtensions
 
         services.AddPlateauCityGmlImportServices();
 
-        services.AddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
-        services.AddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
-        services.AddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();

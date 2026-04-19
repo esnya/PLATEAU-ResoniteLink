@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using Plateau.ResoniteLink.Profiles.PlateauCityGml;
 
@@ -10,6 +11,15 @@ public static class PlateauImportServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
+        services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
+        services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
+        services.AddSingleton<IDefaultMaterialResolver>(_ =>
+            PlateauCityGmlImportComposition.CreateMaterialResolver());
+        services.AddSingleton<IResoniteConstructionComposer>(provider =>
+            PlateauCityGmlImportComposition.CreateConstructionComposer(
+                PlateauCityGmlImportComposition.CreateGeometryProjector(
+                    provider.GetRequiredService<IDefaultMaterialResolver>())));
         services.AddSingleton<ICityGmlDocumentReader>(provider =>
             PlateauCityGmlComposition.CreateDocumentReader(
                 provider.GetRequiredService<IPlateauDatasetContentSourceFactory>()));
