@@ -44,42 +44,120 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
-        TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(terrainTextureOverlay);
-        int usedTerrainTiles = 0;
-        int fallbackTerrainTiles = 0;
+        for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
+        {
+            TerrainTextureSource source = terrainTextureOverlay.Sources[sourceIndex];
+            Image<Rgba32>? image = source switch
+            {
+                TerrainTextureTileSource tileSource => await TryCreateTextureFromTileSourceAsync(
+                    terrainTextureOverlay,
+                    tileSource,
+                    cancellationToken),
+                TerrainTextureGeoReferencedRasterSource rasterSource => await TryCreateTextureFromGeoReferencedRasterSourceAsync(
+                    terrainTextureOverlay,
+                    rasterSource,
+                    cancellationToken),
+                _ => null,
+            };
 
-        using Image<Rgba32> stitchedImage = new(
-            layoutPlan.StitchedWidth,
-            layoutPlan.StitchedHeight);
+            if (image is null)
+            {
+                continue;
+            }
+
+            using (image)
+            using (Image<Rgba32> outputImage = ResizeToMaxTextureSize(image, terrainTextureOverlay.MaxTextureSize))
+            {
+                return new CachedTerrainTexture(
+                    CreateRawTextureImport(outputImage, CreateOverlayIdentity(terrainTextureOverlay, source)),
+                    source);
+            }
+        }
+
+        throw new HttpRequestException(
+            $"Terrain texture generation failed for '{terrainTextureOverlay.SourceIdentityKey}'.");
+    }
+
+    private async Task<Image<Rgba32>?> TryCreateTextureFromTileSourceAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        TerrainTextureTileSource tileSource,
+        CancellationToken cancellationToken)
+    {
+        TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(
+            terrainTextureOverlay.GeographicBounds,
+            tileSource.ZoomLevel);
+        using Image<Rgba32> stitchedImage = new(layoutPlan.StitchedWidth, layoutPlan.StitchedHeight);
 
         for (int tileY = layoutPlan.MinTileY; tileY <= layoutPlan.MaxTileY; tileY++)
         {
             for (int tileX = layoutPlan.MinTileX; tileX <= layoutPlan.MaxTileX; tileX++)
             {
-                DownloadedTerrainTile tile = await DownloadTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
-                usedTerrainTiles += tile.UsedTerrainTileCount;
-                fallbackTerrainTiles += tile.FallbackTileUseCount;
-                using Image<Rgba32> tileImage = tile.Image;
-                stitchedImage.Mutate(context => context.DrawImage(
-                    tileImage,
-                    new Point(
-                        (tileX - layoutPlan.MinTileX) * WebMercatorTileMath.TileSizePixels,
-                        (tileY - layoutPlan.MinTileY) * WebMercatorTileMath.TileSizePixels),
-                    1.0f));
+                Image<Rgba32>? tileImage = await TryDownloadTileAsync(
+                    tileSource,
+                    tileX,
+                    tileY,
+                    cancellationToken);
+                if (tileImage is null)
+                {
+                    return null;
+                }
+
+                using (tileImage)
+                {
+                    stitchedImage.Mutate(context => context.DrawImage(
+                        tileImage,
+                        new Point(
+                            (tileX - layoutPlan.MinTileX) * WebMercatorTileMath.TileSizePixels,
+                            (tileY - layoutPlan.MinTileY) * WebMercatorTileMath.TileSizePixels),
+                        1.0f));
+                }
             }
         }
 
-        using Image<Rgba32> croppedImage = stitchedImage.Clone(context => context.Crop(new Rectangle(
+        return stitchedImage.Clone(context => context.Crop(new Rectangle(
             layoutPlan.CropLeft,
             layoutPlan.CropTop,
             layoutPlan.CropWidth,
             layoutPlan.CropHeight)));
+    }
 
-        using Image<Rgba32> outputImage = ResizeToMaxTextureSize(croppedImage, terrainTextureOverlay.MaxTextureSize);
-        return new CachedTerrainTexture(
-            CreateRawTextureImport(outputImage, CreateOverlayIdentity(terrainTextureOverlay)),
-            usedTerrainTiles,
-            fallbackTerrainTiles);
+    private static async Task<Image<Rgba32>?> TryCreateTextureFromGeoReferencedRasterSourceAsync(
+        TerrainTextureOverlay terrainTextureOverlay,
+        TerrainTextureGeoReferencedRasterSource rasterSource,
+        CancellationToken cancellationToken)
+    {
+        string sourcePath = Path.GetFullPath(rasterSource.SourcePath);
+        GeoReferencedRasterMetadata? metadata = rasterSource.Metadata
+            ?? await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(sourcePath, cancellationToken);
+        if (metadata is null || !metadata.IsUsable)
+        {
+            return null;
+        }
+
+        try
+        {
+            using Image<Rgba32> sourceImage = await Image.LoadAsync<Rgba32>(sourcePath, cancellationToken);
+            return TerrainTextureGeoReferencedRasterCropper.TryCrop(
+                sourceImage,
+                metadata,
+                terrainTextureOverlay.GeographicBounds);
+        }
+        catch (UnknownImageFormatException)
+        {
+            return null;
+        }
+        catch (InvalidImageContentException)
+        {
+            return null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private static Image<Rgba32> ResizeToMaxTextureSize(Image<Rgba32> image, int maxTextureSize)
@@ -99,58 +177,13 @@ internal sealed class TerrainTextureAssetGenerator(
         }));
     }
 
-    private async Task<DownloadedTerrainTile> DownloadTileAsync(
+    private static string CreateOverlayIdentity(
         TerrainTextureOverlay terrainTextureOverlay,
-        int tileX,
-        int tileY,
-        CancellationToken cancellationToken)
-    {
-        Image<Rgba32>? primaryImage = await TryDownloadTileAsync(
-            terrainTextureOverlay.UrlTemplate,
-            tileX,
-            tileY,
-            terrainTextureOverlay.ZoomLevel,
-            cancellationToken);
-        if (primaryImage is not null)
-        {
-            return new DownloadedTerrainTile(primaryImage, UsedTerrainTileCount: 1, FallbackTileUseCount: 0);
-        }
-
-        return await DownloadFallbackTileAsync(terrainTextureOverlay, tileX, tileY, cancellationToken);
-    }
-
-    private async Task<DownloadedTerrainTile> DownloadFallbackTileAsync(
-        TerrainTextureOverlay terrainTextureOverlay,
-        int tileX,
-        int tileY,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(terrainTextureOverlay.FallbackUrlTemplate))
-        {
-            throw new HttpRequestException(
-                $"Terrain texture tile download failed for '{CreateOverlayIdentity(terrainTextureOverlay)}' at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
-        }
-
-        Image<Rgba32>? image = await TryDownloadTileAsync(
-            terrainTextureOverlay.FallbackUrlTemplate,
-            tileX,
-            tileY,
-            terrainTextureOverlay.ZoomLevel,
-            cancellationToken);
-        if (image is null)
-        {
-            throw new HttpRequestException(
-                $"Terrain texture tile download failed for both primary and fallback sources at {terrainTextureOverlay.ZoomLevel}/{tileX}/{tileY}.");
-        }
-
-        return new DownloadedTerrainTile(image, UsedTerrainTileCount: 1, FallbackTileUseCount: 1);
-    }
-
-    private static string CreateOverlayIdentity(TerrainTextureOverlay terrainTextureOverlay)
+        TerrainTextureSource usedSource)
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"terrain-overlay/{terrainTextureOverlay.PackageName}/{terrainTextureOverlay.ZoomLevel}/"
+            $"terrain-overlay/{terrainTextureOverlay.PackageName}/{usedSource.IdentityKey}/"
             + $"{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######},"
             + $"{terrainTextureOverlay.GeographicBounds.MaxLatitude:0.######},"
             + $"{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######},"
@@ -158,18 +191,17 @@ internal sealed class TerrainTextureAssetGenerator(
     }
 
     private async Task<Image<Rgba32>?> TryDownloadTileAsync(
-        string urlTemplate,
+        TerrainTextureTileSource tileSource,
         int tileX,
         int tileY,
-        int zoomLevel,
         CancellationToken cancellationToken)
     {
-        string tileUrl = WebMercatorTileMath.FormatTileUrl(urlTemplate, zoomLevel, tileX, tileY);
+        string tileUrl = WebMercatorTileMath.FormatTileUrl(tileSource.UrlTemplate, tileSource.ZoomLevel, tileX, tileY);
         if (persistentTileCache is not null)
         {
             byte[]? cachedBytes = await persistentTileCache.TryReadTileBytesAsync(
-                urlTemplate,
-                zoomLevel,
+                tileSource.UrlTemplate,
+                tileSource.ZoomLevel,
                 tileX,
                 tileY,
                 cancellationToken);
@@ -179,13 +211,11 @@ internal sealed class TerrainTextureAssetGenerator(
                 {
                     return await LoadTileImageAsync(cachedBytes, cancellationToken);
                 }
-                catch (SixLabors.ImageSharp.UnknownImageFormatException)
+                catch (UnknownImageFormatException)
                 {
-                    // Corrupt persistent cache entries should behave like a cache miss.
                 }
-                catch (SixLabors.ImageSharp.InvalidImageContentException)
+                catch (InvalidImageContentException)
                 {
-                    // Corrupt persistent cache entries should behave like a cache miss.
                 }
             }
         }
@@ -205,8 +235,8 @@ internal sealed class TerrainTextureAssetGenerator(
             if (persistentTileCache is not null)
             {
                 await TryWritePersistentTileBytesAsync(
-                    urlTemplate,
-                    zoomLevel,
+                    tileSource.UrlTemplate,
+                    tileSource.ZoomLevel,
                     tileX,
                     tileY,
                     encodedBytes,
@@ -246,13 +276,9 @@ internal sealed class TerrainTextureAssetGenerator(
         }
         catch (IOException)
         {
-            // Persistent tile caching is an optimization. A local cache write failure
-            // must not discard a tile that was already downloaded successfully.
         }
         catch (UnauthorizedAccessException)
         {
-            // Persistent tile caching is an optimization. A local cache write failure
-            // must not discard a tile that was already downloaded successfully.
         }
     }
 
@@ -278,13 +304,7 @@ internal sealed class TerrainTextureAssetGenerator(
 
     private sealed record CachedTerrainTexture(
         ResoniteRawTextureImport TextureImport,
-        int UsedTerrainTileCount,
-        int FallbackTileUseCount);
-
-    private sealed record DownloadedTerrainTile(
-        Image<Rgba32> Image,
-        int UsedTerrainTileCount,
-        int FallbackTileUseCount);
+        TerrainTextureSource UsedSource);
 }
 
 internal sealed class PersistentTerrainTileCache
