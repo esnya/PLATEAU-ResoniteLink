@@ -83,14 +83,14 @@ public sealed class Issue80ArchitectureContractTests
     [Fact]
     public void CityGmlBoundaryLayers_DoNotCallLegacyBridgeHelpers()
     {
-        string[] guardedFiles =
+        string[] files =
         [
-            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlConstructionSource.cs"),
-            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml", "LocalCityGmlGeometryProjector.cs"),
+            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml"), "*.cs", SearchOption.AllDirectories),
             TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlBootstrapPipeline.cs"),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlConstructionSource.cs"),
         ];
 
-        string[] offenders = guardedFiles
+        string[] offenders = files
             .Where(static path =>
             {
                 string content = File.ReadAllText(path);

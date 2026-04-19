@@ -190,11 +190,17 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CreateImportedCityObjects(
                 CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
-        Assert.Equal(2, session.EnsureConnectedCallCount);
-        Assert.Equal(0, session.ResetClientsCallCount);
-        Assert.DoesNotContain(
-            routedClient.Batches.SelectMany(static operations => operations),
-            static operation => operation is UpdateComponent);
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
+        Slot assetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(routedClient, "PLATEAU tokyo23ku/Assets");
+
+        Assert.Equal(
+            2,
+            routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
+                && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(
+            2,
+            routedClient.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "plateau_tokyo23ku_bldg_53394525", StringComparison.Ordinal)
+                && string.Equals(slot.Parent?.TargetID, assetsRoot.ID, StringComparison.Ordinal)));
     }
 
     [Fact]

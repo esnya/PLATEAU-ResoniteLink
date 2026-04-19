@@ -15,7 +15,7 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator : ICityGmlCommonMater
         PlateauImportRequest request,
         ISet<string>? emittedMaterialKeys = null)
     {
-        return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
+        return LocalCityGmlLegacyProjectionAdapter.EnumerateCommonMaterials(
             sourceFile,
             referenceSystem,
             globalOriginPoint,
