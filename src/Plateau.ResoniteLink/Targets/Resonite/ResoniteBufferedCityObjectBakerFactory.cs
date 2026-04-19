@@ -19,14 +19,33 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBuffered
     {
         ArgumentNullException.ThrowIfNull(textureImageLoader);
 
+        int maxVerticesPerBatch = resourceBudget.Name switch
+        {
+            PlateauImportMemoryProfile.Small => 32_768,
+            PlateauImportMemoryProfile.Large => 65_535,
+            _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
+        };
+        int maxCityObjectsPerBatch = resourceBudget.Name switch
+        {
+            PlateauImportMemoryProfile.Small => 512,
+            PlateauImportMemoryProfile.Large => 4096,
+            _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
+        };
+        int maxBufferedCells = resourceBudget.Name switch
+        {
+            PlateauImportMemoryProfile.Small => 256,
+            PlateauImportMemoryProfile.Large => 1024,
+            _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
+        };
+
         return enableMeshBake
             ? new CompositeCityObjectBaker(
                 new Lod2AtlasCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget),
                 new FixedCellCityObjectMeshBaker(
                     FixedCellCityObjectMeshBaker.DefaultCellSizeMeters,
-                    FixedCellCityObjectMeshBaker.DefaultMaxCityObjectsPerBatch,
-                    FixedCellCityObjectMeshBaker.DefaultMaxVerticesPerBatch,
-                    resourceBudget.Name == PlateauImportMemoryProfile.Small ? 256 : 1024))
+                    maxCityObjectsPerBatch,
+                    maxVerticesPerBatch,
+                    maxBufferedCells))
             : null;
     }
 }

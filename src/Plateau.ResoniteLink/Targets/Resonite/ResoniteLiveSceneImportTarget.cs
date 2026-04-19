@@ -723,21 +723,25 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private static long EstimateCityObjectWorkingSetBytes(ResoniteConstructionCityObject cityObject)
     {
-        const long minimumWeightBytes = 256L * 1024L;
-        const long textureReferenceWeightBytes = 4L * 1024L * 1024L;
+        const long minimumWeightBytes = 16L * 1024L * 1024L;
+        const long textureReferenceWeightBytes = 16L * 1024L * 1024L;
         const long heightSampleWeightBytes = sizeof(double);
         const long hdrHeightTextureWeightBytes = 4L * sizeof(float);
-        const long materialBindingWeightBytes = 512L;
-        const long vertexWeightBytes = 64L;
-        const long indexWeightBytes = sizeof(int);
-        const long perSubmeshWeightBytes = 256L;
+        const long materialBindingWeightBytes = 4096L;
+        const long vertexWeightBytes = 256L;
+        const long indexWeightBytes = 16L;
+        const long perSubmeshWeightBytes = 4096L;
+        const long triangleMeshExpansionFactor = 4L;
+        const long heightMapExpansionFactor = 2L;
 
         long geometryWeightBytes = cityObject.Geometry switch
         {
-            ResoniteTriangleMeshGeometry triangleMesh => EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh),
+            ResoniteTriangleMeshGeometry triangleMesh => checked(
+                EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh) * triangleMeshExpansionFactor),
             ResoniteHeightMapGridGeometry heightMap => checked(
                 (heightMap.HeightSamples.Count * heightSampleWeightBytes)
-                + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)),
+                + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)
+                * heightMapExpansionFactor),
             _ => minimumWeightBytes,
         };
 
@@ -909,10 +913,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
             .ToArray();
 
-        Task<PreparedTextureReference>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
+        Task<PreparedTextureReference?>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
             .Select(terrainTextureOverlay => PrepareTerrainOverlayTextureReferenceAsync(terrainTextureOverlay, cancellationToken))
             .ToArray();
-        Task<PreparedTextureReference>[] texturePreparationTasks = [];
+        Task<PreparedTextureReference?>[] texturePreparationTasks = [];
 
         Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
         {
@@ -925,13 +929,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
         Stopwatch stopwatch = Stopwatch.StartNew();
-        PreparedTextureReference[] preparedTextures = await Task.WhenAll(
+        PreparedTextureReference?[] preparedTextureResults = await Task.WhenAll(
             texturePreparationTasks
                 .Concat(terrainOverlayTexturePreparationTasks)
                 .Concat(cityObject.Materials
                     .Where(static material => material.TexturePayload is not null)
                     .Select(PrepareDirectMaterialTextureReferenceAsync)
                     .ToArray()));
+        PreparedTextureReference[] preparedTextures = preparedTextureResults
+            .OfType<PreparedTextureReference>()
+            .ToArray();
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
         stopwatch.Stop();
         Diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
@@ -953,29 +960,40 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             preparedTextures);
     }
 
-    private async Task<PreparedTextureReference> PrepareTerrainOverlayTextureReferenceAsync(
+    private async Task<PreparedTextureReference?> PrepareTerrainOverlayTextureReferenceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
-        GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
-            terrainTextureOverlay,
-            cancellationToken);
+        try
+        {
+            GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
+                terrainTextureOverlay,
+                cancellationToken);
 
-        return new PreparedTextureReference(
-            TextureIdentity: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            TextureImport: terrainTexture.TextureImport,
-            TerrainOverlay: terrainTextureOverlay,
-            GeneratedTerrainTexture: terrainTexture);
+            return new PreparedTextureReference(
+                TextureIdentity: null,
+                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                TextureImport: terrainTexture.TextureImport,
+                TerrainOverlay: terrainTextureOverlay,
+                GeneratedTerrainTexture: terrainTexture);
+        }
+        catch (HttpRequestException)
+        {
+            ReportProgress(
+                PlateauLog.Warning(
+                    "live",
+                    $"Skipping terrain overlay texture for '{terrainTextureOverlay.SourceIdentityKey}' after texture generation failure."));
+            return null;
+        }
     }
 
-    private Task<PreparedTextureReference> PrepareDirectMaterialTextureReferenceAsync(
+    private Task<PreparedTextureReference?> PrepareDirectMaterialTextureReferenceAsync(
         ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
         ArgumentNullException.ThrowIfNull(material.TexturePayload);
 
-        return Task.FromResult(
+        return Task.FromResult<PreparedTextureReference?>(
             new PreparedTextureReference(
                 TextureIdentity: material.TexturePayload.Identity,
                 TextureSourceKind: material.TextureSourceKind,
