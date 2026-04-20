@@ -274,6 +274,17 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
                 modelBounds.MaxX);
         }
 
+        if (string.Equals(coordinateSystemIdentifier, "EPSG:3857", StringComparison.OrdinalIgnoreCase))
+        {
+            (double webMercatorMinLatitude, double webMercatorMinLongitude) = ReverseWebMercator(modelBounds.MinX, modelBounds.MinY);
+            (double webMercatorMaxLatitude, double webMercatorMaxLongitude) = ReverseWebMercator(modelBounds.MaxX, modelBounds.MaxY);
+            return new GeographicRectangle(
+                MinLatitude: Math.Min(webMercatorMinLatitude, webMercatorMaxLatitude),
+                MaxLatitude: Math.Max(webMercatorMinLatitude, webMercatorMaxLatitude),
+                MinLongitude: Math.Min(webMercatorMinLongitude, webMercatorMaxLongitude),
+                MaxLongitude: Math.Max(webMercatorMinLongitude, webMercatorMaxLongitude));
+        }
+
         if (!TryParseJapanPlaneRectangularZone(coordinateSystemIdentifier, out int zone))
         {
             return null;
@@ -336,6 +347,13 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         double y)
     {
         (double latitude, double longitude) = projection.Reverse(centralMeridian, x, y + originNorthing);
+        return (latitude, longitude);
+    }
+
+    private static (double Latitude, double Longitude) ReverseWebMercator(double x, double y)
+    {
+        double longitude = (x / WebMercatorEarthRadiusMeters) * (180.0 / Math.PI);
+        double latitude = Math.Atan(Math.Sinh(y / WebMercatorEarthRadiusMeters)) * (180.0 / Math.PI);
         return (latitude, longitude);
     }
 
@@ -408,6 +426,7 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
     }
 
     private const double JapanPlaneRectangularCentralScale = 0.9999;
+    private const double WebMercatorEarthRadiusMeters = 6_378_137.0;
 
     private static readonly (double Latitude, double Longitude)[] JapanPlaneRectangularZoneOrigins =
     [

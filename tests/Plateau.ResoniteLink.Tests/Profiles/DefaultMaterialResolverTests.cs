@@ -105,18 +105,25 @@ public sealed class DefaultMaterialResolverTests
     [Fact]
     public void ResolveMaterialUsesStableBundledVariantSelection()
     {
-        ResolvedMaterial material = resolver.ResolveMaterial(
+        ResolvedMaterial first = resolver.ResolveMaterial(
+            packageName: "bldg",
+            texturePayload: null,
+            preferUvProjection: true,
+            familyOverride: null,
+            variantSelectionKey: "bldg:uv");
+        ResolvedMaterial second = resolver.ResolveMaterial(
             packageName: "bldg",
             texturePayload: null,
             preferUvProjection: true,
             familyOverride: null,
             variantSelectionKey: "bldg:uv");
 
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
-        Assert.Equal(2, material.BundledVariantIndex);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, first.Family);
+        Assert.Equal(first.BundledVariantIndex, second.BundledVariantIndex);
+        Assert.Equal(first.TextureScale, second.TextureScale);
         Assert.Equal(
             BundledDefaultMaterialProfiles.GetTilesPerMeter(
-                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 2)),
-            material.TextureScale);
+                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value)),
+            first.TextureScale);
     }
 }

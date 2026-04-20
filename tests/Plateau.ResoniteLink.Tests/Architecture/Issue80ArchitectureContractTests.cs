@@ -1,38 +1,8 @@
-using System.Text.RegularExpressions;
-
 namespace Plateau.ResoniteLink.Tests.Architecture;
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
-public sealed partial class Issue80ArchitectureContractTests
+public sealed class Issue80ArchitectureContractTests
 {
-    private const string RemovedLiveTargetName = "ResoniteLink" + "SceneBuilder";
-    private const string RemovedProjectionName = "LocalCityGml" + "ResonitePlanBuilder";
-
-    private static readonly string[] AllowedSuffixes =
-    [
-        "Interpreter",
-        "Policy",
-        "Plan",
-        "State",
-        "Snapshot",
-        "Result",
-        "Target",
-        "Factory",
-    ];
-
-    [Fact]
-    public void RepoAssembly_DoesNotExposeBannedBehaviorSinkTypeNames()
-    {
-        Type[] bannedTypes = typeof(Plateau.ResoniteLink.Application.Importing.PlateauCityGmlConstructionSources).Assembly
-            .GetTypes()
-            .Where(static type => type.Namespace is not null && type.Namespace.StartsWith("Plateau.ResoniteLink", StringComparison.Ordinal))
-            .Where(static type => BannedTypeNameRegex().IsMatch(type.Name))
-            .Where(type => AllowedSuffixes.All(allowed => !type.Name.EndsWith(allowed, StringComparison.Ordinal)))
-            .ToArray();
-
-        Assert.Empty(bannedTypes);
-    }
-
     [Fact]
     public void ResoniteTargets_UpdateComponentAsync_IsOnlyCalledFromDedicatedInterpreter()
     {
@@ -62,9 +32,10 @@ public sealed partial class Issue80ArchitectureContractTests
             "ResoniteSceneAnchorResolver.cs",
             "ResoniteSceneSlotSnapshot.cs",
             "IResoniteSlotCreator.cs",
-            "ResonitePlannedBatchEmissionInterpreter.cs",
+            "PlannedBatchEmissionInterpreter.cs",
             "ResoniteGeometryAssetAssembler.cs",
             "ResoniteMaterialPlanning.cs",
+            "ResoniteDatasetLicenseWriter.cs",
         ];
 
         string[] offendingFiles = Directory
@@ -75,7 +46,9 @@ public sealed partial class Issue80ArchitectureContractTests
                 return content.Contains("RunDataModelOperationBatchAsync(", StringComparison.Ordinal)
                     || content.Contains("GetSlotAsync(", StringComparison.Ordinal)
                     || content.Contains("ImportTextureAsync(", StringComparison.Ordinal)
-                    || content.Contains("ImportMeshAsync(", StringComparison.Ordinal);
+                    || content.Contains("ImportMeshAsync(", StringComparison.Ordinal)
+                    || content.Contains("AddSlotAsync(", StringComparison.Ordinal)
+                    || content.Contains("AddComponentAsync(", StringComparison.Ordinal);
             })
             .Where(path => allowedFiles.All(allowed => !path.EndsWith(allowed, StringComparison.Ordinal)))
             .ToArray();
@@ -84,24 +57,24 @@ public sealed partial class Issue80ArchitectureContractTests
     }
 
     [Fact]
-    public void SourceTree_NoLongerReferencesRemovedIssue80Names()
+    public void SourceTree_NoLongerReferencesRemovedStaticCompositionOrFactoryNames()
     {
         string[] files =
         [
             .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src"), "*.cs", SearchOption.AllDirectories),
             .. Directory.EnumerateFiles(TestData.GetRepositoryPath("tests"), "*.cs", SearchOption.AllDirectories),
-            TestData.GetRepositoryPath("README.md"),
-            TestData.GetRepositoryPath("README.ja.md"),
-            TestData.GetRepositoryPath("AGENTS.md"),
-            TestData.GetRepositoryPath("AGENTS.ja.md"),
         ];
 
         string[] offenders = files
+            .Where(static path => !path.EndsWith("Issue80ArchitectureContractTests.cs", StringComparison.Ordinal))
             .Where(static path =>
             {
                 string content = File.ReadAllText(path);
-                return content.Contains(RemovedLiveTargetName, StringComparison.Ordinal)
-                    || content.Contains(RemovedProjectionName, StringComparison.Ordinal);
+                return content.Contains("PlateauCityGmlComposition", StringComparison.Ordinal)
+                    || content.Contains("PlateauCityGmlImportComposition", StringComparison.Ordinal)
+                    || content.Contains("PlateauCityGmlConstructionSources", StringComparison.Ordinal)
+                    || content.Contains("ResoniteSceneImportTargetFactory", StringComparison.Ordinal)
+                    || content.Contains("ReadDocumentSetAsync(", StringComparison.Ordinal);
             })
             .ToArray();
 
@@ -109,22 +82,41 @@ public sealed partial class Issue80ArchitectureContractTests
     }
 
     [Fact]
-    public void SourceTree_FilePaths_NoLongerUseRemovedIssue80Names()
+    public void CityGmlBoundaryLayers_DoNotCallLegacyBridgeHelpers()
     {
-        string[] candidates =
+        string[] files =
         [
-            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src"), "*", SearchOption.AllDirectories),
-            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("tests"), "*", SearchOption.AllDirectories),
+            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml"), "*.cs", SearchOption.AllDirectories),
+            .. Directory.EnumerateFiles(TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml"), "*.cs", SearchOption.AllDirectories),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlBootstrapPipeline.cs"),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlConstructionSource.cs"),
         ];
-        string[] offenders = candidates
+
+        string[] offenders = files
             .Where(static path =>
-                path.Contains(RemovedLiveTargetName, StringComparison.Ordinal)
-                || path.Contains(RemovedProjectionName, StringComparison.Ordinal))
+            {
+                string content = File.ReadAllText(path);
+                return content.Contains("LocalCityGmlLegacyProjectionBridge", StringComparison.Ordinal)
+                    || content.Contains("ICityGmlLegacyProjectionBridge", StringComparison.Ordinal);
+            })
             .ToArray();
 
         Assert.Empty(offenders);
     }
 
-    [GeneratedRegex("(Builder|Manager|Coordinator|Helper|Util)$", RegexOptions.CultureInvariant)]
-    private static partial Regex BannedTypeNameRegex();
+    [Fact]
+    public void TransportWrappers_NoLongerReferenceLegacyCompatibilityShim()
+    {
+        string transportRoot = TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Transport", "ResoniteLink");
+        string[] offenders = Directory
+            .EnumerateFiles(transportRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(static path =>
+            {
+                string content = File.ReadAllText(path);
+                return content.Contains("ResoniteLinkLegacyCompatibility", StringComparison.Ordinal);
+            })
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
 }

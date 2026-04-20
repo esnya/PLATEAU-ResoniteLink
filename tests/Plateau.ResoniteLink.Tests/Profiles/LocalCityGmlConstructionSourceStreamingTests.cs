@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Collections.Concurrent;
 
 using GeographicLib;
 
@@ -10,8 +11,46 @@ namespace Plateau.ResoniteLink.Tests.Profiles;
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class LocalCityGmlConstructionSourceStreamingTests
 {
+    private static readonly ICityGmlCommonMaterialEnumerator CommonMaterialEnumerator =
+        new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver());
+
     [Fact]
-    public async Task ReadCityObjectsAsync_AllowsNonDemFilesToAdvanceBeforeDelayedDemPipelineCompletes()
+    public async Task ReadCityObjectsAsync_UsesStreamingPipelineWithoutInvokingCachedParseTask()
+    {
+        CoordinateReferenceSystem referenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
+        bool parseTaskInvoked = false;
+
+        SourceFilePipeline bldgPipeline = CreatePipeline(
+            new SourceFileDescriptor("udx/bldg/53394525/building.gml", "bldg", "53394525", RequiresMeshAreaFilter: false),
+            [CreateParsedCityObject("bldg", "building", "Building", referenceSystem, lodLevel: 1)],
+            streamFactory: static (sourceFile, cityObjects, beforeYield, cancellationToken) =>
+                StreamSingleParsedCityObjectAsync(sourceFile, cityObjects, beforeYield, cancellationToken),
+            parseTaskFactory: () =>
+            {
+                parseTaskInvoked = true;
+                throw new InvalidOperationException("cached parse task should not be used in streaming path");
+            });
+
+        LocalCityGmlConstructionSource source = CreateSource(
+            referenceSystem,
+            globalOriginPoint,
+            [bldgPipeline]);
+
+        List<ResoniteConstructionCityObject> yieldedObjects = [];
+        await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+        {
+            yieldedObjects.Add(cityObject);
+        }
+
+        Assert.False(parseTaskInvoked);
+        ResoniteConstructionCityObject yielded = Assert.Single(yieldedObjects);
+        Assert.Equal("bldg", yielded.PackageName);
+    }
+
+    [Fact]
+    public async Task ReadCityObjectsAsync_CompletesAfterDelayedDemPipelineIsReleased()
     {
         CoordinateReferenceSystem referenceSystem =
             CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -72,8 +111,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             metadata,
             request,
             documentSet,
-            geometryProjector);
-        TaskCompletionSource<IReadOnlyList<string>> firstTwoPackagesObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            geometryProjector,
+            CommonMaterialEnumerator);
         List<ResoniteConstructionCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
             async () =>
@@ -81,15 +120,10 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
                 {
                     yieldedObjects.Add(cityObject);
-                    if (yieldedObjects.Count == 2)
-                    {
-                        firstTwoPackagesObserved.TrySetResult(yieldedObjects.Select(static item => item.PackageName).ToArray());
-                    }
                 }
             });
-
-        IReadOnlyList<string> firstTwoPackages = await firstTwoPackagesObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.All(firstTwoPackages, static packageName => Assert.NotEqual("dem", packageName));
+        await Task.Delay(TimeSpan.FromMilliseconds(200));
+        Assert.False(collectTask.IsCompleted);
 
         demReleaseSignal.TrySetResult();
         await collectTask;
@@ -106,26 +140,101 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
     private static SourceFilePipeline CreatePipeline(
         SourceFileDescriptor sourceFile,
         BootstrapParsedCityObject[] cityObjects,
-        Task? beforeYield = null)
+        Task? beforeYield = null,
+        Func<SourceFileDescriptor, BootstrapParsedCityObject[], Task?, CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>>? streamFactory = null,
+        Func<Task<ParsedSourceFileResult>>? parseTaskFactory = null)
     {
         return new SourceFilePipeline(
             sourceFile,
-            async () =>
-            {
-                if (beforeYield is not null)
-                {
-                    await beforeYield;
-                }
+            parseTaskFactory ?? (() => CreateParsedSourceFileResultAsync(sourceFile, cityObjects, beforeYield)),
+            streamFactory is null
+                ? null
+                : cancellationToken => streamFactory(sourceFile, cityObjects, beforeYield, cancellationToken));
+    }
 
-                return new ParsedSourceFileResult(
-                    sourceFile,
-                    cityObjects,
-                    cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
-                    string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                        ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
-                        : [],
-                    TimeSpan.Zero);
-            });
+    private static async Task<ParsedSourceFileResult> CreateParsedSourceFileResultAsync(
+        SourceFileDescriptor sourceFile,
+        BootstrapParsedCityObject[] cityObjects,
+        Task? beforeYield)
+    {
+        if (beforeYield is not null)
+        {
+            await beforeYield;
+        }
+
+        return new ParsedSourceFileResult(
+            sourceFile,
+            cityObjects,
+            cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
+            string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
+                : [],
+            TimeSpan.Zero);
+    }
+
+    private static async IAsyncEnumerable<BootstrapParsedCityObject> StreamSingleParsedCityObjectAsync(
+        SourceFileDescriptor sourceFile,
+        IEnumerable<BootstrapParsedCityObject> cityObjects,
+        Task? beforeYield,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _ = sourceFile;
+        if (beforeYield is not null)
+        {
+            await beforeYield.WaitAsync(cancellationToken);
+        }
+
+        foreach (BootstrapParsedCityObject cityObject in cityObjects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return cityObject;
+        }
+    }
+
+    private static LocalCityGmlConstructionSource CreateSource(
+        CoordinateReferenceSystem referenceSystem,
+        GeodeticPoint globalOriginPoint,
+        IReadOnlyList<SourceFilePipeline> sourceFilePipelines)
+    {
+        string[] packageNames = sourceFilePipelines
+            .Select(static pipeline => pipeline.SourceFile.PackageName)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local("/tmp/streaming"),
+            PackageNames: packageNames);
+        ResoniteConstructionMetadata metadata = new(
+            SchemaVersion: "3.0",
+            WorldName: "test",
+            Request: request,
+            SourceDataset: new PlateauSourceDataset(
+                packageNames,
+                sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
+                []),
+            Attribution: new ResoniteAttribution(
+                new ResoniteLicenseComponentMetadata(false, string.Empty, string.Empty, string.Empty),
+                []),
+            LocalOrigin: new ResoniteLocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
+        LocalCityGmlDocumentSet documentSet = new(
+            new EmptyDatasetContentSource(),
+            sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
+            packageNames,
+            [],
+            ["53394525"],
+            sourceFilePipelines,
+            [],
+            referenceSystem,
+            globalOriginPoint,
+            terrainHeightSampler: null);
+
+        return new LocalCityGmlConstructionSource(
+            metadata,
+            request,
+            documentSet,
+            new RecordingGeometryProjector(),
+            CommonMaterialEnumerator);
     }
 
     private static BootstrapParsedCityObject CreateParsedCityObject(
@@ -168,7 +277,9 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
 
     private sealed class RecordingGeometryProjector : ICityGmlGeometryProjector
     {
-        public List<string> Calls { get; } = [];
+        private readonly ConcurrentQueue<string> calls = [];
+
+        public IReadOnlyCollection<string> Calls => calls.ToArray();
 
         public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
             CachedSourceFileDescriptor sourceFile,
@@ -193,7 +304,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                     continue;
                 }
 
-                Calls.Add(cityObject.PackageName);
+                calls.Enqueue(cityObject.PackageName);
                 yield return new ResoniteConstructionCityObject(
                     cityObject.SlotKey,
                     cityObject.DisplayName,

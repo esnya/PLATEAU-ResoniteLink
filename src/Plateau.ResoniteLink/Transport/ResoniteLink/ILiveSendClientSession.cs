@@ -8,18 +8,9 @@ internal interface ILiveSendClientSession
 
     ResoniteLinkSendDiagnostics Diagnostics { get; }
 
-    void BeginWorkerClientTracking();
-
     Task EnsureConnectedAsync(
         PlateauImportRequest request,
         CancellationToken cancellationToken);
-
-    Task EnsureSetupClientConnectedAsync(
-        PlateauImportRequest request,
-        CancellationToken cancellationToken)
-    {
-        return EnsureConnectedAsync(request, cancellationToken);
-    }
 
     ValueTask ResetClientsAsync(CancellationToken cancellationToken = default);
 

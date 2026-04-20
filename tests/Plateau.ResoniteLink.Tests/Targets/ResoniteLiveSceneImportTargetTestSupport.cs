@@ -134,6 +134,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     {
         return SceneImportExecutionPlan.Create(
             normalizedRequest ?? metadata.Request,
+            metadata.Request,
             SceneImportContractMapper.ToContract(metadata),
             datasetContentSource ?? new TestDatasetContentSource(metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata))),
             workDirectory);
@@ -189,16 +190,31 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         bool enableMeshBake = true,
         DelegatingClientSession? session = null)
     {
+        ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         return new ResoniteLiveSceneImportTarget(
-            new Uri("ws://localhost:12345/"),
-            1,
-            ResoniteLinkSendDiagnostics.Disabled,
-            PlateauImportMemoryProfile.Large,
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                enableMeshBake,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
-                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator()),
-            enableMeshBake,
-            progressReporter: null);
+                diagnostics,
+                terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
+                new ResoniteSceneBootstrapInterpreter(
+                    new ResoniteSceneSlotLocator(),
+                    new ResoniteMaterialPlanning(),
+                    new ResoniteSceneAnchorResolver()),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
     }
 
     private static async IAsyncEnumerable<ImportedCityObject> CreateImportedCityObjectsAsync(
@@ -582,8 +598,13 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         };
     }
 
-    private static string TryResolveLocalId(string id, IReadOnlyDictionary<string, string> localIds)
+    private static string? TryResolveLocalId(string? id, IReadOnlyDictionary<string, string> localIds)
     {
+        if (id is null)
+        {
+            return null;
+        }
+
         return localIds.TryGetValue(id, out string? resolvedId)
             ? resolvedId
             : id;
@@ -591,17 +612,24 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
 }
 
 internal sealed class RecordingTerrainTextureAssetGenerator(
-    Func<TerrainTextureOverlay, ResoniteRawTextureImport> textureFactory) : ITerrainTextureAssetGenerator
+    Func<TerrainTextureOverlay, GeneratedTerrainTexture> textureFactory) : ITerrainTextureAssetGenerator
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
-    public Task<ResoniteRawTextureImport> EnsureTextureAsync(
+    public Func<TerrainTextureOverlay, TerrainTextureGenerationResult>? ResultFactory { get; init; }
+
+    public Task<TerrainTextureGenerationResult> EnsureTextureWithSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         RequestedOverlays.Add(terrainTextureOverlay);
-        return Task.FromResult(textureFactory(terrainTextureOverlay));
+        return Task.FromResult(
+            ResultFactory is not null
+                ? ResultFactory(terrainTextureOverlay)
+                : new TerrainTextureGenerationResult(
+                    textureFactory(terrainTextureOverlay),
+                    new TerrainTextureTileSource("https://example.invalid/{z}/{x}/{y}.png", 1)));
     }
 }
 
@@ -615,8 +643,6 @@ internal sealed class DelegatingClientSession(
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; } = ResoniteLinkSendDiagnostics.Disabled;
 
-    public int BeginWorkerClientTrackingCallCount { get; private set; }
-
     public int EnsureConnectedCallCount { get; private set; }
 
     public int DisposeClientsCallCount { get; private set; }
@@ -624,11 +650,6 @@ internal sealed class DelegatingClientSession(
     public int ResetClientsCallCount { get; private set; }
 
     public List<PlateauImportRequest> EnsureConnectedRequests { get; } = [];
-
-    public void BeginWorkerClientTracking()
-    {
-        BeginWorkerClientTrackingCallCount++;
-    }
 
     public Task EnsureConnectedAsync(
         PlateauImportRequest request,

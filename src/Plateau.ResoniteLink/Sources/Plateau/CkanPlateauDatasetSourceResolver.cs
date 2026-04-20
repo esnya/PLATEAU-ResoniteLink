@@ -34,62 +34,93 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        if (request.Source is ValidatedPlateauLocalImportSource)
-        {
-            return request;
-        }
-
-        ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)request.Source;
-
         _ = archiveFileLayoutPolicy.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
-        Uri archiveUri = remoteSource.ServerUri;
+        ValidatedPlateauImportSource resolvedSource = request.Source is ValidatedPlateauRemoteImportSource remoteDatasetSource
+            ? new ValidatedPlateauLocalImportSource(
+                await EnsureRemoteResourceAsync(
+                    workRoot,
+                    remoteDatasetSource.ServerUri,
+                    resourcePrefix: "source-archive",
+                    invalidateMaterializedFiles: true,
+                    cancellationToken))
+            : request.Source;
 
-        string archiveFileName = remoteArchiveDistributionPolicy.GetArchiveFileName(archiveUri);
-        string archivePath = remoteArchiveDistributionPolicy.GetSourceArchivePath(workRoot, archiveUri, archiveFileName);
-        string archiveMetadataPath = remoteArchiveDistributionPolicy.GetSourceArchiveMetadataPath(archivePath);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
-
-        if (File.Exists(archivePath))
+        ValidatedPlateauImportSource? resolvedDemTextureSource = request.DemTextureSource switch
         {
-            if (await TryReuseCachedArchiveAsync(workRoot, archiveUri, archivePath, archiveMetadataPath, cancellationToken))
-            {
-                return request with
-                {
-                    Source = new ValidatedPlateauLocalImportSource(archivePath),
-                };
-            }
-        }
-
-        await DownloadArchiveAsync(workRoot, archiveUri, archivePath, archiveMetadataPath, cancellationToken);
+            ValidatedPlateauRemoteImportSource remoteDemTextureSource => new ValidatedPlateauLocalImportSource(
+                await EnsureRemoteResourceAsync(
+                    workRoot,
+                    remoteDemTextureSource.ServerUri,
+                    resourcePrefix: "source-ortho",
+                    invalidateMaterializedFiles: false,
+                    cancellationToken)),
+            _ => request.DemTextureSource,
+        };
 
         return request with
         {
-            Source = new ValidatedPlateauLocalImportSource(archivePath),
+            Source = resolvedSource,
+            DemTextureSource = resolvedDemTextureSource,
         };
     }
 
-    private async Task<bool> TryReuseCachedArchiveAsync(
+    private async Task<string> EnsureRemoteResourceAsync(
         string datasetRoot,
-        Uri archiveUri,
-        string archivePath,
+        Uri resourceUri,
+        string resourcePrefix,
+        bool invalidateMaterializedFiles,
+        CancellationToken cancellationToken)
+    {
+        string resourcePath = GetRemoteResourcePath(datasetRoot, resourceUri, resourcePrefix);
+        string metadataPath = remoteArchiveDistributionPolicy.GetSourceArchiveMetadataPath(resourcePath);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(resourcePath)!);
+
+        if (File.Exists(resourcePath)
+            && await TryReuseCachedRemoteResourceAsync(
+                datasetRoot,
+                resourceUri,
+                resourcePath,
+                metadataPath,
+                invalidateMaterializedFiles,
+                cancellationToken))
+        {
+            return resourcePath;
+        }
+
+        await DownloadRemoteResourceAsync(
+            datasetRoot,
+            resourceUri,
+            resourcePath,
+            metadataPath,
+            invalidateMaterializedFiles,
+            cancellationToken);
+        return resourcePath;
+    }
+
+    private async Task<bool> TryReuseCachedRemoteResourceAsync(
+        string datasetRoot,
+        Uri resourceUri,
+        string resourcePath,
         string metadataPath,
+        bool invalidateMaterializedFiles,
         CancellationToken cancellationToken)
     {
         ArchiveMetadata? metadata = await TryReadArchiveMetadataAsync(metadataPath, cancellationToken);
         if (metadata is null || (metadata.ETag is null && metadata.LastModifiedUtc is null))
         {
-            return await TryRefreshCachedArchiveWithoutMetadataAsync(
+            return await TryRefreshCachedResourceWithoutMetadataAsync(
                 datasetRoot,
-                archiveUri,
-                archivePath,
+                resourceUri,
+                resourcePath,
                 metadataPath,
+                invalidateMaterializedFiles,
                 cancellationToken);
         }
 
-        using HttpRequestMessage request = new(HttpMethod.Get, archiveUri)
+        using HttpRequestMessage request = new(HttpMethod.Get, resourceUri)
         {
             Version = HttpVersion.Version11,
         };
@@ -116,55 +147,73 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             }
 
             response.EnsureSuccessStatusCode();
-            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
+            await WriteCachedArchiveResponseAsync(response, resourcePath, metadataPath, cancellationToken);
+            if (invalidateMaterializedFiles)
+            {
+                InvalidateTemporaryMaterializedFiles(datasetRoot, resourcePath);
+            }
+
             return true;
         }
-        catch (HttpRequestException) when (File.Exists(archivePath))
+        catch (HttpRequestException) when (File.Exists(resourcePath))
         {
             return true;
         }
     }
 
-    private async Task<bool> TryRefreshCachedArchiveWithoutMetadataAsync(
+    private async Task<bool> TryRefreshCachedResourceWithoutMetadataAsync(
         string datasetRoot,
-        Uri archiveUri,
-        string archivePath,
+        Uri resourceUri,
+        string resourcePath,
         string metadataPath,
+        bool invalidateMaterializedFiles,
         CancellationToken cancellationToken)
     {
         try
         {
             using HttpResponseMessage response = await httpClient.GetAsync(
-                archiveUri,
+                resourceUri,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
             response.EnsureSuccessStatusCode();
-            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
+            await WriteCachedArchiveResponseAsync(response, resourcePath, metadataPath, cancellationToken);
+            if (invalidateMaterializedFiles)
+            {
+                InvalidateTemporaryMaterializedFiles(datasetRoot, resourcePath);
+            }
+
             return true;
         }
-        catch (HttpRequestException) when (File.Exists(archivePath))
+        catch (HttpRequestException) when (File.Exists(resourcePath))
         {
             return true;
         }
     }
 
-    private async Task DownloadArchiveAsync(
+    private async Task DownloadRemoteResourceAsync(
         string datasetRoot,
-        Uri archiveUri,
-        string archivePath,
+        Uri resourceUri,
+        string resourcePath,
         string metadataPath,
+        bool invalidateMaterializedFiles,
         CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await httpClient.GetAsync(
-            archiveUri,
+            resourceUri,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-        InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
+        await WriteCachedArchiveResponseAsync(response, resourcePath, metadataPath, cancellationToken);
+        if (invalidateMaterializedFiles)
+        {
+            InvalidateTemporaryMaterializedFiles(datasetRoot, resourcePath);
+        }
+    }
+
+    private static string GetRemoteResourcePath(string datasetRoot, Uri resourceUri, string resourcePrefix)
+    {
+        return WorkRootLayout.GetRemoteResourcePath(datasetRoot, resourceUri, resourcePrefix);
     }
 
     private void InvalidateTemporaryMaterializedFiles(string datasetRoot, string archivePath)

@@ -78,9 +78,13 @@ public sealed class PlateauImportService(
             sourceStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
-            ConstructionMetadata metadata = SceneImportContractMapper.ToContract(source.Metadata);
+            ConstructionMetadata metadata = SceneImportContractMapper.ToContract(source.Metadata) with
+            {
+                Request = resolvedRequest,
+            };
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
+                resolvedRequest,
                 metadata,
                 documentSet.DatasetSource,
                 datasetWorkRoot);

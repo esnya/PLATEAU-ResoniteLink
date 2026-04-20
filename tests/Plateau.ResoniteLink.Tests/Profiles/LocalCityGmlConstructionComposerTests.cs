@@ -36,7 +36,9 @@ public sealed class LocalCityGmlConstructionComposerTests
             new GeodeticPoint(35.0, 139.0, 12.5),
             terrainHeightSampler: null);
 
-        LocalCityGmlConstructionComposer composer = new(new ThrowingGeometryProjector());
+        LocalCityGmlConstructionComposer composer = new(
+            new ThrowingGeometryProjector(),
+            new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()));
 
         IResoniteConstructionSource source = composer.Compose(request, documentSet);
 

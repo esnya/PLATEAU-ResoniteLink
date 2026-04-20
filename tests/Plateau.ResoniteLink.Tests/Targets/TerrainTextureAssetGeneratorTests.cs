@@ -18,22 +18,29 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
 
-        ResoniteRawTextureImport firstTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
-        ResoniteRawTextureImport secondTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Same(firstTexture, secondTexture);
-        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", firstTexture.Identity, StringComparison.Ordinal);
+        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", firstTexture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.Equal(
+            new ResoniteFloat2(
+                (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
+                (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
+            firstTexture.CanvasScale);
 
-        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(firstTexture.RawRgba32Bytes, firstTexture.Width, firstTexture.Height);
-        Assert.Equal(512, image.Width);
-        Assert.InRange(image.Height, 256, 257);
-        AssertColor(image[128, 128], 255, 0, 0);
-        AssertColor(image[384, 128], 0, 255, 0);
+        using Image<Rgba32> image = LoadImage(firstTexture.TextureImport);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), image.Height);
+        int occupiedTop = image.Height - layout.CropHeight;
+        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
+        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncResizesWhenCroppedTextureExceedsMaxTextureSize()
+    public async Task EnsureTextureAsyncPacksIntoPowerOfTwoCanvasWithoutResizing()
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
@@ -44,11 +51,71 @@ public sealed class TerrainTextureAssetGeneratorTests
             MaxTextureSize = 256,
         };
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
         Assert.Equal(256, image.Width);
-        Assert.InRange(image.Height, 127, 128);
+        Assert.Equal(128, image.Height);
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), texture.CanvasScale);
+        AssertColor(image[64, 32], 255, 0, 0);
+        AssertColor(image[192, 32], 0, 255, 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncUsesPowerOfTwoCanvasForCropWithinBudget()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        GeographicRectangle bounds = new(
+            MinLatitude: WebMercatorTileMath.PixelYToLatitude(100, 1),
+            MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
+            MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, 1),
+            MaxLongitude: WebMercatorTileMath.PixelXToLongitude(400, 1));
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 1,
+            GeographicBounds: bounds,
+            MaxTextureSize: 512);
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), texture.TextureImport.Width);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), texture.TextureImport.Height);
+        Assert.Equal(
+            new ResoniteFloat2(
+                (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
+                (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
+            texture.CanvasScale);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.0), texture.CanvasOffset);
+        int occupiedTop = image.Height - layout.CropHeight;
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, image[0, 0]);
+        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
+        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
+        Assert.True(occupiedTop > 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFallsBackToPowerOfTwoResizeWhenPowerOfTwoCanvasWouldExceedBudget()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png") with
+        {
+            MaxTextureSize = 300,
+        };
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        Assert.Equal(256, image.Width);
+        Assert.Equal(128, image.Height);
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), texture.CanvasScale);
     }
 
     [Fact]
@@ -68,16 +135,18 @@ public sealed class TerrainTextureAssetGeneratorTests
                 MinLongitude: -180.0,
                 MaxLongitude: 180.0),
             MaxTextureSize: 4096);
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
-        Assert.InRange(image.Width, 512, 513);
-        Assert.InRange(image.Height, 512, 513);
-        AssertColor(image[image.Width / 4, image.Height / 4], 255, 0, 0);
-        AssertColor(image[(image.Width * 3) / 4, image.Height / 4], 0, 255, 0);
-        AssertColor(image[image.Width / 4, (image.Height * 3) / 4], 0, 0, 255);
-        AssertColor(image[(image.Width * 3) / 4, (image.Height * 3) / 4], 255, 255, 0);
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), image.Height);
+        int occupiedTop = image.Height - layout.CropHeight;
+        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 4)], 255, 0, 0);
+        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 4)], 0, 255, 0);
+        AssertColor(image[layout.CropWidth / 4, occupiedTop + ((layout.CropHeight * 3) / 4)], 0, 0, 255);
+        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + ((layout.CropHeight * 3) / 4)], 255, 255, 0);
     }
 
     [Fact]
@@ -88,14 +157,14 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
-        Task<ResoniteRawTextureImport>[] requests =
+        Task<GeneratedTerrainTexture>[] requests =
         [
             generator.EnsureTextureAsync(overlay, CancellationToken.None),
             generator.EnsureTextureAsync(overlay, CancellationToken.None),
             generator.EnsureTextureAsync(overlay, CancellationToken.None),
         ];
 
-        ResoniteRawTextureImport[] textures = await Task.WhenAll(requests);
+        GeneratedTerrainTexture[] textures = await Task.WhenAll(requests);
 
         Assert.All(textures, texture => Assert.Same(textures[0], texture));
         Assert.Equal(4, handler.RequestCount);
@@ -119,10 +188,10 @@ public sealed class TerrainTextureAssetGeneratorTests
         using HttpClient secondClient = new(secondHandler);
         TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path);
 
-        ResoniteRawTextureImport texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, secondHandler.RequestCount);
-        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", texture.Identity, StringComparison.Ordinal);
+        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", texture.TextureImport.Identity, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -160,9 +229,9 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureAssetGenerator generator = new(httpClient, cacheRootPath);
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.Width);
+        Assert.Equal(512, texture.TextureImport.Width);
         Assert.Equal(4, handler.RequestCount);
     }
 
@@ -176,9 +245,9 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         await Assert.ThrowsAsync<HttpRequestException>(() => generator.EnsureTextureAsync(overlay, CancellationToken.None));
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.Width);
+        Assert.Equal(512, texture.TextureImport.Width);
         Assert.Equal(5, handler.RequestCount);
     }
 
@@ -199,9 +268,9 @@ public sealed class TerrainTextureAssetGeneratorTests
         using HttpClient secondClient = new(secondHandler);
         TerrainTextureAssetGenerator secondGenerator = new(secondClient, cacheRoot.Path);
 
-        ResoniteRawTextureImport texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.Width);
+        Assert.Equal(512, texture.TextureImport.Width);
         Assert.Equal(4, secondHandler.RequestCount);
     }
 
@@ -223,9 +292,9 @@ public sealed class TerrainTextureAssetGeneratorTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, cacheRoot.Path);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(512, texture.Width);
+        Assert.Equal(512, texture.TextureImport.Width);
         Assert.Equal(4, handler.RequestCount);
     }
 
@@ -238,12 +307,44 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay(
             "https://primary.example/{z}/{x}/{y}.png",
             "https://fallback.example/{z}/{x}/{y}.png");
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        using Image<Rgba32> image = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
-        AssertColor(image[128, 128], 255, 0, 0);
-        AssertColor(image[384, 128], 0, 255, 0);
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        int occupiedTop = image.Height - layout.CropHeight;
+        AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
+        AssertColor(image[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)], 0, 255, 0);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncUsesSecondaryPrimaryTilesBeforeGsiFallback()
+    {
+        using SecondaryPrimaryFallbackMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 0.0,
+                MaxLatitude: WebMercatorTileMath.MaxLatitude,
+                MinLongitude: -180.0,
+                MaxLongitude: 180.0),
+            MaxTextureSize: 4096,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", 2),
+                new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", 1),
+                new TerrainTextureTileSource("https://fallback.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Contains("tile|1|https://primary.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.DoesNotContain("fallback.example", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.Contains(("primary.example", 2), handler.HostZoomRequests);
+        Assert.Contains(("primary.example", 1), handler.HostZoomRequests);
+        Assert.DoesNotContain(("fallback.example", 1), handler.HostZoomRequests);
     }
 
     [Fact]
@@ -274,6 +375,20 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.Contains("fallback.example|1", requestedSources);
     }
 
+    [Fact]
+    public async Task EnsureTextureAsyncRetriesTransientTileFailureWithinSingleGeneration()
+    {
+        using RetryOnceMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(512, texture.TextureImport.Width);
+        Assert.Equal(5, handler.RequestCount);
+    }
+
     private static TerrainTextureOverlay CreateFullCoverageOverlay(string urlTemplate, string? fallbackUrlTemplate = null)
     {
         return new TerrainTextureOverlay(
@@ -289,12 +404,28 @@ public sealed class TerrainTextureAssetGeneratorTests
             FallbackUrlTemplate: fallbackUrlTemplate);
     }
 
+    private static Image<Rgba32> LoadImage(ResoniteRawTextureImport texture)
+    {
+        return Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+    }
+
     private static void AssertColor(Rgba32 color, byte expectedR, byte expectedG, byte expectedB)
     {
         Assert.Equal(expectedR, color.R);
         Assert.Equal(expectedG, color.G);
         Assert.Equal(expectedB, color.B);
         Assert.Equal(byte.MaxValue, color.A);
+    }
+
+    private static int RoundUpToPowerOfTwo(int value)
+    {
+        int rounded = 1;
+        while (rounded < value)
+        {
+            rounded <<= 1;
+        }
+
+        return rounded;
     }
 
     private sealed class FakeMapTileHandler(TimeSpan? delayPerRequest = null) : HttpMessageHandler
@@ -337,6 +468,33 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     private sealed class FlakyMapTileHandler : HttpMessageHandler
+    {
+        private int requestCount;
+
+        public int RequestCount => requestCount;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int currentRequest = Interlocked.Increment(ref requestCount);
+            if (currentRequest == 1)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+
+            using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class RetryOnceMapTileHandler : HttpMessageHandler
     {
         private int requestCount;
 
@@ -422,6 +580,38 @@ public sealed class TerrainTextureAssetGeneratorTests
             Requests.Add((request.RequestUri.Host, zoomLevel, tileX, tileY));
 
             if (string.Equals(request.RequestUri.Host, "primary.example", StringComparison.Ordinal))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            using Image<Rgba32> image = new(WebMercatorTileMath.TileSizePixels, WebMercatorTileMath.TileSizePixels, FakeMapTileHandler.GetTileColorForTests(tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class SecondaryPrimaryFallbackMapTileHandler : HttpMessageHandler
+    {
+        public List<(string Host, int ZoomLevel)> HostZoomRequests { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int zoomLevel = int.Parse(segments[^3], CultureInfo.InvariantCulture);
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+            HostZoomRequests.Add((request.RequestUri.Host, zoomLevel));
+
+            if (string.Equals(request.RequestUri.Host, "primary.example", StringComparison.Ordinal)
+                && zoomLevel == 2)
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (string.Equals(request.RequestUri.Host, "fallback.example", StringComparison.Ordinal))
             {
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
             }

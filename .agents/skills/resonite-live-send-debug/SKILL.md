@@ -26,6 +26,7 @@ This file is the Coding Agent entrypoint for the live-send workflow in this repo
 - Treat slot removal as destructive. It can remove live content from the current world.
 - Do not ask the user to run the live send if you can run it directly.
 - Do not compare runs until targeted removal has been verified and a post-removal pre-send root dump confirms the base world state.
+- Do not run cleanup, root-dump, and live-send steps for the same world in parallel. Removal verification, pre-send dump capture, and each live-send run must stay serialized.
 - Do not encode dataset-root, shared-assets, or common-material naming semantics into the tool. Use `dump-slot` and `remove-slot` as thin primitives only.
 - Keep the final successful `DatasetRoot` in place unless cleanup is explicitly requested.
 - Treat interrupted or partial runs as provisional unless cleanup and post-run state were both verified.

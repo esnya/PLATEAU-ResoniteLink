@@ -7,6 +7,9 @@ namespace Plateau.ResoniteLink.Application.Importing;
 internal static class DemTerrainOverlaySurfaceClipper
 {
     private static readonly GeometryFactory GeometryFactory = new();
+    private readonly record struct ResolvedSurfaceVertex(
+        LocalCityGmlObjectProjection.GeodeticPoint Point,
+        ResoniteFloat2? UV);
 
     public static IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> ClipGeneratedSurfaceToOverlays(
         LocalCityGmlObjectProjection.ParsedSurface surface,
@@ -19,31 +22,73 @@ internal static class DemTerrainOverlaySurfaceClipper
         foreach (TerrainTextureOverlay overlay in overlays)
         {
             int polygonIndex = 0;
-            foreach (Polygon polygon in ClipToOverlay(surface, overlay.GeographicBounds))
+            foreach (LocalCityGmlObjectProjection.ParsedSurface clippedSurface in ClipSurfaceCore(
+                         surface,
+                         [overlay.GeographicBounds],
+                         suffixFactory: (_, localPolygonIndex) => $"{CreateOverlayToken(overlay.GeographicBounds)}_{localPolygonIndex:D2}"))
             {
-                LocalCityGmlObjectProjection.GeodeticPoint[] vertices = polygon.Coordinates
+                results.Add((
+                    clippedSurface,
+                    overlay));
+                polygonIndex++;
+            }
+        }
+
+        return results;
+    }
+
+    public static IReadOnlyList<LocalCityGmlObjectProjection.ParsedSurface> ClipGeneratedSurfaceToBounds(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        IReadOnlyList<GeographicRectangle> bounds)
+    {
+        return ClipSurfaceToBounds(surface, bounds);
+    }
+
+    public static IReadOnlyList<LocalCityGmlObjectProjection.ParsedSurface> ClipSurfaceToBounds(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        IReadOnlyList<GeographicRectangle> bounds)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(bounds);
+
+        return ClipSurfaceCore(
+            surface,
+            bounds,
+            suffixFactory: (boundIndex, polygonIndex) => $"{CreateOverlayToken(bounds[boundIndex])}_{boundIndex:D2}_{polygonIndex:D2}");
+    }
+
+    private static List<LocalCityGmlObjectProjection.ParsedSurface> ClipSurfaceCore(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        IReadOnlyList<GeographicRectangle> bounds,
+        Func<int, int, string> suffixFactory)
+    {
+        List<LocalCityGmlObjectProjection.ParsedSurface> results = [];
+        for (int boundIndex = 0; boundIndex < bounds.Count; boundIndex++)
+        {
+            int polygonIndex = 0;
+            foreach (Polygon polygon in ClipToOverlay(surface, bounds[boundIndex]))
+            {
+                ResolvedSurfaceVertex[] resolvedVertices = polygon.Coordinates
                     .Take(Math.Max(polygon.Coordinates.Length - 1, 0))
-                    .Select(coordinate => ResolveSurfacePoint(surface, coordinate))
-                    .Distinct()
+                    .Select(coordinate => ResolveSurfaceVertex(surface, coordinate))
                     .ToArray();
-                vertices = PreserveSurfaceWinding(surface.ExteriorRing.Vertices, vertices);
+                (LocalCityGmlObjectProjection.GeodeticPoint[] vertices, IReadOnlyList<ResoniteFloat2>? uvs) =
+                    NormalizeResolvedVertices(surface, resolvedVertices);
                 if (vertices.Length < 3)
                 {
                     continue;
                 }
 
-                string suffix = $"{CreateOverlayToken(overlay.GeographicBounds)}_{polygonIndex:D2}";
-                results.Add((
-                    surface with
-                    {
-                        PolygonId = $"{surface.PolygonId}_{suffix}",
-                        ExteriorRing = new LocalCityGmlObjectProjection.ParsedRing(
-                            $"{surface.ExteriorRing.RingId}_{suffix}",
-                            vertices,
-                            UVs: null),
-                        UsesGeneratedDemTexture = surface.UsesGeneratedDemTexture,
-                    },
-                    overlay));
+                string suffix = suffixFactory(boundIndex, polygonIndex);
+                results.Add(surface with
+                {
+                    PolygonId = $"{surface.PolygonId}_{suffix}",
+                    ExteriorRing = new LocalCityGmlObjectProjection.ParsedRing(
+                        $"{surface.ExteriorRing.RingId}_{suffix}",
+                        vertices,
+                        uvs),
+                    UsesGeneratedDemTexture = surface.UsesGeneratedDemTexture,
+                });
                 polygonIndex++;
             }
         }
@@ -117,32 +162,34 @@ internal static class DemTerrainOverlaySurfaceClipper
         return coordinates;
     }
 
-    private static LocalCityGmlObjectProjection.GeodeticPoint ResolveSurfacePoint(
+    private static ResolvedSurfaceVertex ResolveSurfaceVertex(
         LocalCityGmlObjectProjection.ParsedSurface surface,
         Coordinate coordinate)
     {
         LocalCityGmlObjectProjection.GeodeticPoint[] vertices = surface.ExteriorRing.Vertices;
+        IReadOnlyList<ResoniteFloat2>? uvs = surface.ExteriorRing.UVs;
         for (int index = 0; index < vertices.Length; index++)
         {
             if (Approximately(vertices[index].Longitude, coordinate.X)
                 && Approximately(vertices[index].Latitude, coordinate.Y))
             {
-                return vertices[index];
+                return new ResolvedSurfaceVertex(vertices[index], uvs is not null && index < uvs.Count ? uvs[index] : null);
             }
         }
 
-        if (TryResolveEdgePoint(vertices, coordinate, out LocalCityGmlObjectProjection.GeodeticPoint edgePoint))
+        if (TryResolveEdgePoint(vertices, uvs, coordinate, out ResolvedSurfaceVertex edgePoint))
         {
             return edgePoint;
         }
 
-        return ResolvePlanarPoint(vertices, coordinate);
+        return ResolvePlanarPoint(vertices, uvs, coordinate);
     }
 
     private static bool TryResolveEdgePoint(
         LocalCityGmlObjectProjection.GeodeticPoint[] vertices,
+        IReadOnlyList<ResoniteFloat2>? uvs,
         Coordinate coordinate,
-        out LocalCityGmlObjectProjection.GeodeticPoint point)
+        out ResolvedSurfaceVertex point)
     {
         for (int index = 0; index < vertices.Length; index++)
         {
@@ -170,31 +217,105 @@ internal static class DemTerrainOverlaySurfaceClipper
             }
 
             ratio = Math.Clamp(ratio, 0.0, 1.0);
-            point = new LocalCityGmlObjectProjection.GeodeticPoint(
-                coordinate.Y,
-                coordinate.X,
-                start.Altitude + ((end.Altitude - start.Altitude) * ratio));
+            ResoniteFloat2? uv = null;
+            if (uvs is not null
+                && index < uvs.Count
+                && ((index + 1) % vertices.Length) < uvs.Count)
+            {
+                ResoniteFloat2 startUv = uvs[index];
+                ResoniteFloat2 endUv = uvs[(index + 1) % vertices.Length];
+                uv = new ResoniteFloat2(
+                    startUv.X + ((endUv.X - startUv.X) * ratio),
+                    startUv.Y + ((endUv.Y - startUv.Y) * ratio));
+            }
+
+            point = new ResolvedSurfaceVertex(
+                new LocalCityGmlObjectProjection.GeodeticPoint(
+                    coordinate.Y,
+                    coordinate.X,
+                    start.Altitude + ((end.Altitude - start.Altitude) * ratio)),
+                uv);
             return true;
         }
 
-        point = null!;
+        point = default;
         return false;
     }
 
-    private static LocalCityGmlObjectProjection.GeodeticPoint ResolvePlanarPoint(
+    private static ResolvedSurfaceVertex ResolvePlanarPoint(
         LocalCityGmlObjectProjection.GeodeticPoint[] vertices,
+        IReadOnlyList<ResoniteFloat2>? uvs,
         Coordinate coordinate)
     {
         LocalCityGmlObjectProjection.GeodeticPoint origin = vertices[0];
         for (int index = 1; index + 1 < vertices.Length; index++)
         {
-            if (TryResolveTrianglePoint(origin, vertices[index], vertices[index + 1], coordinate, out LocalCityGmlObjectProjection.GeodeticPoint point))
+            ResoniteFloat2? originUv = uvs is not null && 0 < uvs.Count ? uvs[0] : null;
+            ResoniteFloat2? vertexUv = uvs is not null && index < uvs.Count ? uvs[index] : null;
+            ResoniteFloat2? nextUv = uvs is not null && index + 1 < uvs.Count ? uvs[index + 1] : null;
+            if (TryResolveTrianglePoint(
+                    origin,
+                    vertices[index],
+                    vertices[index + 1],
+                    originUv,
+                    vertexUv,
+                    nextUv,
+                    coordinate,
+                    out ResolvedSurfaceVertex point))
             {
                 return point;
             }
         }
 
-        return new LocalCityGmlObjectProjection.GeodeticPoint(coordinate.Y, coordinate.X, origin.Altitude);
+        return new ResolvedSurfaceVertex(
+            new LocalCityGmlObjectProjection.GeodeticPoint(coordinate.Y, coordinate.X, origin.Altitude),
+            uvs is not null && uvs.Count > 0 ? uvs[0] : null);
+    }
+
+    private static (
+        LocalCityGmlObjectProjection.GeodeticPoint[] Vertices,
+        IReadOnlyList<ResoniteFloat2>? Uvs) NormalizeResolvedVertices(
+        LocalCityGmlObjectProjection.ParsedSurface sourceSurface,
+        IReadOnlyList<ResolvedSurfaceVertex> resolvedVertices)
+    {
+        List<ResolvedSurfaceVertex> normalized = [];
+        foreach (ResolvedSurfaceVertex resolvedVertex in resolvedVertices)
+        {
+            if (normalized.Count > 0
+                && normalized[^1].Point.Equals(resolvedVertex.Point))
+            {
+                continue;
+            }
+
+            normalized.Add(resolvedVertex);
+        }
+
+        if (normalized.Count > 1
+            && normalized[0].Point.Equals(normalized[^1].Point))
+        {
+            normalized.RemoveAt(normalized.Count - 1);
+        }
+
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices = PreserveSurfaceWinding(
+            sourceSurface.ExteriorRing.Vertices,
+            normalized.Select(static vertex => vertex.Point).ToArray());
+        if (vertices.Length < 3)
+        {
+            return (vertices, null);
+        }
+
+        if (normalized.Count != vertices.Length)
+        {
+            normalized = vertices
+                .Select(vertex => resolvedVertices.FirstOrDefault(resolved => resolved.Point.Equals(vertex)))
+                .ToList();
+        }
+
+        bool hasAnyUv = normalized.Any(static vertex => vertex.UV is not null);
+        IReadOnlyList<ResoniteFloat2>? uvs = hasAnyUv
+            ? normalized.Select(static vertex => vertex.UV ?? new ResoniteFloat2(0.0, 0.0)).ToArray()
+            : null;
+        return (vertices, uvs);
     }
 
     private static LocalCityGmlObjectProjection.GeodeticPoint[] PreserveSurfaceWinding(
@@ -245,15 +366,18 @@ internal static class DemTerrainOverlaySurfaceClipper
         LocalCityGmlObjectProjection.GeodeticPoint a,
         LocalCityGmlObjectProjection.GeodeticPoint b,
         LocalCityGmlObjectProjection.GeodeticPoint c,
+        ResoniteFloat2? uvA,
+        ResoniteFloat2? uvB,
+        ResoniteFloat2? uvC,
         Coordinate coordinate,
-        out LocalCityGmlObjectProjection.GeodeticPoint point)
+        out ResolvedSurfaceVertex point)
     {
         double denominator =
             ((b.Latitude - c.Latitude) * (a.Longitude - c.Longitude))
             + ((c.Longitude - b.Longitude) * (a.Latitude - c.Latitude));
         if (Math.Abs(denominator) <= 1e-18)
         {
-            point = null!;
+            point = default;
             return false;
         }
 
@@ -269,12 +393,22 @@ internal static class DemTerrainOverlaySurfaceClipper
 
         if (weightA < -1e-8 || weightB < -1e-8 || weightC < -1e-8)
         {
-            point = null!;
+            point = default;
             return false;
         }
 
         double altitude = (a.Altitude * weightA) + (b.Altitude * weightB) + (c.Altitude * weightC);
-        point = new LocalCityGmlObjectProjection.GeodeticPoint(coordinate.Y, coordinate.X, altitude);
+        ResoniteFloat2? uv = null;
+        if (uvA is not null && uvB is not null && uvC is not null)
+        {
+            uv = new ResoniteFloat2(
+                (uvA.X * weightA) + (uvB.X * weightB) + (uvC.X * weightC),
+                (uvA.Y * weightA) + (uvB.Y * weightB) + (uvC.Y * weightC));
+        }
+
+        point = new ResolvedSurfaceVertex(
+            new LocalCityGmlObjectProjection.GeodeticPoint(coordinate.Y, coordinate.X, altitude),
+            uv);
         return true;
     }
 

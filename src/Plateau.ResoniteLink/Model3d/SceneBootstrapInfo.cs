@@ -7,8 +7,7 @@ public sealed record SceneBootstrapInfo(
     IReadOnlyList<string> PackageNames,
     IReadOnlyList<string> SourceFiles,
     IReadOnlyList<string> RequestedMeshCodes,
-    ResoniteLicenseComponentMetadata DatasetLicense,
-    bool RequiresGsiFallbackLicense)
+    ResoniteLicenseComponentMetadata DatasetLicense)
 {
     public static SceneBootstrapInfo CreateFromMetadata(
         ResoniteConstructionMetadata metadata,
@@ -25,7 +24,6 @@ public sealed record SceneBootstrapInfo(
             metadata.SourceDataset.PackageNames,
             metadata.SourceDataset.SourceFiles,
             metadata.SourceDataset.RequestedMeshCodes ?? [],
-            metadata.Attribution.DatasetLicense,
-            metadata.SourceDataset.TerrainTextureOverlays.Any(static overlay => overlay.LicenseMode == TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback));
+            metadata.Attribution.DatasetLicense);
     }
 }

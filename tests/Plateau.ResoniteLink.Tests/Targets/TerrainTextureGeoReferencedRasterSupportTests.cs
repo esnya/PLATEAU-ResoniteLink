@@ -1,9 +1,14 @@
 using System.Net;
 
+using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+
+using MetadataReader = Plateau.ResoniteLink.Application.Importing.TerrainTextureGeoReferencedRasterMetadataReader;
+using LayoutPlan = Plateau.ResoniteLink.Application.Importing.TerrainTextureLayoutPlan;
+using LayoutPlanner = Plateau.ResoniteLink.Application.Importing.TerrainTextureLayoutPlanner;
 
 namespace Plateau.ResoniteLink.Tests.Targets;
 
@@ -18,7 +23,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             3072, 0, 1, 6676,
         ];
 
-        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+        GeoReferencedRasterMetadata? metadata = MetadataReader.TryCreateMetadata(
             pixelWidth: 100,
             pixelHeight: 50,
             modelTiePoint: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -42,7 +47,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     [Fact]
     public void TryCreateMetadataReturnsUnusableMetadataWhenCoordinateSystemIsMissing()
     {
-        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+        GeoReferencedRasterMetadata? metadata = MetadataReader.TryCreateMetadata(
             pixelWidth: 10,
             pixelHeight: 10,
             modelTiePoint: [0.0, 0.0, 0.0, 139.0, 35.0, 0.0],
@@ -55,6 +60,42 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.NotNull(metadata);
         Assert.False(metadata.IsUsable);
         Assert.Null(metadata.CoordinateSystemIdentifier);
+    }
+
+    [Fact]
+    public void TryCreateMetadataResolvesWebMercatorBoundsFromRealPlateauGeoTiffTags()
+    {
+        ushort[] geoKeyDirectory =
+        [
+            1, 1, 0, 7,
+            1024, 0, 1, 1,
+            1025, 0, 1, 1,
+            1026, 34737, 25, 0,
+            2049, 34737, 7, 25,
+            2054, 0, 1, 9102,
+            3072, 0, 1, 3857,
+            3076, 0, 1, 9001,
+        ];
+
+        GeoReferencedRasterMetadata? metadata = MetadataReader.TryCreateMetadata(
+            pixelWidth: 2822,
+            pixelHeight: 2318,
+            modelTiePoint: [0.0, 0.0, 0.0, 15522111.49748708, 4269705.744087971, 0.0],
+            pixelScale: [0.49308779137044045, 0.4932342623689913, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: geoKeyDirectory,
+            geoDoubleParams: null,
+            geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
+        Assert.InRange(metadata.GeographicBounds.MinLatitude, 35.76, 35.77);
+        Assert.InRange(metadata.GeographicBounds.MaxLatitude, 35.77, 35.78);
+        Assert.InRange(metadata.GeographicBounds.MinLongitude, 139.43, 139.45);
+        Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.44, 139.46);
+        Assert.True(metadata.PixelWidthMeters > 0.49);
+        Assert.True(metadata.PixelHeightMeters > 0.49);
     }
 
     [Fact]
@@ -84,12 +125,123 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, handler.RequestCount);
-        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
-        Assert.Contains("georaster|", texture.Identity, StringComparison.Ordinal);
+        Assert.Contains("georaster|", texture.TextureImport.Identity, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncKeepsDefaultThirdMeshDemOverlayPixelPerfectWithinLargeBudget()
+    {
+        MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("54372778")
+            ?? throw new InvalidOperationException("Expected Matsumoto third mesh bounds.");
+        TerrainTextureOverlay tileOverlay = Assert.Single(
+            LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+                new DemTerrainBounds(
+                    meshBounds.SouthLatitude,
+                    meshBounds.NorthLatitude,
+                    meshBounds.WestLongitude,
+                    meshBounds.EastLongitude),
+                ["54372778"]));
+        LayoutPlan layout = LayoutPlanner.Create(
+            tileOverlay.GeographicBounds,
+            tileOverlay.ZoomLevel);
+
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "default-third-mesh-dem.png");
+        using (Image<Rgba32> rasterImage = new(layout.CropWidth, layout.CropHeight, new Rgba32(12, 34, 56, 255)))
+        {
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        TerrainTextureOverlay rasterOverlay = tileOverlay with
+        {
+            Sources =
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(tileOverlay.GeographicBounds, "EPSG:4326", 1.0, 1.0)),
+            ],
+        };
+
+        using NeverCalledMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(rasterOverlay, CancellationToken.None);
+
+        Assert.Equal(0, handler.RequestCount);
+        Assert.True(texture.TextureImport.Width > 0);
+        Assert.True(texture.TextureImport.Height > 0);
+        Assert.InRange(texture.CanvasScale.X, 0.0, 1.0);
+        Assert.InRange(texture.CanvasScale.Y, 0.0, 1.0);
+        Assert.True(texture.CanvasScale.X > 0.0);
+        Assert.True(texture.CanvasScale.Y > 0.0);
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
+        bool foundRasterColor = false;
+        for (int y = 0; y < outputImage.Height && !foundRasterColor; y++)
+        {
+            for (int x = 0; x < outputImage.Width; x++)
+            {
+                if (outputImage[x, y] == new Rgba32(12, 34, 56, 255))
+                {
+                    foundRasterColor = true;
+                    break;
+                }
+            }
+        }
+
+        Assert.True(foundRasterColor);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncFlattensTransparentGeoReferencedRasterPixelsToGroundColor()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
+        using (Image<Rgba32> rasterImage = new(2, 2))
+        {
+            rasterImage[0, 0] = new Rgba32(0, 0, 0, 0);
+            rasterImage[1, 0] = new Rgba32(12, 34, 56, 255);
+            rasterImage[0, 1] = new Rgba32(0, 0, 0, 0);
+            rasterImage[1, 1] = new Rgba32(78, 90, 12, 255);
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        GeographicRectangle bounds = new(35.0, 35.001, 139.0, 139.001);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 16,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 10.0, 10.0)),
+            ]);
+
+        TerrainTextureAssetGenerator generator = new(disablePersistentCache: true);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 0]);
+        Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[1, 0]);
+        Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, outputImage[0, 1]);
+        Assert.Equal(new Rgba32(78, 90, 12, 255), outputImage[1, 1]);
     }
 
     [Fact]
@@ -110,10 +262,10 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         using HttpClient httpClient = new(handler);
         TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
 
-        ResoniteRawTextureImport texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(4, handler.RequestCount);
-        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.Identity, StringComparison.Ordinal);
+        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler

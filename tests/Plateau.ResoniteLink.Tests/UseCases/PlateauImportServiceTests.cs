@@ -14,26 +14,30 @@ public sealed class PlateauImportServiceTests
     public async Task ExecuteAsync_UsesNormalizedRequestForConnectionAndResolvedRequestForBootstrapAndSourceCreation()
     {
         using TemporaryDirectory rawSourceRoot = new();
-        using TemporaryDirectory resolvedSourceRoot = new();
         using TemporaryDirectory workRoot = new();
 
+        Uri remoteCityGmlUri = new("https://example.test/tokyo23ku.zip");
+        string resolvedSourcePath = WorkRootLayout.GetRemoteResourcePath(
+            Path.Combine(workRoot.Path, "tokyo23ku"),
+            remoteCityGmlUri,
+            "source-archive");
         PlateauImportRequest rawRequest = new(
             Dataset: " tokyo23ku ",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(rawSourceRoot.Path),
+            Source: PlateauImportSource.Remote(remoteCityGmlUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(resolvedSourceRoot.Path),
+            Source: PlateauImportSource.Local(resolvedSourcePath),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedPlateauLocalImportSource(resolvedSourceRoot.Path),
+            Source: new ValidatedPlateauLocalImportSource(resolvedSourcePath),
             PackageNames: ["bldg"]);
-        RecordingDatasetSource datasetSource = new(resolvedSourceRoot.Path);
+        RecordingDatasetSource datasetSource = new(resolvedSourcePath);
         LocalCityGmlDocumentSet documentSet = CreateDocumentSet(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
@@ -53,21 +57,22 @@ public sealed class PlateauImportServiceTests
         Assert.NotNull(sceneBuilder.ConnectedRequest);
         Assert.Equal("tokyo23ku", sceneBuilder.ConnectedRequest!.Dataset);
         Assert.Equal("53394525", sceneBuilder.ConnectedRequest.MeshCode);
-        Assert.Equal(rawSourceRoot.Path, sceneBuilder.ConnectedRequest.LocalSourcePath);
+        Assert.Equal(remoteCityGmlUri, sceneBuilder.ConnectedRequest.ServerUri);
+        Assert.Null(sceneBuilder.ConnectedRequest.LocalSourcePath);
         Assert.Equal(["bldg"], sceneBuilder.ConnectedRequest.PackageNames);
         Assert.NotNull(documentReader.LastRequest);
         Assert.Equal("tokyo23ku", documentReader.LastRequest!.Dataset);
         Assert.Equal("53394525", documentReader.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourceRoot.Path, documentReader.LastRequest.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, documentReader.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], documentReader.LastRequest.PackageNames);
         Assert.NotNull(constructionSourceFactory.LastRequest);
         Assert.Equal("tokyo23ku", constructionSourceFactory.LastRequest!.Dataset);
         Assert.Equal("53394525", constructionSourceFactory.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourceRoot.Path, constructionSourceFactory.LastRequest.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, constructionSourceFactory.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
         Assert.Same(documentSet, constructionSourceFactory.LastDocumentSet);
         Assert.NotNull(sceneBuilder.BeginRequest);
-        Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
         Assert.Same(datasetSource, sceneBuilder.BeginRequest.DatasetContentSource);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
@@ -82,6 +87,64 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(source.Metadata.WorldName, result.Metadata.SceneName);
         Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
         Assert.Equal(["stub://destination"], result.Destinations);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_UsesNormalizedAndResolvedDemTextureSourcesAcrossConnectionAndBootstrapBoundaries()
+    {
+        using TemporaryDirectory workRoot = new();
+
+        Uri remoteCityGmlUri = new("https://example.test/tokyo23ku.zip");
+        Uri remoteOrthoUri = new("https://example.test/tokyo23ku-ortho.7z");
+        string datasetRoot = Path.Combine(workRoot.Path, "tokyo23ku");
+        string resolvedSourcePath = WorkRootLayout.GetRemoteResourcePath(datasetRoot, remoteCityGmlUri, "source-archive");
+        string resolvedOrthoPath = WorkRootLayout.GetRemoteResourcePath(datasetRoot, remoteOrthoUri, "source-ortho");
+        PlateauImportRequest rawRequest = new(
+            Dataset: " tokyo23ku ",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Remote(remoteCityGmlUri),
+            PackageNames: ["dem"],
+            DemTextureSource: PlateauImportSource.Remote(remoteOrthoUri));
+        PlateauImportRequest resolvedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(resolvedSourcePath),
+            PackageNames: ["dem"],
+            DemTextureSource: PlateauImportSource.Local(resolvedOrthoPath));
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            Source: new ValidatedPlateauLocalImportSource(resolvedSourcePath),
+            PackageNames: ["dem"],
+            DemTextureSource: new ValidatedPlateauLocalImportSource(resolvedOrthoPath));
+        RecordingDatasetSource datasetSource = new(resolvedSourcePath);
+        LocalCityGmlDocumentSet documentSet = CreateDocumentSet(datasetSource, ["dem"], ["udx/dem/53394525/terrain.gml"]);
+        RecordingSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        RecordingDocumentReader documentReader = new(documentSet);
+        StubConstructionSource source = new(CreateMetadata(resolvedRequest, ["dem"], documentSet.RelativeSourceFiles));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            documentReader,
+            constructionSourceFactory);
+
+        _ = await service.ExecuteAsync(rawRequest, workRoot.Path);
+
+        Assert.Equal(remoteCityGmlUri, sceneBuilder.ConnectedRequest!.ServerUri);
+        Assert.Equal(remoteOrthoUri, sceneBuilder.ConnectedRequest.DemTextureServerUri);
+        Assert.Null(sceneBuilder.ConnectedRequest.LocalSourcePath);
+        Assert.Null(sceneBuilder.ConnectedRequest.DemTextureLocalSourcePath);
+
+        Assert.Equal(resolvedSourcePath, documentReader.LastRequest!.LocalSourcePath);
+        Assert.Equal(resolvedOrthoPath, documentReader.LastRequest.DemTextureLocalSourcePath);
+        Assert.Equal(resolvedSourcePath, constructionSourceFactory.LastRequest!.LocalSourcePath);
+        Assert.Equal(resolvedOrthoPath, constructionSourceFactory.LastRequest.DemTextureLocalSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedOrthoPath, sceneBuilder.BeginRequest.Metadata.Request.DemTextureLocalSourcePath);
     }
 
     [Fact]

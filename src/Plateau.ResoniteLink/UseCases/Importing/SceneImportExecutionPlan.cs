@@ -6,23 +6,31 @@ public sealed record SceneImportExecutionPlan
 {
     public SceneImportExecutionPlan(
         PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
         SceneBuildRequest sceneBuildRequest)
     {
         ArgumentNullException.ThrowIfNull(normalizedRequest);
+        ArgumentNullException.ThrowIfNull(resolvedRequest);
         ArgumentNullException.ThrowIfNull(sceneBuildRequest);
 
-        ValidateRequestConsistency(normalizedRequest, sceneBuildRequest.Metadata.Request);
+        ValidateNormalizedAndResolvedRequestConsistency(normalizedRequest, resolvedRequest);
+        ValidateResolvedRemoteResourceLocations(normalizedRequest, resolvedRequest, sceneBuildRequest.WorkRoot);
+        ValidateResolvedAndBuildRequestConsistency(resolvedRequest, sceneBuildRequest.Metadata.Request);
 
         NormalizedRequest = normalizedRequest;
+        ResolvedRequest = resolvedRequest;
         SceneBuildRequest = sceneBuildRequest;
     }
 
     public PlateauImportRequest NormalizedRequest { get; }
 
+    public PlateauImportRequest ResolvedRequest { get; }
+
     public SceneBuildRequest SceneBuildRequest { get; }
 
     public static SceneImportExecutionPlan Create(
         PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
         ConstructionMetadata metadata,
         IPlateauDatasetContentSource datasetContentSource,
         string workRoot)
@@ -33,45 +41,100 @@ public sealed record SceneImportExecutionPlan
 
         return new SceneImportExecutionPlan(
             normalizedRequest,
+            resolvedRequest,
             new SceneBuildRequest(
                 metadata,
                 datasetContentSource,
                 workRoot));
     }
 
-    private static void ValidateRequestConsistency(
+    private static void ValidateNormalizedAndResolvedRequestConsistency(
         PlateauImportRequest normalizedRequest,
-        PlateauImportRequest buildRequest)
+        PlateauImportRequest resolvedRequest)
     {
-        if (!string.Equals(normalizedRequest.Dataset, buildRequest.Dataset, StringComparison.Ordinal)
-            || !string.Equals(normalizedRequest.MeshCode, buildRequest.MeshCode, StringComparison.Ordinal)
-            || !HasCompatibleSourceResolution(normalizedRequest, buildRequest)
-            || normalizedRequest.IncludeMarkingAlways != buildRequest.IncludeMarkingAlways
-            || normalizedRequest.DemTerrainMode != buildRequest.DemTerrainMode
-            || normalizedRequest.DemHeightmapMetersPerVertex != buildRequest.DemHeightmapMetersPerVertex
-            || normalizedRequest.DemHeightmapMaxResolution != buildRequest.DemHeightmapMaxResolution
-            || !SequenceEqual(normalizedRequest.PackageNames, buildRequest.PackageNames)
-            || !SetEqual(normalizedRequest.GlobalExcludeLodLevels, buildRequest.GlobalExcludeLodLevels)
-            || !DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, buildRequest.ExcludeLodLevelsByPackage)
-            || !DictionaryEqual(normalizedRequest.PackagePatterns, buildRequest.PackagePatterns))
+        if (!string.Equals(normalizedRequest.Dataset, resolvedRequest.Dataset, StringComparison.Ordinal)
+            || !string.Equals(normalizedRequest.MeshCode, resolvedRequest.MeshCode, StringComparison.Ordinal)
+            || !HasCompatibleSourceResolution(normalizedRequest.Source, resolvedRequest.Source)
+            || !HasCompatibleSourceResolution(normalizedRequest.DemTextureSource, resolvedRequest.DemTextureSource)
+            || normalizedRequest.IncludeMarkingAlways != resolvedRequest.IncludeMarkingAlways
+            || normalizedRequest.DemTerrainMode != resolvedRequest.DemTerrainMode
+            || normalizedRequest.DemHeightmapMetersPerVertex != resolvedRequest.DemHeightmapMetersPerVertex
+            || normalizedRequest.DemHeightmapMaxResolution != resolvedRequest.DemHeightmapMaxResolution
+            || !SequenceEqual(normalizedRequest.PackageNames, resolvedRequest.PackageNames)
+            || !SetEqual(normalizedRequest.GlobalExcludeLodLevels, resolvedRequest.GlobalExcludeLodLevels)
+            || !DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, resolvedRequest.ExcludeLodLevelsByPackage)
+            || !DictionaryEqual(normalizedRequest.PackagePatterns, resolvedRequest.PackagePatterns))
         {
             throw new ArgumentException(
-                "Scene import execution plan requires normalized and build requests to match for execution identity and import options. Only source-resolved location values may differ.",
+                "Scene import execution plan requires normalized and resolved requests to preserve execution identity and import options. Only source resolution from remote to local is allowed.",
+                nameof(resolvedRequest));
+        }
+    }
+
+    private static void ValidateResolvedAndBuildRequestConsistency(
+        PlateauImportRequest resolvedRequest,
+        PlateauImportRequest buildRequest)
+    {
+        if (!Equals(resolvedRequest, buildRequest))
+        {
+            throw new ArgumentException(
+                "Scene import execution plan requires resolved and build requests to match exactly.",
                 nameof(buildRequest));
         }
     }
 
     private static bool HasCompatibleSourceResolution(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest buildRequest)
+        PlateauImportSource? normalizedSource,
+        PlateauImportSource? resolvedSource)
     {
-        if (normalizedRequest.SourceKind == buildRequest.SourceKind)
+        if (Equals(normalizedSource, resolvedSource))
         {
             return true;
         }
 
-        return normalizedRequest.SourceKind == DatasetSourceKind.Remote
-            && buildRequest.SourceKind == DatasetSourceKind.Local;
+        return normalizedSource?.SourceKind == DatasetSourceKind.Remote
+            && resolvedSource?.SourceKind == DatasetSourceKind.Local;
+    }
+
+    private static void ValidateResolvedRemoteResourceLocations(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
+        string workRoot)
+    {
+        ValidateResolvedRemoteResourceLocation(
+            normalizedRequest.Source,
+            resolvedRequest.Source,
+            workRoot,
+            "source-archive");
+        ValidateResolvedRemoteResourceLocation(
+            normalizedRequest.DemTextureSource,
+            resolvedRequest.DemTextureSource,
+            workRoot,
+            "source-ortho");
+    }
+
+    private static void ValidateResolvedRemoteResourceLocation(
+        PlateauImportSource? normalizedSource,
+        PlateauImportSource? resolvedSource,
+        string workRoot,
+        string remoteResourcePrefix)
+    {
+        if (normalizedSource is not PlateauRemoteImportSource remoteSource
+            || resolvedSource is not PlateauLocalImportSource localSource)
+        {
+            return;
+        }
+
+        if (!WorkRootLayout.MatchesRemoteResourcePath(
+                localSource.LocalSourcePath!,
+                workRoot,
+                remoteSource.ServerUri!,
+                remoteResourcePrefix))
+        {
+            throw new ArgumentException(
+                $"Scene import execution plan requires resolved local path '{localSource.LocalSourcePath}' to match the deterministic materialization path for remote source '{remoteSource.ServerUri}'.",
+                nameof(resolvedSource));
+        }
     }
 
     private static bool SequenceEqual(

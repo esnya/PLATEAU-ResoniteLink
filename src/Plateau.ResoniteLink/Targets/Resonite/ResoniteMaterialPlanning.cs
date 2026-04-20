@@ -17,7 +17,7 @@ internal interface IResoniteMaterialPlanning
         int materialIndex,
         string packageName,
         IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
-        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken);
 }
@@ -65,7 +65,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         int materialIndex,
         string packageName,
         IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
-        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         bool preserveDedicatedMaterialSlot,
         CancellationToken cancellationToken)
     {
@@ -83,8 +83,8 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             : material.TerrainOverlay is not null
             && preparedTerrainTextureDataByOverlay.TryGetValue(
                 material.TerrainOverlay,
-                out ResoniteTextureImport? terrainOverlayTextureImport)
-            ? ImportOptionalTextureAsync(importClient, terrainOverlayTextureImport, cancellationToken)
+                out GeneratedTerrainTexture? terrainOverlayTexture)
+            ? ImportOptionalTextureAsync(importClient, terrainOverlayTexture.TextureImport, cancellationToken)
             : !string.IsNullOrWhiteSpace(material.Family)
             ? ImportBundledAlbedoTextureAsync(importClient, material, cancellationToken)
             : Task.FromResult<Uri?>(null);
@@ -115,7 +115,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
         IReadOnlyDictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
-        IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(importClient);
@@ -128,8 +128,8 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             && preparedTextureDataByIdentity.TryGetValue(material.TexturePayload.Identity, out ResoniteTextureImport? directTextureImport)
                 ? directTextureImport
             : material.TerrainOverlay is not null
-            && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out ResoniteTextureImport? terrainOverlayTextureImport)
-                ? terrainOverlayTextureImport
+            && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? terrainOverlayTextureImport)
+                ? terrainOverlayTextureImport.TextureImport
             : null;
         if (textureImport is null)
         {
@@ -342,6 +342,38 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 $"dedicated|{packageName}|{materialIndex}|{materialKey}"));
     }
 
+    public static ResoniteMaterialBinding ResolveTerrainTextureCanvasMaterial(
+        ResoniteMaterialBinding material,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
+
+        if (material.TerrainOverlay is null
+            || !preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? generatedTerrainTexture))
+        {
+            return material;
+        }
+
+        ResoniteFloat2 canvasScale = generatedTerrainTexture.CanvasScale;
+        ResoniteFloat2 canvasOffset = generatedTerrainTexture.CanvasOffset;
+        ResoniteFloat2? effectiveTextureScale = material.TextureScale is null && IsUnity(canvasScale)
+            ? null
+            : new ResoniteFloat2(
+                (material.TextureScale?.X ?? 1.0) * canvasScale.X,
+                (material.TextureScale?.Y ?? 1.0) * canvasScale.Y);
+        ResoniteFloat2? effectiveTextureOffset = material.TextureOffset is null && IsZero(canvasOffset)
+            ? null
+            : new ResoniteFloat2(
+                ((material.TextureOffset?.X) ?? 0.0) * canvasScale.X + canvasOffset.X,
+                ((material.TextureOffset?.Y) ?? 0.0) * canvasScale.Y + canvasOffset.Y);
+        return material with
+        {
+            TextureScale = effectiveTextureScale,
+            TextureOffset = effectiveTextureOffset,
+        };
+    }
+
     private static async Task<List<PlannedTextureAsset>> PlanBundledCompanionTexturesAsync(
         IResoniteLinkClient importClient,
         ResoniteMaterialBinding material,
@@ -461,5 +493,17 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         }
 
         textures.Add(new PlannedTextureAsset(new TextureIdentity(role), assetUri));
+    }
+
+    private static bool IsUnity(ResoniteFloat2 value)
+    {
+        return Math.Abs(value.X - 1.0) <= 1e-9
+            && Math.Abs(value.Y - 1.0) <= 1e-9;
+    }
+
+    private static bool IsZero(ResoniteFloat2 value)
+    {
+        return Math.Abs(value.X) <= 1e-9
+            && Math.Abs(value.Y) <= 1e-9;
     }
 }

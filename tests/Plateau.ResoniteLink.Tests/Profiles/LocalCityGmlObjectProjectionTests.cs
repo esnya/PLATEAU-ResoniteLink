@@ -23,7 +23,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))));
     }
 
     [Fact]
@@ -31,7 +32,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         "Performance",
         "CA1849:Call async methods when in an async method",
         Justification = "This test intentionally compares the sync wrapper against the async entrypoint.")]
-    public async Task CreateConstructionSourceAsyncMatchesCreateConstructionSourceForCanonicalBootstrap()
+    public async Task ConstructionSourceFactoryCreateAsyncMatchesExplicitDocumentSetPathForCanonicalBootstrap()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
         PlateauImportRequest request = new(
@@ -41,18 +42,25 @@ public sealed class LocalCityGmlObjectProjectionTests
             LocalSourcePath: fixturePath,
             ServerUri: null);
 
-        IResoniteConstructionSource asyncSource = await PlateauCityGmlConstructionSources.CreateAsync(request);
-        IResoniteConstructionSource syncSource = PlateauCityGmlConstructionSources.Create(request);
+        LocalCityGmlDocumentReader documentReader = new();
+        LocalCityGmlDocumentSet documentSet = await documentReader.ReadAsync(request);
+        LocalCityGmlConstructionSourceFactory constructionSourceFactory = new(
+            documentReader,
+            new LocalCityGmlConstructionComposer(
+                new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())));
+        IResoniteConstructionSource asyncSource = await constructionSourceFactory.CreateAsync(request);
+        IResoniteConstructionSource explicitDocumentSetSource = await constructionSourceFactory.CreateAsync(request, documentSet);
 
-        Assert.Equal(asyncSource.Metadata.SchemaVersion, syncSource.Metadata.SchemaVersion);
-        Assert.Equal(asyncSource.Metadata.WorldName, syncSource.Metadata.WorldName);
+        Assert.Equal(asyncSource.Metadata.SchemaVersion, explicitDocumentSetSource.Metadata.SchemaVersion);
+        Assert.Equal(asyncSource.Metadata.WorldName, explicitDocumentSetSource.Metadata.WorldName);
         Assert.Same(request, asyncSource.Metadata.Request);
-        Assert.Same(request, syncSource.Metadata.Request);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.PackageNames, syncSource.Metadata.SourceDataset.PackageNames);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.SourceFiles, syncSource.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.TerrainTextureOverlays, syncSource.Metadata.SourceDataset.TerrainTextureOverlays);
-        Assert.Equal(asyncSource.Metadata.SourceDataset.RequestedMeshCodes, syncSource.Metadata.SourceDataset.RequestedMeshCodes);
-        Assert.Equal(asyncSource.Metadata.LocalOrigin, syncSource.Metadata.LocalOrigin);
+        Assert.Same(request, explicitDocumentSetSource.Metadata.Request);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.PackageNames, explicitDocumentSetSource.Metadata.SourceDataset.PackageNames);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.SourceFiles, explicitDocumentSetSource.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.TerrainTextureOverlays, explicitDocumentSetSource.Metadata.SourceDataset.TerrainTextureOverlays);
+        Assert.Equal(asyncSource.Metadata.SourceDataset.RequestedMeshCodes, explicitDocumentSetSource.Metadata.SourceDataset.RequestedMeshCodes);
+        Assert.Equal(asyncSource.Metadata.LocalOrigin, explicitDocumentSetSource.Metadata.LocalOrigin);
     }
 
     [Fact]
@@ -145,6 +153,136 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.InRange(maxV, 0.9, 1.0);
         Assert.Single(demCityObject.Mesh.Submeshes);
         Assert.InRange(demCityObject.Mesh.Vertices.Count, 4, 6);
+    }
+
+    [Fact]
+    public void MaterializeParsedCityObjectWithoutOverlayKeepsGeneratedDemSurfaceUntextured()
+    {
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices =
+        [
+            new(35.6669, 139.7202, 5.0),
+            new(35.6698, 139.7202, 10.0),
+            new(35.6698, 139.7208, 12.0),
+        ];
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
+            PolygonId: "dem-uncovered",
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
+                "ring-dem-uncovered",
+                vertices,
+                UVs: null),
+            InteriorRings: [],
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = new(
+            SlotKey: "dem-object",
+            DisplayName: "DEM Object",
+            PackageName: "dem",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Surfaces: [surface],
+            ReferenceSystem: LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: "udx/dem/53394525/uncovered.gml",
+            SourceUnitIdentity: "source-unit",
+            SourceIdentity: "source",
+            SharedAcrossMeshCodes: false);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "fixture",
+            ServerUri: null);
+
+        ResoniteConstructionCityObject materialized = Assert.Single(
+            LocalCityGmlObjectProjection.MaterializeParsedCityObject(
+                cityObject,
+                globalOriginPoint: vertices[0],
+                globalCartesian: null,
+                demTerrainTextureOverlays: [],
+                requestedMeshAreas: [],
+                terrainHeightSampler: null,
+                request,
+                new DefaultMaterialResolver()));
+
+        ResoniteMaterialBinding material = Assert.Single(materialized.Materials);
+        Assert.Null(material.TerrainOverlay);
+        Assert.Null(material.TexturePayload);
+        Assert.Equal(ResoniteTextureSourceKind.Dataset, material.TextureSourceKind);
+    }
+
+    [Fact]
+    public void MaterializeParsedCityObjectClipsGeneratedDemToRequestedMeshCoverageBeforeOverlayAssignment()
+    {
+        LocalCityGmlObjectProjection.GeodeticPoint[] vertices =
+        [
+            new(35.0000, 139.0000, 5.0),
+            new(35.0100, 139.0000, 10.0),
+            new(35.0100, 139.0120, 12.0),
+        ];
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
+            PolygonId: "dem-crossing",
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
+                "ring-dem-crossing",
+                vertices,
+                UVs: null),
+            InteriorRings: [],
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = new(
+            SlotKey: "dem-object",
+            DisplayName: "DEM Object",
+            PackageName: "dem",
+            ActualMeshCode: "533945",
+            LodLevel: 1,
+            Surfaces: [surface],
+            ReferenceSystem: LocalCityGmlObjectProjection.CoordinateReferenceSystem.Parse("EPSG:4326"),
+            SourceFileRelativePath: "udx/dem/533945_dem_0000_op.gml",
+            SourceUnitIdentity: "source-unit",
+            SourceIdentity: "source",
+            SharedAcrossMeshCodes: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 35.0000,
+                MaxLatitude: 35.0200,
+                MinLongitude: 139.0000,
+                MaxLongitude: 139.0200),
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize);
+        MeshCodeBounds requestedMeshBounds = new(35.0000, 35.0200, 139.0000, 139.0100);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "fixture",
+            ServerUri: null);
+
+        ResoniteConstructionCityObject materialized = Assert.Single(
+            LocalCityGmlObjectProjection.MaterializeParsedCityObject(
+                cityObject,
+                globalOriginPoint: vertices[0],
+                globalCartesian: null,
+                demTerrainTextureOverlays: [overlay],
+                requestedMeshAreas: [requestedMeshBounds],
+                terrainHeightSampler: null,
+                request,
+                new DefaultMaterialResolver()));
+
+        ResoniteMaterialBinding material = Assert.Single(materialized.Materials);
+        Assert.NotNull(material.TerrainOverlay);
+        Assert.Null(material.TexturePayload);
+        Assert.Single(materialized.Mesh.Submeshes);
+        Assert.NotEmpty(materialized.Mesh.Vertices);
+        ResoniteFloat2? textureScale = material.TextureScale;
+        ResoniteFloat2? textureOffset = material.TextureOffset;
+        Assert.NotNull(textureScale);
+        Assert.NotNull(textureOffset);
+        Assert.InRange(textureScale!.X, 0.49, 0.51);
+        Assert.InRange(textureOffset!.X, 0.0, 0.01);
     }
 
     [Fact]
@@ -330,8 +468,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
-                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
-                  <gml:upperCorner>35.0100 139.0400 20</gml:upperCorner>
+                  <gml:lowerCorner>35.6840 139.6880 0</gml:lowerCorner>
+                  <gml:upperCorner>35.6910 139.6995 20</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <app:appearanceMember>
@@ -359,21 +497,21 @@ public sealed class LocalCityGmlObjectProjectionTests
                             <gml:Triangle gml:id="tri-dem-west">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-west">
-                                  <gml:posList>35.0000 139.0000 5 35.0100 139.0000 10 35.0100 139.0180 12 35.0000 139.0000 5</gml:posList>
+                                  <gml:posList>35.6840 139.6880 5 35.6910 139.6880 10 35.6910 139.6935 12 35.6840 139.6880 5</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-east">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-east">
-                                  <gml:posList>35.0000 139.0220 6 35.0100 139.0220 8 35.0100 139.0400 14 35.0000 139.0220 6</gml:posList>
+                                  <gml:posList>35.6842 139.6945 6 35.6910 139.6945 8 35.6910 139.6995 14 35.6842 139.6945 6</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-textured">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-textured">
-                                  <gml:posList>35.0001 139.0040 4 35.0099 139.0040 7 35.0099 139.0120 8 35.0001 139.0040 4</gml:posList>
+                                  <gml:posList>35.6841 139.6895 4 35.6909 139.6895 7 35.6909 139.6925 8 35.6841 139.6895 4</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
@@ -405,8 +543,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
-                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
-                  <gml:upperCorner>35.6699 139.7100 20</gml:upperCorner>
+                  <gml:lowerCorner>35.6840 139.6880 0</gml:lowerCorner>
+                  <gml:upperCorner>35.6910 139.6995 20</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <core:cityObjectMember>
@@ -420,14 +558,14 @@ public sealed class LocalCityGmlObjectProjectionTests
                             <gml:Triangle gml:id="tri-dem-a">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-a">
-                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7008 10 35.6698 139.7098 12 35.6669 139.7008 5</gml:posList>
+                                  <gml:posList>35.6842 139.6885 5 35.6908 139.6885 10 35.6908 139.6988 12 35.6842 139.6885 5</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-b">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-b">
-                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7098 12 35.6669 139.7098 7 35.6669 139.7008 5</gml:posList>
+                                  <gml:posList>35.6842 139.6885 5 35.6908 139.6988 12 35.6842 139.6988 7 35.6842 139.6885 5</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Threading.Channels;
@@ -33,6 +34,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private readonly Action<string>? progressReporter;
 #pragma warning disable CA1859
     private readonly IResoniteSceneBootstrapInterpreter sceneBootstrapInterpreter;
+    private readonly IResoniteDatasetLicenseWriter datasetLicenseWriter;
 #pragma warning restore CA1859
     private int executionClaimed;
 
@@ -187,6 +189,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         MeshBakeEnabled = options.EnableMeshBake;
         progressReporter = options.ProgressReporter;
         sceneBootstrapInterpreter = dependencies.SceneBootstrapInterpreter;
+        datasetLicenseWriter = dependencies.DatasetLicenseWriter;
         geometryAssetAssembler = dependencies.GeometryAssetAssembler;
         materialPlanning = dependencies.MaterialPlanning;
         batchEmissionPlanner = dependencies.BatchEmissionPlanner;
@@ -215,7 +218,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 baseClientFactory),
             diagnostics,
             terrainTextureAssetGenerator,
-            new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator()),
+            new ResoniteSceneBootstrapInterpreter(
+                new ResoniteSceneSlotLocator(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteSceneAnchorResolver()),
+            new ResoniteDatasetLicenseWriter(),
             new ResoniteGeometryAssetAssembler(),
             new ResoniteMaterialPlanning(),
             new ResoniteBatchEmissionPlanner(),
@@ -386,13 +393,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                "Bootstrap fixed dataset license metadata/component before city-object streaming starts."));
+                "Bootstrap fixed dataset license metadata/component before city-object streaming starts. "
+                + "Actual fallback-source licenses may still be added later if used during terrain texture preparation."));
         ReportProgress(
             PlateauLog.Info(
                 "live",
-                $"Dataset metadata/license phase complete during bootstrap. "
+                $"Primary dataset metadata/license phase complete during bootstrap. "
                 + $"Dataset root existed={bootstrapState.DatasetRootExisted}."));
-        ClientSessionInternal.BeginWorkerClientTracking();
         LiveSendQueuePlan runtimePlan = runPlan.Queue;
         ReportProgress(
             PlateauLog.Info(
@@ -418,6 +425,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             Placement = placement,
             ImportedTextureUriCache = new AsyncCompletedResultCache<TextureImportCacheKey, Uri>(),
             Runtime = runtime,
+            GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
+            ReportedDemSourceIdentities = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal),
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         Diagnostics.StartSendWindow(connectionCount);
@@ -886,21 +895,26 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private static long EstimateCityObjectWorkingSetBytes(ResoniteConstructionCityObject cityObject)
     {
-        const long minimumWeightBytes = 256L * 1024L;
-        const long textureReferenceWeightBytes = 4L * 1024L * 1024L;
+        const long minimumWeightBytes = 16L * 1024L * 1024L;
+        const long textureReferenceWeightBytes = 16L * 1024L * 1024L;
         const long heightSampleWeightBytes = sizeof(double);
         const long hdrHeightTextureWeightBytes = 4L * sizeof(float);
-        const long materialBindingWeightBytes = 512L;
-        const long vertexWeightBytes = 64L;
-        const long indexWeightBytes = sizeof(int);
-        const long perSubmeshWeightBytes = 256L;
+        const long materialBindingWeightBytes = 4096L;
+        const long vertexWeightBytes = 256L;
+        const long indexWeightBytes = 16L;
+        const long perSubmeshWeightBytes = 4096L;
+        const long triangleMeshExpansionFactor = 4L;
+        const long heightMapExpansionFactor = 2L;
+        const long rgba32PixelWeightBytes = 4L;
 
         long geometryWeightBytes = cityObject.Geometry switch
         {
-            ResoniteTriangleMeshGeometry triangleMesh => EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh),
+            ResoniteTriangleMeshGeometry triangleMesh => checked(
+                EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh) * triangleMeshExpansionFactor),
             ResoniteHeightMapGridGeometry heightMap => checked(
                 (heightMap.HeightSamples.Count * heightSampleWeightBytes)
-                + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)),
+                + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)
+                * heightMapExpansionFactor),
             _ => minimumWeightBytes,
         };
 
@@ -909,7 +923,20 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .Select(static material => material.TexturePayload!.Identity)
             .Distinct()
             .Count();
-        long materialWeightBytes = checked((cityObject.Materials.Count * materialBindingWeightBytes) + (distinctTextureCount * textureReferenceWeightBytes));
+        int distinctTerrainOverlayCount = cityObject.Materials
+            .Where(static material => material.TerrainOverlay is not null)
+            .Select(static material => material.TerrainOverlay!)
+            .Distinct()
+            .Count();
+        long terrainOverlayCanvasWeightBytes = cityObject.Materials
+            .Where(static material => material.TerrainOverlay is not null)
+            .Select(static material => material.TerrainOverlay!)
+            .Distinct()
+            .Sum(static overlay => checked((long)overlay.MaxTextureSize * overlay.MaxTextureSize * rgba32PixelWeightBytes));
+        long materialWeightBytes = checked(
+            (cityObject.Materials.Count * materialBindingWeightBytes)
+            + ((long)distinctTextureCount * textureReferenceWeightBytes)
+            + terrainOverlayCanvasWeightBytes);
         return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
 
         static long EstimateTriangleMeshWorkingSetBytes(ResoniteImportedMesh mesh)
@@ -1017,10 +1044,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
             .ToArray();
 
-        Task<PreparedTextureReference>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
-            .Select(terrainTextureOverlay => PrepareTerrainOverlayTextureReferenceAsync(terrainTextureOverlay, cancellationToken))
+        Task<PreparedTextureReference?>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
+            .Select(async terrainTextureOverlay => (PreparedTextureReference?)await PrepareTerrainOverlayTextureReferenceAsync(state, terrainTextureOverlay, cancellationToken))
             .ToArray();
-        Task<PreparedTextureReference>[] texturePreparationTasks = [];
+        Task<PreparedTextureReference?>[] texturePreparationTasks = [];
 
         Task<PreparedConstructionGeometry> geometryPreparationTask = cityObject.Geometry switch
         {
@@ -1033,13 +1060,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
         Stopwatch stopwatch = Stopwatch.StartNew();
-        PreparedTextureReference[] preparedTextures = await Task.WhenAll(
+        PreparedTextureReference?[] preparedTextureResults = await Task.WhenAll(
             texturePreparationTasks
                 .Concat(terrainOverlayTexturePreparationTasks)
                 .Concat(cityObject.Materials
                     .Where(static material => material.TexturePayload is not null)
                     .Select(PrepareDirectMaterialTextureReferenceAsync)
                     .ToArray()));
+        PreparedTextureReference[] preparedTextures = preparedTextureResults
+            .OfType<PreparedTextureReference>()
+            .ToArray();
         PreparedConstructionGeometry preparedGeometry = await geometryPreparationTask;
         stopwatch.Stop();
         Diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
@@ -1062,27 +1092,105 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     }
 
     private async Task<PreparedTextureReference> PrepareTerrainOverlayTextureReferenceAsync(
+        LiveSendRunState state,
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
-        ResoniteTextureImport terrainTextureImport = await terrainTextureAssetGenerator.EnsureTextureAsync(
+        TerrainTextureGenerationResult terrainTexture = await terrainTextureAssetGenerator.EnsureTextureWithSourceAsync(
             terrainTextureOverlay,
             cancellationToken);
+        TerrainTextureSource[] usedSources = terrainTexture.UsedSources.ToArray();
+        string usedSourceIdentity = string.Join("|and|", usedSources.Select(static source => source.IdentityKey));
+        if (state.ReportedDemSourceIdentities.TryAdd(usedSourceIdentity, 0))
+        {
+            ReportProgress(
+                PlateauLog.Info(
+                    "live",
+                    $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
+                    + $"to {DescribeTerrainTextureSources(usedSources)}."));
+        }
+        if (terrainTexture.UsesGsiFallbackLicense)
+        {
+            await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
+        }
 
         return new PreparedTextureReference(
             TextureIdentity: null,
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-            TextureImport: terrainTextureImport,
-            TerrainOverlay: terrainTextureOverlay);
+            TextureImport: terrainTexture.TextureImport,
+            TerrainOverlay: terrainTextureOverlay,
+            GeneratedTerrainTexture: terrainTexture.GeneratedTexture);
     }
 
-    private Task<PreparedTextureReference> PrepareDirectMaterialTextureReferenceAsync(
+    private async Task EnsureGsiFallbackLicenseAsync(
+        LiveSendRunState state,
+        CancellationToken cancellationToken)
+    {
+        if (Volatile.Read(ref state.GsiFallbackLicenseEnsured) != 0)
+        {
+            return;
+        }
+
+        await state.GsiFallbackLicenseGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (state.GsiFallbackLicenseEnsured != 0)
+            {
+                return;
+            }
+
+            await datasetLicenseWriter.EnsureGsiFallbackLicenseAsync(
+                GetRoutedClient(),
+                state.Context.DatasetRootSlot,
+                cancellationToken);
+            Volatile.Write(ref state.GsiFallbackLicenseEnsured, 1);
+        }
+        finally
+        {
+            state.GsiFallbackLicenseGate.Release();
+        }
+    }
+
+    private static string DescribeTerrainTextureSource(TerrainTextureSource source)
+    {
+        return source switch
+        {
+            TerrainTextureGeoReferencedRasterSource rasterSource => string.Create(
+                CultureInfo.InvariantCulture,
+                $"GeoTIFF(path='{Path.GetFileName(rasterSource.SourcePath)}', crs='{rasterSource.Metadata?.CoordinateSystemIdentifier ?? "unknown"}')"),
+            TerrainTextureTileSource tileSource when tileSource.ZoomLevel == 18
+                && tileSource.UrlTemplate.Contains("cyberjapandata.gsi.go.jp/xyz/seamlessphoto/", StringComparison.OrdinalIgnoreCase) => string.Create(
+                CultureInfo.InvariantCulture,
+                $"GSI18(url='{tileSource.UrlTemplate}')"),
+            TerrainTextureTileSource tileSource when tileSource.ZoomLevel == 19
+                && tileSource.UrlTemplate.Contains("plateau-ortho", StringComparison.OrdinalIgnoreCase) => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Ortho19(url='{tileSource.UrlTemplate}')"),
+            TerrainTextureTileSource tileSource when tileSource.ZoomLevel == 18
+                && tileSource.UrlTemplate.Contains("plateau-ortho", StringComparison.OrdinalIgnoreCase) => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Ortho18(url='{tileSource.UrlTemplate}')"),
+            TerrainTextureTileSource tileSource => string.Create(
+                CultureInfo.InvariantCulture,
+                $"Tile(z={tileSource.ZoomLevel}, url='{tileSource.UrlTemplate}')"),
+            _ => source.GetType().Name,
+        };
+    }
+
+    private static string DescribeTerrainTextureSources(TerrainTextureSource[] sources)
+    {
+        return sources.Length == 1
+            ? DescribeTerrainTextureSource(sources[0])
+            : string.Join(" -> ", sources.Select(DescribeTerrainTextureSource));
+    }
+
+    private Task<PreparedTextureReference?> PrepareDirectMaterialTextureReferenceAsync(
         ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
         ArgumentNullException.ThrowIfNull(material.TexturePayload);
 
-        return Task.FromResult(
+        return Task.FromResult<PreparedTextureReference?>(
             new PreparedTextureReference(
                 TextureIdentity: material.TexturePayload.Identity,
                 TextureSourceKind: material.TextureSourceKind,
@@ -1108,7 +1216,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         slotHierarchyStopwatch.Stop();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity = CreatePreparedTextureDataByIdentity(preparedCityObject);
-        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
+        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         Stopwatch geometryStopwatch = new();
         Task<PlannedSceneMaterialPlan> materialPlanningTask = PlanSceneMaterialPlanAsync(
@@ -1194,14 +1302,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 StringComparer.Ordinal);
     }
 
-    private static Dictionary<TerrainTextureOverlay, ResoniteTextureImport> CreatePreparedTerrainTextureDataByOverlay(
+    private static Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> CreatePreparedTerrainTextureDataByOverlay(
         PreparedCityObject preparedCityObject)
     {
         return preparedCityObject.Textures
-            .Where(static texture => texture.TerrainOverlay is not null)
+            .Where(static texture => texture is { TerrainOverlay: not null, GeneratedTerrainTexture: not null })
             .ToDictionary(
                 static texture => texture.TerrainOverlay!,
-                static texture => texture.TextureImport);
+                static texture => texture.GeneratedTerrainTexture!);
     }
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -1344,14 +1452,16 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         IResoniteLinkClient importClient,
         ResoniteConstructionCityObject cityObject,
         Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity,
-        Dictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTerrainTextureDataByOverlay,
+        Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
         CancellationToken cancellationToken)
     {
         Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[] materialPlanTasks
             = new Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>[cityObject.Materials.Count];
         for (int materialIndex = 0; materialIndex < cityObject.Materials.Count; materialIndex++)
         {
-            ResoniteMaterialBinding material = cityObject.Materials[materialIndex];
+            ResoniteMaterialBinding material = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(
+                cityObject.Materials[materialIndex],
+                preparedTerrainTextureDataByOverlay);
             ReportBuildStep(
                 cityObject,
                 $"Creating material {materialIndex + 1}/{cityObject.Materials.Count} ({material.MaterialKey}).");
@@ -1390,7 +1500,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             IResoniteLinkClient client,
             ResoniteMaterialBinding sourceMaterial,
             IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturesByIdentity,
-            IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTexturesByOverlay,
+            IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
             CancellationToken ct,
             out Task<(PlannedMaterialAsset MaterialAsset, PlannedRendererMaterialBinding RendererBinding)>? sharedPlanTask)
         {
@@ -1425,7 +1535,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             string familySlotName,
             string materialKey,
             IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturesByIdentity,
-            IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTexturesByOverlay,
+            IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
             CancellationToken ct)
         {
             if (runState.Materials.CommonMaterialFamilyWarmupTasks.TryGetValue(familySlotName, out Task? familyWarmupTask))
@@ -1464,7 +1574,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             int materialIndex,
             string packageName,
             IReadOnlyDictionary<string, ResoniteTextureImport> preparedTexturesByIdentity,
-            IReadOnlyDictionary<TerrainTextureOverlay, ResoniteTextureImport> preparedTexturesByOverlay,
+            IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTexturesByOverlay,
             bool preserveDedicatedMaterialSlot,
             CancellationToken ct)
         {
@@ -1717,6 +1827,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         string? TextureIdentity,
         ResoniteTextureSourceKind TextureSourceKind,
         ResoniteTextureImport TextureImport,
-        TerrainTextureOverlay? TerrainOverlay = null);
+        TerrainTextureOverlay? TerrainOverlay = null,
+        GeneratedTerrainTexture? GeneratedTerrainTexture = null);
 
 }

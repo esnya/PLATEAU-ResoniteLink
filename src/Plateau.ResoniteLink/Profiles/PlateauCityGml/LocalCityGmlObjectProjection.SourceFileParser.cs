@@ -15,17 +15,6 @@ public static partial class LocalCityGmlObjectProjection
         return requestedMeshArea?.GetCenter();
     }
 
-    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetAsync(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await LocalCityGmlBootstrapPipeline.ReadDocumentSetCoreAsync(
-            request,
-            progressReporter,
-            cancellationToken);
-    }
-
     internal static Task<global::Plateau.ResoniteLink.Application.Importing.SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(
         IReadOnlyList<global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor> sourceFiles,
         IPlateauDatasetContentSource datasetSource,
@@ -74,10 +63,10 @@ public static partial class LocalCityGmlObjectProjection
         cancellationToken.ThrowIfCancellationRequested();
 
         Stopwatch fileStopwatch = Stopwatch.StartNew();
-        List<ParsedCityObject> cityObjects = [];
+        List<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject> cityObjects = [];
         CoordinateReferenceSystem? coordinateReferenceSystem = null;
-        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
-                           sourceFile.ToLegacy(),
+        await foreach (global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
+                           sourceFile,
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
@@ -91,7 +80,7 @@ public static partial class LocalCityGmlObjectProjection
 
         fileStopwatch.Stop();
 
-        ParsedCityObject[] cityObjectArray = cityObjects
+        global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject[] cityObjectArray = cityObjects
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
             .ThenBy(static cityObject => cityObject.SourceIdentity, StringComparer.Ordinal)
             .ToArray();
@@ -100,7 +89,7 @@ public static partial class LocalCityGmlObjectProjection
             sourceFile.RelativePath,
             cancellationToken);
         global::Plateau.ResoniteLink.Application.Importing.TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray.Select(BootstrapParsedCityObject.FromLegacy))
+            ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
             : [];
 
         progressReporter?.Invoke(
@@ -112,8 +101,8 @@ public static partial class LocalCityGmlObjectProjection
 
         return new global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult(
             sourceFile,
-            cityObjectArray.Select(BootstrapParsedCityObject.FromLegacy).ToArray(),
-            global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem.FromLegacy(coordinateReferenceSystem),
+            cityObjectArray,
+            coordinateReferenceSystem is null ? null : global::Plateau.ResoniteLink.Application.Importing.CoordinateReferenceSystem.FromLegacy(coordinateReferenceSystem),
             terrainTriangles,
             fileStopwatch.Elapsed);
     }
@@ -127,8 +116,8 @@ public static partial class LocalCityGmlObjectProjection
         ICityGmlLodSelector lodSelector,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
-                           sourceFile.ToLegacy(),
+        await foreach (global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsCoreAsync(
+                           sourceFile,
                            datasetSource,
                            requestedMeshAreas,
                            lodFilteringStrategy,
@@ -137,12 +126,12 @@ public static partial class LocalCityGmlObjectProjection
                            parsedReferenceSystem: null,
                            cancellationToken))
         {
-            yield return global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject);
+            yield return cityObject;
         }
     }
 
-    internal static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsCoreAsync(
-        SourceFileDescriptor sourceFile,
+    internal static async IAsyncEnumerable<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamParsedCityObjectsCoreAsync(
+        global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
@@ -155,7 +144,7 @@ public static partial class LocalCityGmlObjectProjection
         if (await FileMayContainAppearanceMembersAsync(datasetSource, sourceFile.RelativePath, cancellationToken)
             && await HasLateAppearanceMembersAfterCityObjectAsync(datasetSource, sourceFile.RelativePath, cancellationToken))
         {
-            await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromDocumentCoreAsync(
+            await foreach (global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsFromDocumentCoreAsync(
                                sourceFile,
                                datasetSource,
                                requestedMeshAreas,
@@ -172,12 +161,12 @@ public static partial class LocalCityGmlObjectProjection
         }
 
         await using Stream stream = await datasetSource.OpenReadAsync(sourceFile.RelativePath, cancellationToken);
-        await foreach (ParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
+        await foreach (global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject in StreamParsedCityObjectsFromStreamCoreAsync(
                            stream,
-            sourceFile,
-            datasetSource,
-            requestedMeshAreas,
-            lodFilteringStrategy,
+                           sourceFile,
+                           datasetSource,
+                           requestedMeshAreas,
+                           lodFilteringStrategy,
             appearanceStoreFactory,
             lodSelector,
             parsedReferenceSystem,
@@ -239,9 +228,9 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsFromStreamCoreAsync(
+    private static async IAsyncEnumerable<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamParsedCityObjectsFromStreamCoreAsync(
         Stream stream,
-        SourceFileDescriptor sourceFile,
+        global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
@@ -338,12 +327,12 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return cityObject;
+            yield return BootstrapParsedCityObject.FromLegacy(cityObject);
         }
     }
 
-    private static async IAsyncEnumerable<ParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
-        SourceFileDescriptor sourceFile,
+    private static async IAsyncEnumerable<global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject> StreamParsedCityObjectsFromDocumentCoreAsync(
+        global::Plateau.ResoniteLink.Application.Importing.SourceFileDescriptor sourceFile,
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         LodFilteringStrategy? lodFilteringStrategy,
@@ -390,7 +379,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            yield return cityObject;
+            yield return BootstrapParsedCityObject.FromLegacy(cityObject);
         }
     }
 

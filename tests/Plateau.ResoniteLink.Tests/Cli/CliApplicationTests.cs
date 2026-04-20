@@ -23,7 +23,8 @@ public sealed class CliApplicationTests
             new LocalCityGmlConstructionSourceFactory(
                 new LocalCityGmlDocumentReader(),
                 new LocalCityGmlConstructionComposer(
-                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()))));
+                    new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))));
     }
 
     [Fact]
@@ -47,9 +48,7 @@ public sealed class CliApplicationTests
                 "tokyo23ku",
                 "--mesh-code",
                 "53394525",
-                "--source",
-                "local",
-                "--local-source-path",
+                "--citygml-source",
                 fixturePath,
                 "--resonitelink-port",
                 "12345",

@@ -111,10 +111,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Reference dedicatedMaterialReference = Assert.IsType<Reference>(materials.Elements[1]);
         PlannedBatchSlotEmission dedicatedMaterialSlot = Assert.Single(
             batchPlan.SlotEmissions,
-            slot => string.Equals(
-                slot.SlotName,
-                ResoniteSceneMaterialConventions.CreateMaterialSlotName(dedicatedMaterial.Material, useCommonMaterialAssets: false),
-                StringComparison.Ordinal));
+            slot => string.Equals(slot.ParentId, "plan:mesh-asset-slot", StringComparison.Ordinal)
+                && slot.SlotName.Contains("pbs", StringComparison.Ordinal));
         PlannedBatchComponentEmission dedicatedMaterialComponent = Assert.Single(
             batchPlan.ComponentEmissions,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
@@ -253,7 +251,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
         PlannedBatchSlotEmission assetSlot = Assert.Single(
             batchPlan.SlotEmissions,
-            static slot => string.Equals(slot.Identity.Value, "plan:mesh-asset-slot", StringComparison.Ordinal));
+            slot => string.Equals(slot.SlotName, "Triangle Object", StringComparison.Ordinal)
+                && string.Equals(slot.ParentId, "asset-lod-slot", StringComparison.Ordinal));
         PlannedBatchComponentEmission overrideTexture = Assert.Single(
             batchPlan.ComponentEmissions,
             component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)

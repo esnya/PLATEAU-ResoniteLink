@@ -2,6 +2,8 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 using ResoniteLink;
 
+using System.Reflection;
+
 namespace Plateau.ResoniteLink.Tests.Targets;
 
 [Collection(BundledCompanionTextureIsolationGroup.Name)]
@@ -13,7 +15,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     private static readonly ResoniteLocalOrigin LocalOrigin = new(35.6875, 139.69375, 0.0);
 
     [Fact]
-    public async Task BuildAsyncImportsGeneratedDemTerrainTexture()
+    public async Task BuildAsyncImportsGeneratedDemTerrainTextureWithCanvasTransform()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -24,12 +26,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
             GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
             MaxTextureSize: 512);
         RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            requestedOverlay => new ResoniteRawTextureImport(
-                2,
-                2,
-                ResoniteTextureColorProfiles.Srgb,
-                new byte[16],
-                $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"));
+            requestedOverlay => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
+                new ResoniteFloat2(0.5, 0.25),
+                new ResoniteFloat2(0.125, 0.375)));
         ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -58,6 +63,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
+                    TextureScale: new ResoniteFloat2(0.8, 0.4),
+                    TextureOffset: new ResoniteFloat2(0.25, 0.5),
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
@@ -96,6 +103,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[commonMaterialContainerSlotId],
             StringComparison.Ordinal);
+        Field_float2 textureScale = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureScale"]);
+        Field_float2 textureOffset = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureOffset"]);
+        Assert.Equal(0.4f, textureScale.Value.x, 6);
+        Assert.Equal(0.1f, textureScale.Value.y, 6);
+        Assert.Equal(0.25f, textureOffset.Value.x, 6);
+        Assert.Equal(0.5f, textureOffset.Value.y, 6);
         Assert.Equal("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", propertyBlock.ComponentType);
         string propertyBlockReferenceId = Assert.IsType<Reference>(Assert.Single(propertyBlocks.Elements)).TargetID;
         AddComponent plannedPropertyBlock = Assert.Single(
@@ -238,6 +251,61 @@ public sealed class ResoniteLiveSceneImportTargetTests
 
         Assert.Equal("NoCollision", collisionType.Value);
         Assert.False(characterCollider.Value);
+    }
+
+    [Fact]
+    public void EstimateCityObjectWorkingSetBytesCountsTerrainOverlayCanvasBudget()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 19,
+            GeographicBounds: new GeographicRectangle(38.25, 38.25833333333333, 140.75, 140.7625),
+            MaxTextureSize: 8192);
+        ResoniteConstructionCityObject withOverlay = new(
+            SlotKey: "dem-overlay-budget",
+            DisplayName: "DEM Overlay Budget",
+            PackageName: "dem",
+            ActualMeshCode: "57403600",
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("terrain-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "terrain-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TerrainOverlay: overlay),
+            ],
+            SourceObjectKey: "terrain-overlay-budget");
+        ResoniteConstructionCityObject withoutOverlay = withOverlay with
+        {
+            Materials =
+            [
+                withOverlay.Materials[0] with { TerrainOverlay = null },
+            ],
+        };
+
+        long overlayEstimate = InvokeEstimatedWorkingSetBytes(withOverlay);
+        long baselineEstimate = InvokeEstimatedWorkingSetBytes(withoutOverlay);
+
+        Assert.True(overlayEstimate > baselineEstimate);
+        Assert.True(overlayEstimate - baselineEstimate > 0);
+    }
+
+    private static long InvokeEstimatedWorkingSetBytes(ResoniteConstructionCityObject cityObject)
+    {
+        MethodInfo method = typeof(ResoniteLiveSceneImportTarget)
+            .GetMethod("EstimateCityObjectWorkingSetBytes", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("EstimateCityObjectWorkingSetBytes method not found.");
+        return (long)(method.Invoke(null, [cityObject])
+            ?? throw new InvalidOperationException("EstimateCityObjectWorkingSetBytes returned null."));
     }
 
     [Fact]

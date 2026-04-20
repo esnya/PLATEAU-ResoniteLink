@@ -53,7 +53,6 @@ internal sealed class SourceFilePipeline
     private readonly object parseTaskGate = new();
     private readonly Func<Task<ParsedSourceFileResult>> parseTaskFactory;
     private readonly Func<CancellationToken, IAsyncEnumerable<BootstrapParsedCityObject>> streamFactory;
-    private readonly LocalCityGmlObjectProjection.SourceFilePipeline? legacy;
     private Task<ParsedSourceFileResult>? parseTask;
 
     internal SourceFilePipeline(
@@ -64,14 +63,6 @@ internal sealed class SourceFilePipeline
         SourceFile = sourceFile;
         this.parseTaskFactory = parseTaskFactory;
         this.streamFactory = streamFactory ?? CreateParseTaskBackedStream;
-    }
-
-    internal SourceFilePipeline(LocalCityGmlObjectProjection.SourceFilePipeline legacy)
-        : this(
-            SourceFileDescriptor.FromLegacy(legacy.SourceFile),
-            async () => ParsedSourceFileResult.FromLegacy(await legacy.GetParseTask().ConfigureAwait(false)))
-    {
-        this.legacy = legacy;
     }
 
     public SourceFileDescriptor SourceFile { get; }
@@ -89,13 +80,6 @@ internal sealed class SourceFilePipeline
         CancellationToken cancellationToken = default)
     {
         return streamFactory(cancellationToken);
-    }
-
-    internal LocalCityGmlObjectProjection.SourceFilePipeline ToLegacy()
-    {
-        return legacy ?? new LocalCityGmlObjectProjection.SourceFilePipeline(
-            SourceFile.ToLegacy(),
-            async () => (await GetParseTask().ConfigureAwait(false)).ToLegacy());
     }
 
     private async IAsyncEnumerable<BootstrapParsedCityObject> CreateParseTaskBackedStream(

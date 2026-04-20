@@ -35,6 +35,50 @@ internal static class WorkRootLayout
         return $"{archivePath}.meta.json";
     }
 
+    public static string GetRemoteResourcePath(string datasetRoot, Uri resourceUri, string resourcePrefix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
+        ArgumentNullException.ThrowIfNull(resourceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePrefix);
+
+        string extension = Path.GetExtension(resourceUri.AbsolutePath);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = ".bin";
+        }
+
+        return Path.Combine(
+            Path.GetFullPath(datasetRoot),
+            GetRemoteResourceFileName(resourceUri, resourcePrefix));
+    }
+
+    public static string GetRemoteResourceFileName(Uri resourceUri, string resourcePrefix)
+    {
+        ArgumentNullException.ThrowIfNull(resourceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePrefix);
+
+        string extension = Path.GetExtension(resourceUri.AbsolutePath);
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            extension = ".bin";
+        }
+
+        return $"{resourcePrefix}-{CreateRemoteResourceIdentity(resourceUri)}{extension.ToLowerInvariant()}";
+    }
+
+    public static bool MatchesRemoteResourcePath(string localPath, string datasetRoot, Uri resourceUri, string resourcePrefix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(localPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
+        ArgumentNullException.ThrowIfNull(resourceUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(resourcePrefix);
+
+        return string.Equals(
+            Path.GetFullPath(localPath),
+            GetRemoteResourcePath(datasetRoot, resourceUri, resourcePrefix),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     public static string GetMaterializedArchiveRoot(string outputRoot, string archivePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
@@ -69,6 +113,15 @@ internal static class WorkRootLayout
                 System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(archiveIdentity)))
             .ToLowerInvariant();
         return $"source-archive-{digest[..12]}";
+    }
+
+    private static string CreateRemoteResourceIdentity(Uri resourceUri)
+    {
+        string resourceIdentity = resourceUri.AbsoluteUri;
+        string digest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(resourceIdentity)))
+            .ToLowerInvariant();
+        return digest[..12];
     }
 
     public static string CreateSafePathSegment(string value)

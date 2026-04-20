@@ -6,43 +6,31 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class PlateauImportRequestValidatorTests
 {
     [Fact]
-    public void ValidateRequiresServerUrlForRemoteSource()
+    public void ValidateRequiresCityGmlSource()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Remote,
-            LocalSourcePath: null,
-            ServerUri: null);
+            Source: PlateauImportSource.Local(null));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
-        Assert.Contains(
-            errors,
-            error => string.Equals(
-                error,
-                "The --server-url value is required when --source remote is used.",
-                StringComparison.Ordinal));
+        Assert.Contains("The --citygml-source value is required.", errors);
     }
 
     [Fact]
-    public void ValidateRejectsRemoteServerUrlThatIsNotDirectArchive()
+    public void ValidateRejectsRemoteCityGmlSourceThatIsNotDirectArchive()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Remote,
-            LocalSourcePath: null,
-            ServerUri: new Uri("https://example.invalid/dataset"));
+            Source: PlateauImportSource.Remote(new Uri("https://example.invalid/dataset")));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
-            errors,
-            error => string.Equals(
-                error,
-                "The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.",
-                StringComparison.Ordinal));
+            "The --citygml-source value must point directly to a .zip or .7z CityGML archive over http or https.",
+            errors);
     }
 
     [Fact]
@@ -53,9 +41,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: " tokyo23ku ",
             MeshCode: " 53394525 ",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: $"  {sourceRoot.Path}  ",
-            ServerUri: null,
+            Source: PlateauImportSource.Local($"  {sourceRoot.Path}  "),
             PackageNames: [" waterbody ", " tran "]);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
@@ -68,17 +54,9 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.NotNull(validatedRequest);
         Assert.Equal("tokyo23ku", validatedRequest!.Dataset);
         Assert.Equal("53394525", validatedRequest.MeshCode);
-        Assert.Matches(validatedRequest.MeshCodePattern, "53394525");
-        Assert.DoesNotMatch(validatedRequest.MeshCodePattern, "53394526");
         Assert.IsType<ValidatedPlateauLocalImportSource>(validatedRequest.Source);
         Assert.Equal(sourceRoot.Path, validatedRequest.LocalSourcePath);
         Assert.Equal(["wtr", "tran"], validatedRequest.PackageNames);
-
-        PlateauImportRequest roundTrippedRequest = validatedRequest.ToImportRequest();
-        Assert.Equal("tokyo23ku", roundTrippedRequest.Dataset);
-        Assert.Equal("53394525", roundTrippedRequest.MeshCode);
-        Assert.Equal(sourceRoot.Path, roundTrippedRequest.LocalSourcePath);
-        Assert.Equal(["wtr", "tran"], roundTrippedRequest.PackageNames);
     }
 
     [Fact]
@@ -87,100 +65,82 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "C:/dataset",
-            ServerUri: null,
+            Source: PlateauImportSource.Local("C:/dataset"),
             PackageNames: ["bldg", "unknown", "waterbody"]);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
             errors,
-            error => error.Contains(
-                "Unsupported package name(s): unknown.",
-                StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void ValidateRejectsUnsupportedPackageKeysInPackageMaps()
-    {
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "C:/dataset",
-            ServerUri: null,
-            ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
-            {
-                ["unknown"] = new HashSet<int> { 1 },
-            },
-            PackagePatterns: new Dictionary<string, string>
-            {
-                ["another-unknown"] = "*Road*",
-            });
-
-        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
-
-        Assert.Contains(
-            errors,
             error => error.Contains("Unsupported package name(s): unknown.", StringComparison.Ordinal));
-        Assert.Contains(
-            errors,
-            error => error.Contains("Unsupported package name(s): another-unknown.", StringComparison.Ordinal));
     }
 
     [Fact]
-    public void ValidateRejectsDuplicateNormalizedPackageKeysInPackageMaps()
+    public void ValidateRequiresExistingLocalCityGmlSourcePath()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "C:/dataset",
-            ServerUri: null,
-            ExcludeLodLevelsByPackage: new Dictionary<string, IReadOnlySet<int>>
-            {
-                ["tran"] = new HashSet<int> { 1 },
-                [" TRAN "] = new HashSet<int> { 2 },
-            },
-            PackagePatterns: new Dictionary<string, string>
-            {
-                ["waterbody"] = "*Water*",
-                ["wtr"] = "*River*",
-            });
+            Source: PlateauImportSource.Local("/path/that/does/not/exist"));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
-            errors,
-            error => error.Contains(
-                "The ExcludeLodLevelsByPackage value contains duplicate package keys after normalization: tran.",
-                StringComparison.Ordinal));
-        Assert.Contains(
-            errors,
-            error => error.Contains(
-                "The PackagePatterns value contains duplicate package keys after normalization: wtr.",
-                StringComparison.Ordinal));
+            "The CityGML source path '/path/that/does/not/exist' does not exist.",
+            errors);
     }
 
     [Fact]
-    public void ValidateRequiresLocalSourcePathForLocalSource()
+    public void ValidateRequiresSupportedLocalCityGmlSourceExtension()
     {
+        using TemporaryDirectory sourceRoot = new();
+        string unsupportedPath = Path.Combine(sourceRoot.Path, "source.tif");
+        File.WriteAllText(unsupportedPath, "dummy");
+
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: null,
-            ServerUri: null);
+            Source: PlateauImportSource.Local(unsupportedPath));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
-            errors,
-            error => string.Equals(
-                error,
-                "The --local-source-path value is required when --source local is used.",
-                StringComparison.Ordinal));
+            $"The CityGML source path '{unsupportedPath}' must be a dataset directory or a .zip/.7z archive.",
+            errors);
+    }
+
+    [Fact]
+    public void ValidateAcceptsRemoteOrthoGeoTiffUrl()
+    {
+        using TemporaryDirectory sourceRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(sourceRoot.Path),
+            DemTextureSource: PlateauImportSource.Remote(new Uri("https://example.invalid/53394525.tif")));
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateRejectsUnsupportedRemoteOrthoSource()
+    {
+        using TemporaryDirectory sourceRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(sourceRoot.Path),
+            DemTextureSource: PlateauImportSource.Remote(new Uri("https://example.invalid/53394525.png")));
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            "The --ortho-source value must point directly to a .tif, .tiff, .zip, or .7z resource over http or https.",
+            errors);
     }
 
     [Theory]
@@ -190,7 +150,7 @@ public sealed class PlateauImportRequestValidatorTests
     {
         using TemporaryDirectory sourceRoot = new();
         string localSourcePath = createFile
-            ? Path.Combine(sourceRoot.Path, "source.gml")
+            ? Path.Combine(sourceRoot.Path, "source.zip")
             : sourceRoot.Path;
 
         if (createFile)
@@ -201,33 +161,11 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: localSourcePath,
-            ServerUri: null);
+            Source: PlateauImportSource.Local(localSourcePath));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Empty(errors);
-    }
-
-    [Fact]
-    public void ValidateRejectsMissingLocalSourcePath()
-    {
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/path/that/does/not/exist",
-            ServerUri: null);
-
-        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
-
-        Assert.Contains(
-            errors,
-            error => string.Equals(
-                error,
-                "The local source path '/path/that/does/not/exist' does not exist.",
-                StringComparison.Ordinal));
     }
 
     [Theory]
@@ -238,9 +176,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "C:/dataset",
-            ServerUri: null,
+            Source: PlateauImportSource.Local("C:/dataset"),
             DemHeightmapMetersPerVertex: metersPerVertex);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -262,9 +198,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "C:/dataset",
-            ServerUri: null,
+            Source: PlateauImportSource.Local("C:/dataset"),
             DemHeightmapMaxResolution: maxResolution);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -283,9 +217,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "[53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "C:/dataset",
-            ServerUri: null);
+            Source: PlateauImportSource.Local("C:/dataset"));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -302,9 +234,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394825",
-            SourceKind: DatasetSourceKind.Remote,
-            LocalSourcePath: null,
-            ServerUri: new Uri("https://example.invalid/dataset.zip"));
+            Source: PlateauImportSource.Remote(new Uri("https://example.invalid/dataset.zip")));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 

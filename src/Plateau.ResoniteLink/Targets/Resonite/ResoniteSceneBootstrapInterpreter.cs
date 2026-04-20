@@ -14,8 +14,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private const string SharedCommonMaterialsRootName = "Common Materials";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private const string GsiLicenseName = "GSI Maps Terms";
-    private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
 
     private readonly IResoniteSceneSlotLocator sceneSlotLocator;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
@@ -23,12 +21,12 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
     internal ResoniteSceneBootstrapInterpreter(
         IResoniteSceneSlotLocator sceneSlotLocator,
-        IResoniteMaterialPlanning? materialPlanning = null,
-        IResoniteSceneAnchorResolver? sceneAnchorResolver = null)
+        IResoniteMaterialPlanning materialPlanning,
+        IResoniteSceneAnchorResolver sceneAnchorResolver)
     {
         this.sceneSlotLocator = sceneSlotLocator ?? throw new ArgumentNullException(nameof(sceneSlotLocator));
-        this.materialPlanning = materialPlanning ?? new ResoniteMaterialPlanning();
-        this.sceneAnchorResolver = sceneAnchorResolver ?? new ResoniteSceneAnchorResolver();
+        this.materialPlanning = materialPlanning ?? throw new ArgumentNullException(nameof(materialPlanning));
+        this.sceneAnchorResolver = sceneAnchorResolver ?? throw new ArgumentNullException(nameof(sceneAnchorResolver));
     }
 
     public async Task<ResoniteSceneBootstrapState> BootstrapAsync(
@@ -289,27 +287,13 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
 
-        List<DatasetLicenseDefinition> licenses =
+        return
         [
             new(
                 DatasetLicenseRole.PrimaryPlateau,
                 setupInfo.DatasetLicense,
                 CreateDatasetLicenseMembers(setupInfo.DatasetLicense)),
         ];
-        if (setupInfo.RequiresGsiFallbackLicense)
-        {
-            ResoniteLicenseComponentMetadata gsiLicense = new(
-                RequireCredit: true,
-                CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
-                LicenseName: GsiLicenseName,
-                LicenseUrl: GsiLicenseUrl);
-            licenses.Add(new(
-                DatasetLicenseRole.GsiFallback,
-                gsiLicense,
-                CreateDatasetLicenseMembers(gsiLicense)));
-        }
-
-        return licenses.ToArray();
     }
 
     private static HashSet<DatasetLicenseRole> MatchExistingLicenseRoles(
@@ -668,7 +652,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private enum DatasetLicenseRole
     {
         PrimaryPlateau,
-        GsiFallback,
     }
 
     private sealed record DatasetLicenseDefinition(

@@ -20,36 +20,45 @@ public sealed class PlateauImportRequestSourceTests
     }
 
     [Fact]
-    public void LegacyConstructorMapsLocalSourceIntoTypedSource()
+    public void RequestExposesOptionalDemTextureSource()
     {
-        PlateauImportRequest request = new(
-            Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/data/plateau",
-            ServerUri: null);
-
-        PlateauLocalImportSource localSource = Assert.IsType<PlateauLocalImportSource>(request.Source);
-        Assert.Equal("/data/plateau", localSource.LocalSourcePath);
-        Assert.Equal(DatasetSourceKind.Local, request.Source.SourceKind);
-        Assert.Equal("/data/plateau", request.LocalSourcePath);
-        Assert.Null(request.ServerUri);
-    }
-
-    [Fact]
-    public void TypedConstructorKeepsRemoteSourceExplicit()
-    {
-        Uri serverUri = new("https://example.invalid/plateau.zip");
-
+        Uri orthoUri = new("https://example.invalid/53394525.tif");
         PlateauImportRequest request = new(
             "tokyo23ku",
             "53394525",
-            new PlateauRemoteImportSource(serverUri));
+            PlateauImportSource.Remote(new Uri("https://example.invalid/plateau.zip")),
+            DemTextureSource: PlateauImportSource.Remote(orthoUri));
 
-        PlateauRemoteImportSource remoteSource = Assert.IsType<PlateauRemoteImportSource>(request.Source);
-        Assert.Equal(serverUri, remoteSource.ServerUri);
         Assert.Equal(DatasetSourceKind.Remote, request.Source.SourceKind);
-        Assert.Equal(serverUri, request.ServerUri);
-        Assert.Null(request.LocalSourcePath);
+        Assert.Equal(DatasetSourceKind.Remote, request.DemTextureSourceKind);
+        Assert.Equal(orthoUri, request.DemTextureServerUri);
+    }
+
+    [Fact]
+    public void FromLegacyPreservesWindowsLocalPath()
+    {
+        const string localPath = @"C:\data\plateau\13213_higashimurayama-shi_2020_citygml_3_op.zip";
+
+        PlateauImportSource source = PlateauImportSource.FromLegacy(
+            DatasetSourceKind.Local,
+            localPath,
+            serverUri: null);
+
+        PlateauLocalImportSource typedLocalSource = Assert.IsType<PlateauLocalImportSource>(source);
+        Assert.Equal(localPath, typedLocalSource.LocalSourcePath);
+    }
+
+    [Fact]
+    public void FromLegacyReconstructsRemoteSource()
+    {
+        Uri remoteUri = new("https://example.invalid/plateau.zip");
+
+        PlateauImportSource source = PlateauImportSource.FromLegacy(
+            DatasetSourceKind.Remote,
+            localSourcePath: null,
+            remoteUri);
+
+        PlateauRemoteImportSource typedRemoteSource = Assert.IsType<PlateauRemoteImportSource>(source);
+        Assert.Equal(remoteUri, typedRemoteSource.ServerUri);
     }
 }

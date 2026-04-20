@@ -5,6 +5,9 @@ namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class LocalCityGmlConstructionSourceTests
 {
+    private static readonly ICityGmlCommonMaterialEnumerator CommonMaterialEnumerator =
+        new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver());
+
     [Fact]
     public async Task ReadCityObjectsAsyncLimitsProducerConcurrency()
     {
@@ -20,7 +23,8 @@ public sealed class LocalCityGmlConstructionSourceTests
             CreateMetadata(request),
             request,
             CreateDocumentSet(sourceFileCount),
-            new TrackingGeometryProjector());
+            new TrackingGeometryProjector(),
+            CommonMaterialEnumerator);
 
         List<ResoniteConstructionCityObject> cityObjects = [];
         await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
@@ -64,7 +68,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                     new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
-            geometryProjector);
+            geometryProjector,
+            CommonMaterialEnumerator);
 
         List<ResoniteConstructionCityObject> cityObjects = [];
         await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())

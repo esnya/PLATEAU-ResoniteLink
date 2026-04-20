@@ -8,9 +8,15 @@ internal interface IResoniteLinkClient : IDisposable
 {
     Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken);
 
+    Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
+
+    Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
+
     Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken);
+
+    Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken);
 
     Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken);
 
