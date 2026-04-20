@@ -441,7 +441,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
         if (material.AssetScope == ResoniteMaterialAssetScope.Common
             || !string.IsNullOrWhiteSpace(material.Family))
         {
-            return Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial;
+            return CanPreserveAsCommonMaterial(material)
+                ? Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial
+                : Lod2AtlasMaterialBakeCategory.PreservedOther;
         }
 
         if (IsAtlasBakeCandidate(material))
@@ -455,6 +457,16 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         return Lod2AtlasMaterialBakeCategory.PreservedOther;
+    }
+
+    private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
+    {
+        ResoniteMaterialBinding commonCandidate = material with
+        {
+            AssetScope = ResoniteMaterialAssetScope.Common,
+        };
+        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(commonCandidate).AssetScope
+            == ResoniteMaterialAssetScope.Common;
     }
 
     private AtlasBatchPlan BuildAtlasCandidateBatches(
@@ -1475,7 +1487,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
             || normalizedMaterial.TexturePayload is not null
             || normalizedMaterial.TerrainOverlay is not null
             || string.IsNullOrWhiteSpace(normalizedMaterial.Family)
-            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled)
+            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled
+            || !ResoniteMaterialSharing.IsWhiteBaseColor(normalizedMaterial.BaseColor)
+            || normalizedMaterial.TextureOffset is not null
+            || normalizedMaterial.DepthOffset is not null)
         {
             return normalizedMaterial;
         }

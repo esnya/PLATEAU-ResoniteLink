@@ -114,12 +114,15 @@ public sealed class Lod2AtlasCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Equal(2, cityObject.Materials.Count);
         Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
-        Assert.Contains(cityObject.Materials, static material => material.AssetScope == ResoniteMaterialAssetScope.Common);
+        Assert.Contains(
+            cityObject.Materials,
+            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal)
+                && material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped);
         Assert.Contains(cityObject.Materials, static material => material.TexturePayload is not null);
     }
 
     [Fact]
-    public async Task FlushAllAsyncUnifiesPreservedCommonMaterialVariantsByFamily()
+    public async Task FlushAllAsyncKeepsTintedPrescopedCommonMaterialVariantsDedicated()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
@@ -131,18 +134,20 @@ public sealed class Lod2AtlasCityObjectBakerTests
                 "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteMaterialBinding commonMaterial = Assert.Single(
-            cityObject.Materials,
-            static material => material.AssetScope == ResoniteMaterialAssetScope.Common);
+        ResoniteMaterialBinding[] preservedFacadeMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal))
+            .ToArray();
 
-        Assert.Equal(2, cityObject.Materials.Count);
-        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
-        Assert.Equal(BundledDefaultMaterialFamilies.Facade, commonMaterial.Family);
-        Assert.Equal(0, commonMaterial.BundledVariantIndex);
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(2, preservedFacadeMaterials.Length);
+        Assert.All(preservedFacadeMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+        Assert.Contains(preservedFacadeMaterials, static material => material.BundledVariantIndex == 0 && material.BaseColor == new ResoniteColor(0.5, 0.5, 0.5, 1.0));
+        Assert.Contains(preservedFacadeMaterials, static material => material.BundledVariantIndex == 1 && material.BaseColor == new ResoniteColor(0.5, 0.5, 0.5, 1.0));
     }
 
     [Fact]
-    public async Task FlushAllAsyncUnifiesPreservedBundledFamilyMaterialsEvenWhenNotPreScopedAsCommon()
+    public async Task FlushAllAsyncKeepsTintedPreservedBundledFamilyMaterialsDedicated()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
@@ -154,15 +159,179 @@ public sealed class Lod2AtlasCityObjectBakerTests
                 "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
-        ResoniteMaterialBinding commonMaterial = Assert.Single(
-            cityObject.Materials,
-            static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal));
+        ResoniteMaterialBinding[] preservedRoofMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+            .ToArray();
 
-        Assert.Equal(2, cityObject.Materials.Count);
-        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
-        Assert.Equal(ResoniteMaterialAssetScope.Common, commonMaterial.AssetScope);
-        Assert.Equal(0, commonMaterial.BundledVariantIndex);
-        Assert.Null(commonMaterial.TexturePayload);
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.BaseColor == new ResoniteColor(0.85, 0.85, 0.85, 1.0));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.BaseColor == new ResoniteColor(0.75, 0.75, 0.75, 1.0));
+        Assert.All(preservedRoofMaterials, static material => Assert.Null(material.TexturePayload));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsWhitePreservedBundledFamilyMaterialsDedicatedWhenOffsetOrDepthExists()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
+            "building-transform",
+            CreatePayload("textures/transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a") with
+        {
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-transform-atlas",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: CreatePayload("textures/transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-transform-roof-0",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    TextureOffset: new ResoniteFloat2(0.125, 0.25),
+                    BundledVariantIndex: 0),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-transform-roof-1",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: new ResoniteMaterialDepthOffset(2.0, 2.0),
+                    SubmeshIndices: [2],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    TextureOffset: new ResoniteFloat2(0.25, 0.5),
+                    BundledVariantIndex: 1),
+            ],
+        };
+
+        await AssertBufferedAsync(baker, source);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding[] preservedRoofMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset == new ResoniteFloat2(0.125, 0.25));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset == new ResoniteFloat2(0.25, 0.5));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncAllowsTintedPreservedBundledFamilyMaterialsWhenCommonPreservationIsDisabled()
+    {
+        Lod2AtlasCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(),
+            maxAtlasSize: 32,
+            tilePaddingPixels: 1,
+            bakePolicies:
+            [
+                new Lod2AtlasCityObjectBakePolicy(
+                    Name: "dedicated-bundled-check",
+                    CanBufferCityObject: static _ => true,
+                    RequireAtlasCandidateMaterial: true,
+                    PreserveVertexColorMaterials: true,
+                    PreserveTexturelessMaterials: false,
+                    PreserveCommonMaterials: false,
+                    EnableGridPassThrough: false,
+                    PassThroughGridCellSizeMeters: 0),
+            ]);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateBundledFamilyPreservedLod2Building(
+                "building-policy-check",
+                CreatePayload("textures/policy-check.png", new Rgba32(255, 0, 0, 255), 4, 4),
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding[] preservedRoofMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncDemotesPrescopedWhiteBundledFamilyMaterialsWhenOffsetOrDepthExists()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
+            "building-prescoped-transform",
+            CreatePayload("textures/prescoped-transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a") with
+        {
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-prescoped-transform-atlas",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: CreatePayload("textures/prescoped-transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-prescoped-transform-roof-0",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    TextureOffset: new ResoniteFloat2(0.125, 0.25),
+                    BundledVariantIndex: 0,
+                    AssetScope: ResoniteMaterialAssetScope.Common),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-prescoped-transform-roof-1",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: new ResoniteMaterialDepthOffset(2.0, 2.0),
+                    SubmeshIndices: [2],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    TextureOffset: new ResoniteFloat2(0.25, 0.5),
+                    BundledVariantIndex: 1,
+                    AssetScope: ResoniteMaterialAssetScope.Common),
+            ],
+        };
+
+        await AssertBufferedAsync(baker, source);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding[] preservedRoofMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset == new ResoniteFloat2(0.125, 0.25));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset == new ResoniteFloat2(0.25, 0.5));
     }
 
     [Fact]

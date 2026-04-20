@@ -179,7 +179,8 @@ internal static class ResoniteSceneMaterialConventions
             && !string.IsNullOrWhiteSpace(material.Family)
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && material.DepthOffset is null
-            && material.TextureOffset is null)
+            && material.TextureOffset is null
+            && IsWhiteBaseColor(material.BaseColor))
         {
             ResoniteMaterialBinding commonBaseCandidate = material with
             {
@@ -228,6 +229,22 @@ internal static class ResoniteSceneMaterialConventions
     public static ResoniteMaterialBinding NormalizeBatchGroupedMaterialBinding(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
+
+        if (material.AssetScope == ResoniteMaterialAssetScope.Common
+            && material.MaterialType == ResoniteMaterialType.Standard
+            && material.TexturePayload is null
+            && material.TerrainOverlay is null
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && !string.IsNullOrWhiteSpace(material.Family)
+            && (!IsWhiteBaseColor(material.BaseColor)
+                || material.TextureOffset is not null
+                || material.DepthOffset is not null))
+        {
+            return material with
+            {
+                AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+            };
+        }
 
         if (TryNormalizeSharedMaterialBinding(material, out ResoniteMaterialBinding normalizedSharedMaterial, out _)
             && material.TexturePayload is null
@@ -305,7 +322,10 @@ internal static class ResoniteSceneMaterialConventions
         return material.TerrainOverlay is null
             && material.TexturePayload is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && !string.IsNullOrWhiteSpace(material.Family);
+            && !string.IsNullOrWhiteSpace(material.Family)
+            && material.TextureOffset is null
+            && material.DepthOffset is null
+            && IsWhiteBaseColor(material.BaseColor);
     }
 
     private static bool IsGenericSharedCommonMaterialCandidate(ResoniteMaterialBinding material)

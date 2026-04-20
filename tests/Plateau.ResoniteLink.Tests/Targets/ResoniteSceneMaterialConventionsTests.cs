@@ -324,6 +324,178 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsTransformedGenericCommonMaterialWithoutTerrainOverlay()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "generic-shared-transformed-common-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.25, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsTintedBundledFamilySharedMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-tinted-material",
+            BaseColor: new ResoniteColor(0.8, 0.7, 0.6, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsBundledFamilySharedMaterialWithUvOrDepthTransform()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-transformed-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+            TextureOffset: new ResoniteFloat2(0.125, 0.25),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
+    }
+
+    [Fact]
+    public void NormalizeCommonMaterialBinding_DemotesTintedBundledFamilyCommonMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-tinted-common-material",
+            BaseColor: new ResoniteColor(0.8, 0.7, 0.6, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
+
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
+        Assert.Equal(new ResoniteColor(0.8, 0.7, 0.6, 1.0), normalized.BaseColor);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, normalized.Family);
+    }
+
+    [Fact]
+    public void NormalizeCommonMaterialBinding_DemotesWhiteBundledFamilyCommonMaterialWithUvOrDepthTransform()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-white-transformed-common-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+            TextureOffset: new ResoniteFloat2(0.125, 0.25),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
+
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
+        Assert.Equal(new ResoniteMaterialDepthOffset(1.0, 1.0), normalized.DepthOffset);
+        Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
+    }
+
+    [Fact]
+    public void NormalizeBatchGroupedMaterialBinding_DemotesTintedBundledFamilyCommonMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-tinted-batch-material",
+            BaseColor: new ResoniteColor(0.8, 0.7, 0.6, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
+
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
+        Assert.Equal(new ResoniteColor(0.8, 0.7, 0.6, 1.0), normalized.BaseColor);
+    }
+
+    [Fact]
+    public void NormalizeBatchGroupedMaterialBinding_DemotesWhiteBundledFamilyCommonMaterialWithUvOrDepthTransform()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-family-white-transformed-batch-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
+            SubmeshIndices: [0],
+            TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+            TextureOffset: new ResoniteFloat2(0.125, 0.25),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        ResoniteMaterialBinding normalized = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
+
+        Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, normalized.AssetScope);
+        Assert.Equal(new ResoniteMaterialDepthOffset(1.0, 1.0), normalized.DepthOffset);
+        Assert.Equal(new ResoniteFloat2(0.125, 0.25), normalized.TextureOffset);
+    }
+
+    [Fact]
     public void TryNormalizeSharedMaterialBinding_AllowsTransformedTerrainOverlaySharedMaterial()
     {
         TerrainTextureOverlay overlay = new(
