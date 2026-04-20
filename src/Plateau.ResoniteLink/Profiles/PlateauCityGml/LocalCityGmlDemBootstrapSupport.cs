@@ -127,6 +127,36 @@ internal static class LocalCityGmlDemBootstrapSupport
         ];
     }
 
+    internal static async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requestedMeshCodes);
+
+        List<TerrainTextureOverlay> overlays = [];
+        foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
+        {
+            if (!PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+            {
+                continue;
+            }
+
+            overlays.Add(await CreateDemTerrainTextureOverlayAsync(
+                meshCode,
+                bounds,
+                demRasterCatalog,
+                cancellationToken));
+        }
+
+        return overlays
+            .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
+            .ToArray();
+    }
+
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
         DemTerrainBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
@@ -135,6 +165,32 @@ internal static class LocalCityGmlDemBootstrapSupport
                 demBounds,
                 requestedMeshCodes,
                 demRasterCatalog: null,
+                CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        DemTerrainBounds demBounds,
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog)
+    {
+        return CreateDemTerrainTextureOverlaysAsync(
+                demBounds,
+                requestedMeshCodes,
+                demRasterCatalog,
+                CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog)
+    {
+        return CreateDemTerrainTextureOverlaysAsync(
+                requestedMeshCodes,
+                demRasterCatalog,
                 CancellationToken.None)
             .GetAwaiter()
             .GetResult();
@@ -191,7 +247,9 @@ internal static class LocalCityGmlDemBootstrapSupport
         ];
         if (demRasterCatalog is not null)
         {
+            string rasterLookupCacheKey = CreateRasterLookupCacheKey(meshCode, geographicBounds);
             TerrainTextureGeoReferencedRasterSource? rasterSource = await demRasterCatalog.TryResolveRasterSourceAsync(
+                rasterLookupCacheKey,
                 meshCode,
                 geographicBounds,
                 cancellationToken);
@@ -249,6 +307,20 @@ internal static class LocalCityGmlDemBootstrapSupport
             IsAvailable: true,
             IsExplicit: false,
             effectiveResolutionMeters);
+    }
+
+    private static string CreateRasterLookupCacheKey(
+        string meshCode,
+        GeographicRectangle geographicBounds)
+    {
+        if (PlateauMeshCode.TryGetBounds(meshCode, out _))
+        {
+            return meshCode;
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{meshCode}|{geographicBounds.MinLatitude:F6}|{geographicBounds.MaxLatitude:F6}|{geographicBounds.MinLongitude:F6}|{geographicBounds.MaxLongitude:F6}");
     }
 
     private static IEnumerable<string> ExpandToThirdMeshCodes(IEnumerable<string> requestedMeshCodes)

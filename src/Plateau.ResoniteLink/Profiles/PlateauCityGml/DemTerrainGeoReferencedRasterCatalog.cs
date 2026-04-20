@@ -10,7 +10,8 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
     private readonly string outputRoot;
     private readonly IReadOnlyList<string> orderedRelativeRasterPaths;
     private readonly IReadOnlyDictionary<string, string> relativeRasterPathsByStem;
-    private readonly Dictionary<string, TerrainTextureGeoReferencedRasterSource?> cachedRasterSourcesByMeshCode =
+    private readonly object cachedRasterSourceTaskGate = new();
+    private readonly Dictionary<string, Task<TerrainTextureGeoReferencedRasterSource?>> cachedRasterSourceTasksByMeshCode =
         new(StringComparer.OrdinalIgnoreCase);
 
     private DemTerrainGeoReferencedRasterCatalog(
@@ -89,17 +90,63 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
     }
 
     public async Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
+        string cacheKey,
         string meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
-        if (cachedRasterSourcesByMeshCode.TryGetValue(meshCode, out TerrainTextureGeoReferencedRasterSource? cachedRasterSource))
+        Task<TerrainTextureGeoReferencedRasterSource?> resolveTask;
+        lock (cachedRasterSourceTaskGate)
         {
-            return cachedRasterSource;
+            if (!cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out resolveTask!))
+            {
+                resolveTask = ResolveRasterSourceCoreAsync(meshCode, overlayBounds, CancellationToken.None);
+                cachedRasterSourceTasksByMeshCode[cacheKey] = resolveTask;
+                _ = resolveTask.ContinueWith(
+                    completedTask => RemoveFaultedResolveTask(cacheKey, completedTask),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
+            }
         }
 
+        try
+        {
+            return await resolveTask.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            if (!resolveTask.IsCompleted)
+            {
+                throw;
+            }
+
+            if (resolveTask.IsCompletedSuccessfully)
+            {
+                throw;
+            }
+
+            lock (cachedRasterSourceTaskGate)
+            {
+                if (cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
+                    && ReferenceEquals(cachedTask, resolveTask))
+                {
+                    cachedRasterSourceTasksByMeshCode.Remove(cacheKey);
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<TerrainTextureGeoReferencedRasterSource?> ResolveRasterSourceCoreAsync(
+        string meshCode,
+        GeographicRectangle overlayBounds,
+        CancellationToken cancellationToken)
+    {
         foreach (string rasterPath in await ResolveCandidateRasterPathsAsync(meshCode, cancellationToken))
         {
             GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
@@ -113,12 +160,29 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
             }
 
             TerrainTextureGeoReferencedRasterSource rasterSource = new(rasterPath, metadata);
-            cachedRasterSourcesByMeshCode[meshCode] = rasterSource;
             return rasterSource;
         }
 
-        cachedRasterSourcesByMeshCode[meshCode] = null;
         return null;
+    }
+
+    private void RemoveFaultedResolveTask(
+        string cacheKey,
+        Task<TerrainTextureGeoReferencedRasterSource?> completedTask)
+    {
+        if (!completedTask.IsFaulted && !completedTask.IsCanceled)
+        {
+            return;
+        }
+
+        lock (cachedRasterSourceTaskGate)
+        {
+            if (cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
+                && ReferenceEquals(cachedTask, completedTask))
+            {
+                cachedRasterSourceTasksByMeshCode.Remove(cacheKey);
+            }
+        }
     }
 
     private async Task<IReadOnlyList<string>> ResolveCandidateRasterPathsAsync(
