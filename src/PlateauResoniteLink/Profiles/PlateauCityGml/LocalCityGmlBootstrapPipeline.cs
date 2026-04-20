@@ -113,12 +113,6 @@ internal static class LocalCityGmlBootstrapPipeline
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-        TerrainTextureOverlay[] terrainTextureOverlays = await CreateBootstrapTerrainTextureOverlaysAsync(
-            request,
-            datasetContentSourceFactory,
-            discoveredSourceFiles,
-            cancellationToken);
-
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
         if (resolvedLocalOrigin is null)
@@ -144,7 +138,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
-            terrainTextureOverlays,
+            [],
             discoveryResult.RequestedMeshCodes);
         LocalCityGmlBootstrapContext bootstrapContext = new(
             sourceFilePipelines,
@@ -153,44 +147,5 @@ internal static class LocalCityGmlBootstrapPipeline
                 globalOriginPoint.Longitude,
                 globalOriginPoint.Altitude));
         return new LocalCityGmlDocumentReadResult(documentSet, bootstrapContext);
-    }
-
-    private static async Task<TerrainTextureOverlay[]> CreateBootstrapTerrainTextureOverlaysAsync(
-        PlateauImportRequest request,
-        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
-        IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles,
-        CancellationToken cancellationToken)
-    {
-        List<string> demMeshCodes = discoveredSourceFiles
-            .Where(static sourceFile => string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-            .Select(static sourceFile => sourceFile.MatchedMeshCode)
-            .Where(static meshCode => !string.IsNullOrWhiteSpace(meshCode))
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
-            .ToList();
-        if (demMeshCodes.Count == 0)
-        {
-            return [];
-        }
-
-        DemTerrainGeoReferencedRasterCatalog? rasterCatalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
-            request.DemTextureSource,
-            datasetContentSourceFactory,
-            cancellationToken);
-
-        MeshCodeBounds[] requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(demMeshCodes);
-        DemTerrainBounds? demBounds = MeshCodeBounds.TryMerge(requestedMeshAreas) is { } merged
-            ? new DemTerrainBounds(merged.SouthLatitude, merged.NorthLatitude, merged.WestLongitude, merged.EastLongitude)
-            : null;
-        if (demBounds is null)
-        {
-            return [];
-        }
-
-        return await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
-            demBounds,
-            demMeshCodes,
-            rasterCatalog,
-            cancellationToken);
     }
 }

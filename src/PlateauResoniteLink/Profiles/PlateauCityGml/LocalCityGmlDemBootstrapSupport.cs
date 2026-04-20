@@ -128,10 +128,59 @@ internal static class LocalCityGmlDemBootstrapSupport
         DemTerrainBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
+        return CreateDemTerrainTextureOverlays(
+            demBounds,
+            requestedMeshCodes,
+            demRasterCatalog: null);
+    }
+
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        DemTerrainBounds demBounds,
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog)
+    {
         return CreateDemTerrainTextureOverlaysAsync(
                 demBounds,
                 requestedMeshCodes,
-                demRasterCatalog: null,
+                demRasterCatalog,
+                CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    internal static async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requestedMeshCodes);
+
+        List<TerrainTextureOverlay> overlays = [];
+        foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
+        {
+            if (!PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+            {
+                continue;
+            }
+
+            overlays.Add(await CreateDemTerrainTextureOverlayAsync(meshCode, bounds, demRasterCatalog, cancellationToken));
+        }
+
+        return overlays
+            .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
+            .ToArray();
+    }
+
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog)
+    {
+        return CreateDemTerrainTextureOverlaysAsync(
+                requestedMeshCodes,
+                demRasterCatalog,
                 CancellationToken.None)
             .GetAwaiter()
             .GetResult();

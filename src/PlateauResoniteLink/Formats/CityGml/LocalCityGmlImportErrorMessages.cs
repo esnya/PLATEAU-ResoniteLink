@@ -31,6 +31,13 @@ internal static class LocalCityGmlImportErrorMessages
             + "or pass an extracted dataset directory that contains udx/<package>/<mesh-code>/.";
     }
 
+    public static string InvalidDemTextureSource(PlateauImportSource demTextureSource)
+    {
+        ArgumentNullException.ThrowIfNull(demTextureSource);
+
+        return $"The explicit --ortho-source '{demTextureSource}' did not resolve usable GeoTIFF coverage for the requested DEM mesh area. Provide a GeoTIFF source that covers the requested DEM meshes.";
+    }
+
     private static string? TryResolvePersistedArchivePath(string fullPath)
     {
         if (!Directory.Exists(fullPath))

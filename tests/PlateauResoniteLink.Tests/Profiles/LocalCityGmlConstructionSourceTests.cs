@@ -148,13 +148,35 @@ public sealed class LocalCityGmlConstructionSourceTests
         SourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem)
     {
+        BootstrapParsedSurface[] surfaces = string.Equals(sourceFile.PackageName, "dem", StringComparison.Ordinal)
+            ?
+            [
+                new BootstrapParsedSurface(
+                    PolygonId: $"dem-surface-{index:000}",
+                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new BootstrapParsedRing(
+                        $"dem-ring-{index:000}",
+                        [
+                            new GeodeticPoint(35.01, 139.01, 0.0),
+                            new GeodeticPoint(35.01, 139.02, 0.0),
+                            new GeodeticPoint(35.02, 139.02, 0.0),
+                            new GeodeticPoint(35.02, 139.01, 0.0),
+                        ],
+                        UVs: null),
+                    InteriorRings: [],
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: true),
+            ]
+            : [];
+
         return new BootstrapParsedCityObject(
             SlotKey: $"slot-{index:000}",
             DisplayName: $"slot-{index:000}",
             PackageName: sourceFile.PackageName,
             ActualMeshCode: sourceFile.MatchedMeshCode,
             LodLevel: 1,
-            Surfaces: [],
+            Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
             SourceUnitIdentity: "test-unit",
