@@ -47,6 +47,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, atlasPayload.Format);
         Assert.Equal(1, atlasPayload.Width);
         Assert.Equal(1, atlasPayload.Height);
+        Assert.Null(cityObject.Materials[0].TextureScale);
+        Assert.Null(cityObject.Materials[0].TextureOffset);
         Assert.Equal(new Rgba32(0, 0, 255, 255), ReadPixel(atlasPayload, 0, 0));
     }
 

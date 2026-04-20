@@ -53,7 +53,9 @@ internal static class ResoniteMaterialComponentPolicy
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
-            && material.TextureScale is not null)
+            && material.Projection == ResoniteMaterialProjection.Uv
+            && material.TextureScale is not null
+            && !ResoniteDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material))
         {
             AddTextureTransformMembers(materialMembers, material.TextureScale, material.TextureOffset);
         }

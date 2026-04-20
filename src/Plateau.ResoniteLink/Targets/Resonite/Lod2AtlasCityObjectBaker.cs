@@ -52,6 +52,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
     {
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         _ = maxBufferedSourceUnitsForCompatibility;
         _ = maxBufferedCityObjectsPerSourceUnitForCompatibility;
 
@@ -626,7 +627,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         foreach (int sourceIndex in placement.Entry.Submesh.TriangleVertexIndices)
         {
             ResoniteMeshVertex sourceVertex = sourceVertices[sourceIndex];
-            ResoniteFloat2 sourceUv = ApplyMaterialUvTransform(sourceVertex.UV0, placement.Entry.Material);
+            ResoniteFloat2 sourceUv = sourceVertex.UV0;
             ResoniteFloat2 atlasUv = MapUvToAtlas(sourceUv, placement.Entry.UvBounds, innerRect, atlasWidth, atlasHeight);
             vertices.Add(sourceVertex with
             {
@@ -668,19 +669,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return new ResoniteFloat2(
             (atlasRect.X + (normalizedU * atlasRect.Width)) / atlasWidth,
             (atlasHeight - atlasRect.Y - atlasRect.Height + (normalizedV * atlasRect.Height)) / atlasHeight);
-    }
-
-    private static ResoniteFloat2 ApplyMaterialUvTransform(
-        ResoniteFloat2 sourceUv,
-        ResoniteMaterialBinding material)
-    {
-        double scaleX = material.TextureScale?.X ?? 1.0;
-        double scaleY = material.TextureScale?.Y ?? 1.0;
-        double offsetX = material.TextureOffset?.X ?? 0.0;
-        double offsetY = material.TextureOffset?.Y ?? 0.0;
-        return new ResoniteFloat2(
-            (sourceUv.X * scaleX) + offsetX,
-            (sourceUv.Y * scaleY) + offsetY);
     }
 
     private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
@@ -1152,7 +1140,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         foreach (int sourceIndex in submesh.TriangleVertexIndices)
         {
-            ResoniteFloat2 transformedUv = ApplyMaterialUvTransform(vertices[sourceIndex].UV0, material);
+            ResoniteFloat2 transformedUv = vertices[sourceIndex].UV0;
             minU = Math.Min(minU, transformedUv.X);
             minV = Math.Min(minV, transformedUv.Y);
             maxU = Math.Max(maxU, transformedUv.X);

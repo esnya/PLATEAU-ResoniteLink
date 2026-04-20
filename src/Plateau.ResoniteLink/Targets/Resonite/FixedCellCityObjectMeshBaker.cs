@@ -59,6 +59,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         out ResoniteConstructionCityObject? bakedCityObject)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
 
         bakedCityObject = null;
         if (!CanBake(cityObject))
@@ -85,6 +86,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
 
         if (!CanBake(cityObject))
         {
