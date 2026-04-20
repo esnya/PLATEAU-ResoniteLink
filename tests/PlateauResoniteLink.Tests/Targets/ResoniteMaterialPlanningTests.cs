@@ -4,6 +4,41 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteMaterialPlanningTests
 {
     [Fact]
+    public async Task PlanCommonMaterialAssetAsyncImportsMetallicCompanionTextureWithLinearProfile()
+    {
+        using SceneBuilderRecordingClient client = new();
+        ResoniteMaterialPlanning planning = new();
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "facade-common",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: 0);
+        _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        string metallicPath = textureSet?.MetallicPath
+            ?? throw new InvalidOperationException("Expected facade bundled material to provide a metallic companion texture.");
+
+        PlannedDedicatedMaterialAsset plannedAsset = await planning.PlanCommonMaterialAssetAsync(
+            client,
+            material,
+            CancellationToken.None);
+
+        ResoniteRawTextureImport metallicTexture = Assert.Single(
+            client.ImportedRawTextures,
+            texture => string.Equals(texture.Identity, metallicPath, StringComparison.Ordinal));
+        Assert.Equal(ResoniteTextureColorProfiles.Linear, metallicTexture.ColorProfile);
+        Assert.Contains(
+            plannedAsset.Textures,
+            texture => string.Equals(texture.Identity.Value, "metallic", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ResolveTerrainTextureCanvasMaterialComposesExistingTransformWithCanvasOccupancy()
     {
         TerrainTextureOverlay overlay = new(
