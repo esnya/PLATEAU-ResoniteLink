@@ -36,7 +36,7 @@ internal sealed class LocalCityGmlConstructionComposer(
                 Altitude: bootstrapContext.GlobalOriginPoint.Altitude));
 
         return new LocalCityGmlConstructionSource(
-            metadata,
+            SceneImportContractMapper.ToContract(metadata),
             request,
             readResult,
             geometryProjector,

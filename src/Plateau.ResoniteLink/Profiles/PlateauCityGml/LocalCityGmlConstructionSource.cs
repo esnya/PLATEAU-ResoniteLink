@@ -22,21 +22,21 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
     private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
-    private readonly ImportedSceneMetadata metadata;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
-        ResoniteConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         PlateauImportRequest request,
         LocalCityGmlDocumentReadResult readResult,
         ICityGmlGeometryProjector geometryProjector,
         ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
         Action<string>? progressReporter = null)
     {
+        ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(readResult);
         LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
         LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
-        this.metadata = SceneImportContractMapper.ToContract(metadata);
+        Metadata = metadata;
         this.request = request;
         sourceFiles = bootstrapContext.SourceFilePipelines.ToArray();
         bootstrapTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
@@ -45,10 +45,10 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
-            this.metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
+            Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
     }
 
-    public ImportedSceneMetadata Metadata => metadata;
+    public ImportedSceneMetadata Metadata { get; }
 
     public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

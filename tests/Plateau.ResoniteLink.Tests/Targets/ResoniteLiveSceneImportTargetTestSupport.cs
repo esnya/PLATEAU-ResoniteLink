@@ -131,10 +131,23 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null)
     {
+        return CreateExecutionPlan(
+            SceneImportContractMapper.ToContract(metadata),
+            workDirectory,
+            normalizedRequest ?? metadata.Request,
+            metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)));
+    }
+
+    public static SceneImportExecutionPlan CreateExecutionPlan(
+        ImportedSceneMetadata metadata,
+        string workDirectory,
+        PlateauImportRequest? normalizedRequest = null,
+        string? resolvedSourcePath = null)
+    {
         return SceneImportExecutionPlan.Create(
             normalizedRequest ?? metadata.Request,
-            SceneImportContractMapper.ToContract(metadata),
-            metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
+            metadata,
+            resolvedSourcePath ?? metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
             workDirectory);
     }
 

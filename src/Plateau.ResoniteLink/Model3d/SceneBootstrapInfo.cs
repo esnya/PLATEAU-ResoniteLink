@@ -32,7 +32,7 @@ public sealed record SceneBootstrapInfo(
             CreateAdditionalDatasetLicenses(metadata));
     }
 
-    private static IReadOnlyList<LicenseAttributionMetadata> CreateAdditionalDatasetLicenses(
+    private static LicenseAttributionMetadata[] CreateAdditionalDatasetLicenses(
         ResoniteConstructionMetadata metadata)
     {
         return metadata.SourceDataset.TerrainTextureOverlays

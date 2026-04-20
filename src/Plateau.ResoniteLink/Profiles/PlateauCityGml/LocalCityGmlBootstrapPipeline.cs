@@ -18,18 +18,18 @@ internal static class LocalCityGmlBootstrapPipeline
         return await ReadDocumentSetCoreAsync(
             request,
             datasetContentSourceFactory,
-            progressReporter,
             appearanceStoreFactory,
             lodSelector,
+            progressReporter,
             cancellationToken);
     }
 
     internal static async Task<LocalCityGmlDocumentReadResult> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
-        Action<string>? progressReporter = null,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
         ICityGmlLodSelector lodSelector,
+        Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         return await ReadDocumentSetCoreInternalAsync(

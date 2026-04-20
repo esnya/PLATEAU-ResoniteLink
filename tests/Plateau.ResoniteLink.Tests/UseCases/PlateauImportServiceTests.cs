@@ -45,7 +45,8 @@ public sealed class PlateauImportServiceTests
             sceneBuilder,
             datasetSourceResolver,
             documentReader,
-            constructionSourceFactory);
+            constructionSourceFactory,
+            new ArchiveFileLayoutPolicy());
 
         ImportExecutionResult result = await service.ExecuteAsync(rawRequest, workRoot.Path);
 
@@ -113,7 +114,8 @@ public sealed class PlateauImportServiceTests
             sceneBuilder,
             datasetSourceResolver,
             documentReader,
-            constructionSourceFactory);
+            constructionSourceFactory,
+            new ArchiveFileLayoutPolicy());
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
             () => service.ExecuteAsync(request, workRoot.Path));
@@ -163,7 +165,8 @@ public sealed class PlateauImportServiceTests
             sceneBuilder,
             datasetSourceResolver,
             documentReader,
-            constructionSourceFactory);
+            constructionSourceFactory,
+            new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.ExecuteAsync(request, workRoot.Path));

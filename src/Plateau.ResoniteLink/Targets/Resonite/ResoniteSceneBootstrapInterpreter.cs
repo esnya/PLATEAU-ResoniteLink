@@ -129,7 +129,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             }
 
             ResoniteBatchOperations.PendingBatchComponent pendingLicense = CreatePendingBatchComponent(
-                $"bootstrap_dataset_license_{license.Role}",
+                $"bootstrap_dataset_license_{license.ComponentKey}",
                 LicenseComponentType,
                 batchScopeToken);
             operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(
@@ -237,7 +237,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         foreach (DatasetLicenseDefinition datasetLicense in datasetLicenses)
         {
             ResoniteBatchOperations.PendingBatchComponent pendingLicense = CreatePendingBatchComponent(
-                $"bootstrap_dataset_license_{datasetLicense.Role}",
+                $"bootstrap_dataset_license_{datasetLicense.ComponentKey}",
                 LicenseComponentType,
                 batchScopeToken);
             operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(
@@ -290,7 +290,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         return setupInfo.AdditionalDatasetLicenses
             .Prepend(setupInfo.DatasetLicense)
             .Distinct()
-            .Select(static license => new DatasetLicenseDefinition(
+            .Select(static (license, index) => new DatasetLicenseDefinition(
+                ComponentKey: $"license_{index}",
                 DeduplicationKey: CreateLicenseDeduplicationKey(license),
                 License: license,
                 Members: CreateDatasetLicenseMembers(license)))
@@ -661,6 +662,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         ResoniteBatchOperations.PendingBatchComponent PendingMaterialComponent);
 
     private sealed record DatasetLicenseDefinition(
+        string ComponentKey,
         string DeduplicationKey,
         LicenseAttributionMetadata License,
         IReadOnlyDictionary<string, Member> Members);

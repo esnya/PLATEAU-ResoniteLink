@@ -25,6 +25,11 @@
 - ユーザーが明示的に求めない限り、`Builder`、`Manager`、`Coordinator`、`Helper`、`Util` のような広すぎる振る舞い志向の型を新設しない。
 - 決定的な出力、明示的なコマンド入力、再現可能なローカル/CI の挙動を優先する。
 - 振る舞いを変更したら、自動テストを追加または更新する。
+- grep ベースの architecture test や naming test を、境界規範の正本として扱わないこと。命名規則と ownership はこのファイルで管理し、依存方向は project reference で縛り、テストでは observable behavior だけを守る。
+- 依存性注入は stack の中腹まで貫通させること。core、application、import、bootstrap、target、transport のコードは、`new`、static factory、fallback self-wiring で concrete default を隠さない。
+- legacy 変換と static projection helper は adapter edge にだけ置くこと。core concept と neutral contract は、`ToLegacy`、`FromLegacy`、target 固有 mapper utility に依存しない。
+- result model は純粋に保つこと。document/read result に bootstrap 専用・discovery 専用・connection 専用・layout 専用の state を持ち込まず、必要なら別の context / snapshot に分離する。
+- 概念名を rename するときは、directory、filename、namespace、project 名、resource、docs を同じ cut で揃え、互換 alias を残さない。
 
 ## Live Send 手順
 - Coding Agent が live test を行うときは [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md) に従うこと。

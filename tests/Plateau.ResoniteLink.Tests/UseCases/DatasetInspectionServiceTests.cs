@@ -7,7 +7,10 @@ namespace Plateau.ResoniteLink.Tests.Application;
 
 public sealed class DatasetInspectionServiceTests
 {
-    private readonly DatasetInspectionService service = new();
+    private readonly DatasetInspectionService service = new(
+        new DefaultPlateauDatasetContentSourceFactory(
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy()));
 
     [Fact]
     public async Task GetStatsAsyncSummarizesPackagesMeshCodesAndLods()

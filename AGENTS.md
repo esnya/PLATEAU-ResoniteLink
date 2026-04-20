@@ -24,6 +24,11 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 - Do not introduce new broad behavior-oriented types such as `Builder`, `Manager`, `Coordinator`, `Helper`, or `Util` unless the user explicitly requests that pattern.
 - Prefer deterministic outputs, explicit command inputs, and reproducible local/CI behavior.
 - Add or update automated tests when behavior changes.
+- Do not treat grep-based architecture or naming tests as the canonical boundary guard. Keep naming and ownership rules here, enforce dependency direction with project references, and cover only observable behavior with automated tests.
+- Keep dependency injection flowing through the full stack. Core, application, import, bootstrap, target, and transport code must not hide concrete defaults behind `new`, static factories, or fallback self-wiring.
+- Keep legacy conversions and static projection helpers in adapter-edge code only. Core concepts and neutral contracts must not depend on `ToLegacy`, `FromLegacy`, or target-specific mapper utilities.
+- Keep result models pure. Do not store bootstrap-only, discovery-only, connection-only, or layout-only state on document/read results when a separate context or snapshot can carry it.
+- When renaming concepts, update directories, filenames, namespaces, project names, resources, and docs in the same cut. Do not leave compatibility aliases behind.
 
 - Keep auxiliary git worktrees under `<repo>/.worktree/`, and avoid sibling directories or `/tmp` worktrees; this keeps ephemeral worktrees consistently ignored and separated from the main checkout.
 
