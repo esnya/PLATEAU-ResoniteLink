@@ -238,7 +238,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 
     private sealed class RecordingTerrainTextureAssetGenerator : ITerrainTextureAssetGenerator
     {
-        public Task<GeneratedTerrainTexture> EnsureTextureAsync(
+        public Task<TerrainTextureGenerationResult> EnsureTextureWithSourceAsync(
             TerrainTextureOverlay terrainTextureOverlay,
             CancellationToken cancellationToken)
         {

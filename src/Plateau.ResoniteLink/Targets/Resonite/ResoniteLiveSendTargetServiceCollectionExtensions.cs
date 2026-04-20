@@ -17,8 +17,9 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteMaterialPlanning, ResoniteMaterialPlanning>();
         services.TryAddScoped<IResoniteSceneBatchEmitter, PlannedBatchEmissionInterpreter>();
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
-        services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
+        services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
+        services.TryAddScoped<IResoniteDatasetLicenseWriter, ResoniteDatasetLicenseWriter>();
         services.TryAddScoped<IResoniteClientSessionFactory, ResoniteClientSessionFactory>();
         services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
         services.TryAddScoped<IResoniteSceneBootstrapInterpreter>(
@@ -63,15 +64,20 @@ internal interface IResoniteLiveSceneImportDependencyFactory
 
 internal interface IResoniteClientSessionFactory
 {
-    ILiveSendClientSession Create(ResoniteLiveSceneImportTargetOptions options, ResoniteLinkSendDiagnostics diagnostics);
+    ILiveSendClientSession Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLinkSendDiagnostics diagnostics);
 }
 
 internal sealed class ResoniteClientSessionFactory : IResoniteClientSessionFactory
 {
-    public ILiveSendClientSession Create(ResoniteLiveSceneImportTargetOptions options, ResoniteLinkSendDiagnostics diagnostics)
+    public ILiveSendClientSession Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLinkSendDiagnostics diagnostics)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(diagnostics);
+
         return ResoniteLinkTransportSessionFactory.Create(
             options.Endpoint,
             options.ConnectionCount,
@@ -95,6 +101,7 @@ internal sealed class TerrainTextureAssetGeneratorFactory : ITerrainTextureAsset
     {
         ArgumentNullException.ThrowIfNull(terrainTextureAssetHttpClient);
         ArgumentNullException.ThrowIfNull(options);
+
         return new TerrainTextureAssetGenerator(
             terrainTextureAssetHttpClient,
             options.TerrainTileCacheRoot,
@@ -103,15 +110,9 @@ internal sealed class TerrainTextureAssetGeneratorFactory : ITerrainTextureAsset
 }
 
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
+    IServiceProvider serviceProvider,
     IResoniteClientSessionFactory clientSessionFactory,
-    ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory,
-    IResoniteSceneBootstrapInterpreter sceneBootstrapInterpreter,
-    IResoniteGeometryAssetAssembler geometryAssetAssembler,
-    IResoniteMaterialPlanning materialPlanning,
-    IResoniteBatchEmissionPlanner batchEmissionPlanner,
-    IResoniteSceneBatchEmitter batchEmitter,
-    IResoniteSlotCreator slotCreator,
-    IResoniteBufferedCityObjectBakerFactory cityObjectBakerFactory)
+    ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory)
     : IResoniteLiveSceneImportDependencyFactory
 {
     public ResoniteLiveSceneImportDependencies Create(
@@ -128,12 +129,13 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             clientSessionFactory.Create(options, diagnostics),
             diagnostics,
             terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
-            sceneBootstrapInterpreter,
-            geometryAssetAssembler,
-            materialPlanning,
-            batchEmissionPlanner,
-            batchEmitter,
-            slotCreator,
-            cityObjectBakerFactory);
+            serviceProvider.GetRequiredService<IResoniteSceneBootstrapInterpreter>(),
+            serviceProvider.GetRequiredService<IResoniteDatasetLicenseWriter>(),
+            serviceProvider.GetRequiredService<IResoniteGeometryAssetAssembler>(),
+            serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
+            serviceProvider.GetRequiredService<IResoniteBatchEmissionPlanner>(),
+            serviceProvider.GetRequiredService<IResoniteSceneBatchEmitter>(),
+            serviceProvider.GetRequiredService<IResoniteSlotCreator>(),
+            serviceProvider.GetRequiredService<IResoniteBufferedCityObjectBakerFactory>());
     }
 }

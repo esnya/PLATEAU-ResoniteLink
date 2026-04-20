@@ -86,4 +86,10 @@ internal sealed class LiveSendRunState
     public required AsyncCompletedResultCache<TextureImportCacheKey, Uri> ImportedTextureUriCache { get; init; }
 
     public required LiveSendExecutionRuntime Runtime { get; init; }
+
+    public required SemaphoreSlim GsiFallbackLicenseGate { get; init; }
+
+    public required ConcurrentDictionary<string, byte> ReportedDemSourceIdentities { get; init; }
+
+    public int GsiFallbackLicenseEnsured;
 }

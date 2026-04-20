@@ -6,7 +6,7 @@ internal static class LocalCityGmlImportErrorMessages
 {
     public static string MissingLocalSourcePath()
     {
-        return "Local CityGML import requires --source local and --local-source-path pointing to either an extracted PLATEAU dataset directory or a .zip/.7z archive.";
+        return "Local CityGML import requires --citygml-source pointing to either an extracted PLATEAU dataset directory or a .zip/.7z archive.";
     }
 
     public static string NoMatchingFiles(PlateauImportRequest request, string localSourcePath)
@@ -27,8 +27,23 @@ internal static class LocalCityGmlImportErrorMessages
 
         return baseMessage
             + " The directory looks like a dataset root created by --work-root. "
-            + $"Pass the archive file itself via --local-source-path, for example '{persistedArchivePath}', "
+            + $"Pass the archive file itself via --citygml-source, for example '{persistedArchivePath}', "
             + "or pass an extracted dataset directory that contains udx/<package>/<mesh-code>/.";
+    }
+
+    public static string InvalidDemTextureSource(PlateauImportSource demTextureSource)
+    {
+        ArgumentNullException.ThrowIfNull(demTextureSource);
+
+        return demTextureSource switch
+        {
+            PlateauLocalImportSource localSource =>
+                $"The ortho source '{localSource.LocalSourcePath}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+            PlateauRemoteImportSource remoteSource =>
+                $"The ortho source '{remoteSource.ServerUri}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+            _ =>
+                "The ortho source did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+        };
     }
 
     private static string? TryResolvePersistedArchivePath(string fullPath)

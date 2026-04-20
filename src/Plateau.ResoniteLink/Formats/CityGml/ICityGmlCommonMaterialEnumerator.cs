@@ -12,6 +12,7 @@ internal interface ICityGmlCommonMaterialEnumerator
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         PlateauImportRequest request,
         ISet<string>? emittedMaterialKeys = null);
 }

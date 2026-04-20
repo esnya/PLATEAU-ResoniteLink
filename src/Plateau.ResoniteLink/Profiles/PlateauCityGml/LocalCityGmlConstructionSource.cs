@@ -63,6 +63,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                              globalOriginPoint,
                              globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem),
                              demTerrainTextureOverlays,
+                             requestedMeshAreas,
                              request,
                              emittedMaterialKeys))
                 {

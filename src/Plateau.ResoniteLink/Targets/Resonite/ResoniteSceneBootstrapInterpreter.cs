@@ -14,8 +14,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private const string SharedCommonMaterialsRootName = "Common Materials";
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private const string GsiLicenseName = "GSI Maps Terms";
-    private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
 
     private readonly IResoniteSceneSlotLocator sceneSlotLocator;
     private readonly IResoniteSceneAnchorResolver sceneAnchorResolver;
@@ -289,27 +287,13 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
 
-        List<DatasetLicenseDefinition> licenses =
+        return
         [
             new(
                 DatasetLicenseRole.PrimaryPlateau,
                 setupInfo.DatasetLicense,
                 CreateDatasetLicenseMembers(setupInfo.DatasetLicense)),
         ];
-        if (setupInfo.RequiresGsiFallbackLicense)
-        {
-            ResoniteLicenseComponentMetadata gsiLicense = new(
-                RequireCredit: true,
-                CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
-                LicenseName: GsiLicenseName,
-                LicenseUrl: GsiLicenseUrl);
-            licenses.Add(new(
-                DatasetLicenseRole.GsiFallback,
-                gsiLicense,
-                CreateDatasetLicenseMembers(gsiLicense)));
-        }
-
-        return licenses.ToArray();
     }
 
     private static HashSet<DatasetLicenseRole> MatchExistingLicenseRoles(
@@ -668,7 +652,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private enum DatasetLicenseRole
     {
         PrimaryPlateau,
-        GsiFallback,
     }
 
     private sealed record DatasetLicenseDefinition(

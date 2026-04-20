@@ -22,12 +22,13 @@ public static partial class LocalCityGmlObjectProjection
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
     public const int DefaultDemTerrainTextureZoomLevel = 19;
     public const int DefaultDemTerrainTextureFallbackZoomLevel = 18;
-    public const int DefaultDemTerrainTextureMaxSize = 8192;
+    public const int DefaultDemTerrainTextureMaxSize = 4096;
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
+    public const double DefaultDemPerimeterSkirtDepthMeters = 8.0;
     public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
 
     private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
@@ -239,7 +240,7 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<string> requestedMeshCodes)
     {
         return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            DemTerrainBounds.FromLegacy(demBounds),
+            global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(demBounds),
             requestedMeshCodes);
     }
 
@@ -562,9 +563,9 @@ public static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeBounds? fallbackBounds)
     {
-        DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+        global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
             demParsedSourceFiles.Select(global::Plateau.ResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
-            fallbackBounds is null ? null : DemTerrainBounds.FromLegacy(fallbackBounds));
+            fallbackBounds is null ? null : global::Plateau.ResoniteLink.Application.Importing.DemTerrainBounds.FromLegacy(fallbackBounds));
         return bounds?.ToLegacy();
     }
 
@@ -572,7 +573,7 @@ public static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedCityObject> cityObjects)
     {
         return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
-                cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
+                cityObjects.Select(global::Plateau.ResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy))
             .Select(static triangle => triangle.ToLegacy())
             .ToArray();
     }
@@ -2804,7 +2805,6 @@ public static partial class LocalCityGmlObjectProjection
         return string.Concat(
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
-
     internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
@@ -2849,9 +2849,9 @@ public static partial class LocalCityGmlObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
         ISet<string>? emittedMaterialKeys = null)
     {
         ValidateCompatibleReferenceSystem(
@@ -2865,9 +2865,9 @@ public static partial class LocalCityGmlObjectProjection
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
+                         requestedMeshAreas,
                          terrainHeightSampler,
-                         request,
-                         materialResolver))
+                         request))
             {
                 if (emittedMaterialKeys is not null && !emittedMaterialKeys.Add(material.MaterialKey))
                 {
@@ -2895,10 +2895,10 @@ public static partial class LocalCityGmlObjectProjection
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
-                     demTerrainTextureOverlays))
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas))
         {
-            if (terrainAlignedCityObject.SharedAcrossMeshCodes
-                && requestedMeshAreas.Count > 0
+            if (requestedMeshAreas.Count > 0
                 && splitCityObject.CityObject.ReferenceSystem.IsGeographic
                 && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 && !IntersectsMeshCodeBounds(splitCityObject.CityObject.Surfaces, requestedMeshAreas))
@@ -2983,15 +2983,17 @@ public static partial class LocalCityGmlObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver)
+        PlateauImportRequest request)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        IDefaultMaterialResolver materialResolver = new DefaultMaterialResolver();
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
-                     demTerrainTextureOverlays))
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas))
         {
             GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
             LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
@@ -3840,11 +3842,13 @@ public static partial class LocalCityGmlObjectProjection
 
     private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
         ParsedCityObject parsedCityObject,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas)
     {
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) entry in DemTerrainOverlayAssignment.SplitParsedCityObject(
                      parsedCityObject,
-                     demTerrainTextureOverlays))
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas))
         {
             yield return entry;
         }

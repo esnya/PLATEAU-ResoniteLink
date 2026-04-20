@@ -18,6 +18,7 @@ This file is the single operational guide surface for the repo-local live-send s
 - Treat `dump-slot` and `remove-slot` as thin primitives. Do not encode dataset-root, shared-assets, or common-material naming semantics into the tool surface.
 - Treat slot removal as destructive. It can remove live content from the current world.
 - Keep the final successful `DatasetRoot` in place unless the user explicitly requests removal.
+- Do not parallelize cleanup, root-dump, and live-send commands against the same session. Run removal, post-removal verification dumps, and each send serially so base-state evidence stays valid.
 - Inspect `stderr` before interpreting `stdout`. When `stderr` is empty, take at least two timestamped log reads before calling a run stalled.
 - Use direct `dotnet` commands as the public operator surface. Do not recreate `.ps1` wrappers, a project-based session tool, or cross-environment bridge guidance.
 - `dump-slot --root-child-name` and `remove-slot --root-child-name` resolve exact direct children under `Root` only. Zero matches must fail. Multiple matches must fail without mutating the world.

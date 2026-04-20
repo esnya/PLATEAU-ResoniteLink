@@ -35,6 +35,7 @@ public sealed class Issue80ArchitectureContractTests
             "PlannedBatchEmissionInterpreter.cs",
             "ResoniteGeometryAssetAssembler.cs",
             "ResoniteMaterialPlanning.cs",
+            "ResoniteDatasetLicenseWriter.cs",
         ];
 
         string[] offendingFiles = Directory

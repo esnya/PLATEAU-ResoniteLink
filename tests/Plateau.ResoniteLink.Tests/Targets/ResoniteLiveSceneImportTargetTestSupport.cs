@@ -134,6 +134,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     {
         return SceneImportExecutionPlan.Create(
             normalizedRequest ?? metadata.Request,
+            metadata.Request,
             SceneImportContractMapper.ToContract(metadata),
             datasetContentSource ?? new TestDatasetContentSource(metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata))),
             workDirectory);
@@ -597,8 +598,13 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         };
     }
 
-    private static string TryResolveLocalId(string id, IReadOnlyDictionary<string, string> localIds)
+    private static string? TryResolveLocalId(string? id, IReadOnlyDictionary<string, string> localIds)
     {
+        if (id is null)
+        {
+            return null;
+        }
+
         return localIds.TryGetValue(id, out string? resolvedId)
             ? resolvedId
             : id;
@@ -610,13 +616,20 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
 {
     public List<TerrainTextureOverlay> RequestedOverlays { get; } = [];
 
-    public Task<GeneratedTerrainTexture> EnsureTextureAsync(
+    public Func<TerrainTextureOverlay, TerrainTextureGenerationResult>? ResultFactory { get; init; }
+
+    public Task<TerrainTextureGenerationResult> EnsureTextureWithSourceAsync(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         RequestedOverlays.Add(terrainTextureOverlay);
-        return Task.FromResult(textureFactory(terrainTextureOverlay));
+        return Task.FromResult(
+            ResultFactory is not null
+                ? ResultFactory(terrainTextureOverlay)
+                : new TerrainTextureGenerationResult(
+                    textureFactory(terrainTextureOverlay),
+                    new TerrainTextureTileSource("https://example.invalid/{z}/{x}/{y}.png", 1)));
     }
 }
 
