@@ -35,7 +35,15 @@ internal static class LocalCityGmlImportErrorMessages
     {
         ArgumentNullException.ThrowIfNull(demTextureSource);
 
-        return $"The explicit --ortho-source '{demTextureSource}' did not resolve usable GeoTIFF coverage for the requested DEM mesh area. Provide a GeoTIFF source that covers the requested DEM meshes.";
+        return demTextureSource switch
+        {
+            PlateauLocalImportSource localSource =>
+                $"The GeoTIFF source '{localSource.LocalSourcePath}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+            PlateauRemoteImportSource remoteSource =>
+                $"The GeoTIFF source '{remoteSource.ServerUri}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+            _ =>
+                "The GeoTIFF source did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+        };
     }
 
     private static string? TryResolvePersistedArchivePath(string fullPath)

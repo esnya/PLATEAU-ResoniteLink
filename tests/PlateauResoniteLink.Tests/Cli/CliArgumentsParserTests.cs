@@ -30,7 +30,7 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseParsesRemoteBuildCommandAndOptionalOrthoSource()
+    public void ParseParsesRemoteBuildCommandAndOptionalGeoTiffSource()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -38,7 +38,7 @@ public sealed class CliArgumentsParserTests
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "https://example.invalid/plateau.zip",
-                "--ortho-source", "https://example.invalid/53394525.tif",
+                "--geotiff-source", "https://example.invalid/53394525.tif",
                 "--resonitelink-url", "ws://localhost:12345/",
             ]);
 
@@ -148,7 +148,7 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "search",
-                "--local-source-path", "/data/plateau.zip",
+                "--citygml-source", "/data/plateau.zip",
                 "--mesh-code", "5339452[56]",
                 "--packages", "bldg,tran",
                 "--format", "json",
@@ -156,7 +156,7 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         SearchCommandOptions command = Assert.IsType<SearchCommandOptions>(result.Command);
-        Assert.Equal("/data/plateau.zip", command.LocalSourcePath);
+        Assert.Equal("/data/plateau.zip", command.CityGmlSourcePath);
         Assert.Equal("5339452[56]", command.MeshCode);
         Assert.Equal(["bldg", "tran"], command.PackageNames);
         Assert.Equal(CliOutputFormat.Json, command.OutputFormat);
@@ -168,13 +168,13 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "stats",
-                "--local-source-path", "/data/plateau",
+                "--citygml-source", "/data/plateau",
                 "--packages", "dem,bldg",
             ]);
 
         Assert.Null(result.Error);
         StatsCommandOptions command = Assert.IsType<StatsCommandOptions>(result.Command);
-        Assert.Equal("/data/plateau", command.LocalSourcePath);
+        Assert.Equal("/data/plateau", command.CityGmlSourcePath);
         Assert.Equal(["dem", "bldg"], command.PackageNames);
     }
 
@@ -203,9 +203,39 @@ public sealed class CliArgumentsParserTests
     public void HelpTextDocumentsUnifiedSourceOptions()
     {
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
-        Assert.Contains("--ortho-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.DoesNotContain("--local-source-path <path>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--source <value>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--server-url <url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ParseRejectsDeprecatedOrthoSourceFlag()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau.zip",
+                "--ortho-source", "/data/53394525.tif",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("The --ortho-source option has been replaced. Use --geotiff-source.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDeprecatedLocalSourcePathForSearch()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "search",
+                "--local-source-path", "/data/plateau.zip",
+                "--mesh-code", "53394525",
+            ]);
+
+        Assert.Equal("The --local-source-path option has been replaced. Use --citygml-source.", result.Error);
     }
 
     [Fact]

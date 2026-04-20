@@ -191,20 +191,20 @@ public static class PlateauImportRequestValidator
                 case PlateauLocalImportSource localSource:
                     if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
                     {
-                        validationErrors.Add("The --ortho-source value must not be empty.");
+                        validationErrors.Add("The --geotiff-source value must not be empty.");
                         break;
                     }
 
-                    if (!Directory.Exists(localSource.LocalSourcePath)
-                        && !File.Exists(localSource.LocalSourcePath))
+                    if (!File.Exists(localSource.LocalSourcePath))
                     {
-                        validationErrors.Add($"The ortho source path '{localSource.LocalSourcePath}' does not exist.");
+                        validationErrors.Add($"The GeoTIFF source path '{localSource.LocalSourcePath}' must point to an existing file.");
                         break;
                     }
 
                     if (!LooksLikeSupportedLocalTerrainTextureSourcePath(localSource.LocalSourcePath))
                     {
-                        validationErrors.Add("The --ortho-source value must point to a .zip/.7z archive, .tif/.tiff raster, or directory containing those files.");
+                        validationErrors.Add(
+                            $"The GeoTIFF source path '{localSource.LocalSourcePath}' must be a .tif/.tiff file or a .zip/.7z archive.");
                         break;
                     }
 
@@ -213,19 +213,19 @@ public static class PlateauImportRequestValidator
                 case PlateauRemoteImportSource remoteSource:
                     if (remoteSource.ServerUri is null)
                     {
-                        validationErrors.Add("The --ortho-source value must not be empty.");
+                        validationErrors.Add("The --geotiff-source value must not be empty.");
                         break;
                     }
 
                     if (!remoteSource.ServerUri.IsAbsoluteUri)
                     {
-                        validationErrors.Add("The --ortho-source value must be an absolute URI.");
+                        validationErrors.Add("The --geotiff-source value must be an absolute URI.");
                         break;
                     }
 
                     if (!LooksLikeSupportedTerrainTextureUri(remoteSource.ServerUri))
                     {
-                        validationErrors.Add("The --ortho-source value must point directly to a .zip/.7z archive or .tif/.tiff raster over http or https.");
+                        validationErrors.Add("The --geotiff-source value must point directly to a .tif, .tiff, .zip, or .7z resource over http or https.");
                         break;
                     }
 
@@ -302,7 +302,7 @@ public static class PlateauImportRequestValidator
 
     private static bool LooksLikeSupportedLocalTerrainTextureSourcePath(string sourcePath)
     {
-        return Directory.Exists(sourcePath) || HasSupportedExtension(sourcePath, SupportedTerrainTextureExtensions);
+        return File.Exists(sourcePath) && HasSupportedExtension(sourcePath, SupportedTerrainTextureExtensions);
     }
 
     private static bool HasSupportedHttpScheme(Uri serverUri)

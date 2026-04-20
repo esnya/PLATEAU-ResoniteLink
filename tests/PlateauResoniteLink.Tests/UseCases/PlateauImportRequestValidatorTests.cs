@@ -38,7 +38,7 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
-    public void ValidateRejectsRemoteOrthoSourceThatIsNotDirectArchiveOrRaster()
+    public void ValidateRejectsRemoteGeoTiffSourceThatIsNotDirectArchiveOrRaster()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -49,7 +49,7 @@ public sealed class PlateauImportRequestValidatorTests
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
-            "The --ortho-source value must point directly to a .zip/.7z archive or .tif/.tiff raster over http or https.",
+            "The --geotiff-source value must point directly to a .tif, .tiff, .zip, or .7z resource over http or https.",
             errors);
     }
 
@@ -76,13 +76,14 @@ public sealed class PlateauImportRequestValidatorTests
     public void TryNormalizeAndValidateTrimsAndNormalizesRequestData()
     {
         using TemporaryDirectory sourceRoot = new();
-        using TemporaryDirectory orthoRoot = new();
+        string geoTiffPath = Path.Combine(sourceRoot.Path, "53394525.tif");
+        File.WriteAllText(geoTiffPath, "dummy");
 
         PlateauImportRequest request = new(
             Dataset: " tokyo23ku ",
             MeshCode: " 53394525 ",
             Source: PlateauImportSource.Local($"  {sourceRoot.Path}  "),
-            DemTextureSource: PlateauImportSource.Local($"  {orthoRoot.Path}  "),
+            DemTextureSource: PlateauImportSource.Local($"  {geoTiffPath}  "),
             PackageNames: [" waterbody ", " tran "]);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
@@ -98,8 +99,27 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.Matches(validatedRequest.MeshCodePattern, "53394525");
         Assert.IsType<ValidatedPlateauLocalImportSource>(validatedRequest.Source);
         Assert.Equal(sourceRoot.Path, validatedRequest.LocalSourcePath);
-        Assert.Equal(orthoRoot.Path, validatedRequest.DemTextureLocalSourcePath);
+        Assert.Equal(geoTiffPath, validatedRequest.DemTextureLocalSourcePath);
         Assert.Equal(["wtr", "tran"], validatedRequest.PackageNames);
+    }
+
+    [Fact]
+    public void ValidateRejectsGeoTiffSourceDirectory()
+    {
+        using TemporaryDirectory sourceRoot = new();
+        using TemporaryDirectory geoTiffRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(sourceRoot.Path),
+            DemTextureSource: PlateauImportSource.Local(geoTiffRoot.Path));
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            $"The GeoTIFF source path '{geoTiffRoot.Path}' must point to an existing file.",
+            errors);
     }
 
     [Fact]

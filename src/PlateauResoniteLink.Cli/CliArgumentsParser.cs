@@ -12,8 +12,8 @@ public static class CliArgumentsParser
 
         Usage:
           plateau-resonitelink build --dataset <dataset> --mesh-code <mesh-code> [options]
-          plateau-resonitelink search --local-source-path <path> --mesh-code <mesh-code> [options]
-          plateau-resonitelink stats --local-source-path <path> [options]
+          plateau-resonitelink search --citygml-source <path> --mesh-code <mesh-code> [options]
+          plateau-resonitelink stats --citygml-source <path> [options]
 
         Build options:
           --dataset <value>      Required. PLATEAU dataset identifier.
@@ -30,8 +30,8 @@ public static class CliArgumentsParser
                                 Supports: "*suffix", "prefix*", "*middle*", "exact".
           --citygml-source <path-or-url>
                                 Required. Local dataset/archive path or absolute direct .zip/.7z CityGML archive URL.
-          --ortho-source <path-or-url>
-                                Optional. Local raster/archive path or absolute direct .zip/.7z/.tif/.tiff ortho source URL.
+          --geotiff-source <path-or-url>
+                                Optional. Local GeoTIFF file/archive path or absolute .tif/.tiff/.zip/.7z GeoTIFF URL.
           --dem-terrain-mode <mesh|heightmap>
                                 Optional. DEM import mode. Default: mesh.
           --dem-heightmap-meters-per-vertex <value>
@@ -54,7 +54,7 @@ public static class CliArgumentsParser
           --verbose              Optional. Include debug-level progress logs.
 
         Search/stats options:
-          --local-source-path <path>
+          --citygml-source <path>
                                 Required. Local dataset directory or .zip/.7z archive to inspect.
           --mesh-code <value>    Required for search. PLATEAU mesh code or regex to search within the dataset source.
           --packages <csv>       Optional. Restrict inspection to specific PLATEAU packages.
@@ -86,7 +86,7 @@ public static class CliArgumentsParser
         string? dataset = null;
         string? meshCode = null;
         string? cityGmlSourceInput = null;
-        string? orthoSourceInput = null;
+        string? geotiffSourceInput = null;
         string workRoot = "local";
         string? terrainTileCacheRoot = null;
         bool disableTerrainTileCache = false;
@@ -140,8 +140,8 @@ public static class CliArgumentsParser
                     case "--citygml-source":
                         cityGmlSourceInput = ReadValue(args, ref index, token);
                         break;
-                    case "--ortho-source":
-                        orthoSourceInput = ReadValue(args, ref index, token);
+                    case "--geotiff-source":
+                        geotiffSourceInput = ReadValue(args, ref index, token);
                         break;
                     case "--work-root":
                         workRoot = ReadValue(args, ref index, token);
@@ -235,6 +235,8 @@ public static class CliArgumentsParser
                         break;
                     case "--source":
                         return CliParseResult.Failure("The --source option has been replaced. Use --citygml-source.");
+                    case "--ortho-source":
+                        return CliParseResult.Failure("The --ortho-source option has been replaced. Use --geotiff-source.");
                     case "--dem-terrain-mode":
                         {
                             string demTerrainModeValue = ReadValue(args, ref index, token);
@@ -356,8 +358,8 @@ public static class CliArgumentsParser
         }
 
         PlateauImportSource? demTextureSource = null;
-        if (!string.IsNullOrWhiteSpace(orthoSourceInput)
-            && !TryParseImportSourceInput(orthoSourceInput, out demTextureSource, out string? demTextureSourceError))
+        if (!string.IsNullOrWhiteSpace(geotiffSourceInput)
+            && !TryParseImportSourceInput(geotiffSourceInput, out demTextureSource, out string? demTextureSourceError))
         {
             return CliParseResult.Failure(demTextureSourceError!);
         }
@@ -398,7 +400,7 @@ public static class CliArgumentsParser
 
     private static CliParseResult ParseSearch(string[] args)
     {
-        string? localSourcePath = null;
+        string? cityGmlSourcePath = null;
         string? meshCode = null;
         IReadOnlyList<string>? packageNames = null;
         CliOutputFormat outputFormat = CliOutputFormat.Text;
@@ -413,9 +415,11 @@ public static class CliArgumentsParser
                     case "-h":
                     case "--help":
                         return CliParseResult.Help();
-                    case "--local-source-path":
-                        localSourcePath = ReadValue(args, ref index, token);
+                    case "--citygml-source":
+                        cityGmlSourcePath = ReadValue(args, ref index, token);
                         break;
+                    case "--local-source-path":
+                        return CliParseResult.Failure("The --local-source-path option has been replaced. Use --citygml-source.");
                     case "--mesh-code":
                         meshCode = ReadValue(args, ref index, token);
                         break;
@@ -451,9 +455,9 @@ public static class CliArgumentsParser
             return CliParseResult.Failure(exception.Message);
         }
 
-        if (string.IsNullOrWhiteSpace(localSourcePath))
+        if (string.IsNullOrWhiteSpace(cityGmlSourcePath))
         {
-            return CliParseResult.Failure("Specify --local-source-path.");
+            return CliParseResult.Failure("Specify --citygml-source.");
         }
 
         if (string.IsNullOrWhiteSpace(meshCode))
@@ -462,12 +466,12 @@ public static class CliArgumentsParser
         }
 
         return CliParseResult.Success(
-            new SearchCommandOptions(localSourcePath, meshCode, packageNames, outputFormat));
+            new SearchCommandOptions(cityGmlSourcePath, meshCode, packageNames, outputFormat));
     }
 
     private static CliParseResult ParseStats(string[] args)
     {
-        string? localSourcePath = null;
+        string? cityGmlSourcePath = null;
         IReadOnlyList<string>? packageNames = null;
         CliOutputFormat outputFormat = CliOutputFormat.Text;
 
@@ -481,9 +485,11 @@ public static class CliArgumentsParser
                     case "-h":
                     case "--help":
                         return CliParseResult.Help();
-                    case "--local-source-path":
-                        localSourcePath = ReadValue(args, ref index, token);
+                    case "--citygml-source":
+                        cityGmlSourcePath = ReadValue(args, ref index, token);
                         break;
+                    case "--local-source-path":
+                        return CliParseResult.Failure("The --local-source-path option has been replaced. Use --citygml-source.");
                     case "--packages":
                         {
                             string packageValue = ReadValue(args, ref index, token);
@@ -516,13 +522,13 @@ public static class CliArgumentsParser
             return CliParseResult.Failure(exception.Message);
         }
 
-        if (string.IsNullOrWhiteSpace(localSourcePath))
+        if (string.IsNullOrWhiteSpace(cityGmlSourcePath))
         {
-            return CliParseResult.Failure("Specify --local-source-path.");
+            return CliParseResult.Failure("Specify --citygml-source.");
         }
 
         return CliParseResult.Success(
-            new StatsCommandOptions(localSourcePath, packageNames, outputFormat));
+            new StatsCommandOptions(cityGmlSourcePath, packageNames, outputFormat));
     }
 
     private static bool TryParseOutputFormat(string value, out CliOutputFormat outputFormat)
