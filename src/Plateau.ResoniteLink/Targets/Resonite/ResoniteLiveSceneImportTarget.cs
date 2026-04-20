@@ -1044,8 +1044,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
             .ToArray();
 
-        Task<PreparedTextureReference>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
-            .Select(terrainTextureOverlay => PrepareTerrainOverlayTextureReferenceAsync(state, terrainTextureOverlay, cancellationToken))
+        Task<PreparedTextureReference?>[] terrainOverlayTexturePreparationTasks = distinctTerrainOverlays
+            .Select(async terrainTextureOverlay => (PreparedTextureReference?)await PrepareTerrainOverlayTextureReferenceAsync(state, terrainTextureOverlay, cancellationToken))
             .ToArray();
         Task<PreparedTextureReference?>[] texturePreparationTasks = [];
 
