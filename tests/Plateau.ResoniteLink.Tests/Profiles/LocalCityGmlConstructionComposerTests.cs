@@ -29,18 +29,16 @@ public sealed class LocalCityGmlConstructionComposerTests
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
             ["bldg", "dem"],
             [overlay],
-            ["53394525"],
-            [],
-            [],
-            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new GeodeticPoint(35.0, 139.0, 12.5),
-            terrainHeightSampler: null);
+            ["53394525"]);
+        LocalCityGmlDocumentReadResult readResult = new(
+            documentSet,
+            new LocalCityGmlBootstrapContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
         LocalCityGmlConstructionComposer composer = new(
             new ThrowingGeometryProjector(),
             new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()));
 
-        IImportedSceneSource source = composer.Compose(request, documentSet);
+        IImportedSceneSource source = composer.Compose(request, readResult);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
@@ -48,9 +46,9 @@ public sealed class LocalCityGmlConstructionComposerTests
         Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(documentSet.RequestedMeshCodes, source.Metadata.SourceDataset.RequestedMeshCodes);
-        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Latitude, source.Metadata.GeodeticOrigin.Latitude);
-        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Longitude, source.Metadata.GeodeticOrigin.Longitude);
-        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Altitude, source.Metadata.GeodeticOrigin.Altitude);
+        Assert.Equal(35.0, source.Metadata.GeodeticOrigin.Latitude);
+        Assert.Equal(139.0, source.Metadata.GeodeticOrigin.Longitude);
+        Assert.Equal(12.5, source.Metadata.GeodeticOrigin.Altitude);
     }
 
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector

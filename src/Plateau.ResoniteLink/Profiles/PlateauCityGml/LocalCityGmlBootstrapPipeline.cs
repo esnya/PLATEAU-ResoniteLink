@@ -7,23 +7,7 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal static class LocalCityGmlBootstrapPipeline
 {
-    public static async Task<LocalCityGmlDocumentSet> ReadAsync(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await ReadAsync(
-            request,
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector(),
-            progressReporter,
-            cancellationToken);
-    }
-
-    public static async Task<LocalCityGmlDocumentSet> ReadAsync(
+    public static async Task<LocalCityGmlDocumentReadResult> ReadAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
@@ -40,40 +24,24 @@ internal static class LocalCityGmlBootstrapPipeline
             cancellationToken);
     }
 
-    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
-        PlateauImportRequest request,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await ReadDocumentSetCoreAsync(
-            request,
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
-            progressReporter,
-            new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector(),
-            cancellationToken);
-    }
-
-    internal static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreAsync(
+    internal static async Task<LocalCityGmlDocumentReadResult> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         Action<string>? progressReporter = null,
-        ICityGmlAppearanceStoreFactory? appearanceStoreFactory = null,
-        ICityGmlLodSelector? lodSelector = null,
+        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
+        ICityGmlLodSelector lodSelector,
         CancellationToken cancellationToken = default)
     {
         return await ReadDocumentSetCoreInternalAsync(
             request,
             datasetContentSourceFactory,
             progressReporter,
-            appearanceStoreFactory ?? new CityGmlAppearanceStoreFactory(),
-            lodSelector ?? new CityGmlLodSelector(),
+            appearanceStoreFactory,
+            lodSelector,
             cancellationToken);
     }
 
-    private static async Task<LocalCityGmlDocumentSet> ReadDocumentSetCoreInternalAsync(
+    private static async Task<LocalCityGmlDocumentReadResult> ReadDocumentSetCoreInternalAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         Action<string>? progressReporter,
@@ -165,7 +133,7 @@ internal static class LocalCityGmlBootstrapPipeline
         progressReporter?.Invoke(
             PlateauLog.Info("import", $"Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-        return new LocalCityGmlDocumentSet(
+        LocalCityGmlDocumentSet documentSet = new(
             datasetSource,
             relativeSourceFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray(),
             sourceFiles
@@ -174,12 +142,14 @@ internal static class LocalCityGmlBootstrapPipeline
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
             terrainTextureOverlays,
-            discoveryResult.RequestedMeshCodes,
+            discoveryResult.RequestedMeshCodes);
+        LocalCityGmlBootstrapContext bootstrapContext = new(
             sourceFilePipelines,
             new GeodeticPoint(
                 globalOriginPoint.Latitude,
                 globalOriginPoint.Longitude,
                 globalOriginPoint.Altitude));
+        return new LocalCityGmlDocumentReadResult(documentSet, bootstrapContext);
     }
 
     private static TerrainTextureOverlay[] CreateBootstrapTerrainTextureOverlays(
@@ -198,18 +168,5 @@ internal static class LocalCityGmlBootstrapPipeline
         }
 
         return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysForMeshCodes(demMeshCodes);
-    }
-
-    private static void ValidateCompatibleReferenceSystem(
-        CoordinateReferenceSystem expectedReferenceSystem,
-        CoordinateReferenceSystem actualReferenceSystem)
-    {
-        if (expectedReferenceSystem.IsCompatibleWith(actualReferenceSystem))
-        {
-            return;
-        }
-
-        throw new PlateauImportValidationException(
-            [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
     }
 }

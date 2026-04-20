@@ -68,21 +68,20 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, lodLevel: 1)],
             beforeYield: demReleaseSignal.Task);
 
-        LocalCityGmlDocumentSet documentSet = new(
-            new EmptyDatasetContentSource(),
-            [
-                bldgPipeline.SourceFile.RelativePath,
-                tranPipeline.SourceFile.RelativePath,
-                demPipeline.SourceFile.RelativePath,
-            ],
-            ["bldg", "dem", "tran"],
-            [],
-            ["53394525"],
-            [bldgPipeline, tranPipeline, demPipeline],
-            [],
-            referenceSystem,
-            globalOriginPoint,
-            terrainHeightSampler: null);
+        LocalCityGmlDocumentReadResult readResult = new(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                [
+                    bldgPipeline.SourceFile.RelativePath,
+                    tranPipeline.SourceFile.RelativePath,
+                    demPipeline.SourceFile.RelativePath,
+                ],
+                ["bldg", "dem", "tran"],
+                [],
+                ["53394525"]),
+            new LocalCityGmlBootstrapContext(
+                [bldgPipeline, tranPipeline, demPipeline],
+                globalOriginPoint));
 
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -110,7 +109,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         LocalCityGmlConstructionSource source = new(
             metadata,
             request,
-            documentSet,
+            readResult,
             geometryProjector,
             CommonMaterialEnumerator);
         List<ImportedCityObject> yieldedObjects = [];
@@ -217,22 +216,21 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
-        LocalCityGmlDocumentSet documentSet = new(
-            new EmptyDatasetContentSource(),
-            sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
-            packageNames,
-            [],
-            ["53394525"],
-            sourceFilePipelines,
-            [],
-            referenceSystem,
-            globalOriginPoint,
-            terrainHeightSampler: null);
+        LocalCityGmlDocumentReadResult readResult = new(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
+                packageNames,
+                [],
+                ["53394525"]),
+            new LocalCityGmlBootstrapContext(
+                sourceFilePipelines,
+                globalOriginPoint));
 
         return new LocalCityGmlConstructionSource(
             metadata,
             request,
-            documentSet,
+            readResult,
             new RecordingGeometryProjector(),
             CommonMaterialEnumerator);
     }

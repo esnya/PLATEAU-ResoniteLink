@@ -16,16 +16,27 @@ public sealed class CliApplicationTests
 
     private static PlateauImportService CreateImportService(ISceneImportTarget sceneBuilder)
     {
+        LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
             sceneBuilder,
             new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
-            new LocalCityGmlDocumentReader(),
+            documentReader,
             new LocalCityGmlConstructionSourceFactory(
-                new LocalCityGmlDocumentReader(),
+                documentReader,
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                     new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))),
             new ArchiveFileLayoutPolicy());
+    }
+
+    private static LocalCityGmlDocumentReader CreateDocumentReader()
+    {
+        return new LocalCityGmlDocumentReader(
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
     }
 
     private static DatasetInspectionService CreateDatasetInspectionService()

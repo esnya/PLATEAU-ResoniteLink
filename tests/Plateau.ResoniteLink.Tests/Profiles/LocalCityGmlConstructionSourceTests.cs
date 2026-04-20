@@ -22,7 +22,7 @@ public sealed class LocalCityGmlConstructionSourceTests
         LocalCityGmlConstructionSource source = new(
             CreateMetadata(request),
             request,
-            CreateDocumentSet(sourceFileCount),
+            CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector(),
             CommonMaterialEnumerator);
 
@@ -63,7 +63,7 @@ public sealed class LocalCityGmlConstructionSourceTests
         LocalCityGmlConstructionSource source = new(
             CreateMetadata(request, [overlay]),
             request,
-            CreateDocumentSet(
+            CreateReadResult(
                 [
                     new SourceFileDescriptor("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false),
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
@@ -102,7 +102,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
-    private static LocalCityGmlDocumentSet CreateDocumentSet(int sourceFileCount)
+    private static LocalCityGmlDocumentReadResult CreateReadResult(int sourceFileCount)
     {
         SourceFileDescriptor[] sourceFiles = Enumerable.Range(0, sourceFileCount)
             .Select(index => new SourceFileDescriptor(
@@ -111,10 +111,10 @@ public sealed class LocalCityGmlConstructionSourceTests
                 "57402736",
                 RequiresMeshAreaFilter: false))
             .ToArray();
-        return CreateDocumentSet(sourceFiles);
+        return CreateReadResult(sourceFiles);
     }
 
-    private static LocalCityGmlDocumentSet CreateDocumentSet(
+    private static LocalCityGmlDocumentReadResult CreateReadResult(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
@@ -131,17 +131,16 @@ public sealed class LocalCityGmlConstructionSourceTests
                         TimeSpan.Zero))))
             .ToArray();
 
-        return new LocalCityGmlDocumentSet(
-            new EmptyDatasetContentSource(),
-            pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
-            pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
-            terrainTextureOverlays ?? [],
-            ["57402736"],
-            pipelines,
-            [],
-            referenceSystem,
-            new GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
+        return new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
+                pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
+                terrainTextureOverlays ?? [],
+                ["57402736"]),
+            new LocalCityGmlBootstrapContext(
+                pipelines,
+                new GeodeticPoint(35.0, 139.0, 0.0)));
     }
 
     private static BootstrapParsedCityObject CreateParsedCityObject(

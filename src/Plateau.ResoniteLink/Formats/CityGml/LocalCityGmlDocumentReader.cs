@@ -8,16 +8,6 @@ public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
     private readonly ICityGmlAppearanceStoreFactory appearanceStoreFactory;
     private readonly ICityGmlLodSelector lodSelector;
 
-    public LocalCityGmlDocumentReader()
-        : this(
-            new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy()),
-            new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector())
-    {
-    }
-
     internal LocalCityGmlDocumentReader(
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
@@ -28,7 +18,7 @@ public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         this.lodSelector = lodSelector;
     }
 
-    public async Task<LocalCityGmlDocumentSet> ReadAsync(
+    public async Task<LocalCityGmlDocumentReadResult> ReadAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)

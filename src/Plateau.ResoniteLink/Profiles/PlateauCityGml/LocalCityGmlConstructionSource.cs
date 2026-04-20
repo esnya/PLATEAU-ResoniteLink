@@ -28,16 +28,19 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     public LocalCityGmlConstructionSource(
         ResoniteConstructionMetadata metadata,
         PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet,
+        LocalCityGmlDocumentReadResult readResult,
         ICityGmlGeometryProjector geometryProjector,
         ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
         Action<string>? progressReporter = null)
     {
+        ArgumentNullException.ThrowIfNull(readResult);
+        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
+        LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
         this.metadata = SceneImportContractMapper.ToContract(metadata);
         this.request = request;
-        sourceFiles = documentSet.BootstrapSourceFilePipelines.ToArray();
+        sourceFiles = bootstrapContext.SourceFilePipelines.ToArray();
         bootstrapTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
-        globalOriginPoint = documentSet.BootstrapGlobalOriginPoint;
+        globalOriginPoint = bootstrapContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.progressReporter = progressReporter;

@@ -27,7 +27,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Same(request, reader.LastRequest);
         Assert.Same(progressReporter, reader.LastProgressReporter);
         Assert.Same(request, composer.LastRequest);
-        Assert.Same(reader.DocumentSet, composer.LastDocumentSet);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Same(progressReporter, composer.LastProgressReporter);
     }
 
@@ -37,26 +37,25 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public Action<string>? LastProgressReporter { get; private set; }
 
-        public LocalCityGmlDocumentSet DocumentSet { get; } = new(
-            new EmptyDatasetContentSource(),
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
+        public LocalCityGmlDocumentReadResult ReadResult { get; } = new(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                [],
+                [],
+                [],
+                []),
+            new LocalCityGmlBootstrapContext(
+                [],
+                new GeodeticPoint(35.0, 139.0, 0.0)));
 
-        public Task<LocalCityGmlDocumentSet> ReadAsync(
+        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
             LastProgressReporter = progressReporter;
-            return Task.FromResult(DocumentSet);
+            return Task.FromResult(ReadResult);
         }
     }
 
@@ -66,17 +65,17 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentSet? LastDocumentSet { get; private set; }
+        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
 
         public Action<string>? LastProgressReporter { get; private set; }
 
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlDocumentSet documentSet,
+            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;
-            LastDocumentSet = documentSet;
+            LastReadResult = readResult;
             LastProgressReporter = progressReporter;
             return source;
         }

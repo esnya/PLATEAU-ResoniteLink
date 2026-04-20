@@ -251,11 +251,15 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             PackageNames: ["dem"],
             ServerUri: null);
-        LocalCityGmlDocumentSet documentSet = await LocalCityGmlBootstrapPipeline.ReadAsync(request);
+        LocalCityGmlDocumentReadResult readResult = await LocalCityGmlBootstrapPipeline.ReadAsync(
+            request,
+            new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
         ResoniteConstructionMetadata metadata = new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                 new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))
-            .Compose(request, documentSet)
+            .Compose(request, readResult)
             .Metadata;
 
         _ = await builder.ExecuteAsync(

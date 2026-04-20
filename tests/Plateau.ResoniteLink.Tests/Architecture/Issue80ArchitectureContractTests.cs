@@ -103,4 +103,31 @@ public sealed class Issue80ArchitectureContractTests
         Assert.Contains("local-file-cache", archiveLayoutPolicy, StringComparison.Ordinal);
         Assert.DoesNotContain("\"materialized\"", archiveLayoutPolicy, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void LocalCityGmlDocumentSet_DoesNotCarryBootstrapOnlyState()
+    {
+        string documentSet = File.ReadAllText(
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml", "LocalCityGmlDocumentSet.cs"));
+
+        Assert.DoesNotContain("Bootstrap", documentSet, StringComparison.Ordinal);
+        Assert.DoesNotContain("SourceFilePipeline", documentSet, StringComparison.Ordinal);
+        Assert.DoesNotContain("TerrainHeightSampler", documentSet, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DocumentReaderAndBootstrapPipeline_DoNotSelfWireConcreteDependencies()
+    {
+        string documentReader = File.ReadAllText(
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Formats", "CityGml", "LocalCityGmlDocumentReader.cs"));
+        string bootstrapPipeline = File.ReadAllText(
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "LocalCityGmlBootstrapPipeline.cs"));
+
+        Assert.DoesNotContain("new DefaultPlateauDatasetContentSourceFactory(", documentReader, StringComparison.Ordinal);
+        Assert.DoesNotContain("new CityGmlAppearanceStoreFactory(", documentReader, StringComparison.Ordinal);
+        Assert.DoesNotContain("new CityGmlLodSelector(", documentReader, StringComparison.Ordinal);
+        Assert.DoesNotContain("new DefaultPlateauDatasetContentSourceFactory(", bootstrapPipeline, StringComparison.Ordinal);
+        Assert.DoesNotContain("?? new CityGmlAppearanceStoreFactory(", bootstrapPipeline, StringComparison.Ordinal);
+        Assert.DoesNotContain("?? new CityGmlLodSelector(", bootstrapPipeline, StringComparison.Ordinal);
+    }
 }

@@ -16,16 +16,27 @@ public sealed class LocalCityGmlObjectProjectionTests
 
     private static PlateauImportService CreateService(ISceneImportTarget sceneBuilder)
     {
+        LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
             sceneBuilder,
             new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
-            new LocalCityGmlDocumentReader(),
+            documentReader,
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
-                new LocalCityGmlDocumentReader(),
+                documentReader,
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                     new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
+    }
+
+    private static LocalCityGmlDocumentReader CreateDocumentReader()
+    {
+        return new LocalCityGmlDocumentReader(
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
     }
 
     [Fact]
@@ -44,7 +55,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             ServerUri: null);
 
         LocalCityGmlConstructionSourceFactory factory = new(
-            new LocalCityGmlDocumentReader(),
+            CreateDocumentReader(),
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                 new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())));

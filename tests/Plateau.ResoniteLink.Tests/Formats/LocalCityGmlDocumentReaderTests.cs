@@ -9,9 +9,14 @@ public sealed class LocalCityGmlDocumentReaderTests
     public async Task ReadAsyncCreatesDocumentSetBoundaryFromStableLocalFixture()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        LocalCityGmlDocumentReader reader = new();
+        LocalCityGmlDocumentReader reader = new(
+            new DefaultPlateauDatasetContentSourceFactory(
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
+            new CityGmlAppearanceStoreFactory(),
+            new CityGmlLodSelector());
 
-        LocalCityGmlDocumentSet documentSet = await reader.ReadAsync(
+        LocalCityGmlDocumentReadResult readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -19,6 +24,7 @@ public sealed class LocalCityGmlDocumentReaderTests
                 LocalSourcePath: fixturePath,
                 PackageNames: ["bldg"],
                 ServerUri: null));
+        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
 
         Assert.Equal(fixturePath, documentSet.DatasetSource.SourcePath);
         Assert.Equal(

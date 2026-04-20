@@ -130,23 +130,22 @@ public sealed class ImportServiceFactoryTests
     {
         public int ReadCallCount { get; private set; }
 
-        public Task<LocalCityGmlDocumentSet> ReadAsync(
+        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             ReadCallCount++;
-            return Task.FromResult(new LocalCityGmlDocumentSet(
-                new StubDatasetContentSource(request.LocalSourcePath!),
-                [],
-                ["bldg"],
-                [],
-                ["53394525"],
-                [],
-                [],
-                CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-                new GeodeticPoint(35.0, 139.0, 0.0),
-                terrainHeightSampler: null));
+            return Task.FromResult(new LocalCityGmlDocumentReadResult(
+                new LocalCityGmlDocumentSet(
+                    new StubDatasetContentSource(request.LocalSourcePath!),
+                    [],
+                    ["bldg"],
+                    [],
+                    ["53394525"]),
+                new LocalCityGmlBootstrapContext(
+                    [],
+                    new GeodeticPoint(35.0, 139.0, 0.0))));
         }
     }
 
@@ -164,11 +163,12 @@ public sealed class ImportServiceFactoryTests
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentSet documentSet,
+            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             CreateWithDocumentSetCallCount++;
+            _ = readResult;
 
             ImportedSceneMetadata metadata = new(
                 "3.0",

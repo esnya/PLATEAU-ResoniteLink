@@ -11,11 +11,13 @@ internal sealed class LocalCityGmlConstructionComposer(
 
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet,
+        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(documentSet);
+        ArgumentNullException.ThrowIfNull(readResult);
+        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
+        LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
 
         ResoniteAttribution attribution = PlateauResoniteAttributionFactory.Create(request);
         ResoniteConstructionMetadata metadata = new(
@@ -29,14 +31,14 @@ internal sealed class LocalCityGmlConstructionComposer(
                 RequestedMeshCodes: documentSet.RequestedMeshCodes),
             Attribution: attribution,
             LocalOrigin: new ResoniteLocalOrigin(
-                Latitude: documentSet.BootstrapGlobalOriginPoint.Latitude,
-                Longitude: documentSet.BootstrapGlobalOriginPoint.Longitude,
-                Altitude: documentSet.BootstrapGlobalOriginPoint.Altitude));
+                Latitude: bootstrapContext.GlobalOriginPoint.Latitude,
+                Longitude: bootstrapContext.GlobalOriginPoint.Longitude,
+                Altitude: bootstrapContext.GlobalOriginPoint.Altitude));
 
         return new LocalCityGmlConstructionSource(
             metadata,
             request,
-            documentSet,
+            readResult,
             geometryProjector,
             commonMaterialEnumerator,
             progressReporter);

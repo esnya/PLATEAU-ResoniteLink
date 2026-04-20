@@ -6,6 +6,6 @@ public interface IImportedSceneSourceComposer
 {
     IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet,
+        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter = null);
 }

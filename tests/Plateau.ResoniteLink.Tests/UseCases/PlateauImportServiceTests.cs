@@ -34,11 +34,11 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedPlateauLocalImportSource(resolvedSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(resolvedSourceRoot.Path);
-        LocalCityGmlDocumentSet documentSet = CreateDocumentSet(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(documentSet);
-        StubConstructionSource source = new(CreateMetadata(resolvedRequest, ["bldg"], documentSet.RelativeSourceFiles));
+        RecordingDocumentReader documentReader = new(readResult);
+        StubConstructionSource source = new(CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
         RecordingConstructionSourceFactory constructionSourceFactory = new(source);
 
         PlateauImportService service = new(
@@ -65,14 +65,14 @@ public sealed class PlateauImportServiceTests
         Assert.Equal("53394525", constructionSourceFactory.LastRequest.MeshCode);
         Assert.Equal(resolvedSourceRoot.Path, constructionSourceFactory.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
-        Assert.Same(documentSet, constructionSourceFactory.LastDocumentSet);
+        Assert.Same(readResult, constructionSourceFactory.LastReadResult);
         Assert.NotNull(sceneBuilder.BeginRequest);
         Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
         Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest.ResolvedSourcePath);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
-        Assert.Equal(documentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(documentSet.RequestedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.RequestedMeshCodes);
+        Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
+        Assert.Equal(readResult.DocumentSet.RequestedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.RequestedMeshCodes);
         Assert.Single(sceneBuilder.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, documentReader.ReadCallCount);
@@ -102,11 +102,11 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedPlateauLocalImportSource(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
-        LocalCityGmlDocumentSet documentSet = CreateDocumentSet(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(documentSet);
-        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], documentSet.RelativeSourceFiles), []);
+        RecordingDocumentReader documentReader = new(readResult);
+        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles), []);
         RecordingConstructionSourceFactory constructionSourceFactory = new(source);
 
         PlateauImportService service = new(
@@ -146,7 +146,7 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedPlateauLocalImportSource(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
-        LocalCityGmlDocumentSet documentSet = CreateDocumentSet(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new()
         {
             ExecutionResultFactory = static cityObjectCount => new SceneImportExecutionResult(
@@ -155,8 +155,8 @@ public sealed class PlateauImportServiceTests
                 FailedCityObjectCount: cityObjectCount),
         };
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(documentSet);
-        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], documentSet.RelativeSourceFiles));
+        RecordingDocumentReader documentReader = new(readResult);
+        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
         RecordingConstructionSourceFactory constructionSourceFactory = new(source);
 
         PlateauImportService service = new(
@@ -174,22 +174,21 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(1, sceneBuilder.DisposeCount);
     }
 
-    private static LocalCityGmlDocumentSet CreateDocumentSet(
+    private static LocalCityGmlDocumentReadResult CreateReadResult(
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<string> relativeSourceFiles)
     {
-        return new LocalCityGmlDocumentSet(
-            datasetSource,
-            relativeSourceFiles,
-            packageNames,
-            [],
-            ["53394525"],
-            [],
-            [],
-            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
+        return new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlDocumentSet(
+                datasetSource,
+                relativeSourceFiles,
+                packageNames,
+                [],
+                ["53394525"]),
+            new LocalCityGmlBootstrapContext(
+                [],
+                new GeodeticPoint(35.0, 139.0, 0.0)));
     }
 
     private static ImportedSceneMetadata CreateMetadata(
@@ -264,20 +263,20 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class RecordingDocumentReader(LocalCityGmlDocumentSet documentSet) : ICityGmlDocumentReader
+    private sealed class RecordingDocumentReader(LocalCityGmlDocumentReadResult readResult) : ICityGmlDocumentReader
     {
         public int ReadCallCount { get; private set; }
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public Task<LocalCityGmlDocumentSet> ReadAsync(
+        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             ReadCallCount++;
             LastRequest = request;
-            return Task.FromResult(documentSet);
+            return Task.FromResult(readResult);
         }
     }
 
@@ -287,7 +286,7 @@ public sealed class PlateauImportServiceTests
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentSet? LastDocumentSet { get; private set; }
+        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
@@ -299,13 +298,13 @@ public sealed class PlateauImportServiceTests
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentSet documentSet,
+            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             CreateCallCount++;
             LastRequest = request;
-            LastDocumentSet = documentSet;
+            LastReadResult = readResult;
             return Task.FromResult(source);
         }
     }

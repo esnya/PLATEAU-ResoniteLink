@@ -14,19 +14,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             Source: PlateauImportSource.Local(TestData.GetFixturePath("LocalPlateauDataset")));
-        LocalCityGmlDocumentSet expectedDocumentSet = new(
-            new StubDatasetContentSource(request.LocalSourcePath!),
-            [],
-            ["bldg"],
-            [],
-            ["53394525"],
-            [],
-            [],
-            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
+        LocalCityGmlDocumentReadResult expectedReadResult = new(
+            new LocalCityGmlDocumentSet(
+                new StubDatasetContentSource(request.LocalSourcePath!),
+                [],
+                ["bldg"],
+                [],
+                ["53394525"]),
+            new LocalCityGmlBootstrapContext(
+                [],
+                new GeodeticPoint(35.0, 139.0, 0.0)));
         StubConstructionSource expectedSource = new();
-        CustomCityGmlDocumentReader reader = new(expectedDocumentSet);
+        CustomCityGmlDocumentReader reader = new(expectedReadResult);
         RecordingConstructionComposer composer = new(expectedSource);
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
@@ -40,7 +39,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         Assert.Same(expectedSource, source);
         Assert.Same(request, reader.LastRequest);
         Assert.Same(request, composer.LastRequest);
-        Assert.Same(expectedDocumentSet, composer.LastDocumentSet);
+        Assert.Same(expectedReadResult, composer.LastReadResult);
     }
 
     [Fact]
@@ -89,17 +88,17 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomCityGmlDocumentReader(LocalCityGmlDocumentSet? documentSet = null) : ICityGmlDocumentReader
+    private sealed class CustomCityGmlDocumentReader(LocalCityGmlDocumentReadResult? readResult = null) : ICityGmlDocumentReader
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public Task<LocalCityGmlDocumentSet> ReadAsync(
+        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
-            return Task.FromResult(documentSet ?? throw new NotSupportedException());
+            return Task.FromResult(readResult ?? throw new NotSupportedException());
         }
     }
 
@@ -118,15 +117,15 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentSet? LastDocumentSet { get; private set; }
+        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
 
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlDocumentSet documentSet,
+            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;
-            LastDocumentSet = documentSet;
+            LastReadResult = readResult;
             return source;
         }
     }

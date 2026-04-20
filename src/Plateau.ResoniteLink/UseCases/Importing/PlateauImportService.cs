@@ -45,10 +45,11 @@ public sealed class PlateauImportService(
         try
         {
             Stopwatch setupStopwatch = Stopwatch.StartNew();
-            LocalCityGmlDocumentSet documentSet = await documentReader.ReadAsync(
+            LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(
                 resolvedRequest,
                 progressReporter,
                 cancellationToken);
+            LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
             setupStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
@@ -56,7 +57,7 @@ public sealed class PlateauImportService(
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IImportedSceneSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
-                documentSet,
+                readResult,
                 progressReporter,
                 cancellationToken);
             sourceStopwatch.Stop();
