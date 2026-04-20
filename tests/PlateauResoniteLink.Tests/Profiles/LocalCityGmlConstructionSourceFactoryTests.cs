@@ -267,5 +267,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
             return Task.FromResult(new ResolvedDemTextureSources(overlays));
         }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            _ = overlayRegions;
+            return overlays;
+        }
     }
 }

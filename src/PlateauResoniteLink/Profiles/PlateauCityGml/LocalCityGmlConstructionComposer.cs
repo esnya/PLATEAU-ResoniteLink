@@ -4,10 +4,12 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class LocalCityGmlConstructionComposer(
     ICityGmlGeometryProjector geometryProjector,
-    ICityGmlCommonMaterialEnumerator commonMaterialEnumerator) : IImportedSceneSourceComposer
+    ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
+    IDemTextureSourcePolicy demTextureSourcePolicy) : IImportedSceneSourceComposer
 {
     private readonly ICityGmlGeometryProjector geometryProjector = geometryProjector;
     private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator = commonMaterialEnumerator;
+    private readonly IDemTextureSourcePolicy demTextureSourcePolicy = demTextureSourcePolicy;
 
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
@@ -41,6 +43,7 @@ internal sealed class LocalCityGmlConstructionComposer(
             readResult,
             geometryProjector,
             commonMaterialEnumerator,
+            demTextureSourcePolicy,
             progressReporter);
     }
 }

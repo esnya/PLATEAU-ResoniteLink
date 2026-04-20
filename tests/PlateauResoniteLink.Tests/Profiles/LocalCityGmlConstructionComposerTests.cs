@@ -36,7 +36,8 @@ public sealed class LocalCityGmlConstructionComposerTests
 
         LocalCityGmlConstructionComposer composer = new(
             new ThrowingGeometryProjector(),
-            new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()));
+            new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
+            new StubDemTextureSourcePolicy());
 
         IImportedSceneSource source = composer.Compose(request, readResult);
 
@@ -102,6 +103,26 @@ public sealed class LocalCityGmlConstructionComposerTests
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException(relativePath);
+        }
+    }
+
+    private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
+    {
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<string> requestedMeshCodes,
+            CancellationToken cancellationToken = default)
+        {
+            _ = request;
+            _ = requestedMeshCodes;
+            return Task.FromResult(new ResolvedDemTextureSources([]));
+        }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            _ = overlayRegions;
+            return [];
         }
     }
 }

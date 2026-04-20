@@ -458,7 +458,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             new CityGmlLodSelector());
         ImportedSceneMetadata metadata = new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))
+                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
+                new LocalCityGmlDemTextureSourcePolicy(
+                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                        new DefaultPlateauDatasetContentSourceFactory(
+                            new RemoteArchiveDistributionPolicy(),
+                            new ArchiveFileLayoutPolicy()))))
             .Compose(request, readResult)
             .Metadata;
 

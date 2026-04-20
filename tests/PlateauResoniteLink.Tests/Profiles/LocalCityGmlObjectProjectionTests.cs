@@ -25,7 +25,12 @@ public sealed class LocalCityGmlObjectProjectionTests
                 documentReader,
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())),
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
+                    new LocalCityGmlDemTextureSourcePolicy(
+                        new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                            new DefaultPlateauDatasetContentSourceFactory(
+                                new RemoteArchiveDistributionPolicy(),
+                                new ArchiveFileLayoutPolicy())))),
                 new LocalCityGmlDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
@@ -63,7 +68,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateDocumentReader(),
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())),
+                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
+                new LocalCityGmlDemTextureSourcePolicy(
+                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                        new DefaultPlateauDatasetContentSourceFactory(
+                            new RemoteArchiveDistributionPolicy(),
+                            new ArchiveFileLayoutPolicy())))),
             new LocalCityGmlDemTextureSourcePolicy(
                 new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                     new DefaultPlateauDatasetContentSourceFactory(

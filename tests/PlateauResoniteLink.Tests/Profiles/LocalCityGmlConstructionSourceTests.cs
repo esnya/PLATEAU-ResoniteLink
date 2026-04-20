@@ -24,7 +24,8 @@ public sealed class LocalCityGmlConstructionSourceTests
             request,
             CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector(),
-            CommonMaterialEnumerator);
+            CommonMaterialEnumerator,
+            new StubDemTextureSourcePolicy());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -70,7 +71,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                 ],
                 [overlay]),
             geometryProjector,
-            CommonMaterialEnumerator);
+            CommonMaterialEnumerator,
+            new StubDemTextureSourcePolicy());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -81,6 +83,51 @@ public sealed class LocalCityGmlConstructionSourceTests
         Assert.Equal(2, cityObjects.Count);
         Assert.Equal(0, geometryProjector.OverlayCountsByPackage["bldg"]);
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+    }
+
+    [Fact]
+    public async Task ReadCityObjectsAsyncUsesDemTextureSourcePolicyForFallbackOverlayComposition()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null,
+            PackageNames: ["dem"]);
+        TerrainTextureOverlay fallbackOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://tiles.example/fallback/{z}/{x}/{y}.png", 17),
+            ]);
+        OverlayRecordingGeometryProjector geometryProjector = new();
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(fallbackOverlay);
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
+                ]),
+            geometryProjector,
+            CommonMaterialEnumerator,
+            demTextureSourcePolicy);
+
+        List<ImportedCityObject> cityObjects = [];
+        await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
+        {
+            cityObjects.Add(cityObject);
+        }
+
+        Assert.Single(cityObjects);
+        Assert.NotNull(demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Single(demTextureSourcePolicy.LastOverlayRegionIdentities!);
+        Assert.Equal(
+            "https://tiles.example/fallback/{z}/{x}/{y}.png",
+            geometryProjector.LastOverlayByPackage["dem"]!.GetRequiredPrimaryTileSource().UrlTemplate);
     }
 
     private static ImportedSceneMetadata CreateMetadata(
@@ -261,6 +308,7 @@ public sealed class LocalCityGmlConstructionSourceTests
     private sealed class OverlayRecordingGeometryProjector : ICityGmlGeometryProjector
     {
         public Dictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, TerrainTextureOverlay?> LastOverlayByPackage { get; } = new(StringComparer.Ordinal);
 
         public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
@@ -285,6 +333,8 @@ public sealed class LocalCityGmlConstructionSourceTests
             }
 
             OverlayCountsByPackage[parsedCityObject.PackageName] = demTerrainTextureOverlays.Count;
+            LastOverlayByPackage[parsedCityObject.PackageName] =
+                demTerrainTextureOverlays.Count > 0 ? demTerrainTextureOverlays[0] : null;
             yield return new ResoniteConstructionCityObject(
                 SlotKey: parsedCityObject.SlotKey,
                 DisplayName: parsedCityObject.DisplayName,
@@ -297,6 +347,30 @@ public sealed class LocalCityGmlConstructionSourceTests
                 SourceObjectKey: parsedCityObject.SourceIdentity,
                 SourceUnitKey: parsedCityObject.SourceUnitIdentity,
                 SourceFileRelativePath: sourceFile.RelativePath);
+        }
+    }
+
+    private sealed class StubDemTextureSourcePolicy(params TerrainTextureOverlay[] fallbackOverlays) : IDemTextureSourcePolicy
+    {
+        public IReadOnlyList<string>? LastRequestedMeshCodes { get; private set; }
+
+        public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
+
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<string> requestedMeshCodes,
+            CancellationToken cancellationToken = default)
+        {
+            _ = request;
+            LastRequestedMeshCodes = requestedMeshCodes.ToArray();
+            return Task.FromResult(new ResolvedDemTextureSources(fallbackOverlays));
+        }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
+            return fallbackOverlays;
         }
     }
 

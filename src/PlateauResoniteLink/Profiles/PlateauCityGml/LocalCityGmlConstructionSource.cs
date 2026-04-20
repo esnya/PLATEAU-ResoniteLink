@@ -18,6 +18,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private readonly GeodeticPoint globalOriginPoint;
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator;
+    private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
@@ -30,6 +31,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         LocalCityGmlDocumentReadResult readResult,
         ICityGmlGeometryProjector geometryProjector,
         ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
+        IDemTextureSourcePolicy demTextureSourcePolicy,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
@@ -43,6 +45,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         globalOriginPoint = bootstrapContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.commonMaterialEnumerator = commonMaterialEnumerator;
+        this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
             Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
@@ -370,10 +373,11 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 return [];
             }
 
-            return CreateMapTileFallbackOverlays(
+            return demTextureSourcePolicy.CreateMapTileFallbackOverlays(
                 LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
                     fallbackBounds,
-                    requestedMeshCodes));
+                    requestedMeshCodes))
+                .ToArray();
         }
 
         DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
@@ -384,10 +388,11 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             return [];
         }
 
-        return CreateMapTileFallbackOverlays(
+        return demTextureSourcePolicy.CreateMapTileFallbackOverlays(
             LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
                 demBounds,
-                requestedMeshCodes));
+                requestedMeshCodes))
+            .ToArray();
     }
 
     private bool HasOverlayCoverage(
@@ -416,30 +421,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private static bool HasAnyVertices(IEnumerable<BootstrapParsedCityObject> cityObjects)
     {
         return cityObjects.Any(static cityObject => cityObject.Surfaces.Any(static surface => surface.Vertices.Any()));
-    }
-
-    private static TerrainTextureOverlay[] CreateMapTileFallbackOverlays(
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
-    {
-        return overlayRegions
-            .Select(static region => new TerrainTextureOverlay(
-                PackageName: "dem",
-                GeographicBounds: region.GeographicBounds,
-                MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
-                Sources:
-                [
-                    new TerrainTextureTileSource(
-                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
-                    new TerrainTextureTileSource(
-                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
-                    new TerrainTextureTileSource(
-                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                        LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
-                ],
-                LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback))
-            .ToArray();
     }
 
     private async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(

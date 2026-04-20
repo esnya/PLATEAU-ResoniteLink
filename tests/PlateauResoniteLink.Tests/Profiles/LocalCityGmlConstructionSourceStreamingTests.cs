@@ -111,7 +111,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             request,
             readResult,
             geometryProjector,
-            CommonMaterialEnumerator);
+            CommonMaterialEnumerator,
+            new StubDemTextureSourcePolicy());
         List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
             async () =>
@@ -232,7 +233,28 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             request,
             readResult,
             new RecordingGeometryProjector(),
-            CommonMaterialEnumerator);
+            CommonMaterialEnumerator,
+            new StubDemTextureSourcePolicy());
+    }
+
+    private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
+    {
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<string> requestedMeshCodes,
+            CancellationToken cancellationToken = default)
+        {
+            _ = request;
+            _ = requestedMeshCodes;
+            return Task.FromResult(new ResolvedDemTextureSources([]));
+        }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            _ = overlayRegions;
+            return [];
+        }
     }
 
     private static BootstrapParsedCityObject CreateParsedCityObject(

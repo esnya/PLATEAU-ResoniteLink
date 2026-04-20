@@ -134,6 +134,12 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         {
             throw new NotSupportedException();
         }
+
+        public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class RecordingConstructionComposer(IImportedSceneSource source) : IImportedSceneSourceComposer

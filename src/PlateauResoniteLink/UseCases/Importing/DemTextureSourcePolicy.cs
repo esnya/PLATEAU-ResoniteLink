@@ -8,6 +8,9 @@ internal interface IDemTextureSourcePolicy
         PlateauImportRequest request,
         IReadOnlyList<string> requestedMeshCodes,
         CancellationToken cancellationToken = default);
+
+    IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions);
 }
 
 internal sealed record ResolvedDemTextureSources(IReadOnlyList<TerrainTextureOverlay> Overlays);
@@ -85,6 +88,16 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
         return new ResolvedDemTextureSources(overlays);
     }
 
+    public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
+    {
+        ArgumentNullException.ThrowIfNull(overlayRegions);
+
+        return overlayRegions
+            .Select(CreateFallbackOverlay)
+            .ToArray();
+    }
+
     private static async Task<TerrainTextureOverlay> CreateOverlayAsync(
         DemTerrainOverlayRegion region,
         IDemTerrainGeoReferencedRasterCatalog? rasterCatalog,
@@ -137,6 +150,27 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
             MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
             Sources: OrderSources(candidates),
             LicenseMode: licenseMode);
+    }
+
+    private static TerrainTextureOverlay CreateFallbackOverlay(DemTerrainOverlayRegion region)
+    {
+        return new TerrainTextureOverlay(
+            PackageName: "dem",
+            GeographicBounds: region.GeographicBounds,
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
+            Sources:
+            [
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            ],
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
     }
 
     private static DemTextureSourceCandidate CreateTileCandidate(
