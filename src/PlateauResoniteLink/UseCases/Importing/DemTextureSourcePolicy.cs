@@ -15,6 +15,7 @@ internal sealed record ResolvedDemTextureSources(IReadOnlyList<TerrainTextureOve
 internal interface IDemTerrainGeoReferencedRasterCatalog
 {
     Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
+        string cacheKey,
         string meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken);
@@ -115,6 +116,7 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
         if (rasterCatalog is not null)
         {
             TerrainTextureGeoReferencedRasterSource? rasterSource = await rasterCatalog.TryResolveRasterSourceAsync(
+                CreateRasterCacheKey(region),
                 region.Identity,
                 region.GeographicBounds,
                 cancellationToken);
@@ -175,6 +177,14 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
     private static double DegreesLongitudeToMeters(double latitude, double degrees)
     {
         return Math.Abs(degrees) * 111_320.0 * Math.Cos(latitude * (Math.PI / 180.0));
+    }
+
+    private static string CreateRasterCacheKey(DemTerrainOverlayRegion region)
+    {
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"{region.Identity}|{region.GeographicBounds.MinLatitude:0.######}|{region.GeographicBounds.MaxLatitude:0.######}|"
+            + $"{region.GeographicBounds.MinLongitude:0.######}|{region.GeographicBounds.MaxLongitude:0.######}");
     }
 
     private enum DemTextureSourcePreference

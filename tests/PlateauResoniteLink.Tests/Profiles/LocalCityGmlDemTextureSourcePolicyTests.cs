@@ -118,10 +118,12 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
         : IDemTerrainGeoReferencedRasterCatalog
     {
         public Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
+            string cacheKey,
             string meshCode,
             GeographicRectangle overlayBounds,
             CancellationToken cancellationToken)
         {
+            _ = cacheKey;
             _ = overlayBounds;
             rasterSourcesByMeshCode.TryGetValue(meshCode, out TerrainTextureGeoReferencedRasterSource? rasterSource);
             return Task.FromResult(rasterSource);
