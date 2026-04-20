@@ -201,15 +201,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 path,
                 $"{client.SlotPaths[commonRoot.ID!]}/vertex-color/shared_uv_vertex-color",
                 StringComparison.Ordinal));
-        Assert.Contains(
-            client.SlotPaths.Values,
-            path => path.EndsWith("/generic/shared_uv_generic_offset_0.5x0", StringComparison.Ordinal));
-        Assert.Contains(
-            client.SlotPaths.Values,
-            path => path.EndsWith("/generic/shared_uv_generic_offset_0x0.5", StringComparison.Ordinal));
-        Assert.Contains(
-            client.SlotPaths.Values,
-            path => path.EndsWith("/generic/shared_uv_generic_offset_0.5x0.5", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -25,20 +25,4 @@ public sealed class CommonMaterialCatalogTests
                 depthOffset: null));
     }
 
-    [Fact]
-    public void CreateForPackages_IncludesFixedSharedAlbedoOffsetVariants()
-    {
-        IReadOnlyList<ResoniteMaterialBinding> materials = CommonMaterialCatalog.CreateForPackages(["bldg"]);
-
-        foreach (ResoniteFloat2 offset in ResoniteMaterialSharing.FixedSharedAlbedoOffsets)
-        {
-            Assert.Contains(
-                materials,
-                material => material.MaterialKey == ResoniteMaterialSharing.CreateCanonicalGenericSharedMaterialKey(
-                    ResoniteMaterialProjection.Uv,
-                    textureScale: null,
-                    textureOffset: offset,
-                    depthOffset: null));
-        }
-    }
 }

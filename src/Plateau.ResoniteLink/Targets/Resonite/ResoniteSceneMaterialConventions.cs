@@ -322,11 +322,14 @@ internal static class ResoniteSceneMaterialConventions
 
         if (string.IsNullOrWhiteSpace(material.Family))
         {
-            string genericScaleToken = material.TextureScale is null
+            bool hasNonIdentityScale = material.TextureScale is not null
+                && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
+                    || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
+            string genericScaleToken = !hasNonIdentityScale
                 ? string.Empty
                 : string.Create(
                     CultureInfo.InvariantCulture,
-                    $"_scale_{material.TextureScale.X:0.######}x{material.TextureScale.Y:0.######}");
+                    $"_scale_{material.TextureScale!.X:0.######}x{material.TextureScale.Y:0.######}");
             string offsetToken = material.TextureOffset is null
                 ? string.Empty
                 : string.Create(

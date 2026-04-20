@@ -4,13 +4,6 @@ public static class ResoniteMaterialSharing
 {
     private static readonly ResoniteColor SharedBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
-    public static IReadOnlyList<ResoniteFloat2> FixedSharedAlbedoOffsets { get; } =
-    [
-        new ResoniteFloat2(0.5, 0.0),
-        new ResoniteFloat2(0.0, 0.5),
-        new ResoniteFloat2(0.5, 0.5),
-    ];
-
     public static bool CanUseSharedAlbedoOnlyMaterial(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -40,16 +33,11 @@ public static class ResoniteMaterialSharing
 
     public static ResoniteMaterialBinding CreateSharedAlbedoCommonMaterial()
     {
-        return CreateSharedAlbedoCommonMaterial(textureOffset: null);
-    }
-
-    public static ResoniteMaterialBinding CreateSharedAlbedoCommonMaterial(ResoniteFloat2? textureOffset)
-    {
         return new ResoniteMaterialBinding(
             MaterialKey: CreateCanonicalGenericSharedMaterialKey(
                 ResoniteMaterialProjection.Uv,
                 textureScale: null,
-                textureOffset,
+                textureOffset: null,
                 depthOffset: null),
             BaseColor: SharedBaseColor,
             MaterialType: ResoniteMaterialType.Standard,
@@ -60,7 +48,7 @@ public static class ResoniteMaterialSharing
             SubmeshIndices: [0],
             TextureScale: null,
             Family: null,
-            TextureOffset: textureOffset,
+            TextureOffset: null,
             AssetScope: ResoniteMaterialAssetScope.Common);
     }
 
@@ -88,7 +76,8 @@ public static class ResoniteMaterialSharing
         ResoniteFloat2? textureOffset,
         ResoniteMaterialDepthOffset? depthOffset)
     {
-        string scaleToken = CreateFloat2Token(textureScale);
+        ResoniteFloat2? normalizedTextureScale = IsIdentityTextureScale(textureScale) ? null : textureScale;
+        string scaleToken = CreateFloat2Token(normalizedTextureScale);
         string offsetToken = CreateFloat2Token(textureOffset);
         string depthToken = CreateDepthToken(depthOffset);
         return $"generic|{projection}|scale:{scaleToken}|offset:{offsetToken}|depth:{depthToken}";
@@ -125,5 +114,12 @@ public static class ResoniteMaterialSharing
             : string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
                 $"{value.Factor:0.######}x{value.Units:0.######}");
+    }
+
+    private static bool IsIdentityTextureScale(ResoniteFloat2? textureScale)
+    {
+        return textureScale is not null
+            && Math.Abs(textureScale.X - 1.0) < 1e-9
+            && Math.Abs(textureScale.Y - 1.0) < 1e-9;
     }
 }

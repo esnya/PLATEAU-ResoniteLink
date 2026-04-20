@@ -1,4 +1,5 @@
 using Plateau.ResoniteLink.Domain.Importing;
+
 namespace Plateau.ResoniteLink.Tests.Targets;
 
 public sealed class ResoniteMaterialPlanningTests

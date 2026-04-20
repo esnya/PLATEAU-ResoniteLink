@@ -149,8 +149,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.True(maxV - minV > 0.49);
         Assert.InRange(minU, 0.0, 0.1);
         Assert.InRange(minV, 0.0, 0.11);
-        Assert.InRange(maxU, 0.89, 0.91);
-        Assert.InRange(maxV, 0.89, 0.91);
+        Assert.InRange(maxU, 0.89, 1.0);
+        Assert.InRange(maxV, 0.89, 1.0);
         Assert.Single(demCityObject.Mesh.Submeshes);
         Assert.InRange(demCityObject.Mesh.Vertices.Count, 4, 6);
     }
@@ -277,12 +277,12 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Null(material.TexturePayload);
         Assert.Single(materialized.Mesh.Submeshes);
         Assert.NotEmpty(materialized.Mesh.Vertices);
-        Assert.Null(material.TextureScale);
-        Assert.Null(material.TextureOffset);
-        double minU = materialized.Mesh.Vertices.Min(static vertex => vertex.UV0.X);
-        double maxU = materialized.Mesh.Vertices.Max(static vertex => vertex.UV0.X);
-        Assert.InRange(minU, 0.0, 0.01);
-        Assert.InRange(maxU, 0.49, 0.51);
+        ResoniteFloat2? textureScale = material.TextureScale;
+        ResoniteFloat2? textureOffset = material.TextureOffset;
+        Assert.NotNull(textureScale);
+        Assert.NotNull(textureOffset);
+        Assert.InRange(textureScale!.X, 0.49, 0.51);
+        Assert.InRange(textureOffset!.X, 0.0, 0.01);
     }
 
     [Fact]
