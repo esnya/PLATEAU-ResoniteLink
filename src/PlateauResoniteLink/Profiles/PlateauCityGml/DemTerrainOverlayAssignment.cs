@@ -140,7 +140,9 @@ internal static class DemTerrainOverlayAssignment
             .ThenBy(static group => group.Key.GeographicBounds.MinLongitude)
             .ToArray();
 
-        if (groups.Length == 1 && nonGeneratedSurfaces.Length == 0)
+        if (groups.Length == 1
+            && nonGeneratedSurfaces.Length == 0
+            && splitGeneratedSurfaces.Count > 0)
         {
             yield return (
                 parsedCityObject with

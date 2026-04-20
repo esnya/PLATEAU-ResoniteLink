@@ -34,60 +34,34 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(workRoot);
 
-        if (request.Source is ValidatedPlateauLocalImportSource)
-        {
-            return request with
-            {
-                DemTextureSource = await ResolveOptionalDemTextureSourceAsync(
-                    request.DemTextureSource,
-                    workRoot,
-                    cancellationToken),
-            };
-        }
-
-        ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)request.Source;
-
         _ = archiveFileLayoutPolicy.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
-        Uri archiveUri = remoteSource.ServerUri;
-
-        string archiveFileName = remoteArchiveDistributionPolicy.GetArchiveFileName(archiveUri);
-        string archivePath = remoteArchiveDistributionPolicy.GetSourceArchivePath(workRoot, archiveUri, archiveFileName);
-        string archiveMetadataPath = remoteArchiveDistributionPolicy.GetSourceArchiveMetadataPath(archivePath);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
-
-        if (File.Exists(archivePath))
-        {
-            if (await TryReuseCachedArchiveAsync(workRoot, archiveUri, archivePath, archiveMetadataPath, cancellationToken))
-            {
-                return request with
-                {
-                    Source = new ValidatedPlateauLocalImportSource(archivePath),
-                    DemTextureSource = await ResolveOptionalDemTextureSourceAsync(
-                        request.DemTextureSource,
-                        workRoot,
-                        cancellationToken),
-                };
-            }
-        }
-
-        await DownloadArchiveAsync(workRoot, archiveUri, archivePath, archiveMetadataPath, cancellationToken);
+        ValidatedPlateauImportSource resolvedSource = await ResolveOptionalRemoteImportSourceAsync(
+            request.Source,
+            workRoot,
+            resourcePrefix: "source-archive",
+            invalidateLocalFileCache: true,
+            cancellationToken) ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local or remote source.");
+        ValidatedPlateauImportSource? resolvedDemTextureSource = await ResolveOptionalRemoteImportSourceAsync(
+            request.DemTextureSource,
+            workRoot,
+            resourcePrefix: "source-ortho",
+            invalidateLocalFileCache: false,
+            cancellationToken);
 
         return request with
         {
-            Source = new ValidatedPlateauLocalImportSource(archivePath),
-            DemTextureSource = await ResolveOptionalDemTextureSourceAsync(
-                request.DemTextureSource,
-                workRoot,
-                cancellationToken),
+            Source = resolvedSource,
+            DemTextureSource = resolvedDemTextureSource!,
         };
     }
 
-    private async Task<ValidatedPlateauImportSource?> ResolveOptionalDemTextureSourceAsync(
+    private async Task<ValidatedPlateauImportSource?> ResolveOptionalRemoteImportSourceAsync(
         ValidatedPlateauImportSource? source,
         string workRoot,
+        string resourcePrefix,
+        bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
         if (source is null || source is ValidatedPlateauLocalImportSource)
@@ -96,43 +70,57 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         }
 
         ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)source;
-        Uri resourceUri = remoteSource.ServerUri;
-        string resourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, resourceUri, "source-ortho");
+        string resourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
+            workRoot,
+            remoteSource.ServerUri,
+            resourcePrefix);
         string metadataPath = RemoteDatasetResourceLayout.GetRemoteResourceMetadataPath(resourcePath);
 
         Directory.CreateDirectory(Path.GetDirectoryName(resourcePath)!);
 
-        if (File.Exists(resourcePath))
+        if (File.Exists(resourcePath)
+            && await TryReuseCachedRemoteResourceAsync(
+                workRoot,
+                remoteSource.ServerUri,
+                resourcePath,
+                metadataPath,
+                invalidateLocalFileCache,
+                cancellationToken))
         {
-            if (await TryReuseCachedArchiveAsync(workRoot, resourceUri, resourcePath, metadataPath, cancellationToken))
-            {
-                return new ValidatedPlateauLocalImportSource(resourcePath);
-            }
+            return new ValidatedPlateauLocalImportSource(resourcePath);
         }
 
-        await DownloadArchiveAsync(workRoot, resourceUri, resourcePath, metadataPath, cancellationToken);
+        await DownloadRemoteResourceAsync(
+            workRoot,
+            remoteSource.ServerUri,
+            resourcePath,
+            metadataPath,
+            invalidateLocalFileCache,
+            cancellationToken);
         return new ValidatedPlateauLocalImportSource(resourcePath);
     }
 
-    private async Task<bool> TryReuseCachedArchiveAsync(
+    private async Task<bool> TryReuseCachedRemoteResourceAsync(
         string datasetRoot,
-        Uri archiveUri,
-        string archivePath,
+        Uri resourceUri,
+        string resourcePath,
         string metadataPath,
+        bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
         ArchiveMetadata? metadata = await TryReadArchiveMetadataAsync(metadataPath, cancellationToken);
         if (metadata is null || (metadata.ETag is null && metadata.LastModifiedUtc is null))
         {
-            return await TryRefreshCachedArchiveWithoutMetadataAsync(
+            return await TryRefreshCachedResourceWithoutMetadataAsync(
                 datasetRoot,
-                archiveUri,
-                archivePath,
+                resourceUri,
+                resourcePath,
                 metadataPath,
+                invalidateLocalFileCache,
                 cancellationToken);
         }
 
-        using HttpRequestMessage request = new(HttpMethod.Get, archiveUri)
+        using HttpRequestMessage request = new(HttpMethod.Get, resourceUri)
         {
             Version = HttpVersion.Version11,
         };
@@ -159,55 +147,68 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             }
 
             response.EnsureSuccessStatusCode();
-            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateTemporaryLocalFileCache(datasetRoot, archivePath);
+            await WriteCachedArchiveResponseAsync(response, resourcePath, metadataPath, cancellationToken);
+            if (invalidateLocalFileCache)
+            {
+                InvalidateTemporaryLocalFileCache(datasetRoot, resourcePath);
+            }
+
             return true;
         }
-        catch (HttpRequestException) when (File.Exists(archivePath))
+        catch (HttpRequestException) when (File.Exists(resourcePath))
         {
             return true;
         }
     }
 
-    private async Task<bool> TryRefreshCachedArchiveWithoutMetadataAsync(
+    private async Task<bool> TryRefreshCachedResourceWithoutMetadataAsync(
         string datasetRoot,
-        Uri archiveUri,
-        string archivePath,
+        Uri resourceUri,
+        string resourcePath,
         string metadataPath,
+        bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
         try
         {
             using HttpResponseMessage response = await httpClient.GetAsync(
-                archiveUri,
+                resourceUri,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
             response.EnsureSuccessStatusCode();
-            await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateTemporaryLocalFileCache(datasetRoot, archivePath);
+            await WriteCachedArchiveResponseAsync(response, resourcePath, metadataPath, cancellationToken);
+            if (invalidateLocalFileCache)
+            {
+                InvalidateTemporaryLocalFileCache(datasetRoot, resourcePath);
+            }
+
             return true;
         }
-        catch (HttpRequestException) when (File.Exists(archivePath))
+        catch (HttpRequestException) when (File.Exists(resourcePath))
         {
             return true;
         }
     }
 
-    private async Task DownloadArchiveAsync(
+    private async Task DownloadRemoteResourceAsync(
         string datasetRoot,
-        Uri archiveUri,
-        string archivePath,
+        Uri resourceUri,
+        string resourcePath,
         string metadataPath,
+        bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
         using HttpResponseMessage response = await httpClient.GetAsync(
-            archiveUri,
+            resourceUri,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
         response.EnsureSuccessStatusCode();
 
-        await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-        InvalidateTemporaryLocalFileCache(datasetRoot, archivePath);
+        await WriteCachedArchiveResponseAsync(response, resourcePath, metadataPath, cancellationToken);
+        if (invalidateLocalFileCache)
+        {
+            InvalidateTemporaryLocalFileCache(datasetRoot, resourcePath);
+        }
     }
 
     private void InvalidateTemporaryLocalFileCache(string datasetRoot, string archivePath)
@@ -272,9 +273,9 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 temporaryArchivePath,
                 FileMode.Create,
                 FileAccess.Write,
-                    FileShare.None,
-                    bufferSize: 16 * 1024,
-                    useAsync: true);
+                FileShare.None,
+                bufferSize: 16 * 1024,
+                useAsync: true);
             await archiveStream.CopyToAsync(archiveFile, cancellationToken);
 
             await archiveFile.FlushAsync(cancellationToken);

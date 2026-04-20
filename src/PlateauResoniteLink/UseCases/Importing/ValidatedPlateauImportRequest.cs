@@ -39,13 +39,12 @@ public sealed record ValidatedPlateauImportRequest(
             ValidatedPlateauRemoteImportSource remoteSource => new PlateauRemoteImportSource(remoteSource.ServerUri),
             _ => throw new InvalidOperationException($"Unsupported validated source kind '{SourceKind}'."),
         };
-
         PlateauImportSource? rawDemTextureSource = DemTextureSource switch
         {
             null => null,
             ValidatedPlateauLocalImportSource localSource => new PlateauLocalImportSource(localSource.LocalSourcePath),
             ValidatedPlateauRemoteImportSource remoteSource => new PlateauRemoteImportSource(remoteSource.ServerUri),
-            _ => throw new InvalidOperationException($"Unsupported validated DEM texture source kind '{DemTextureSourceKind}'."),
+            _ => throw new InvalidOperationException($"Unsupported validated terrain texture source kind '{DemTextureSourceKind}'."),
         };
 
         return new PlateauImportRequest(

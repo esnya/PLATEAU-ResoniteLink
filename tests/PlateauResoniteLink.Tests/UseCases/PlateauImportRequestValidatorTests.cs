@@ -68,7 +68,7 @@ public sealed class PlateauImportRequestValidatorTests
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
-            "The --citygml-source value must point to a .zip/.7z archive or directory containing extracted CityGML dataset contents.",
+            $"The CityGML source path '{rasterPath}' must be a dataset directory or a .zip/.7z archive.",
             errors);
     }
 
@@ -112,7 +112,7 @@ public sealed class PlateauImportRequestValidatorTests
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
-        Assert.Contains("The local source path '/path/that/does/not/exist' does not exist.", errors);
+        Assert.Contains("The CityGML source path '/path/that/does/not/exist' does not exist.", errors);
     }
 
     [Theory]

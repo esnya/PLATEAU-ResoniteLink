@@ -442,6 +442,47 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             .ToArray();
     }
 
+    private async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
+        ParsedSourceFileResult parsedSourceFile,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(parsedSourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+
+        TerrainTextureOverlay[] bootstrapOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
+        if (bootstrapOverlays.Length == 0)
+        {
+            return await CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
+                parsedSourceFile,
+                preferRequestedMeshCodeSplit: true,
+                cancellationToken);
+        }
+
+        if (HasOverlayCoverage(parsedSourceFile, bootstrapOverlays))
+        {
+            return bootstrapOverlays;
+        }
+
+        return await CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
+            parsedSourceFile,
+            preferRequestedMeshCodeSplit: false,
+            cancellationToken);
+    }
+
+    private async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysFromParsedSourceFileAsync(
+        ParsedSourceFileResult parsedSourceFile,
+        bool preferRequestedMeshCodeSplit,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await Task.FromResult(
+            CreateDemTerrainTextureOverlaysFromParsedSourceFile(
+                parsedSourceFile,
+                preferRequestedMeshCodeSplit));
+    }
+
     private static void ValidateCompatibleReferenceSystem(
         CoordinateReferenceSystem expectedReferenceSystem,
         CoordinateReferenceSystem actualReferenceSystem)

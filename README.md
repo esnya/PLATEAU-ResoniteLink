@@ -10,11 +10,11 @@ This README is the canonical human-readable scope statement for the current `bet
 
 Shipped:
 - Stream local PLATEAU datasets or explicit remote CityGML ZIP/7z archives into a running ResoniteLink listener.
+- Accept `--citygml-source` and `--geotiff-source` as path-or-URL inputs, with `http`/`https` treated as remote URLs and other values treated as local filesystem paths.
 - Inspect local dataset directories or local ZIP/7z archives with built-in `search` and `stats` commands before import.
 - Treat `--resonitelink-connections` as a shipped live-send option, with a default live-send pool size of 4.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
-- Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
 - Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
 
 Pending:
@@ -52,8 +52,7 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372778 \
-  --source local \
-  --local-source-path /path/to/plateau \
+  --citygml-source /path/to/plateau \
   --resonitelink-port <port>
 ```
 
@@ -64,26 +63,26 @@ dotnet run --project src/PlateauResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372788 \
-  --source remote \
-  --server-url https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
+  --citygml-source https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
+  --geotiff-source https://example.invalid/53394525.tif \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` or `--resonitelink-url` is required. `--source remote` requires a direct `.zip` or `.7z` CityGML archive URL and does not perform built-in dataset search.
+`--resonitelink-port` or `--resonitelink-url` is required. `--citygml-source` accepts an extracted dataset directory, a local `.zip` / `.7z` archive, or a direct `.zip` / `.7z` CityGML archive URL. `--geotiff-source` accepts a local `.tif` / `.tiff` file, a local `.zip` / `.7z` archive, or a direct `.tif` / `.tiff` / `.zip` / `.7z` URL. Built-in dataset search is not performed for remote URLs.
 
 Local inspection examples:
 
 ```bash
 dotnet run --project src/PlateauResoniteLink.Cli -- \
   search \
-  --local-source-path /path/to/plateau-or-archive.zip \
+  --citygml-source /path/to/plateau-or-archive.zip \
   --mesh-code 5437277.
 ```
 
 ```bash
 dotnet run --project src/PlateauResoniteLink.Cli -- \
   stats \
-  --local-source-path /path/to/plateau-or-archive.zip
+  --citygml-source /path/to/plateau-or-archive.zip
 ```
 
 `search` and `stats` inspect local dataset directories and local `.zip` / `.7z` archives. Remote import still requires an explicit direct archive URL.

@@ -51,13 +51,6 @@ public static class PlateauImportRequestValidator
                 RegexOptions.Compiled | RegexOptions.CultureInvariant,
                 TimeSpan.FromSeconds(1));
         }
-        else if (meshCodePattern is null)
-        {
-            meshCodePattern = new Regex(
-                $@"\A(?:{Regex.Escape(normalizedRequest.MeshCode)})\z",
-                RegexOptions.Compiled | RegexOptions.CultureInvariant,
-                TimeSpan.FromSeconds(1));
-        }
 
         if (normalizedRequest.PackageNames is not null)
         {
@@ -148,7 +141,15 @@ public static class PlateauImportRequestValidator
                 if (!Directory.Exists(localSource.LocalSourcePath)
                     && !File.Exists(localSource.LocalSourcePath))
                 {
-                    validationErrors.Add($"The local source path '{localSource.LocalSourcePath}' does not exist.");
+                    validationErrors.Add($"The CityGML source path '{localSource.LocalSourcePath}' does not exist.");
+                    break;
+                }
+
+                if (File.Exists(localSource.LocalSourcePath)
+                    && !LooksLikeSupportedLocalDatasetSourcePath(localSource.LocalSourcePath))
+                {
+                    validationErrors.Add(
+                        $"The CityGML source path '{localSource.LocalSourcePath}' must be a dataset directory or a .zip/.7z archive.");
                     break;
                 }
 
@@ -282,29 +283,43 @@ public static class PlateauImportRequestValidator
     {
         ArgumentNullException.ThrowIfNull(serverUri);
 
-        if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        string extension = Path.GetExtension(serverUri.AbsolutePath);
-        return SupportedRemoteArchiveExtensions.Any(
-            supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
+        return HasSupportedHttpScheme(serverUri)
+            && HasSupportedExtension(serverUri.AbsolutePath, SupportedRemoteArchiveExtensions);
     }
 
     internal static bool LooksLikeSupportedTerrainTextureUri(Uri serverUri)
     {
         ArgumentNullException.ThrowIfNull(serverUri);
 
+        return HasSupportedHttpScheme(serverUri)
+            && HasSupportedExtension(serverUri.AbsolutePath, SupportedTerrainTextureExtensions);
+    }
+
+    private static bool LooksLikeSupportedLocalDatasetSourcePath(string sourcePath)
+    {
+        return Directory.Exists(sourcePath) || HasSupportedExtension(sourcePath, SupportedRemoteArchiveExtensions);
+    }
+
+    private static bool LooksLikeSupportedLocalTerrainTextureSourcePath(string sourcePath)
+    {
+        return Directory.Exists(sourcePath) || HasSupportedExtension(sourcePath, SupportedTerrainTextureExtensions);
+    }
+
+    private static bool HasSupportedHttpScheme(Uri serverUri)
+    {
         if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        string extension = Path.GetExtension(serverUri.AbsolutePath);
-        return SupportedTerrainTextureExtensions.Any(
+        return true;
+    }
+
+    private static bool HasSupportedExtension(string path, IReadOnlyList<string> supportedExtensions)
+    {
+        string extension = Path.GetExtension(path);
+        return supportedExtensions.Any(
             supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -405,19 +420,6 @@ public static class PlateauImportRequestValidator
     private static string TrimToEmpty(string? value)
     {
         return value?.Trim() ?? string.Empty;
-    }
-
-    private static bool LooksLikeSupportedLocalTerrainTextureSourcePath(string path)
-    {
-        string fullPath = Path.GetFullPath(path);
-        if (Directory.Exists(fullPath))
-        {
-            return true;
-        }
-
-        string extension = Path.GetExtension(fullPath);
-        return SupportedTerrainTextureExtensions.Any(
-            supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool LooksLikeSupportedLocalCityGmlSourcePath(string path)

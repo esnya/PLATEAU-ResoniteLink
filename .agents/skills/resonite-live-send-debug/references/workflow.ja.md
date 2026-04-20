@@ -18,6 +18,7 @@
 - `dump-slot` と `remove-slot` は thin primitive として扱います。dataset root、shared assets、common materials の naming semantics を tool surface に埋め込みません。
 - slot removal は destructive とみなします。current world の live content を削除し得ます。
 - user が明示的に removal を要求しない限り、最後に成功した `DatasetRoot` は残します。
+- 同じ session に対する cleanup、root dump、live-send command は並列実行しません。removal、post-removal verification dump、各 send は直列に実行し、base-state evidence を汚しません。
 - `stdout` を解釈する前に `stderr` を確認します。`stderr` が空でも stalled と判断する前に timestamp 付き log read を少なくとも 2 回取ります。
 - public operator surface は direct `dotnet` command に限定します。.ps1 wrapper、project-based session tool、cross-environment bridge guidance は再導入しません。
 - `dump-slot --root-child-name` と `remove-slot --root-child-name` は `Root` 直下の exact direct child だけを解決します。0 件は fail、複数件も mutate せず fail にします。
