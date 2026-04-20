@@ -298,16 +298,16 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedOther:
-                    ResoniteMeshSubmesh originalSubmesh = cityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
-                    ResoniteMaterialBinding originalMaterial = cityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
-                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, originalSubmesh, originalMaterial));
+                    ResoniteMeshSubmesh normalizedSubmesh = normalizedCityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
+                    ResoniteMaterialBinding normalizedMaterial = normalizedCityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
+                    preservedEntries.Add(new PreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
                     break;
             }
         }
 
         if (policy.RequireAtlasCandidateMaterial && atlasEntries.Count == 0)
         {
-            DisposeCandidateImages(new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries));
+            DisposeCandidateImages(new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries));
             return null;
         }
 
@@ -317,7 +317,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 $"LOD2 atlas bake city object '{cityObject.DisplayName}' produced no atlas or preserved submesh candidate.");
         }
 
-        return new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries);
+        return new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries);
     }
 
     private async Task<MaterialAtlasTile> CreateAtlasTileAsync(

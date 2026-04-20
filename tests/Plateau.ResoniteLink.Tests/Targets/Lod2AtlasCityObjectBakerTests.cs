@@ -355,7 +355,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncFallsBackToOriginalCityObjectWithoutNormalizingDynamicUvTransform()
+    public async Task FlushAllAsyncFallsBackToNormalizedCityObjectWhenSingleCandidateCannotFitAtlasBudget()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
         ResoniteConstructionCityObject oversizedCandidate = CreateUvScaledLod2Building(
@@ -370,9 +370,12 @@ public sealed class Lod2AtlasCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
         Assert.Equal(oversizedCandidate.SlotKey, cityObject.SlotKey);
-        Assert.Equal(new ResoniteFloat2(2.0, 0.5), material.TextureScale);
-        Assert.Equal(new ResoniteFloat2(0.25, 0.75), material.TextureOffset);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
         Assert.Equal(3, cityObject.Mesh.Vertices.Count);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), cityObject.Mesh.Vertices[0].UV0);
+        Assert.Equal(new ResoniteFloat2(2.25, 0.75), cityObject.Mesh.Vertices[1].UV0);
+        Assert.Equal(new ResoniteFloat2(0.25, 1.25), cityObject.Mesh.Vertices[2].UV0);
         Assert.DoesNotContain(cityObject.Materials, static candidate => candidate.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
     }
 
