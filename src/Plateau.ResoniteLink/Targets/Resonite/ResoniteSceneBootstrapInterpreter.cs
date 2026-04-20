@@ -360,7 +360,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         foreach (ResoniteMaterialBinding material in canonicalMaterialsByKey.Values.OrderBy(static material => material.MaterialKey, StringComparer.Ordinal))
         {
-            string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
+            string family = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(material);
             commonMaterialFamilies.Add(family);
             string familySlotName = family;
             if (!familyParentIds.TryGetValue(family, out string? familyParentId))
@@ -389,6 +389,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             }
 
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+            IReadOnlyList<string> materialSlotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
             Slot? familySnapshotSlot = commonSlotSnapshot is null
                 ? null
                 : GetReusableChildSlot(
@@ -397,12 +398,30 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                     commonSlotId ?? throw new InvalidOperationException("Existing shared Common Materials slot did not expose an ID."));
             ResoniteSceneSlotSnapshot? familySlotSnapshot = familySnapshotSlot is null ? null : new ResoniteSceneSlotSnapshot(familySnapshotSlot);
             string? familySnapshotSlotId = familySnapshotSlot?.ID;
-            Slot? existingMaterialSlot = familySlotSnapshot is null
-                ? null
-                : GetReusableChildSlot(
-                    familySlotSnapshot,
-                    materialSlotName,
-                    familySnapshotSlotId ?? throw new InvalidOperationException("Existing common material family slot did not expose an ID."));
+            Slot? existingMaterialSlot = null;
+            Slot? reusableEmptyMaterialSlot = null;
+            if (familySlotSnapshot is not null)
+            {
+                string requiredFamilySlotId = familySnapshotSlotId
+                    ?? throw new InvalidOperationException("Existing common material family slot did not expose an ID.");
+                foreach (string lookupSlotName in materialSlotLookupNames)
+                {
+                    Slot? candidateMaterialSlot = GetReusableChildSlot(familySlotSnapshot, lookupSlotName, requiredFamilySlotId);
+                    if (candidateMaterialSlot is null)
+                    {
+                        continue;
+                    }
+
+                    reusableEmptyMaterialSlot ??= candidateMaterialSlot;
+                    if (candidateMaterialSlot.Components?.Any(component =>
+                            string.Equals(component.ComponentType, ResoniteMaterialComponentPolicy.GetComponentType(material), StringComparison.Ordinal)) == true)
+                    {
+                        existingMaterialSlot = candidateMaterialSlot;
+                        break;
+                    }
+                }
+            }
+            existingMaterialSlot ??= reusableEmptyMaterialSlot;
             string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
             string? existingMaterialComponentId = existingMaterialSlot?.Components?
                 .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))

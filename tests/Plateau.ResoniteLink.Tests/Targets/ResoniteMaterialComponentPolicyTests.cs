@@ -24,6 +24,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             TextureScale: new ResoniteFloat2(0.5, 0.25),
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
             Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
 
         string componentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
@@ -92,6 +93,86 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Field_colorX fillColor = Assert.IsType<Field_colorX>(wireframeMembers["FillColor"]);
         Assert.Equal(0.01f, thickness.Value, 6);
         Assert.Equal(0.04f, fillColor.Value.a, 6);
+    }
+
+    [Fact]
+    public void CreateMembersOmitsUvTransformForDynamicMaterialsThatBakeIntoMesh()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "dynamic-overlay",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(0.5, 0.25),
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(
+            ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material));
+
+        Assert.DoesNotContain("TextureScale", members.Keys);
+        Assert.DoesNotContain("TextureOffset", members.Keys);
+    }
+
+    [Fact]
+    public void CreateMembersPreservesUvTransformForUnbakedDirectInputMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "direct-heightmap-style-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-heightmap-style.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+
+        Field_float2 textureScale = Assert.IsType<Field_float2>(members["TextureScale"]);
+        Field_float2 textureOffset = Assert.IsType<Field_float2>(members["TextureOffset"]);
+        Assert.Equal(1.0f, textureScale.Value.x, 6);
+        Assert.Equal(1.0f, textureScale.Value.y, 6);
+        Assert.Equal(0.125f, textureOffset.Value.x, 6);
+        Assert.Equal(0.75f, textureOffset.Value.y, 6);
+    }
+
+    [Fact]
+    public void CreateMembersPreservesOffsetOnlyUvTransformUsingIdentityScale()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "offset-only-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            TerrainOverlay: new TerrainTextureOverlay(
+                PackageName: "dem",
+                UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+                ZoomLevel: 17,
+                GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                MaxTextureSize: 512),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+
+        Field_float2 textureScale = Assert.IsType<Field_float2>(members["TextureScale"]);
+        Field_float2 textureOffset = Assert.IsType<Field_float2>(members["TextureOffset"]);
+        Assert.Equal(1.0f, textureScale.Value.x, 6);
+        Assert.Equal(1.0f, textureScale.Value.y, 6);
+        Assert.Equal(0.125f, textureOffset.Value.x, 6);
+        Assert.Equal(0.75f, textureOffset.Value.y, 6);
     }
 
     [Fact]

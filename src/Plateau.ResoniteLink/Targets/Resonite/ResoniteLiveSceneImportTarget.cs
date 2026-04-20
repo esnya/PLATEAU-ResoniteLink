@@ -910,7 +910,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         long geometryWeightBytes = cityObject.Geometry switch
         {
             ResoniteTriangleMeshGeometry triangleMesh => checked(
-                EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh) * triangleMeshExpansionFactor),
+                EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor),
             ResoniteHeightMapGridGeometry heightMap => checked(
                 (heightMap.HeightSamples.Count * heightSampleWeightBytes)
                 + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)
@@ -939,9 +939,18 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             + terrainOverlayCanvasWeightBytes);
         return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
 
-        static long EstimateTriangleMeshWorkingSetBytes(ResoniteImportedMesh mesh)
+        static long EstimateTriangleMeshWorkingSetBytes(
+            ResoniteImportedMesh mesh,
+            IReadOnlyList<ResoniteMaterialBinding> materials)
         {
-            long vertexBytes = mesh.Vertices.Count * vertexWeightBytes;
+            bool requiresUvBake = materials.Any(ResoniteDynamicMaterialUvNormalizer.ShouldBakeTextureTransform);
+            long normalizedVertexCount = requiresUvBake
+                ? mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count)
+                : mesh.Vertices.Count;
+            long sourceVertexCount = mesh.Vertices.Count;
+            long vertexBytes = requiresUvBake
+                ? checked((sourceVertexCount + normalizedVertexCount) * vertexWeightBytes)
+                : sourceVertexCount * vertexWeightBytes;
             long indexBytes = mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * indexWeightBytes);
             long submeshBytes = mesh.Submeshes.Count * perSubmeshWeightBytes;
             return checked(vertexBytes + indexBytes + submeshBytes);
@@ -1034,6 +1043,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             }
 
         }
+
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
 
         TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)
@@ -1621,11 +1632,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 Material,
                 RunState.Runtime.ProcessingCancellationToken);
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(Material, useCommonMaterialAssets: true);
+            IReadOnlyList<string> materialSlotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(Material);
             string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(Material);
             string? existingMaterialComponentId = await ResoniteMaterialPlanning.TryGetExistingCommonMaterialComponentIdAsync(
                 Client,
                 familySlot.SlotId,
-                materialSlotName,
+                materialSlotLookupNames,
                 materialComponentType,
                 RunState.Runtime.ProcessingCancellationToken);
             if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
