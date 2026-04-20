@@ -21,6 +21,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
+    private readonly DemTerrainGeoReferencedRasterCatalog? demRasterCatalog;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
@@ -38,6 +39,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         this.geometryProjector = geometryProjector;
         this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.progressReporter = progressReporter;
+        demRasterCatalog = documentSet.BootstrapDemRasterCatalog;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
             Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
     }
@@ -366,7 +368,8 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
             return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
                 fallbackBounds,
-                requestedMeshCodes);
+                requestedMeshCodes,
+                demRasterCatalog);
         }
 
         DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
@@ -379,7 +382,8 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
         return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
             demBounds,
-            requestedMeshCodes);
+            requestedMeshCodes,
+            demRasterCatalog);
     }
 
     private bool HasOverlayCoverage(

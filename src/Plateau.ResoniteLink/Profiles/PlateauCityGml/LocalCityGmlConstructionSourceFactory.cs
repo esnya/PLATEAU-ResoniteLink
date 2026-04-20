@@ -79,7 +79,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
             return documentSet;
         }
 
-        TerrainTextureOverlay[] overlays = await CreateDemTerrainTextureOverlaysAsync(
+        (TerrainTextureOverlay[] overlays, DemTerrainGeoReferencedRasterCatalog? demRasterCatalog) = await CreateDemTerrainTextureOverlaysAsync(
             request,
             documentSet.RequestedMeshCodes.Count > 0
                 ? documentSet.RequestedMeshCodes
@@ -100,10 +100,11 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
             documentSet.BootstrapCachedDemSourceFiles,
             documentSet.BootstrapReferenceSystem,
             documentSet.BootstrapGlobalOriginPoint,
-            documentSet.BootstrapTerrainHeightSampler);
+            documentSet.BootstrapTerrainHeightSampler,
+            demRasterCatalog);
     }
 
-    private async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
+    private async Task<(TerrainTextureOverlay[] Overlays, DemTerrainGeoReferencedRasterCatalog? RasterCatalog)> CreateDemTerrainTextureOverlaysAsync(
         PlateauImportRequest request,
         IReadOnlyList<string> requestedMeshCodes,
         CancellationToken cancellationToken)
@@ -112,9 +113,23 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
             request.DemTextureSource,
             datasetContentSourceFactory,
             cancellationToken);
-        return await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
+        if (request.DemTextureSource is not null && demRasterCatalog is null)
+        {
+            throw new PlateauImportValidationException(
+                [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
+        }
+
+        TerrainTextureOverlay[] overlays = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
             requestedMeshCodes,
             demRasterCatalog,
             cancellationToken);
+        if (request.DemTextureSource is not null
+            && overlays.Any(static overlay => !overlay.EnumerateGeoReferencedRasterSources().Any()))
+        {
+            throw new PlateauImportValidationException(
+                [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
+        }
+
+        return (overlays, demRasterCatalog);
     }
 }

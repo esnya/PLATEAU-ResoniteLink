@@ -64,6 +64,42 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Equal("dem", overlay.PackageName);
     }
 
+    [Fact]
+    public async Task CreateAsyncRejectsInvalidExplicitDemTextureSourceWhenRecoveredConstructionOverlayHasNoGeoTiffCoverage()
+    {
+        RecordingDocumentReader reader = new(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                ["udx/dem/53394525/terrain.gml"],
+                ["dem"],
+                [],
+                ["53394525"],
+                [],
+                [],
+                CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                terrainHeightSampler: null));
+        RecordingComposer composer = new(new StubConstructionSource());
+        LocalCityGmlConstructionSourceFactory factory = new(
+            reader,
+            composer,
+            new StubDatasetContentSourceFactory(
+                new EmptyDatasetContentSource("C:\\ortho")));
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local("/tmp/plateau"),
+            PackageNames: ["dem"],
+            DemTextureSource: PlateauImportSource.Local("C:\\ortho"));
+
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            () => factory.CreateAsync(request));
+
+        Assert.Contains(
+            exception.Errors,
+            static error => error.Contains("GeoTIFF", StringComparison.OrdinalIgnoreCase));
+    }
+
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
         public RecordingDocumentReader(LocalCityGmlDocumentSet? documentSet = null)
@@ -163,7 +199,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
     private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
     {
-        public string SourcePath => "/tmp/plateau";
+        public EmptyDatasetContentSource(string sourcePath = "/tmp/plateau")
+        {
+            SourcePath = sourcePath;
+        }
+
+        public string SourcePath { get; }
 
         public IReadOnlyList<string> EnumerateFiles()
         {
@@ -188,6 +229,17 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException(relativePath);
+        }
+    }
+
+    private sealed class StubDatasetContentSourceFactory(IPlateauDatasetContentSource datasetSource) : IPlateauDatasetContentSourceFactory
+    {
+        public Task<IPlateauDatasetContentSource> CreateAsync(
+            string sourcePath,
+            CancellationToken cancellationToken = default)
+        {
+            Assert.Equal(datasetSource.SourcePath, sourcePath);
+            return Task.FromResult(datasetSource);
         }
     }
 }

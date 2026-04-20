@@ -14,7 +14,8 @@ public sealed class LocalCityGmlDocumentSet
         IReadOnlyList<CachedSourceFileDescriptor> cachedDemSourceFiles,
         CoordinateReferenceSystem? referenceSystem,
         GeodeticPoint globalOriginPoint,
-        TerrainHeightSampler? terrainHeightSampler)
+        TerrainHeightSampler? terrainHeightSampler,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog = null)
         : this(
             datasetSource,
             relativeSourceFiles,
@@ -22,7 +23,8 @@ public sealed class LocalCityGmlDocumentSet
             terrainTextureOverlays,
             requestedMeshCodes,
             sourceFilePipelines,
-            globalOriginPoint)
+            globalOriginPoint,
+            demRasterCatalog)
     {
         BootstrapCachedDemSourceFiles = cachedDemSourceFiles;
         BootstrapReferenceSystem = referenceSystem;
@@ -36,7 +38,8 @@ public sealed class LocalCityGmlDocumentSet
         IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays,
         IReadOnlyList<string> requestedMeshCodes,
         IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
-        GeodeticPoint globalOriginPoint)
+        GeodeticPoint globalOriginPoint,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog = null)
     {
         DatasetSource = datasetSource;
         RelativeSourceFiles = relativeSourceFiles;
@@ -45,6 +48,7 @@ public sealed class LocalCityGmlDocumentSet
         RequestedMeshCodes = requestedMeshCodes;
         BootstrapSourceFilePipelines = sourceFilePipelines;
         BootstrapGlobalOriginPoint = globalOriginPoint;
+        BootstrapDemRasterCatalog = demRasterCatalog;
     }
 
     public IPlateauDatasetContentSource DatasetSource { get; }
@@ -66,4 +70,6 @@ public sealed class LocalCityGmlDocumentSet
     internal GeodeticPoint BootstrapGlobalOriginPoint { get; }
 
     internal TerrainHeightSampler? BootstrapTerrainHeightSampler { get; }
+
+    internal DemTerrainGeoReferencedRasterCatalog? BootstrapDemRasterCatalog { get; }
 }

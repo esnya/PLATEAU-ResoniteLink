@@ -170,6 +170,32 @@ internal static class LocalCityGmlDemBootstrapSupport
             .GetResult();
     }
 
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        DemTerrainBounds demBounds,
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog)
+    {
+        return CreateDemTerrainTextureOverlaysAsync(
+                demBounds,
+                requestedMeshCodes,
+                demRasterCatalog,
+                CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog)
+    {
+        return CreateDemTerrainTextureOverlaysAsync(
+                requestedMeshCodes,
+                demRasterCatalog,
+                CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+    }
+
     internal static TerrainHeightSampler? CreateTerrainHeightSampler(
         bool isGeographicReferenceSystem,
         IReadOnlyCollection<TerrainHeightTriangle> terrainTriangles,
