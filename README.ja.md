@@ -10,6 +10,7 @@ Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGM
 
 Shipped:
 - ローカルの PLATEAU dataset または explicit な remote CityGML ZIP/7z archive を、起動中の ResoniteLink listener へ送る。
+- `--citygml-source` と `--geotiff-source` は path-or-URL 入力として扱い、`http` / `https` は remote URL、それ以外は local filesystem path として解釈する。
 - import 前に、ローカルの dataset directory またはローカル ZIP/7z archive を組み込みの `search` / `stats` command で inspection できる。
 - `--resonitelink-connections` は shipped な live-send option として扱い、既定の live-send pool size は 4 とする。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
@@ -51,8 +52,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372778 \
-  --source local \
-  --local-source-path /path/to/plateau \
+  --citygml-source /path/to/plateau \
   --resonitelink-port <port>
 ```
 
@@ -63,26 +63,26 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372788 \
-  --source remote \
-  --server-url https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
+  --citygml-source https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \
+  --geotiff-source https://example.invalid/53394525.tif \
   --resonitelink-port <port>
 ```
 
-`--resonitelink-port` または `--resonitelink-url` は必須です。`--source remote` では direct な `.zip` / `.7z` CityGML archive URL が必要です。
+`--resonitelink-port` または `--resonitelink-url` は必須です。`--citygml-source` には extracted dataset directory、local の `.zip` / `.7z` archive、または direct な `.zip` / `.7z` CityGML archive URL を指定できます。`--geotiff-source` には local の `.tif` / `.tiff` file、local の `.zip` / `.7z` archive、または direct な `.tif` / `.tiff` / `.zip` / `.7z` URL を指定できます。remote URL に対する built-in dataset search は行いません。
 
 ローカル inspection の例:
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   search \
-  --local-source-path /path/to/plateau-or-archive.zip \
+  --citygml-source /path/to/plateau-or-archive.zip \
   --mesh-code 5437277.
 ```
 
 ```bash
 dotnet run --project src/Plateau.ResoniteLink.Cli -- \
   stats \
-  --local-source-path /path/to/plateau-or-archive.zip
+  --citygml-source /path/to/plateau-or-archive.zip
 ```
 
 `search` と `stats` は、ローカルの dataset directory とローカル `.zip` / `.7z` archive を inspection します。remote import 自体は引き続き explicit な direct archive URL が必要です。

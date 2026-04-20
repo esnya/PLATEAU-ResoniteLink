@@ -92,7 +92,7 @@ public sealed class CliApplication
                 case SearchCommandOptions options:
                     {
                         DatasetSearchResult result = await datasetInspectionService.SearchAsync(
-                            options.LocalSourcePath,
+                            options.CityGmlSourcePath,
                             options.MeshCode,
                             options.PackageNames,
                             cancellationToken);
@@ -102,7 +102,7 @@ public sealed class CliApplication
                 case StatsCommandOptions options:
                     {
                         DatasetStatsResult result = await datasetInspectionService.GetStatsAsync(
-                            options.LocalSourcePath,
+                            options.CityGmlSourcePath,
                             options.PackageNames,
                             cancellationToken);
                         await WriteStatsResultAsync(result, options.OutputFormat, cancellationToken);

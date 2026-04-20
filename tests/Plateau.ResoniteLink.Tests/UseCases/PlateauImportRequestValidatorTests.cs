@@ -110,7 +110,7 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
-    public void ValidateAcceptsRemoteOrthoGeoTiffUrl()
+    public void ValidateAcceptsRemoteGeoTiffUrl()
     {
         using TemporaryDirectory sourceRoot = new();
 
@@ -126,7 +126,7 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
-    public void ValidateRejectsUnsupportedRemoteOrthoSource()
+    public void ValidateRejectsUnsupportedRemoteGeoTiffSource()
     {
         using TemporaryDirectory sourceRoot = new();
 
@@ -139,7 +139,44 @@ public sealed class PlateauImportRequestValidatorTests
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
         Assert.Contains(
-            "The --ortho-source value must point directly to a .tif, .tiff, .zip, or .7z resource over http or https.",
+            "The --geotiff-source value must point directly to a .tif, .tiff, .zip, or .7z resource over http or https.",
+            errors);
+    }
+
+    [Fact]
+    public void ValidateAcceptsExistingLocalGeoTiffFile()
+    {
+        using TemporaryDirectory sourceRoot = new();
+        string geoTiffPath = Path.Combine(sourceRoot.Path, "53394525.tif");
+        File.WriteAllText(geoTiffPath, "dummy");
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(sourceRoot.Path),
+            DemTextureSource: PlateauImportSource.Local(geoTiffPath));
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateRejectsGeoTiffSourceDirectory()
+    {
+        using TemporaryDirectory sourceRoot = new();
+        using TemporaryDirectory geoTiffRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(sourceRoot.Path),
+            DemTextureSource: PlateauImportSource.Local(geoTiffRoot.Path));
+
+        IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
+
+        Assert.Contains(
+            $"The GeoTIFF source path '{geoTiffRoot.Path}' must point to an existing file.",
             errors);
     }
 

@@ -30,7 +30,7 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseParsesRemoteBuildCommandAndOptionalOrthoSource()
+    public void ParseParsesRemoteBuildCommandAndOptionalGeoTiffSource()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -41,7 +41,7 @@ public sealed class CliArgumentsParserTests
                 "53394525",
                 "--citygml-source",
                 "https://example.invalid/plateau.zip",
-                "--ortho-source",
+                "--geotiff-source",
                 "https://example.invalid/53394525.tif",
                 "--resonitelink-url",
                 "ws://localhost:12345/",
@@ -77,7 +77,7 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "search",
-                "--local-source-path",
+                "--citygml-source",
                 "/data/plateau.zip",
                 "--mesh-code",
                 "5339452[56]",
@@ -89,7 +89,7 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         SearchCommandOptions command = Assert.IsType<SearchCommandOptions>(result.Command);
-        Assert.Equal("/data/plateau.zip", command.LocalSourcePath);
+        Assert.Equal("/data/plateau.zip", command.CityGmlSourcePath);
         Assert.Equal("5339452[56]", command.MeshCode);
         Assert.Equal(["bldg", "tran"], command.PackageNames);
         Assert.Equal(CliOutputFormat.Json, command.OutputFormat);
@@ -101,7 +101,7 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "stats",
-                "--local-source-path",
+                "--citygml-source",
                 "/data/plateau",
                 "--packages",
                 "dem,bldg",
@@ -109,7 +109,7 @@ public sealed class CliArgumentsParserTests
 
         Assert.Null(result.Error);
         StatsCommandOptions command = Assert.IsType<StatsCommandOptions>(result.Command);
-        Assert.Equal("/data/plateau", command.LocalSourcePath);
+        Assert.Equal("/data/plateau", command.CityGmlSourcePath);
         Assert.Equal(["dem", "bldg"], command.PackageNames);
     }
 
@@ -117,9 +117,10 @@ public sealed class CliArgumentsParserTests
     public void HelpTextDocumentsUnifiedSourceOptions()
     {
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
-        Assert.Contains("--ortho-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--source <value>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--server-url <url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.DoesNotContain("--local-source-path <path>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]
