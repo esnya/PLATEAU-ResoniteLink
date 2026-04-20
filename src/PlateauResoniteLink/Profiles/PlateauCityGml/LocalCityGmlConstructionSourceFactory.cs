@@ -6,19 +6,16 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
 {
     private readonly ICityGmlDocumentReader documentReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
-    private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
+    private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
 
     internal LocalCityGmlConstructionSourceFactory(
         ICityGmlDocumentReader documentReader,
         IImportedSceneSourceComposer constructionComposer,
-        IPlateauDatasetContentSourceFactory? datasetContentSourceFactory = null)
+        IDemTextureSourcePolicy demTextureSourcePolicy)
     {
         this.documentReader = documentReader;
         this.constructionComposer = constructionComposer;
-        this.datasetContentSourceFactory = datasetContentSourceFactory
-            ?? new DefaultPlateauDatasetContentSourceFactory(
-                new RemoteArchiveDistributionPolicy(),
-                new ArchiveFileLayoutPolicy());
+        this.demTextureSourcePolicy = demTextureSourcePolicy;
     }
 
     public Task<IImportedSceneSource> CreateAsync(
@@ -89,13 +86,13 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             return readResult;
         }
 
-        (TerrainTextureOverlay[] overlays, DemTerrainGeoReferencedRasterCatalog? demRasterCatalog) = await CreateDemTerrainTextureOverlaysAsync(
+        ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
             request,
             documentSet.RequestedMeshCodes.Count > 0
                 ? documentSet.RequestedMeshCodes
                 : [request.MeshCode],
             cancellationToken);
-        if (overlays.Length == 0)
+        if (resolvedDemTextureSources.Overlays.Count == 0)
         {
             return readResult;
         }
@@ -104,43 +101,13 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             documentSet.DatasetSource,
             documentSet.RelativeSourceFiles,
             documentSet.PackageNames,
-            overlays,
+            resolvedDemTextureSources.Overlays,
             documentSet.RequestedMeshCodes);
         LocalCityGmlBootstrapContext resolvedBootstrapContext = new(
             readResult.BootstrapContext.SourceFilePipelines,
-            readResult.BootstrapContext.GlobalOriginPoint,
-            demRasterCatalog);
+            readResult.BootstrapContext.GlobalOriginPoint);
         return new LocalCityGmlDocumentReadResult(
             resolvedDocumentSet,
             resolvedBootstrapContext);
-    }
-
-    private async Task<(TerrainTextureOverlay[] Overlays, DemTerrainGeoReferencedRasterCatalog? RasterCatalog)> CreateDemTerrainTextureOverlaysAsync(
-        PlateauImportRequest request,
-        IReadOnlyList<string> requestedMeshCodes,
-        CancellationToken cancellationToken)
-    {
-        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
-            request.DemTextureSource,
-            datasetContentSourceFactory,
-            cancellationToken);
-        if (request.DemTextureSource is not null && demRasterCatalog is null)
-        {
-            throw new PlateauImportValidationException(
-                [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
-        }
-
-        TerrainTextureOverlay[] overlays = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
-            requestedMeshCodes,
-            demRasterCatalog,
-            cancellationToken);
-        if (request.DemTextureSource is not null
-            && overlays.Any(static overlay => !overlay.EnumerateGeoReferencedRasterSources().Any()))
-        {
-            throw new PlateauImportValidationException(
-                [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
-        }
-
-        return (overlays, demRasterCatalog);
     }
 }

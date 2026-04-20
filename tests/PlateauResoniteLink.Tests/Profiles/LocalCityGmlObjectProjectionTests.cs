@@ -25,7 +25,12 @@ public sealed class LocalCityGmlObjectProjectionTests
                 documentReader,
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()))),
+                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())),
+                new LocalCityGmlDemTextureSourcePolicy(
+                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                        new DefaultPlateauDatasetContentSourceFactory(
+                            new RemoteArchiveDistributionPolicy(),
+                            new ArchiveFileLayoutPolicy())))),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
 
@@ -58,7 +63,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateDocumentReader(),
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())));
+                new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())),
+            new LocalCityGmlDemTextureSourcePolicy(
+                new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                    new DefaultPlateauDatasetContentSourceFactory(
+                        new RemoteArchiveDistributionPolicy(),
+                        new ArchiveFileLayoutPolicy()))));
         IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);

@@ -138,12 +138,8 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("54372778")
             ?? throw new InvalidOperationException("Expected Matsumoto third mesh bounds.");
         TerrainTextureOverlay tileOverlay = Assert.Single(
-            LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-                new DemTerrainBounds(
-                    meshBounds.SouthLatitude,
-                    meshBounds.NorthLatitude,
-                    meshBounds.WestLongitude,
-                    meshBounds.EastLongitude),
+            LocalCityGmlObjectProjection.CreateDemTerrainTextureOverlays(
+                meshBounds,
                 ["54372778"]));
         TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
             tileOverlay.GeographicBounds,

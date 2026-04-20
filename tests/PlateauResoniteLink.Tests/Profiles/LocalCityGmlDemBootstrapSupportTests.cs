@@ -38,52 +38,35 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
     }
 
     [Fact]
-    public async Task CreateDemTerrainTextureOverlaysReturnsTileSourcesAndFallbackLicenseByDefault()
+    public void CreateDemTerrainOverlayRegionsReturnsRequestedThirdMeshBounds()
     {
-        DemTerrainBounds demBounds = new(35.0, 35.0001, 139.0, 139.0001);
+        Assert.True(
+            PlateauMeshCode.TryGetBounds(
+                "53394525",
+                out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) meshBounds));
+        DemTerrainOverlayRegion[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+            ["53394525"]);
 
-        TerrainTextureOverlay[] result = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
-            demBounds,
-            ["53394525"],
-            demRasterCatalog: null,
-            CancellationToken.None);
-
-        TerrainTextureOverlay overlay = Assert.Single(result);
-        Assert.Collection(
-            overlay.Sources,
-            source => Assert.IsType<TerrainTextureTileSource>(source),
-            source => Assert.IsType<TerrainTextureTileSource>(source),
-            source => Assert.IsType<TerrainTextureTileSource>(source));
-        Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
+        DemTerrainOverlayRegion region = Assert.Single(result);
+        Assert.Equal("53394525", region.Identity);
+        Assert.Equal(meshBounds.SouthLatitude, region.GeographicBounds.MinLatitude);
+        Assert.Equal(meshBounds.NorthLatitude, region.GeographicBounds.MaxLatitude);
+        Assert.Equal(meshBounds.WestLongitude, region.GeographicBounds.MinLongitude);
+        Assert.Equal(meshBounds.EastLongitude, region.GeographicBounds.MaxLongitude);
     }
 
     [Fact]
-    public void OrderAvailableSourcesPrefersExplicitGeoReferencedRasterOverTileSources()
+    public void CreateDemTerrainOverlayRegionsReturnsFallbackBoundsWhenRequestedMeshesDoNotIntersect()
     {
-        TerrainTextureGeoReferencedRasterSource rasterSource = new(
-            "ortho.tif",
-            new GeoReferencedRasterMetadata(
-                new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
-                "EPSG:4326",
-                PixelWidthMeters: 0.8,
-                PixelHeightMeters: 0.8));
-        TerrainTextureTileSource ortho19Source = new(
-            LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-            LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel);
-        TerrainTextureTileSource ortho18Source = new(
-            LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-            LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
+        DemTerrainOverlayRegion region = Assert.Single(
+            LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+                new DemTerrainBounds(35.0, 35.0001, 139.0, 139.0001),
+                ["99999999"]));
 
-        TerrainTextureSource[] result = LocalCityGmlDemBootstrapSupport.OrderAvailableSources(
-        [
-            new DemTerrainTextureSourceDescriptor(DemTerrainTextureSourcePreference.Ortho19, ortho19Source, true, false, 0.3),
-            new DemTerrainTextureSourceDescriptor(DemTerrainTextureSourcePreference.GeoReferencedRaster, rasterSource, true, true, 0.8),
-            new DemTerrainTextureSourceDescriptor(DemTerrainTextureSourcePreference.Ortho18, ortho18Source, true, false, 0.6),
-        ]);
-
-        Assert.Same(rasterSource, result[0]);
-        Assert.Same(ortho19Source, result[1]);
-        Assert.Same(ortho18Source, result[2]);
+        Assert.Equal("dem-fallback", region.Identity);
+        Assert.Equal(
+            new GeographicRectangle(35.0, 35.0001, 139.0, 139.0001),
+            region.GeographicBounds);
     }
 
     private static BootstrapParsedCityObject CreateCityObject()

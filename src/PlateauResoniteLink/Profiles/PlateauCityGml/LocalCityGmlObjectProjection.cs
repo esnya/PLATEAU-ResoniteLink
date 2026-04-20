@@ -238,9 +238,21 @@ public static partial class LocalCityGmlObjectProjection
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            DemTerrainBounds.FromLegacy(demBounds),
-            requestedMeshCodes);
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+                DemTerrainBounds.FromLegacy(demBounds),
+                requestedMeshCodes)
+            .Select(static region => new TerrainTextureOverlay(
+                PackageName: "dem",
+                GeographicBounds: region.GeographicBounds,
+                MaxTextureSize: DefaultDemTerrainTextureMaxSize,
+                Sources:
+                [
+                    new TerrainTextureTileSource(DefaultDemTerrainTextureUrlTemplate, DefaultDemTerrainTextureZoomLevel),
+                    new TerrainTextureTileSource(DefaultDemTerrainTextureUrlTemplate, DefaultDemTerrainTextureFallbackZoomLevel),
+                    new TerrainTextureTileSource(DefaultDemTerrainTextureFallbackUrlTemplate, DefaultDemTerrainTextureFallbackZoomLevel),
+                ],
+                LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback))
+            .ToArray();
     }
 
     private static (XElement[] SurfaceElements, int? LodLevel) SelectPreferredLodSurfaceElements(

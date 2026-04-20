@@ -78,6 +78,18 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         Assert.Same(factory, provider.GetRequiredService<IImportedSceneSourceFactory>());
     }
 
+    [Fact]
+    public void AddPlateauCityGmlImportServicesPreservesCustomDemTextureSourcePolicy()
+    {
+        CustomDemTextureSourcePolicy policy = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IDemTextureSourcePolicy>(policy)
+            .AddPlateauCityGmlImportServices()
+            .BuildServiceProvider();
+
+        Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
+    }
+
     private sealed class CustomPlateauDatasetContentSourceFactory : IPlateauDatasetContentSourceFactory
     {
         public Task<IPlateauDatasetContentSource> CreateAsync(
@@ -107,6 +119,17 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class CustomDemTextureSourcePolicy : IDemTextureSourcePolicy
+    {
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<string> requestedMeshCodes,
             CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();

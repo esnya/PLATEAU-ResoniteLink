@@ -1,7 +1,7 @@
 using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class DemTerrainGeoReferencedRasterCatalog
+internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoReferencedRasterCatalog
 {
     private readonly string? directRasterPath;
     private readonly string? singleRelativeRasterPath;
@@ -28,7 +28,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
         this.relativeRasterPathsByStem = relativeRasterPathsByStem;
     }
 
-    public static async Task<DemTerrainGeoReferencedRasterCatalog?> CreateAsync(
+    public static async Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
         PlateauImportSource? source,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         CancellationToken cancellationToken)

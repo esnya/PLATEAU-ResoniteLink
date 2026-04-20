@@ -11,7 +11,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         StubConstructionSource expectedSource = new();
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer);
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
         Action<string> progressReporter = _ => { };
 
         PlateauImportRequest request = new(
@@ -29,11 +30,23 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Same(request, composer.LastRequest);
         Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Same(progressReporter, composer.LastProgressReporter);
+        Assert.Null(demTextureSourcePolicy.LastRequest);
     }
 
     [Fact]
     public async Task CreateAsyncAddsDemOverlaysDuringConstructionWhenBootstrapReadResultIsDiscoveryOnly()
     {
+        TerrainTextureOverlay[] resolvedOverlays =
+        [
+            new(
+                PackageName: "dem",
+                GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                MaxTextureSize: 1024,
+                Sources:
+                [
+                    new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18),
+                ]),
+        ];
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
                 new LocalCityGmlDocumentSet(
@@ -46,7 +59,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer);
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(resolvedOverlays);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -60,11 +74,13 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.NotSame(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
         TerrainTextureOverlay overlay = Assert.Single(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
-        Assert.Equal("dem", overlay.PackageName);
+        Assert.Same(resolvedOverlays[0], overlay);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastRequestedMeshCodes);
     }
 
     [Fact]
-    public async Task CreateAsyncRejectsInvalidExplicitDemTextureSourceWhenRecoveredConstructionOverlayHasNoGeoTiffCoverage()
+    public async Task CreateAsyncPropagatesDemTextureSourceValidationFromPolicy()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -78,11 +94,10 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
-        LocalCityGmlConstructionSourceFactory factory = new(
-            reader,
-            composer,
-            new StubDatasetContentSourceFactory(
-                new EmptyDatasetContentSource("C:\\ortho")));
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(
+            [],
+            new PlateauImportValidationException(["invalid GeoTIFF source"]));
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -96,6 +111,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Contains(
             exception.Errors,
             static error => error.Contains("GeoTIFF", StringComparison.OrdinalIgnoreCase));
+        Assert.Null(composer.LastReadResult);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
@@ -229,14 +245,27 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 
-    private sealed class StubDatasetContentSourceFactory(IPlateauDatasetContentSource datasetSource) : IPlateauDatasetContentSourceFactory
+    private sealed class StubDemTextureSourcePolicy(
+        IReadOnlyList<TerrainTextureOverlay> overlays,
+        PlateauImportValidationException? exception = null) : IDemTextureSourcePolicy
     {
-        public Task<IPlateauDatasetContentSource> CreateAsync(
-            string sourcePath,
+        public PlateauImportRequest? LastRequest { get; private set; }
+
+        public IReadOnlyList<string>? LastRequestedMeshCodes { get; private set; }
+
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<string> requestedMeshCodes,
             CancellationToken cancellationToken = default)
         {
-            Assert.Equal(datasetSource.SourcePath, sourcePath);
-            return Task.FromResult(datasetSource);
+            LastRequest = request;
+            LastRequestedMeshCodes = requestedMeshCodes.ToArray();
+            if (exception is not null)
+            {
+                throw exception;
+            }
+
+            return Task.FromResult(new ResolvedDemTextureSources(overlays));
         }
     }
 }
