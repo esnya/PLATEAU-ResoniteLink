@@ -9,7 +9,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSource
+internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
 {
     internal const int MaxConcurrentCityObjectProducers = 8;
 
@@ -22,7 +22,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
     private readonly object referenceSystemGate = new();
     private readonly MeshCodeBounds[] requestedMeshAreas;
     private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
-    private readonly ConstructionMetadata metadata;
+    private readonly ImportedSceneMetadata metadata;
     private CoordinateReferenceSystem? referenceSystem;
 
     public LocalCityGmlConstructionSource(
@@ -45,7 +45,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
             this.metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
     }
 
-    public ConstructionMetadata Metadata => metadata;
+    public ImportedSceneMetadata Metadata => metadata;
 
     public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -87,7 +87,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
             foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
-                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
+                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.ProjectCityObjects(
                              new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                              resolvedReferenceSystem,
                              globalOriginPoint,
@@ -170,7 +170,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
                 + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}'."));
 
         int yieldedCount = 0;
-        await foreach (ImportedCityObject cityObject in StreamMaterializedCityObjectsAsync(
+        await foreach (ImportedCityObject cityObject in StreamProjectedCityObjectsAsync(
                            sourceFile,
                            cancellationToken))
         {
@@ -227,7 +227,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         writer.TryComplete(completionException);
     }
 
-    private async IAsyncEnumerable<ImportedCityObject> StreamMaterializedCityObjectsAsync(
+    private async IAsyncEnumerable<ImportedCityObject> StreamProjectedCityObjectsAsync(
         SourceFilePipeline sourceFile,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -245,7 +245,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
             resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
 
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
+            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.ProjectCityObjects(
                          new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                          resolvedReferenceSystem,
                          globalOriginPoint,
@@ -264,7 +264,7 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         progressReporter?.Invoke(
             PlateauLog.Info(
                 "import",
-                $"City object producer materialized '{sourceFile.SourceFile.RelativePath}' "
+                $"City object producer projected '{sourceFile.SourceFile.RelativePath}' "
                 + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
     }
 

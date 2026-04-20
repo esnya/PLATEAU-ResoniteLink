@@ -101,9 +101,9 @@ public sealed class SceneImportExecutionPlanTests
                     "work")));
     }
 
-    private static ConstructionMetadata CreateMetadata(PlateauImportRequest request)
+    private static ImportedSceneMetadata CreateMetadata(PlateauImportRequest request)
     {
-        return new ConstructionMetadata(
+        return new ImportedSceneMetadata(
             SchemaVersion: "3.0",
             SceneName: "stub",
             Request: request,
@@ -111,6 +111,6 @@ public sealed class SceneImportExecutionPlanTests
             Attribution: new Attribution(
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid/license"),
                 []),
-            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
+            GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 }

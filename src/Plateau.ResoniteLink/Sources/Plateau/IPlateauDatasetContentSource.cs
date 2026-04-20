@@ -20,7 +20,7 @@ public interface IPlateauDatasetContentSource
         string relativePath,
         CancellationToken cancellationToken = default);
 
-    Task<string> MaterializeFileAsync(
+    Task<string> EnsureLocalFileAsync(
         string relativePath,
         string outputRoot,
         CancellationToken cancellationToken = default);

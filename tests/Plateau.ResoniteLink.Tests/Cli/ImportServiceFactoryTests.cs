@@ -150,11 +150,11 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubConstructionSourceFactory : IResoniteConstructionSourceFactory
+    private sealed class StubConstructionSourceFactory : IImportedSceneSourceFactory
     {
         public int CreateWithDocumentSetCallCount { get; private set; }
 
-        public Task<IResoniteConstructionSource> CreateAsync(
+        public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -162,7 +162,7 @@ public sealed class ImportServiceFactoryTests
             throw new NotSupportedException();
         }
 
-        public Task<IResoniteConstructionSource> CreateAsync(
+        public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
             LocalCityGmlDocumentSet documentSet,
             Action<string>? progressReporter = null,
@@ -170,7 +170,7 @@ public sealed class ImportServiceFactoryTests
         {
             CreateWithDocumentSetCallCount++;
 
-            ConstructionMetadata metadata = new(
+            ImportedSceneMetadata metadata = new(
                 "3.0",
                 $"PLATEAU {request.Dataset} {request.MeshCode}",
                 request,
@@ -178,15 +178,15 @@ public sealed class ImportServiceFactoryTests
                 new Attribution(
                     new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                     []),
-                new LocalOrigin(35.0, 139.0, 0.0));
+                GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
-            return Task.FromResult<IResoniteConstructionSource>(new StubConstructionSource(metadata));
+            return Task.FromResult<IImportedSceneSource>(new StubConstructionSource(metadata));
         }
     }
 
-    private sealed class StubConstructionSource(ConstructionMetadata metadata) : IResoniteConstructionSource
+    private sealed class StubConstructionSource(ImportedSceneMetadata metadata) : IImportedSceneSource
     {
-        public ConstructionMetadata Metadata { get; } = metadata;
+        public ImportedSceneMetadata Metadata { get; } = metadata;
 
         [Obsolete]
         public IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(CancellationToken cancellationToken = default)
@@ -253,7 +253,7 @@ public sealed class ImportServiceFactoryTests
             throw new NotSupportedException();
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

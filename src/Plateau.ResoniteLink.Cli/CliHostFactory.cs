@@ -71,7 +71,7 @@ internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
     ISceneImportTargetFactory sceneImportTargetFactory,
     ICityGmlDocumentReader documentReader,
-    IResoniteConstructionSourceFactory constructionSourceFactory,
+    IImportedSceneSourceFactory constructionSourceFactory,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(

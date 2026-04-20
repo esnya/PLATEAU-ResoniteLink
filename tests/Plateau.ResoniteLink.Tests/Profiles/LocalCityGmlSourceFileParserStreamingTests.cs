@@ -258,7 +258,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             return ValueTask.FromResult(stream);
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
@@ -297,7 +297,7 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             return ValueTask.FromResult<Stream>(new MemoryStream(payload, writable: false));
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

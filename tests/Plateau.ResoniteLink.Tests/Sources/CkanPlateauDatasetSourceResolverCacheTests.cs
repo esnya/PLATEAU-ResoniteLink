@@ -327,7 +327,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             workRoot.Path);
 
         Assert.NotNull(firstRequest.LocalSourcePath);
-        string materializedCachePath = CreateStaleMaterializedCacheDirectory(
+        string localFileCachePath = CreateStaleLocalFileCacheDirectory(
             workRoot.Path,
             firstRequest.LocalSourcePath);
 
@@ -342,8 +342,8 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             "<CityModel>version-b</CityModel>",
             ReadZipEntry(secondRequest.LocalSourcePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
         Assert.Equal(2, requestIndex);
-        Assert.False(Directory.Exists(materializedCachePath));
-        Assert.False(Directory.Exists(Path.Combine(materializedCachePath, "udx")));
+        Assert.False(Directory.Exists(localFileCachePath));
+        Assert.False(Directory.Exists(Path.Combine(localFileCachePath, "udx")));
     }
 
     [Fact]
@@ -386,7 +386,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         string firstArchivePath = firstRequest.LocalSourcePath;
         DateTime firstWriteUtc = File.GetLastWriteTimeUtc(firstArchivePath);
 
-        string materializedCachePath = CreateStaleMaterializedCacheDirectory(
+        string localFileCachePath = CreateStaleLocalFileCacheDirectory(
             workRoot.Path,
             firstArchivePath);
 
@@ -402,11 +402,11 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             ReadZipEntry(secondArchivePath, "udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml"));
         Assert.Equal(firstWriteUtc, File.GetLastWriteTimeUtc(secondArchivePath));
         Assert.Equal(2, requestIndex);
-        Assert.True(Directory.Exists(materializedCachePath));
-        Assert.True(Directory.Exists(Path.Combine(materializedCachePath, "udx")));
+        Assert.True(Directory.Exists(localFileCachePath));
+        Assert.True(Directory.Exists(Path.Combine(localFileCachePath, "udx")));
         Assert.Equal(
             "stale",
-            await File.ReadAllTextAsync(Path.Combine(materializedCachePath, "udx", "stale.dat")));
+            await File.ReadAllTextAsync(Path.Combine(localFileCachePath, "udx", "stale.dat")));
     }
 
     [Fact]
@@ -458,24 +458,16 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         return reader.ReadToEnd();
     }
 
-    private static string CreateStaleMaterializedCacheDirectory(string workRoot, string localArchivePath)
+    private static string CreateStaleLocalFileCacheDirectory(string workRoot, string localArchivePath)
     {
-        string cacheName = GetMaterializedArchiveCacheKey(localArchivePath);
-        string materializedCachePath = Path.Combine(workRoot, "run", "stale-run", "materialized", cacheName);
-        string staleFilePath = Path.Combine(materializedCachePath, "udx", "stale.dat");
+        ArchiveFileLayoutPolicy layoutPolicy = new();
+        string localFileCachePath = layoutPolicy.GetLocalFileCacheRoot(
+            Path.Combine(workRoot, "run", "stale-run"),
+            localArchivePath);
+        string staleFilePath = Path.Combine(localFileCachePath, "udx", "stale.dat");
         Directory.CreateDirectory(Path.GetDirectoryName(staleFilePath)!);
         File.WriteAllText(staleFilePath, "stale");
-        return materializedCachePath;
-    }
-
-    private static string GetMaterializedArchiveCacheKey(string archivePath)
-    {
-        string fullArchivePath = Path.GetFullPath(archivePath);
-        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
-        string digest = Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath)))
-            .ToLowerInvariant();
-        return $"{fileStem}-{digest[..12]}";
+        return localFileCachePath;
     }
 
     private static string GetExpectedArchivePath(string workRoot, Uri archiveUri)

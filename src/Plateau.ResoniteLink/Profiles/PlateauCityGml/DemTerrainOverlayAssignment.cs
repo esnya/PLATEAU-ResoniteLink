@@ -135,7 +135,7 @@ internal static class DemTerrainOverlayAssignment
 
     public static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateHeightMapTextureTransform(
         LocalCityGmlObjectProjection.ParsedCityObject cityObject,
-        LocalCityGmlObjectProjection.MaterializedSurface materializedSurface,
+        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {

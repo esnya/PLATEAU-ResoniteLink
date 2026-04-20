@@ -8,7 +8,7 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class LocalCityGmlConstructionComposerTests
 {
     [Fact]
-    public void ComposeMapsDocumentSetBoundaryIntoConstructionMetadata()
+    public void ComposeMapsDocumentSetBoundaryIntoImportedSceneMetadata()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -40,7 +40,7 @@ public sealed class LocalCityGmlConstructionComposerTests
             new ThrowingGeometryProjector(),
             new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()));
 
-        IResoniteConstructionSource source = composer.Compose(request, documentSet);
+        IImportedSceneSource source = composer.Compose(request, documentSet);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
@@ -48,14 +48,14 @@ public sealed class LocalCityGmlConstructionComposerTests
         Assert.Equal(documentSet.PackageNames, source.Metadata.SourceDataset.PackageNames);
         Assert.Equal(documentSet.RelativeSourceFiles, source.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(documentSet.RequestedMeshCodes, source.Metadata.SourceDataset.RequestedMeshCodes);
-        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Latitude, source.Metadata.LocalOrigin.Latitude);
-        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Longitude, source.Metadata.LocalOrigin.Longitude);
-        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Altitude, source.Metadata.LocalOrigin.Altitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Latitude, source.Metadata.GeodeticOrigin.Latitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Longitude, source.Metadata.GeodeticOrigin.Longitude);
+        Assert.Equal(documentSet.BootstrapGlobalOriginPoint.Altitude, source.Metadata.GeodeticOrigin.Altitude);
     }
 
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
     {
-        public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -73,7 +73,7 @@ public sealed class LocalCityGmlConstructionComposerTests
             _ = requestedMeshAreas;
             _ = request;
             _ = predicate;
-            throw new InvalidOperationException("Compose should not materialize geometry.");
+            throw new InvalidOperationException("Compose should not project geometry.");
         }
     }
 
@@ -98,7 +98,7 @@ public sealed class LocalCityGmlConstructionComposerTests
             throw new FileNotFoundException(relativePath);
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

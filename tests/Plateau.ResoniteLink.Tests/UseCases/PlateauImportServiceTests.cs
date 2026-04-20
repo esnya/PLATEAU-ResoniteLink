@@ -192,12 +192,12 @@ public sealed class PlateauImportServiceTests
             terrainHeightSampler: null);
     }
 
-    private static ConstructionMetadata CreateMetadata(
+    private static ImportedSceneMetadata CreateMetadata(
         PlateauImportRequest request,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<string> sourceFiles)
     {
-        return new ConstructionMetadata(
+        return new ImportedSceneMetadata(
             SchemaVersion: "3.0",
             SceneName: "stub",
             Request: request,
@@ -205,7 +205,7 @@ public sealed class PlateauImportServiceTests
             Attribution: new Attribution(
                 new LicenseMetadata(false, "credit", "license", "https://example.invalid/license"),
                 []),
-            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
+            GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
     private sealed class RecordingSceneBuilder : ISceneImportTarget
@@ -281,7 +281,7 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class RecordingConstructionSourceFactory(IResoniteConstructionSource source) : IResoniteConstructionSourceFactory
+    private sealed class RecordingConstructionSourceFactory(IImportedSceneSource source) : IImportedSceneSourceFactory
     {
         public int CreateCallCount { get; private set; }
 
@@ -289,7 +289,7 @@ public sealed class PlateauImportServiceTests
 
         public LocalCityGmlDocumentSet? LastDocumentSet { get; private set; }
 
-        public Task<IResoniteConstructionSource> CreateAsync(
+        public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -297,7 +297,7 @@ public sealed class PlateauImportServiceTests
             throw new NotSupportedException();
         }
 
-        public Task<IResoniteConstructionSource> CreateAsync(
+        public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
             LocalCityGmlDocumentSet documentSet,
             Action<string>? progressReporter = null,
@@ -311,11 +311,11 @@ public sealed class PlateauImportServiceTests
     }
 
     private sealed class StubConstructionSource(
-        ConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         IReadOnlyList<ImportedCityObject>? cityObjects = null)
-        : IResoniteConstructionSource
+        : IImportedSceneSource
     {
-        public ConstructionMetadata Metadata { get; } = metadata;
+        public ImportedSceneMetadata Metadata { get; } = metadata;
 
         public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -377,7 +377,7 @@ public sealed class PlateauImportServiceTests
             throw new FileNotFoundException(relativePath);
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

@@ -125,7 +125,7 @@ public static class PlateauDatasetContentSourceFactory
 #pragma warning restore CA2000
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
@@ -235,7 +235,7 @@ public static class PlateauDatasetContentSourceFactory
             return await fileAccessor.OpenReadAsync(cancellationToken);
         }
 
-        public async Task<string> MaterializeFileAsync(
+        public async Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
@@ -243,8 +243,8 @@ public static class PlateauDatasetContentSourceFactory
             cancellationToken.ThrowIfCancellationRequested();
 
             string normalizedPath = NormalizeSafeRelativePath(relativePath);
-            string archiveCacheRoot = ArchiveFileLayoutPolicy.GetMaterializedArchiveRoot(outputRoot, ArchivePath);
-            string destinationPath = ResolveMaterializedPath(archiveCacheRoot, normalizedPath);
+            string archiveCacheRoot = ArchiveFileLayoutPolicy.GetLocalFileCacheRoot(outputRoot, ArchivePath);
+            string destinationPath = ResolveLocalFilePath(archiveCacheRoot, normalizedPath);
 
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
@@ -265,7 +265,7 @@ public static class PlateauDatasetContentSourceFactory
             return destinationPath;
         }
 
-        private static string ResolveMaterializedPath(string archiveCacheRoot, string normalizedRelativePath)
+        private static string ResolveLocalFilePath(string archiveCacheRoot, string normalizedRelativePath)
         {
             string normalizedRoot = Path.GetFullPath(archiveCacheRoot);
             string destinationPath = Path.GetFullPath(

@@ -83,11 +83,11 @@ public sealed class LocalCityGmlConstructionSourceTests
         Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
     }
 
-    private static ConstructionMetadata CreateMetadata(
+    private static ImportedSceneMetadata CreateMetadata(
         PlateauImportRequest request,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
-        return new ConstructionMetadata(
+        return new ImportedSceneMetadata(
             SchemaVersion: "3.0",
             SceneName: "test-world",
             Request: request,
@@ -99,7 +99,7 @@ public sealed class LocalCityGmlConstructionSourceTests
                     LicenseName: "license",
                     LicenseUrl: "https://example.invalid"),
                 []),
-            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
+            GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
     private static LocalCityGmlDocumentSet CreateDocumentSet(int sourceFileCount)
@@ -176,7 +176,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             maxObservedConcurrency = 0;
         }
 
-        public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -241,7 +241,7 @@ public sealed class LocalCityGmlConstructionSourceTests
     {
         public Dictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
 
-        public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -300,7 +300,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             throw new FileNotFoundException(relativePath);
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

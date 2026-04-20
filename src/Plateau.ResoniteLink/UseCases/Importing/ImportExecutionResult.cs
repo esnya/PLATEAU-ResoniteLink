@@ -1,5 +1,5 @@
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed record ImportExecutionResult(
-    ConstructionMetadata Metadata,
+    ImportedSceneMetadata Metadata,
     IReadOnlyList<string> Destinations);

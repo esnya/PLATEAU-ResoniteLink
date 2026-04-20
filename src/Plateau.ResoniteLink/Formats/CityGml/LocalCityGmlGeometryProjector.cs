@@ -9,7 +9,7 @@ internal sealed class LocalCityGmlGeometryProjector(
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
-    public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+    public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -19,7 +19,7 @@ internal sealed class LocalCityGmlGeometryProjector(
         PlateauImportRequest request,
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
-        return LocalCityGmlObjectProjection.MaterializeCityObjects(
+        return LocalCityGmlObjectProjection.ProjectCityObjects(
             sourceFile.ToLegacy(),
             referenceSystem.ToLegacy(),
             globalOriginPoint.ToLegacy(),

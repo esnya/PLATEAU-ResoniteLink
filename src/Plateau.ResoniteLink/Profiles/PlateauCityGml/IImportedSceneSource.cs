@@ -1,8 +1,8 @@
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public interface IResoniteConstructionSource
+public interface IImportedSceneSource
 {
-    ConstructionMetadata Metadata { get; }
+    ImportedSceneMetadata Metadata { get; }
 
     [Obsolete(
         "ReadCommonMaterialsAsync is obsolete. Runtime common-material setup uses package catalog instead of source enumeration.")]

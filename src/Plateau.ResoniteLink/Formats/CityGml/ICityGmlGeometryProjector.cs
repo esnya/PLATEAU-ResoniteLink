@@ -6,7 +6,7 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal interface ICityGmlGeometryProjector
 {
-    IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+    IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,

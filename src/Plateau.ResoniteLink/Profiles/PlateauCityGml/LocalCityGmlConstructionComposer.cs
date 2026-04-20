@@ -4,12 +4,12 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal sealed class LocalCityGmlConstructionComposer(
     ICityGmlGeometryProjector geometryProjector,
-    ICityGmlCommonMaterialEnumerator commonMaterialEnumerator) : IResoniteConstructionComposer
+    ICityGmlCommonMaterialEnumerator commonMaterialEnumerator) : IImportedSceneSourceComposer
 {
     private readonly ICityGmlGeometryProjector geometryProjector = geometryProjector;
     private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator = commonMaterialEnumerator;
 
-    public IResoniteConstructionSource Compose(
+    public IImportedSceneSource Compose(
         PlateauImportRequest request,
         LocalCityGmlDocumentSet documentSet,
         Action<string>? progressReporter = null)

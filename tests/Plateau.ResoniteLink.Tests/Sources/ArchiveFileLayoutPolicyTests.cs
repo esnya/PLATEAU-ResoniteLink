@@ -18,12 +18,12 @@ public sealed class ArchiveFileLayoutPolicyTests
     }
 
     [Fact]
-    public void GetMaterializedArchiveCacheKeyUsesFileStemAndFullPathDigest()
+    public void GetLocalFileCacheKeyUsesFileStemAndFullPathDigest()
     {
         ArchiveFileLayoutPolicy policy = new();
         string archivePath = Path.Combine("C:\\datasets", "tokyo", "source-archive-a1b2c3.zip");
 
-        string cacheKey = policy.GetMaterializedArchiveCacheKey(archivePath);
+        string cacheKey = policy.GetLocalFileCacheKey(archivePath);
 
         string digest = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(archivePath))))

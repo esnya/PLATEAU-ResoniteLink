@@ -89,7 +89,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             MeshCode: "53394525",
             Source: PlateauImportSource.Local("/tmp/streaming"),
             PackageNames: ["bldg", "dem", "tran"]);
-        ConstructionMetadata metadata = new(
+        ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
             SceneName: "test",
             Request: request,
@@ -104,7 +104,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             Attribution: new Attribution(
                 new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
-            LocalOrigin: new LocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
+            GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         RecordingGeometryProjector geometryProjector = new();
 
         LocalCityGmlConstructionSource source = new(
@@ -205,7 +205,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             MeshCode: "53394525",
             Source: PlateauImportSource.Local("/tmp/streaming"),
             PackageNames: packageNames);
-        ConstructionMetadata metadata = new(
+        ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
             SceneName: "test",
             Request: request,
@@ -216,7 +216,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             Attribution: new Attribution(
                 new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
-            LocalOrigin: new LocalOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
+            GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         LocalCityGmlDocumentSet documentSet = new(
             new EmptyDatasetContentSource(),
             sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
@@ -281,7 +281,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
 
         public IReadOnlyCollection<string> Calls => calls.ToArray();
 
-        public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -340,7 +340,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             throw new FileNotFoundException(relativePath);
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

@@ -117,7 +117,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
             response.EnsureSuccessStatusCode();
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
+            InvalidateTemporaryLocalFileCache(datasetRoot, archivePath);
             return true;
         }
         catch (HttpRequestException) when (File.Exists(archivePath))
@@ -141,7 +141,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 cancellationToken);
             response.EnsureSuccessStatusCode();
             await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-            InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
+            InvalidateTemporaryLocalFileCache(datasetRoot, archivePath);
             return true;
         }
         catch (HttpRequestException) when (File.Exists(archivePath))
@@ -164,10 +164,10 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         response.EnsureSuccessStatusCode();
 
         await WriteCachedArchiveResponseAsync(response, archivePath, metadataPath, cancellationToken);
-        InvalidateTemporaryMaterializedFiles(datasetRoot, archivePath);
+        InvalidateTemporaryLocalFileCache(datasetRoot, archivePath);
     }
 
-    private void InvalidateTemporaryMaterializedFiles(string datasetRoot, string archivePath)
+    private void InvalidateTemporaryLocalFileCache(string datasetRoot, string archivePath)
     {
         string runRoot = Path.Combine(Path.GetFullPath(datasetRoot), "run");
         if (!Directory.Exists(runRoot))
@@ -175,15 +175,15 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             return;
         }
 
-        string archiveCacheName = archiveFileLayoutPolicy.GetMaterializedArchiveCacheKey(archivePath);
+        string archiveCacheName = archiveFileLayoutPolicy.GetLocalFileCacheKey(archivePath);
         try
         {
-            foreach (string materializedRoot in Directory.EnumerateDirectories(
+            foreach (string localFileCacheRoot in Directory.EnumerateDirectories(
                          runRoot,
-                         "materialized",
+                         "local-file-cache",
                          SearchOption.AllDirectories))
             {
-                TryDeleteDirectory(Path.Combine(materializedRoot, archiveCacheName));
+                TryDeleteDirectory(Path.Combine(localFileCacheRoot, archiveCacheName));
             }
         }
         catch (IOException)

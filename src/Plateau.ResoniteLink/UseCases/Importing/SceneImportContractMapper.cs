@@ -4,9 +4,9 @@ namespace Plateau.ResoniteLink.Application.Importing;
 
 internal static class SceneImportContractMapper
 {
-    public static ConstructionMetadata ToContract(InternalModel.ResoniteConstructionMetadata metadata)
+    public static ImportedSceneMetadata ToContract(InternalModel.ResoniteConstructionMetadata metadata)
     {
-        return new ConstructionMetadata(
+        return new ImportedSceneMetadata(
             metadata.SchemaVersion,
             metadata.WorldName,
             metadata.Request,
@@ -55,7 +55,7 @@ internal static class SceneImportContractMapper
         };
     }
 
-    public static InternalModel.ResoniteConstructionMetadata ToInternal(ConstructionMetadata metadata)
+    public static InternalModel.ResoniteConstructionMetadata ToInternal(ImportedSceneMetadata metadata)
     {
         return new InternalModel.ResoniteConstructionMetadata(
             metadata.SchemaVersion,
@@ -63,7 +63,7 @@ internal static class SceneImportContractMapper
             metadata.Request,
             metadata.SourceDataset,
             ToInternal(metadata.Attribution),
-            ToInternal(metadata.LocalOrigin));
+            ToInternal(metadata.GeodeticOrigin));
     }
 
     public static InternalModel.ResoniteConstructionCityObject ToInternal(ImportedCityObject cityObject)
@@ -129,9 +129,9 @@ internal static class SceneImportContractMapper
             metadata.LicenseUrl);
     }
 
-    private static LocalOrigin ToContract(InternalModel.ResoniteLocalOrigin origin)
+    private static GeodeticOrigin ToContract(InternalModel.ResoniteLocalOrigin origin)
     {
-        return new LocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
+        return new GeodeticOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
     private static Transform3d ToContract(InternalModel.ResoniteTransform transform)
@@ -225,7 +225,7 @@ internal static class SceneImportContractMapper
             metadata.LicenseUrl);
     }
 
-    private static InternalModel.ResoniteLocalOrigin ToInternal(LocalOrigin origin)
+    private static InternalModel.ResoniteLocalOrigin ToInternal(GeodeticOrigin origin)
     {
         return new InternalModel.ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }

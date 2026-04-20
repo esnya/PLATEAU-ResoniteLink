@@ -1,6 +1,6 @@
 namespace Plateau.ResoniteLink.Application.Importing;
 
 public sealed record SceneBuildRequest(
-    ConstructionMetadata Metadata,
+    ImportedSceneMetadata Metadata,
     string ResolvedSourcePath,
     string WorkRoot);

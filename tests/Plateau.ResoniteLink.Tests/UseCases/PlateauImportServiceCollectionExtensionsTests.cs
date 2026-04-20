@@ -30,12 +30,12 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         RecordingConstructionComposer composer = new(expectedSource);
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
-            .AddSingleton<IResoniteConstructionComposer>(composer)
+            .AddSingleton<IImportedSceneSourceComposer>(composer)
             .AddPlateauCityGmlImportServices()
             .BuildServiceProvider();
-        IResoniteConstructionSourceFactory factory = provider.GetRequiredService<IResoniteConstructionSourceFactory>();
+        IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
 
-        IResoniteConstructionSource source = await factory.CreateAsync(request);
+        IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Same(expectedSource, source);
         Assert.Same(request, reader.LastRequest);
@@ -72,11 +72,11 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         CustomConstructionSourceFactory factory = new();
         ServiceProvider provider = new ServiceCollection()
-            .AddSingleton<IResoniteConstructionSourceFactory>(factory)
+            .AddSingleton<IImportedSceneSourceFactory>(factory)
             .AddPlateauCityGmlImportServices()
             .BuildServiceProvider();
 
-        Assert.Same(factory, provider.GetRequiredService<IResoniteConstructionSourceFactory>());
+        Assert.Same(factory, provider.GetRequiredService<IImportedSceneSourceFactory>());
     }
 
     private sealed class CustomPlateauDatasetContentSourceFactory : IPlateauDatasetContentSourceFactory
@@ -103,9 +103,9 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomConstructionSourceFactory : IResoniteConstructionSourceFactory
+    private sealed class CustomConstructionSourceFactory : IImportedSceneSourceFactory
     {
-        public Task<IResoniteConstructionSource> CreateAsync(
+        public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -114,13 +114,13 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class RecordingConstructionComposer(IResoniteConstructionSource source) : IResoniteConstructionComposer
+    private sealed class RecordingConstructionComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
         public LocalCityGmlDocumentSet? LastDocumentSet { get; private set; }
 
-        public IResoniteConstructionSource Compose(
+        public IImportedSceneSource Compose(
             PlateauImportRequest request,
             LocalCityGmlDocumentSet documentSet,
             Action<string>? progressReporter = null)
@@ -144,7 +144,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             throw new NotSupportedException();
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)
@@ -153,9 +153,9 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class StubConstructionSource : IResoniteConstructionSource
+    private sealed class StubConstructionSource : IImportedSceneSource
     {
-        public ConstructionMetadata Metadata { get; } = new(
+        public ImportedSceneMetadata Metadata { get; } = new(
             "3.0",
             "stub",
             new PlateauImportRequest("stub", "53394525", PlateauImportSource.Local("/tmp")),
@@ -163,7 +163,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             new Attribution(
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                 []),
-            new LocalOrigin(35.0, 139.0, 0.0));
+            GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
         public IEnumerable<ImportedCityObject> ReadCityObjects() => [];
 

@@ -41,25 +41,25 @@ public sealed class ArchiveFileLayoutPolicy : IArchiveFileLayoutPolicy
         return Path.GetFullPath(Path.Combine(workRoot, CreateSafePathSegment(dataset)));
     }
 
-    public string GetMaterializedArchiveRoot(string outputRoot, string archivePath)
+    public string GetLocalFileCacheRoot(string outputRoot, string archivePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(outputRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(archivePath);
 
         return Path.Combine(
             Path.GetFullPath(outputRoot),
-            "materialized",
-            GetMaterializedArchiveCacheKey(archivePath));
+            "local-file-cache",
+            GetLocalFileCacheKey(archivePath));
     }
 
-    public string GetMaterializedArchiveCacheKey(string archivePath)
+    public string GetLocalFileCacheKey(string archivePath)
     {
         string fullArchivePath = Path.GetFullPath(archivePath);
         string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
         if (string.IsNullOrWhiteSpace(fileStem))
         {
             throw new PlateauImportValidationException(
-                [$"The archive path '{archivePath}' must have a non-empty file name before the extension to create a materialized archive cache key."]);
+                [$"The archive path '{archivePath}' must have a non-empty file name before the extension to create a local-file cache key."]);
         }
 
         string digest = Convert.ToHexString(

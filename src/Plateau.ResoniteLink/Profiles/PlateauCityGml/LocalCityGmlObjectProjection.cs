@@ -1393,7 +1393,7 @@ public static partial class LocalCityGmlObjectProjection
             ?? throw new PlateauImportValidationException(["No CityGML coordinate reference system was resolved."]);
     }
 
-    internal static ResoniteConstructionCityObject MaterializeCityObject(
+    internal static ResoniteConstructionCityObject ProjectCityObject(
         ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -1420,22 +1420,22 @@ public static partial class LocalCityGmlObjectProjection
         GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
         DemUvProjection? demUvProjection = TryCreateDemUvProjection(demObjectBounds, cityObject, demTerrainTextureOverlay);
 
-        List<MaterializedSurface> materializedSurfaces =
+        List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
-        IGrouping<string, MaterializedSurface>[] materialGroups = materializedSurfaces
+        IGrouping<string, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
             .GroupBy(
-                materializedSurface =>
+                resolvedSurface =>
                 {
                     (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
-                        TryCreateDemMeshTextureTransform(cityObject, materializedSurface, demTerrainTextureOverlay, demObjectBounds);
+                        TryCreateDemMeshTextureTransform(cityObject, resolvedSurface, demTerrainTextureOverlay, demObjectBounds);
                     return CreateBindingMaterialKey(
-                        materializedSurface.Material,
-                        materializedSurface.DepthOffset,
-                        textureScale ?? materializedSurface.Material.TextureScale,
-                        materializedSurface.Surface.BaseColor,
+                        resolvedSurface.Material,
+                        resolvedSurface.DepthOffset,
+                        textureScale ?? resolvedSurface.Material.TextureScale,
+                        resolvedSurface.Surface.BaseColor,
                         textureOffset);
                 },
                 StringComparer.Ordinal)
@@ -1444,16 +1444,16 @@ public static partial class LocalCityGmlObjectProjection
 
         for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
         {
-            IGrouping<string, MaterializedSurface> materialGroup = materialGroups[materialIndex];
+            IGrouping<string, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
 
-            foreach (MaterializedSurface materializedSurface in materialGroup
+            foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
                          .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
             {
                 TriangulateSurface(
                     cityObject,
-                    materializedSurface.Surface,
-                    materializedSurface.Material,
+                    resolvedSurface.Surface,
+                    resolvedSurface.Material,
                     cityObjectOrigin,
                     cityObjectCartesian,
                     globalOriginPoint,
@@ -1469,7 +1469,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            MaterializedSurface representativeSurface = materialGroup.First();
+            ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
             (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
                 TryCreateDemMeshTextureTransform(cityObject, representativeSurface, demTerrainTextureOverlay, demObjectBounds);
             submeshes.Add(new ResoniteMeshSubmesh(materialIndex, materialGroup.Key, indices));
@@ -1525,7 +1525,7 @@ public static partial class LocalCityGmlObjectProjection
             Altitude: minAltitude);
     }
 
-    private static MaterializedSurface MaterializeSurfaceMaterial(
+    private static ResolvedSurfaceMaterial ResolveSurfaceMaterial(
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -1535,7 +1535,7 @@ public static partial class LocalCityGmlObjectProjection
     {
         if (surface.UsesGeneratedDemTexture)
         {
-            return new MaterializedSurface(
+            return new ResolvedSurfaceMaterial(
                 surface,
                 new ResolvedMaterial(
                     ResoniteMaterialType.Standard,
@@ -1554,7 +1554,7 @@ public static partial class LocalCityGmlObjectProjection
         {
             if (HasExplicitMaterialColor(surface.BaseColor))
             {
-                return new MaterializedSurface(
+                return new ResolvedSurfaceMaterial(
                     surface,
                     new ResolvedMaterial(
                         ResoniteMaterialType.VertexColor,
@@ -1567,7 +1567,7 @@ public static partial class LocalCityGmlObjectProjection
                     DepthOffset: null);
             }
 
-            return new MaterializedSurface(
+            return new ResolvedSurfaceMaterial(
                 surface with { BaseColor = DefaultVegetationMaterialColor },
                 new ResolvedMaterial(
                     ResoniteMaterialType.Standard,
@@ -1582,7 +1582,7 @@ public static partial class LocalCityGmlObjectProjection
 
         if (IsGeneratedRoadMarkingSurface(surface))
         {
-            return new MaterializedSurface(
+            return new ResolvedSurfaceMaterial(
                 surface,
                 new ResolvedMaterial(
                     ResoniteMaterialType.VertexColor,
@@ -1609,7 +1609,7 @@ public static partial class LocalCityGmlObjectProjection
         ResoniteMaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
-        return new MaterializedSurface(surface, resolvedMaterial, depthOffset);
+        return new ResolvedSurfaceMaterial(surface, resolvedMaterial, depthOffset);
     }
 
     private static ParsedCityObject? CreateGeneratedRoadMarkingCityObject(
@@ -2161,7 +2161,7 @@ public static partial class LocalCityGmlObjectProjection
 
     private static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateDemMeshTextureTransform(
         ParsedCityObject cityObject,
-        MaterializedSurface materializedSurface,
+        ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
@@ -2805,7 +2805,7 @@ public static partial class LocalCityGmlObjectProjection
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
 
-    internal static IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
+    internal static IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2828,7 +2828,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            foreach (ResoniteConstructionCityObject cityObject in MaterializeParsedCityObject(
+            foreach (ResoniteConstructionCityObject cityObject in ProjectParsedCityObject(
                          parsedCityObject,
                          globalOriginPoint,
                          globalCartesian,
@@ -2879,7 +2879,7 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    internal static IEnumerable<ResoniteConstructionCityObject> MaterializeParsedCityObject(
+    internal static IEnumerable<ResoniteConstructionCityObject> ProjectParsedCityObject(
         ParsedCityObject parsedCityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -2890,7 +2890,7 @@ public static partial class LocalCityGmlObjectProjection
         IDefaultMaterialResolver materialResolver)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
-        List<ResoniteConstructionCityObject> materializedCityObjects = [];
+        List<ResoniteConstructionCityObject> projectedCityObjects = [];
         List<ResoniteConstructionCityObject> generatedRoadMarkings = [];
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
@@ -2908,7 +2908,7 @@ public static partial class LocalCityGmlObjectProjection
 
             ResoniteConstructionCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
                 && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                && TryMaterializeDemHeightMapCityObject(
+                && TryProjectDemHeightMapCityObject(
                     splitCityObject.CityObject,
                     globalOriginPoint,
                     globalCartesian,
@@ -2917,7 +2917,7 @@ public static partial class LocalCityGmlObjectProjection
                     materialResolver,
                     out ResoniteConstructionCityObject? heightMapCityObject)
                     ? heightMapCityObject!
-                    : MaterializeCityObject(
+                    : ProjectCityObject(
                         splitCityObject.CityObject,
                         globalOriginPoint,
                         globalCartesian,
@@ -2926,7 +2926,7 @@ public static partial class LocalCityGmlObjectProjection
 
             if (HasRenderableGeometry(cityObject))
             {
-                materializedCityObjects.Add(cityObject);
+                projectedCityObjects.Add(cityObject);
             }
 
             GeodeticPoint markingOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
@@ -2946,7 +2946,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            ResoniteConstructionCityObject markingObject = MaterializeCityObject(
+            ResoniteConstructionCityObject markingObject = ProjectCityObject(
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
@@ -2964,8 +2964,8 @@ public static partial class LocalCityGmlObjectProjection
         ResoniteConstructionCityObject[] alignedCityObjects =
             request.DemTerrainMode == DemTerrainMode.HeightMap
             && string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                ? AlignAdjacentDemHeightMapChunkBoundaries(materializedCityObjects)
-                : [.. materializedCityObjects];
+                ? AlignAdjacentDemHeightMapChunkBoundaries(projectedCityObjects)
+                : [.. projectedCityObjects];
 
         foreach (ResoniteConstructionCityObject cityObject in alignedCityObjects)
         {
@@ -3029,23 +3029,23 @@ public static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        List<MaterializedSurface> materializedSurfaces =
+        List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
-        return materializedSurfaces
+        return resolvedSurfaces
             .GroupBy(
-                static materializedSurface => CreateBindingMaterialKey(
-                    materializedSurface.Material,
-                    materializedSurface.DepthOffset,
-                    materializedSurface.Material.TextureScale,
-                    materializedSurface.Surface.BaseColor),
+                static resolvedSurface => CreateBindingMaterialKey(
+                    resolvedSurface.Material,
+                    resolvedSurface.DepthOffset,
+                    resolvedSurface.Material.TextureScale,
+                    resolvedSurface.Surface.BaseColor),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
-                MaterializedSurface representativeSurface = group.First();
+                ResolvedSurfaceMaterial representativeSurface = group.First();
                 return new ResoniteMaterialBinding(
                     MaterialKey: CreateBindingMaterialKey(
                         representativeSurface.Material,
@@ -3253,7 +3253,7 @@ public static partial class LocalCityGmlObjectProjection
         int SampleIndex,
         DemBoundarySampleKey Key);
 
-    private static bool TryMaterializeDemHeightMapCityObject(
+    private static bool TryProjectDemHeightMapCityObject(
         ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -3408,29 +3408,29 @@ public static partial class LocalCityGmlObjectProjection
         IDefaultMaterialResolver materialResolver)
     {
         GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
-        List<MaterializedSurface> materializedSurfaces =
+        List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => MaterializeSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
-        return materializedSurfaces
+        return resolvedSurfaces
             .GroupBy(
-                materializedSurface =>
+                resolvedSurface =>
                 {
                     (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
-                        DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(cityObject, materializedSurface, demTerrainTextureOverlay, demObjectBounds);
+                        DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(cityObject, resolvedSurface, demTerrainTextureOverlay, demObjectBounds);
                     return CreateBindingMaterialKey(
-                        materializedSurface.Material,
-                        materializedSurface.DepthOffset,
-                        textureScale ?? materializedSurface.Material.TextureScale,
-                        materializedSurface.Surface.BaseColor,
+                        resolvedSurface.Material,
+                        resolvedSurface.DepthOffset,
+                        textureScale ?? resolvedSurface.Material.TextureScale,
+                        resolvedSurface.Surface.BaseColor,
                         textureOffset);
                 },
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
-                MaterializedSurface representativeSurface = group.First();
+                ResolvedSurfaceMaterial representativeSurface = group.First();
                 (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
                     DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(cityObject, representativeSurface, demTerrainTextureOverlay, demObjectBounds);
                 return new ResoniteMaterialBinding(
@@ -4067,7 +4067,7 @@ public static partial class LocalCityGmlObjectProjection
             ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
     }
 
-    internal sealed record MaterializedSurface(
+    internal sealed record ResolvedSurfaceMaterial(
         ParsedSurface Surface,
         ResolvedMaterial Material,
         ResoniteMaterialDepthOffset? DepthOffset);

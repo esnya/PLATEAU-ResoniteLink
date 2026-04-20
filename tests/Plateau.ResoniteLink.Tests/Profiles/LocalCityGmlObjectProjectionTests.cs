@@ -48,7 +48,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                 new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver())));
-        IResoniteConstructionSource source = await factory.CreateAsync(request);
+        IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);

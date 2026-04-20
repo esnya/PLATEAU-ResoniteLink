@@ -2,13 +2,13 @@ using Plateau.ResoniteLink.Domain.Importing;
 
 namespace Plateau.ResoniteLink.Application.Importing;
 
-public sealed record ConstructionMetadata(
+public sealed record ImportedSceneMetadata(
     string SchemaVersion,
     string SceneName,
     PlateauImportRequest Request,
     PlateauSourceDataset SourceDataset,
     Attribution Attribution,
-    LocalOrigin LocalOrigin);
+    GeodeticOrigin GeodeticOrigin);
 
 public sealed record Attribution(
     LicenseMetadata DatasetLicense,
@@ -24,7 +24,7 @@ public sealed record LicenseMetadata(
     string LicenseName,
     string LicenseUrl);
 
-public sealed record LocalOrigin(
+public sealed record GeodeticOrigin(
     double Latitude,
     double Longitude,
     double Altitude);

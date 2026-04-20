@@ -9,7 +9,7 @@ namespace Plateau.ResoniteLink.Tests.Application;
 public sealed class ArchivePlateauDatasetContentSourceFactoryTests
 {
     [Fact]
-    public async Task MaterializeFileAsyncMaterializesSafeRelativePaths()
+    public async Task EnsureLocalFileAsyncReturnsLocalPathForSafeRelativePaths()
     {
         byte[] archiveBytes = CreateZipArchive(
             ("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"),
@@ -23,20 +23,19 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         string outputRoot = Path.Combine(workRoot.Path, "output");
         Directory.CreateDirectory(outputRoot);
         string safePath = "udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml";
+        ArchiveFileLayoutPolicy layoutPolicy = new();
         string expectedSafePath = Path.GetFullPath(
             Path.Combine(
-                outputRoot,
-                "materialized",
-                GetMaterializedArchiveCacheKey(archivePath),
+                layoutPolicy.GetLocalFileCacheRoot(outputRoot, archivePath),
                 safePath.Replace('/', Path.DirectorySeparatorChar)));
 
-        string actualSafePath = await datasetSource.MaterializeFileAsync(safePath, outputRoot);
+        string actualSafePath = await datasetSource.EnsureLocalFileAsync(safePath, outputRoot);
         Assert.Equal(expectedSafePath, actualSafePath);
         Assert.True(File.Exists(actualSafePath));
     }
 
     [Fact]
-    public async Task MaterializeFileAsyncDoesNotWriteOutsideDatasetCacheForTraversalPaths()
+    public async Task EnsureLocalFileAsyncDoesNotWriteOutsideDatasetCacheForTraversalPaths()
     {
         byte[] archiveBytes = CreateZipArchive(
             ("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"),
@@ -51,19 +50,18 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         Directory.CreateDirectory(outputRoot);
 
         string traversalPath = "../../outside.txt";
+        ArchiveFileLayoutPolicy layoutPolicy = new();
         string expectedUnsafePath = Path.GetFullPath(
             Path.Combine(
-                outputRoot,
-                "materialized",
-                GetMaterializedArchiveCacheKey(archivePath),
+                layoutPolicy.GetLocalFileCacheRoot(outputRoot, archivePath),
                 traversalPath.Replace('/', Path.DirectorySeparatorChar)));
 
-        await Assert.ThrowsAsync<ArgumentException>(() => datasetSource.MaterializeFileAsync(traversalPath, outputRoot));
+        await Assert.ThrowsAsync<ArgumentException>(() => datasetSource.EnsureLocalFileAsync(traversalPath, outputRoot));
         Assert.False(File.Exists(expectedUnsafePath));
     }
 
     [Fact]
-    public async Task MaterializeFileAsyncUsesDistinctCacheDirectoriesForSameNamedArchivesInDifferentPaths()
+    public async Task EnsureLocalFileAsyncUsesDistinctCacheDirectoriesForSameNamedArchivesInDifferentPaths()
     {
         byte[] archiveBytes = CreateZipArchive(("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
         using TemporaryDirectory workRoot = new();
@@ -80,10 +78,10 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         string outputRoot = Path.Combine(workRoot.Path, "output");
         string relativePath = "udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml";
 
-        string firstMaterializedPath = await firstDatasetSource.MaterializeFileAsync(relativePath, outputRoot);
-        string secondMaterializedPath = await secondDatasetSource.MaterializeFileAsync(relativePath, outputRoot);
+        string firstLocalFilePath = await firstDatasetSource.EnsureLocalFileAsync(relativePath, outputRoot);
+        string secondLocalFilePath = await secondDatasetSource.EnsureLocalFileAsync(relativePath, outputRoot);
 
-        Assert.NotEqual(Path.GetDirectoryName(firstMaterializedPath), Path.GetDirectoryName(secondMaterializedPath));
+        Assert.NotEqual(Path.GetDirectoryName(firstLocalFilePath), Path.GetDirectoryName(secondLocalFilePath));
     }
 
     [Fact]
@@ -125,14 +123,6 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         Assert.Contains("udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml", datasetSource.EnumerateFiles());
     }
 
-    private static string GetMaterializedArchiveCacheKey(string archivePath)
-    {
-        string fullArchivePath = Path.GetFullPath(archivePath);
-        string fileStem = Path.GetFileNameWithoutExtension(fullArchivePath);
-        string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fullArchivePath))).ToLowerInvariant();
-        return $"{fileStem}-{digest[..12]}";
-    }
-
     private static byte[] CreateZipArchive(params (string Path, string Content)[] entries)
     {
         using MemoryStream stream = new();
@@ -156,8 +146,8 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         public bool IsSupportedArchivePath(string path) => inner.IsSupportedArchivePath(path);
         public string CreateSafePathSegment(string value) => inner.CreateSafePathSegment(value);
         public string ResolveDatasetRoot(string workRoot, string dataset) => inner.ResolveDatasetRoot(workRoot, dataset);
-        public string GetMaterializedArchiveRoot(string outputRoot, string archivePath) => inner.GetMaterializedArchiveRoot(outputRoot, archivePath);
-        public string GetMaterializedArchiveCacheKey(string archivePath) => inner.GetMaterializedArchiveCacheKey(archivePath);
+        public string GetLocalFileCacheRoot(string outputRoot, string archivePath) => inner.GetLocalFileCacheRoot(outputRoot, archivePath);
+        public string GetLocalFileCacheKey(string archivePath) => inner.GetLocalFileCacheKey(archivePath);
         public string NormalizeRelativePath(string path) => inner.NormalizeRelativePath(path);
         public string CombineRelativePaths(params string?[] segments) => inner.CombineRelativePaths(segments);
         public string GetDirectoryPath(string relativePath) => inner.GetDirectoryPath(relativePath);

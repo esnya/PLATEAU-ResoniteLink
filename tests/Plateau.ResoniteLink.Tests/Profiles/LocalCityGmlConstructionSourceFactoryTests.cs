@@ -21,7 +21,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
 
-        IResoniteConstructionSource result = await factory.CreateAsync(request, progressReporter);
+        IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
         Assert.Same(expectedSource, result);
         Assert.Same(request, reader.LastRequest);
@@ -60,9 +60,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 
-    private sealed class RecordingComposer(IResoniteConstructionSource source) : IResoniteConstructionComposer
+    private sealed class RecordingComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
     {
-        private readonly IResoniteConstructionSource source = source;
+        private readonly IImportedSceneSource source = source;
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
@@ -70,7 +70,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public Action<string>? LastProgressReporter { get; private set; }
 
-        public IResoniteConstructionSource Compose(
+        public IImportedSceneSource Compose(
             PlateauImportRequest request,
             LocalCityGmlDocumentSet documentSet,
             Action<string>? progressReporter = null)
@@ -82,9 +82,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 
-    private sealed class StubConstructionSource : IResoniteConstructionSource
+    private sealed class StubConstructionSource : IImportedSceneSource
     {
-        public ConstructionMetadata Metadata { get; } = new(
+        public ImportedSceneMetadata Metadata { get; } = new(
             SchemaVersion: "3.0",
             SceneName: "stub",
             Request: new PlateauImportRequest(
@@ -101,7 +101,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     LicenseName: "license",
                     LicenseUrl: "https://example.invalid"),
                 []),
-            LocalOrigin: new LocalOrigin(35.0, 139.0, 0.0));
+            GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
         public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -144,7 +144,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             throw new FileNotFoundException(relativePath);
         }
 
-        public Task<string> MaterializeFileAsync(
+        public Task<string> EnsureLocalFileAsync(
             string relativePath,
             string outputRoot,
             CancellationToken cancellationToken = default)

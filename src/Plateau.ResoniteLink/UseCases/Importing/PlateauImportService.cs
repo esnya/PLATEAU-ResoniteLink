@@ -10,7 +10,7 @@ public sealed class PlateauImportService(
     ISceneImportTarget sceneBuilder,
     IPlateauDatasetSourceResolver datasetSourceResolver,
     ICityGmlDocumentReader documentReader,
-    IResoniteConstructionSourceFactory constructionSourceFactory,
+    IImportedSceneSourceFactory constructionSourceFactory,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
@@ -21,7 +21,7 @@ public sealed class PlateauImportService(
     private readonly ICityGmlDocumentReader documentReader =
         documentReader ?? throw new ArgumentNullException(nameof(documentReader));
     private readonly Action<string>? progressReporter = progressReporter;
-    private readonly IResoniteConstructionSourceFactory constructionSourceFactory =
+    private readonly IImportedSceneSourceFactory constructionSourceFactory =
         constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
         archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
@@ -54,7 +54,7 @@ public sealed class PlateauImportService(
                 PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
-            IResoniteConstructionSource source = await constructionSourceFactory.CreateAsync(
+            IImportedSceneSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
                 documentSet,
                 progressReporter,
@@ -62,7 +62,7 @@ public sealed class PlateauImportService(
             sourceStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
-            ConstructionMetadata metadata = source.Metadata;
+            ImportedSceneMetadata metadata = source.Metadata;
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
                 metadata,

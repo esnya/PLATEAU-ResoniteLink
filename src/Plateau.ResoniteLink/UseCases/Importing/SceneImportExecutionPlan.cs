@@ -23,7 +23,7 @@ public sealed record SceneImportExecutionPlan
 
     public static SceneImportExecutionPlan Create(
         PlateauImportRequest normalizedRequest,
-        ConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot)
     {

@@ -61,4 +61,46 @@ public sealed class Issue80ArchitectureContractTests
 
         Assert.DoesNotContain("Plateau.ResoniteLink.Cli.Assets.DefaultMaterials", bundledAssetStore, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ApplicationAndProfileSourceBoundary_DoNotExposeLegacyResoniteConstructionNames()
+    {
+        string[] files =
+        [
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "UseCases", "Importing", "SceneImportContractTypes.cs"),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "UseCases", "Importing", "PlateauImportService.cs"),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "IImportedSceneSource.cs"),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "IImportedSceneSourceFactory.cs"),
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Profiles", "PlateauCityGml", "IImportedSceneSourceComposer.cs"),
+        ];
+
+        string[] offenders = files
+            .Where(static path =>
+            {
+                string content = File.ReadAllText(path);
+                return content.Contains("IResoniteConstructionSource", StringComparison.Ordinal)
+                    || content.Contains("IResoniteConstructionSourceFactory", StringComparison.Ordinal)
+                    || content.Contains("IResoniteConstructionComposer", StringComparison.Ordinal)
+                    || content.Contains("ConstructionMetadata(", StringComparison.Ordinal)
+                    || content.Contains(" LocalOrigin", StringComparison.Ordinal)
+                    || content.Contains("(LocalOrigin", StringComparison.Ordinal);
+            })
+            .ToArray();
+
+        Assert.Empty(offenders);
+    }
+
+    [Fact]
+    public void PlateauDatasetContentSourceContract_UsesLocalFileGuaranteeTerminology()
+    {
+        string sourceContract = File.ReadAllText(
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Sources", "Plateau", "IPlateauDatasetContentSource.cs"));
+        string archiveLayoutPolicy = File.ReadAllText(
+            TestData.GetRepositoryPath("src", "Plateau.ResoniteLink", "Sources", "Plateau", "ArchiveFileLayoutPolicy.cs"));
+
+        Assert.Contains("EnsureLocalFileAsync", sourceContract, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaterializeFileAsync", sourceContract, StringComparison.Ordinal);
+        Assert.Contains("local-file-cache", archiveLayoutPolicy, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"materialized\"", archiveLayoutPolicy, StringComparison.Ordinal);
+    }
 }
