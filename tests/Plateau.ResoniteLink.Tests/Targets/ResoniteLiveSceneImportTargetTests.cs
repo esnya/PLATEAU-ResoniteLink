@@ -378,6 +378,66 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.True(overlayEstimate - baselineEstimate > 0);
     }
 
+    [Fact]
+    public void EstimateCityObjectWorkingSetBytesKeepsOriginalVertexFootprintForUvBake()
+    {
+        ResoniteImportedMesh sparseMesh = new(
+            [
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(5.0, 5.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(6.0, 5.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                new ResoniteMeshVertex(new ResoniteFloat3(7.0, 5.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+            ],
+            [
+                new ResoniteMeshSubmesh(0, "uv-bake-budget", [0, 1, 2]),
+            ]);
+        ResoniteConstructionCityObject baseline = new(
+            SlotKey: "uv-bake-budget-baseline",
+            DisplayName: "UV Bake Budget Baseline",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: sparseMesh,
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "uv-bake-budget",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/uv-bake-budget.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: null,
+                    TextureOffset: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+            ],
+            SourceObjectKey: "uv-bake-budget-baseline");
+        ResoniteConstructionCityObject withBake = baseline with
+        {
+            SlotKey = "uv-bake-budget-baked",
+            DisplayName = "UV Bake Budget Baked",
+            Materials =
+            [
+                baseline.Materials[0] with
+                {
+                    TextureScale = new ResoniteFloat2(2.0, 0.5),
+                    TextureOffset = new ResoniteFloat2(0.25, 0.75),
+                },
+            ],
+            SourceObjectKey = "uv-bake-budget-baked",
+        };
+
+        long baselineEstimate = InvokeEstimatedWorkingSetBytes(baseline);
+        long bakedEstimate = InvokeEstimatedWorkingSetBytes(withBake);
+
+        Assert.True(bakedEstimate > baselineEstimate);
+    }
+
     private static long InvokeEstimatedWorkingSetBytes(ResoniteConstructionCityObject cityObject)
     {
         MethodInfo method = typeof(ResoniteLiveSceneImportTarget)

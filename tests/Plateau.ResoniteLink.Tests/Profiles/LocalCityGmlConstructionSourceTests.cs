@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using Plateau.ResoniteLink.Application.Importing;
 using Plateau.ResoniteLink.Domain.Importing;
 
@@ -236,7 +238,7 @@ public sealed class LocalCityGmlConstructionSourceTests
 
     private sealed class OverlayRecordingGeometryProjector : ICityGmlGeometryProjector
     {
-        public Dictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
+        public ConcurrentDictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
 
         public IEnumerable<ResoniteConstructionCityObject> MaterializeCityObjects(
             CachedSourceFileDescriptor sourceFile,

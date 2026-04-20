@@ -61,6 +61,12 @@ public static class ResoniteDynamicMaterialUvNormalizer
     {
         ArgumentNullException.ThrowIfNull(material);
 
+        if (material.MaterialType != ResoniteMaterialType.Standard
+            || material.Projection != ResoniteMaterialProjection.Uv)
+        {
+            return material;
+        }
+
         if (!HasEffectiveTextureTransform(material))
         {
             if (IsBundledFamilyMaterial(material) && material.TextureScale is not null)

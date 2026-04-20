@@ -116,6 +116,65 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Null(bundledMaterial.TextureOffset);
     }
 
+    [Fact]
+    public void Normalize_PreservesExplicitIdentityScaleForUnrelatedTriplanarMaterial()
+    {
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "mixed-triplanar-city-object",
+            DisplayName: "Mixed Triplanar CityObject",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "triplanar-identity-override", [3, 4, 5]),
+                ]),
+            Materials:
+            [
+                CreateDynamicUvMaterial(new ResoniteFloat2(0.5, 0.25), new ResoniteFloat2(0.125, 0.75)) with
+                {
+                    SubmeshIndices = [0],
+                },
+                new ResoniteMaterialBinding(
+                    MaterialKey: "triplanar-identity-override",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Triplanar,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    TextureScale: new ResoniteFloat2(1.0, 1.0),
+                    TextureOffset: new ResoniteFloat2(0.0, 0.0),
+                    Family: null,
+                    BundledVariantIndex: null,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+            ],
+            SourceObjectKey: "unit-a:mixed-triplanar-city-object",
+            SourceUnitKey: "unit-a",
+            SourceFileRelativePath: "unit-a.gml");
+
+        ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        ResoniteMaterialBinding triplanarMaterial = Assert.Single(
+            normalized.Materials,
+            static material => string.Equals(material.MaterialKey, "triplanar-identity-override", StringComparison.Ordinal));
+
+        Assert.NotSame(cityObject, normalized);
+        Assert.Equal(ResoniteMaterialProjection.Triplanar, triplanarMaterial.Projection);
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), triplanarMaterial.TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.0), triplanarMaterial.TextureOffset);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleCityObject(
         ResoniteFloat2? textureScale,
         ResoniteFloat2? textureOffset)

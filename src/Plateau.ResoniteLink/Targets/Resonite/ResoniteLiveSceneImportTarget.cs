@@ -947,7 +947,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             long normalizedVertexCount = requiresUvBake
                 ? mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count)
                 : mesh.Vertices.Count;
-            long vertexBytes = normalizedVertexCount * vertexWeightBytes;
+            long sourceVertexCount = mesh.Vertices.Count;
+            long vertexBytes = requiresUvBake
+                ? checked((sourceVertexCount + normalizedVertexCount) * vertexWeightBytes)
+                : sourceVertexCount * vertexWeightBytes;
             long indexBytes = mesh.Submeshes.Sum(static submesh => (long)submesh.TriangleVertexIndices.Count * indexWeightBytes);
             long submeshBytes = mesh.Submeshes.Count * perSubmeshWeightBytes;
             return checked(vertexBytes + indexBytes + submeshBytes);
