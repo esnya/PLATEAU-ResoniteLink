@@ -186,6 +186,28 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncFallsBackToOriginalCityObjectWithoutNormalizingDynamicUvTransform()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+        ResoniteConstructionCityObject oversizedCandidate = CreateUvScaledLod2Building(
+            "building-dynamic-fallback",
+            CreatePayload("textures/dynamic-fallback.png", new Rgba32(255, 0, 0, 255), 9, 3),
+            "unit-a",
+            new ResoniteFloat2(2.0, 0.5),
+            new ResoniteFloat2(0.25, 0.75));
+
+        await AssertBufferedAsync(baker, oversizedCandidate);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        Assert.Equal(oversizedCandidate.SlotKey, cityObject.SlotKey);
+        Assert.Equal(new ResoniteFloat2(2.0, 0.5), material.TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), material.TextureOffset);
+        Assert.Equal(3, cityObject.Mesh.Vertices.Count);
+        Assert.DoesNotContain(cityObject.Materials, static candidate => candidate.TexturePayload?.Identity?.Contains("generated/lod2-atlas/", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncKeepsDistinctSourceUnitsInSeparateAtlasBatches()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);

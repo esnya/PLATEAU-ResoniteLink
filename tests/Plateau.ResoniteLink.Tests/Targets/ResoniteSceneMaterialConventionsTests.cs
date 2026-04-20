@@ -109,6 +109,16 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CreateCommonMaterialSlotLookupNames_ForIdentityGenericCommonMaterial_IncludesLegacyScaleOneName()
+    {
+        ResoniteMaterialBinding material = ResoniteMaterialSharing.CreateSharedAlbedoCommonMaterial();
+
+        IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
+
+        Assert.Equal(["shared_uv_generic", "shared_uv_generic_scale_1x1"], slotLookupNames);
+    }
+
+    [Fact]
     public void TryNormalizeSharedMaterialBinding_AllowsTerrainOverlayAsMainTextureOverride()
     {
         TerrainTextureOverlay overlay = new(
@@ -167,5 +177,50 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
         Assert.Equal("vertex-color|Uv|depth:none", normalizedMaterial.MaterialKey);
         Assert.Equal(ResoniteMaterialType.VertexColor, normalizedMaterial.MaterialType);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsTintedVertexColorMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "vertex-color-tinted-material",
+            BaseColor: new ResoniteColor(0.8, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.VertexColor,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsTransformedVertexColorMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "vertex-color-transformed-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.VertexColor,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(2.0, 1.0),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
     }
 }

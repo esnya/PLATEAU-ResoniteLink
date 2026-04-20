@@ -389,6 +389,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             }
 
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+            IReadOnlyList<string> materialSlotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
             Slot? familySnapshotSlot = commonSlotSnapshot is null
                 ? null
                 : GetReusableChildSlot(
@@ -397,12 +398,20 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                     commonSlotId ?? throw new InvalidOperationException("Existing shared Common Materials slot did not expose an ID."));
             ResoniteSceneSlotSnapshot? familySlotSnapshot = familySnapshotSlot is null ? null : new ResoniteSceneSlotSnapshot(familySnapshotSlot);
             string? familySnapshotSlotId = familySnapshotSlot?.ID;
-            Slot? existingMaterialSlot = familySlotSnapshot is null
-                ? null
-                : GetReusableChildSlot(
-                    familySlotSnapshot,
-                    materialSlotName,
-                    familySnapshotSlotId ?? throw new InvalidOperationException("Existing common material family slot did not expose an ID."));
+            Slot? existingMaterialSlot = null;
+            if (familySlotSnapshot is not null)
+            {
+                string requiredFamilySlotId = familySnapshotSlotId
+                    ?? throw new InvalidOperationException("Existing common material family slot did not expose an ID.");
+                foreach (string lookupSlotName in materialSlotLookupNames)
+                {
+                    existingMaterialSlot = GetReusableChildSlot(familySlotSnapshot, lookupSlotName, requiredFamilySlotId);
+                    if (existingMaterialSlot is not null)
+                    {
+                        break;
+                    }
+                }
+            }
             string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
             string? existingMaterialComponentId = existingMaterialSlot?.Components?
                 .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))

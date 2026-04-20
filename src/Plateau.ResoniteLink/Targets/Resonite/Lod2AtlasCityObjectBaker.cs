@@ -61,7 +61,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return new BufferedCityObjectBufferResult(Buffered: false, []);
         }
 
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         SourceUnitBatchKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         BufferedCityObject bufferedCityObject = new(cityObject, policy);
@@ -262,8 +261,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
         CancellationToken cancellationToken)
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
+        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
-        if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
+        if (!TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(
                 $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
@@ -271,7 +271,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         List<AtlasBatchEntry> atlasEntries = [];
         List<PreservedSubmeshEntry> preservedEntries = [];
-        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
+        foreach (ResoniteMeshSubmesh submesh in normalizedCityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
@@ -284,15 +284,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
             switch (category)
             {
                 case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
-                    UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
+                    UvBounds uvBounds = ComputeUvBounds(normalizedCityObject.Mesh.Vertices, submesh, material);
                     MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
-                    atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
+                    atlasEntries.Add(new AtlasBatchEntry(normalizedCityObject, submesh, material, tile, uvBounds));
                     break;
                 case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedOther:
-                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
+                    ResoniteMeshSubmesh originalSubmesh = cityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
+                    ResoniteMaterialBinding originalMaterial = cityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
+                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, originalSubmesh, originalMaterial));
                     break;
             }
         }

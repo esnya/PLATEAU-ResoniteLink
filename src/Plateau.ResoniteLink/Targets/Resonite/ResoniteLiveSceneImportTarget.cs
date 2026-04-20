@@ -1629,11 +1629,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 Material,
                 RunState.Runtime.ProcessingCancellationToken);
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(Material, useCommonMaterialAssets: true);
+            IReadOnlyList<string> materialSlotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(Material);
             string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(Material);
             string? existingMaterialComponentId = await ResoniteMaterialPlanning.TryGetExistingCommonMaterialComponentIdAsync(
                 Client,
                 familySlot.SlotId,
-                materialSlotName,
+                materialSlotLookupNames,
                 materialComponentType,
                 RunState.Runtime.ProcessingCancellationToken);
             if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))

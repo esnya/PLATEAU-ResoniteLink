@@ -10,6 +10,8 @@ namespace Plateau.ResoniteLink.Targets.Resonite;
 
 internal static class ResoniteSceneMaterialConventions
 {
+    private static readonly IReadOnlyList<string> EmptyLookupNames = [];
+
     public static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -71,6 +73,26 @@ internal static class ResoniteSceneMaterialConventions
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{componentKind}_{projectionName}_{sourceName}_{familyName}_{scaleName}_{offsetName}_{depthName}_{colorName}");
+    }
+
+    public static IReadOnlyList<string> CreateCommonMaterialSlotLookupNames(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+        material = NormalizeCommonMaterialBinding(material);
+        if (material.AssetScope != ResoniteMaterialAssetScope.Common)
+        {
+            return EmptyLookupNames;
+        }
+
+        string currentSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+        string? legacySlotName = TryCreateLegacyCommonMaterialSlotName(material);
+        if (string.IsNullOrWhiteSpace(legacySlotName)
+            || string.Equals(currentSlotName, legacySlotName, StringComparison.Ordinal))
+        {
+            return [currentSlotName];
+        }
+
+        return [currentSlotName, legacySlotName];
     }
 
     public static ResoniteMaterialBinding NormalizeCommonMaterialBinding(ResoniteMaterialBinding material)
@@ -423,6 +445,20 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         return builder.ToString().Trim('-');
+    }
+
+    private static string? TryCreateLegacyCommonMaterialSlotName(ResoniteMaterialBinding material)
+    {
+        if (!IsGenericSharedCommonMaterialCandidate(material)
+            || material.Projection != ResoniteMaterialProjection.Uv
+            || material.TextureOffset is not null
+            || material.DepthOffset is not null
+            || material.TextureScale is not null)
+        {
+            return null;
+        }
+
+        return "shared_uv_generic_scale_1x1";
     }
 
     private static ResoniteMaterialBinding NormalizeGenericSharedMaterialBinding(ResoniteMaterialBinding material)
