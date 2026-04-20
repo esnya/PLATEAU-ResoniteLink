@@ -10,7 +10,8 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
     private readonly string outputRoot;
     private readonly IReadOnlyList<string> orderedRelativeRasterPaths;
     private readonly IReadOnlyDictionary<string, string> relativeRasterPathsByStem;
-    private readonly Dictionary<string, TerrainTextureGeoReferencedRasterSource?> cachedRasterSourcesByMeshCode =
+    private readonly object cachedRasterSourceTaskGate = new();
+    private readonly Dictionary<string, Task<TerrainTextureGeoReferencedRasterSource?>> cachedRasterSourceTasksByMeshCode =
         new(StringComparer.OrdinalIgnoreCase);
 
     private DemTerrainGeoReferencedRasterCatalog(
@@ -95,11 +96,40 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
-        if (cachedRasterSourcesByMeshCode.TryGetValue(meshCode, out TerrainTextureGeoReferencedRasterSource? cachedRasterSource))
+        Task<TerrainTextureGeoReferencedRasterSource?> resolveTask;
+        lock (cachedRasterSourceTaskGate)
         {
-            return cachedRasterSource;
+            if (!cachedRasterSourceTasksByMeshCode.TryGetValue(meshCode, out resolveTask!))
+            {
+                resolveTask = ResolveRasterSourceCoreAsync(meshCode, overlayBounds, cancellationToken);
+                cachedRasterSourceTasksByMeshCode[meshCode] = resolveTask;
+            }
         }
 
+        try
+        {
+            return await resolveTask.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            lock (cachedRasterSourceTaskGate)
+            {
+                if (cachedRasterSourceTasksByMeshCode.TryGetValue(meshCode, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
+                    && ReferenceEquals(cachedTask, resolveTask))
+                {
+                    cachedRasterSourceTasksByMeshCode.Remove(meshCode);
+                }
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<TerrainTextureGeoReferencedRasterSource?> ResolveRasterSourceCoreAsync(
+        string meshCode,
+        GeographicRectangle overlayBounds,
+        CancellationToken cancellationToken)
+    {
         foreach (string rasterPath in await ResolveCandidateRasterPathsAsync(meshCode, cancellationToken))
         {
             GeoReferencedRasterMetadata? metadata = await TerrainTextureGeoReferencedRasterMetadataReader.TryReadMetadataAsync(
@@ -113,11 +143,9 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
             }
 
             TerrainTextureGeoReferencedRasterSource rasterSource = new(rasterPath, metadata);
-            cachedRasterSourcesByMeshCode[meshCode] = rasterSource;
             return rasterSource;
         }
 
-        cachedRasterSourcesByMeshCode[meshCode] = null;
         return null;
     }
 

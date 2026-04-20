@@ -79,11 +79,23 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
             return documentSet;
         }
 
+        SourceFileDescriptor[] demSourceFiles = documentSet.BootstrapSourceFilePipelines
+            .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+            .Select(static pipeline => pipeline.SourceFile)
+            .ToArray();
+        string[] demRequestedMeshCodes = documentSet.RequestedMeshCodes
+            .Where(requestedMeshCode => demSourceFiles.Any(sourceFile => MatchesDemRequestedMeshCode(sourceFile, requestedMeshCode)))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
+            .ToArray();
+
         (TerrainTextureOverlay[] overlays, DemTerrainGeoReferencedRasterCatalog? demRasterCatalog) = await CreateDemTerrainTextureOverlaysAsync(
             request,
-            documentSet.RequestedMeshCodes.Count > 0
-                ? documentSet.RequestedMeshCodes
-                : [request.MeshCode],
+            demRequestedMeshCodes.Length > 0
+                ? demRequestedMeshCodes
+                : documentSet.RequestedMeshCodes.Count > 0
+                    ? documentSet.RequestedMeshCodes
+                    : [request.MeshCode],
             cancellationToken);
         if (overlays.Length == 0)
         {
@@ -131,5 +143,19 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
         }
 
         return (overlays, demRasterCatalog);
+    }
+
+    private static bool MatchesDemRequestedMeshCode(
+        SourceFileDescriptor sourceFile,
+        string requestedMeshCode)
+    {
+        if (string.Equals(sourceFile.MatchedMeshCode, requestedMeshCode, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return sourceFile.MatchedMeshCode.Length == 6
+            && requestedMeshCode.Length >= 6
+            && requestedMeshCode.StartsWith(sourceFile.MatchedMeshCode, StringComparison.Ordinal);
     }
 }
