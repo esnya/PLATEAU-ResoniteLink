@@ -12,7 +12,7 @@ public static class ResoniteDynamicMaterialUvNormalizer
             && material.AssetScope != ResoniteMaterialAssetScope.Common
             && !(material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
                 && !string.IsNullOrWhiteSpace(material.Family))
-            && (material.TextureScale is not null || material.TextureOffset is not null);
+            && HasEffectiveTextureTransform(material);
     }
 
     public static ResoniteConstructionCityObject Normalize(ResoniteConstructionCityObject cityObject)
@@ -61,6 +61,15 @@ public static class ResoniteDynamicMaterialUvNormalizer
     {
         ArgumentNullException.ThrowIfNull(material);
 
+        if (!HasEffectiveTextureTransform(material))
+        {
+            return material with
+            {
+                TextureScale = null,
+                TextureOffset = null,
+            };
+        }
+
         return ShouldBakeTextureTransform(material)
             ? material with
             {
@@ -84,5 +93,25 @@ public static class ResoniteDynamicMaterialUvNormalizer
         return new ResoniteFloat2(
             (sourceUv.X * scaleX) + offsetX,
             (sourceUv.Y * scaleY) + offsetY);
+    }
+
+    private static bool HasEffectiveTextureTransform(ResoniteMaterialBinding material)
+    {
+        return !IsIdentityTextureScale(material.TextureScale)
+            || !IsZeroTextureOffset(material.TextureOffset);
+    }
+
+    private static bool IsIdentityTextureScale(ResoniteFloat2? textureScale)
+    {
+        return textureScale is null
+            || (Math.Abs(textureScale.X - 1.0) < 1e-9
+                && Math.Abs(textureScale.Y - 1.0) < 1e-9);
+    }
+
+    private static bool IsZeroTextureOffset(ResoniteFloat2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 }

@@ -54,9 +54,9 @@ internal static class ResoniteMaterialComponentPolicy
 
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
-            && material.TextureScale is not null)
+            && (material.TextureScale is not null || material.TextureOffset is not null))
         {
-            AddTextureTransformMembers(materialMembers, material.TextureScale, material.TextureOffset);
+            AddTextureTransformMembers(materialMembers, material.TextureScale ?? new ResoniteFloat2(1.0, 1.0), material.TextureOffset);
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard

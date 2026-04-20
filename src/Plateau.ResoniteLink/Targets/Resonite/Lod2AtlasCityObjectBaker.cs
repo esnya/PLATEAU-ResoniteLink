@@ -261,8 +261,14 @@ internal sealed class Lod2AtlasCityObjectBaker(
         CancellationToken cancellationToken)
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
-        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
+        if (!TryCreateMaterialBySubmeshIndex(cityObject, out _))
+        {
+            throw new InvalidOperationException(
+                $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
+        }
+
+        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         if (!TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(

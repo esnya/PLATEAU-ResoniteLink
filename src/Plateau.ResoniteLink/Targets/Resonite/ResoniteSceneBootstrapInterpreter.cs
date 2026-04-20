@@ -405,9 +405,11 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                     ?? throw new InvalidOperationException("Existing common material family slot did not expose an ID.");
                 foreach (string lookupSlotName in materialSlotLookupNames)
                 {
-                    existingMaterialSlot = GetReusableChildSlot(familySlotSnapshot, lookupSlotName, requiredFamilySlotId);
-                    if (existingMaterialSlot is not null)
+                    Slot? candidateMaterialSlot = GetReusableChildSlot(familySlotSnapshot, lookupSlotName, requiredFamilySlotId);
+                    if (candidateMaterialSlot?.Components?.Any(component =>
+                            string.Equals(component.ComponentType, ResoniteMaterialComponentPolicy.GetComponentType(material), StringComparison.Ordinal)) == true)
                     {
+                        existingMaterialSlot = candidateMaterialSlot;
                         break;
                     }
                 }

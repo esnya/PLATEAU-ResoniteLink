@@ -226,6 +226,42 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public void TryBufferThrowsControlledErrorForDuplicateMaterialAssignmentsBeforeUvNormalization()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        ResoniteConstructionCityObject invalid = CreateTriangleBuilding("duplicate-material-assignment", x: 10.0, z: 12.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "common.gml") with
+        {
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-material-a",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/fixedcell-duplicate-a.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: new ResoniteFloat2(2.0, 0.5),
+                    TextureOffset: new ResoniteFloat2(0.25, 0.75)),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "shared-material-b",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/fixedcell-duplicate-b.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+        };
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => baker.TryBuffer(invalid, out _));
+
+        Assert.Contains("contained duplicate material assignments for submesh index 0", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FlushAllProducesDeterministicMeshForEquivalentBufferedOrderings()
     {
         FixedCellCityObjectMeshBaker forward = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);

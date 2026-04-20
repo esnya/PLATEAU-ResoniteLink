@@ -136,6 +136,85 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncReusesLegacyTerrainOverlayGenericCommonMaterialSlotWithIdentityScaleOffset()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            requestedOverlay => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.125, 0.375)));
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ],
+            terrainTextureOverlays: [overlay]);
+        string legacyMaterialComponentId = await SeedCommonMaterialComponentAsync(
+            client,
+            familySlotName: "generic",
+            materialSlotName: "shared_uv_generic_scale_1x1_offset_0.125x0.375",
+            componentType: "[FrooxEngine]FrooxEngine.PBS_Metallic");
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "dem-overlay-legacy-object",
+            DisplayName: "DEM Overlay Legacy Object",
+            PackageName: "dem",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-legacy-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "dem-overlay-legacy-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TerrainOverlay: overlay),
+            ],
+            SourceObjectKey: "dem-overlay-legacy-source");
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            terrainTextureGenerator);
+
+        Component meshRenderer = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "DEM Overlay Legacy Object", StringComparison.Ordinal))
+            .Data;
+        string sharedMaterialId = Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
+
+        Assert.Equal(legacyMaterialComponentId, sharedMaterialId);
+        Assert.DoesNotContain(
+            client.SlotPaths.Values,
+            static path => path.EndsWith("/generic/shared_uv_generic_offset_0.125x0.375", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BuildAsyncSendsHeightMapAsHdrRawTextureAndCreatesGridMesh()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -935,6 +1014,66 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.False((slot.ID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
         Assert.False((slot.Parent?.TargetID ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
         Assert.False((slot.Tag?.Value ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
+    }
+
+    private static async Task<string> SeedCommonMaterialComponentAsync(
+        SceneBuilderRecordingClient client,
+        string familySlotName,
+        string materialSlotName,
+        string componentType)
+    {
+        string sharedAssetsRootId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = "Root" },
+                    Name = new Field_string { Value = "PLATEAU Shared Assets" },
+                },
+            },
+            CancellationToken.None);
+        string commonMaterialsRootId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = sharedAssetsRootId },
+                    Name = new Field_string { Value = "Common Materials" },
+                },
+            },
+            CancellationToken.None);
+        string familySlotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = commonMaterialsRootId },
+                    Name = new Field_string { Value = familySlotName },
+                },
+            },
+            CancellationToken.None);
+        string materialSlotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = familySlotId },
+                    Name = new Field_string { Value = materialSlotName },
+                },
+            },
+            CancellationToken.None);
+
+        return await client.AddComponentAsync(
+            new AddComponent
+            {
+                ContainerSlotId = materialSlotId,
+                Data = new Component
+                {
+                    ComponentType = componentType,
+                    Members = new Dictionary<string, Member>(StringComparer.Ordinal),
+                },
+            },
+            CancellationToken.None);
     }
 
     private static void AssertNoPlannedReferences(IEnumerable<Member> members)

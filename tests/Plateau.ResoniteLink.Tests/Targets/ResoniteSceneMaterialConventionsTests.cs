@@ -119,6 +119,29 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CreateCommonMaterialSlotLookupNames_ForIdentityScaleGenericOffsetMaterial_IncludesLegacyScaleOneName()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "generic|Uv|scale:none|offset:0.25x0.75|depth:2x3",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0),
+            SubmeshIndices: [0],
+            TextureScale: null,
+            TextureOffset: new ResoniteFloat2(0.25, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
+
+        Assert.Equal(
+            ["shared_uv_generic_offset_0.25x0.75_depth_2x3", "shared_uv_generic_scale_1x1_offset_0.25x0.75_depth_2x3"],
+            slotLookupNames);
+    }
+
+    [Fact]
     public void TryNormalizeSharedMaterialBinding_AllowsTerrainOverlayAsMainTextureOverride()
     {
         TerrainTextureOverlay overlay = new(

@@ -454,14 +454,26 @@ internal static class ResoniteSceneMaterialConventions
     {
         if (!IsGenericSharedCommonMaterialCandidate(material)
             || material.Projection != ResoniteMaterialProjection.Uv
-            || material.TextureOffset is not null
-            || material.DepthOffset is not null
-            || material.TextureScale is not null)
+            || (material.TextureScale is not null
+                && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
+                    || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9)))
         {
             return null;
         }
 
-        return "shared_uv_generic_scale_1x1";
+        string offsetToken = material.TextureOffset is null
+            ? string.Empty
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"_offset_{material.TextureOffset.X:0.######}x{material.TextureOffset.Y:0.######}");
+        string depthToken = material.DepthOffset is null
+            ? string.Empty
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"_depth_{material.DepthOffset.Factor:0.######}x{material.DepthOffset.Units:0.######}");
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"shared_uv_generic_scale_1x1{offsetToken}{depthToken}");
     }
 
     private static ResoniteMaterialBinding NormalizeGenericSharedMaterialBinding(ResoniteMaterialBinding material)
