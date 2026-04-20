@@ -214,7 +214,7 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
-        if ((material.TextureScale is not null || material.TextureOffset is not null)
+        if (HasEffectiveGenericTextureTransform(material)
             && material.TerrainOverlay is null)
         {
             return false;
@@ -355,11 +355,11 @@ internal static class ResoniteSceneMaterialConventions
                 : string.Create(
                     CultureInfo.InvariantCulture,
                     $"_scale_{material.TextureScale!.X:0.######}x{material.TextureScale.Y:0.######}");
-            string offsetToken = material.TextureOffset is null
+            string offsetToken = IsZeroTextureOffset(material.TextureOffset)
                 ? string.Empty
                 : string.Create(
                     CultureInfo.InvariantCulture,
-                    $"_offset_{material.TextureOffset.X:0.######}x{material.TextureOffset.Y:0.######}");
+                    $"_offset_{material.TextureOffset!.X:0.######}x{material.TextureOffset.Y:0.######}");
             string depthToken = material.DepthOffset is null
                 ? string.Empty
                 : string.Create(
@@ -461,11 +461,11 @@ internal static class ResoniteSceneMaterialConventions
             return null;
         }
 
-        string offsetToken = material.TextureOffset is null
+        string offsetToken = IsZeroTextureOffset(material.TextureOffset)
             ? string.Empty
             : string.Create(
                 CultureInfo.InvariantCulture,
-                $"_offset_{material.TextureOffset.X:0.######}x{material.TextureOffset.Y:0.######}");
+                $"_offset_{material.TextureOffset!.X:0.######}x{material.TextureOffset.Y:0.######}");
         string depthToken = material.DepthOffset is null
             ? string.Empty
             : string.Create(
@@ -478,17 +478,28 @@ internal static class ResoniteSceneMaterialConventions
 
     private static ResoniteMaterialBinding NormalizeGenericSharedMaterialBinding(ResoniteMaterialBinding material)
     {
+        ResoniteFloat2? normalizedTextureScale = material.TextureScale is not null
+            && Math.Abs(material.TextureScale.X - 1.0) < 1e-9
+            && Math.Abs(material.TextureScale.Y - 1.0) < 1e-9
+            ? null
+            : material.TextureScale;
+        ResoniteFloat2? normalizedTextureOffset = IsZeroTextureOffset(material.TextureOffset)
+            ? null
+            : material.TextureOffset;
+
         return material with
         {
             MaterialKey = CreateCanonicalGenericSharedMaterialKey(
                 material.Projection,
-                material.TextureScale,
-                material.TextureOffset,
+                normalizedTextureScale,
+                normalizedTextureOffset,
                 material.DepthOffset),
             BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             TexturePayload = null,
             TerrainOverlay = null,
             TextureSourceKind = ResoniteTextureSourceKind.Dataset,
+            TextureScale = normalizedTextureScale,
+            TextureOffset = normalizedTextureOffset,
             AssetScope = ResoniteMaterialAssetScope.Common,
             BundledVariantIndex = null,
         };
@@ -511,5 +522,20 @@ internal static class ResoniteSceneMaterialConventions
             AssetScope = ResoniteMaterialAssetScope.Common,
             BundledVariantIndex = null,
         };
+    }
+
+    private static bool HasEffectiveGenericTextureTransform(ResoniteMaterialBinding material)
+    {
+        bool hasNonIdentityScale = material.TextureScale is not null
+            && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
+                || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
+        return hasNonIdentityScale || !IsZeroTextureOffset(material.TextureOffset);
+    }
+
+    private static bool IsZeroTextureOffset(ResoniteFloat2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 }

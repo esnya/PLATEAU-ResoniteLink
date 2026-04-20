@@ -86,6 +86,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (!CanBake(cityObject))

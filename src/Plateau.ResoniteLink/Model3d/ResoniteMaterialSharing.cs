@@ -13,8 +13,8 @@ public static class ResoniteMaterialSharing
             && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset
             && material.TexturePayload is not null
             && material.DepthOffset is null
-            && material.TextureScale is null
-            && material.TextureOffset is null
+            && IsIdentityTextureScale(material.TextureScale)
+            && IsZeroTextureOffset(material.TextureOffset)
             && material.BaseColor == SharedBaseColor;
     }
 
@@ -27,8 +27,8 @@ public static class ResoniteMaterialSharing
             && IsWhiteBaseColor(material.BaseColor)
             && material.TexturePayload is null
             && material.TerrainOverlay is null
-            && material.TextureScale is null
-            && material.TextureOffset is null;
+            && IsIdentityTextureScale(material.TextureScale)
+            && IsZeroTextureOffset(material.TextureOffset);
     }
 
     public static ResoniteMaterialBinding CreateSharedAlbedoCommonMaterial()
@@ -77,8 +77,9 @@ public static class ResoniteMaterialSharing
         ResoniteMaterialDepthOffset? depthOffset)
     {
         ResoniteFloat2? normalizedTextureScale = IsIdentityTextureScale(textureScale) ? null : textureScale;
+        ResoniteFloat2? normalizedTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
         string scaleToken = CreateFloat2Token(normalizedTextureScale);
-        string offsetToken = CreateFloat2Token(textureOffset);
+        string offsetToken = CreateFloat2Token(normalizedTextureOffset);
         string depthToken = CreateDepthToken(depthOffset);
         return $"generic|{projection}|scale:{scaleToken}|offset:{offsetToken}|depth:{depthToken}";
     }
@@ -118,8 +119,15 @@ public static class ResoniteMaterialSharing
 
     private static bool IsIdentityTextureScale(ResoniteFloat2? textureScale)
     {
-        return textureScale is not null
-            && Math.Abs(textureScale.X - 1.0) < 1e-9
-            && Math.Abs(textureScale.Y - 1.0) < 1e-9;
+        return textureScale is null
+            || (Math.Abs(textureScale.X - 1.0) < 1e-9
+                && Math.Abs(textureScale.Y - 1.0) < 1e-9);
+    }
+
+    private static bool IsZeroTextureOffset(ResoniteFloat2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 }

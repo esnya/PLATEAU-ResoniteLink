@@ -63,6 +63,14 @@ public static class ResoniteDynamicMaterialUvNormalizer
 
         if (!HasEffectiveTextureTransform(material))
         {
+            if (IsBundledFamilyMaterial(material) && material.TextureScale is not null)
+            {
+                return material with
+                {
+                    TextureOffset = null,
+                };
+            }
+
             return material with
             {
                 TextureScale = null,
@@ -99,6 +107,12 @@ public static class ResoniteDynamicMaterialUvNormalizer
     {
         return !IsIdentityTextureScale(material.TextureScale)
             || !IsZeroTextureOffset(material.TextureOffset);
+    }
+
+    private static bool IsBundledFamilyMaterial(ResoniteMaterialBinding material)
+    {
+        return material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && !string.IsNullOrWhiteSpace(material.Family);
     }
 
     private static bool IsIdentityTextureScale(ResoniteFloat2? textureScale)

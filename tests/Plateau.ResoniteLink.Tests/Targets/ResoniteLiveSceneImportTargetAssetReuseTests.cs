@@ -140,6 +140,34 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithExplicitNoOpTransform()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreatePayloadTriangleCityObject(
+                    "dataset-texture-noop-transform-one",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/albedo-noop-one.png"),
+                    textureScale: new ResoniteFloat2(1.0, 1.0),
+                    textureOffset: new ResoniteFloat2(0.0, 0.0)),
+                CreatePayloadTriangleCityObject(
+                    "dataset-texture-noop-transform-two",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/albedo-noop-two.png")),
+            ],
+            client);
+
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-two");
+
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.Equal(1, CountCommonMaterialComponents(client, firstMaterialId));
+    }
+
+    [Fact]
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithDifferentUvTransforms()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -312,6 +340,39 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         Assert.Equal(legacyMaterialComponentId, rendererMaterialId);
         Assert.Equal(1, CountCommonMaterialComponents(client, legacyMaterialComponentId));
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesExistingEmptyCurrentGenericCommonMaterialSlot()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        string emptyCurrentMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreatePayloadTriangleCityObject(
+                    "empty-current-generic-slot-reuse",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/empty-current-generic-slot.png")),
+            ],
+            client);
+
+        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
+        string currentGenericPath = Assert.Single(
+            client.SlotPaths,
+            static pair => pair.Value.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal)).Key;
+        AddComponent materialComponentRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
+
+        Assert.Equal(emptyCurrentMaterialSlotId, currentGenericPath);
+        Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
+        Assert.Equal(
+            1,
+            client.SlotPaths.Values.Count(static path => path.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -1460,6 +1521,51 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 {
                     ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
                     Members = new Dictionary<string, Member>(StringComparer.Ordinal),
+                },
+            },
+                CancellationToken.None);
+    }
+
+    private static async Task<string> SeedEmptyCurrentGenericSharedMaterialSlotAsync(SceneBuilderRecordingClient client)
+    {
+        string sharedAssetsRootId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = "Root" },
+                    Name = new Field_string { Value = "PLATEAU Shared Assets" },
+                },
+            },
+            CancellationToken.None);
+        string commonMaterialsRootId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = sharedAssetsRootId },
+                    Name = new Field_string { Value = "Common Materials" },
+                },
+            },
+            CancellationToken.None);
+        string genericFamilySlotId = await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = commonMaterialsRootId },
+                    Name = new Field_string { Value = "generic" },
+                },
+            },
+            CancellationToken.None);
+
+        return await client.AddSlotAsync(
+            new AddSlot
+            {
+                Data = new Slot
+                {
+                    Parent = new Reference { TargetID = genericFamilySlotId },
+                    Name = new Field_string { Value = "shared_uv_generic" },
                 },
             },
             CancellationToken.None);

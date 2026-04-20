@@ -99,6 +99,29 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CreateMaterialSlotName_ForGenericSharedMaterial_OmitsExplicitZeroOffset()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "generic|Uv|scale:none|offset:0x0|depth:none",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: null,
+            TextureOffset: new ResoniteFloat2(0.0, 0.0),
+            Family: null,
+            BundledVariantIndex: null,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+
+        Assert.Equal("shared_uv_generic", slotName);
+    }
+
+    [Fact]
     public void CreateMaterialSlotName_ForVertexColorCommonMaterial_UsesVertexColorName()
     {
         ResoniteMaterialBinding material = ResoniteMaterialSharing.CreateSharedVertexColorCommonMaterial();
@@ -174,6 +197,35 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal("generic|Uv|scale:none|offset:none|depth:none", normalizedMaterial.MaterialKey);
         Assert.Null(normalizedMaterial.TerrainOverlay);
         Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), normalizedMaterial.BaseColor);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_AllowsPayloadMaterialWithExplicitNoOpTextureTransform()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "payload-noop-transform",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/noop-transform.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.0, 0.0),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out ResoniteMaterialBinding normalizedMaterial,
+            out string familySlotName);
+
+        Assert.True(normalized);
+        Assert.Equal("generic", familySlotName);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
+        Assert.Null(normalizedMaterial.TextureScale);
+        Assert.Null(normalizedMaterial.TextureOffset);
+        Assert.Equal("generic|Uv|scale:none|offset:none|depth:none", normalizedMaterial.MaterialKey);
     }
 
     [Fact]

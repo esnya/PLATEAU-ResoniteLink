@@ -399,6 +399,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             ResoniteSceneSlotSnapshot? familySlotSnapshot = familySnapshotSlot is null ? null : new ResoniteSceneSlotSnapshot(familySnapshotSlot);
             string? familySnapshotSlotId = familySnapshotSlot?.ID;
             Slot? existingMaterialSlot = null;
+            Slot? reusableEmptyMaterialSlot = null;
             if (familySlotSnapshot is not null)
             {
                 string requiredFamilySlotId = familySnapshotSlotId
@@ -406,7 +407,13 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 foreach (string lookupSlotName in materialSlotLookupNames)
                 {
                     Slot? candidateMaterialSlot = GetReusableChildSlot(familySlotSnapshot, lookupSlotName, requiredFamilySlotId);
-                    if (candidateMaterialSlot?.Components?.Any(component =>
+                    if (candidateMaterialSlot is null)
+                    {
+                        continue;
+                    }
+
+                    reusableEmptyMaterialSlot ??= candidateMaterialSlot;
+                    if (candidateMaterialSlot.Components?.Any(component =>
                             string.Equals(component.ComponentType, ResoniteMaterialComponentPolicy.GetComponentType(material), StringComparison.Ordinal)) == true)
                     {
                         existingMaterialSlot = candidateMaterialSlot;
@@ -414,6 +421,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                     }
                 }
             }
+            existingMaterialSlot ??= reusableEmptyMaterialSlot;
             string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
             string? existingMaterialComponentId = existingMaterialSlot?.Components?
                 .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))

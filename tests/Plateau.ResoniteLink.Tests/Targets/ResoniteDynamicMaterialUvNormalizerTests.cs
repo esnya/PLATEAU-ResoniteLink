@@ -34,6 +34,88 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Equal(new ResoniteFloat2(1.0, 0.0), normalized.Mesh.Vertices[1].UV0);
     }
 
+    [Fact]
+    public void NormalizeMaterialBinding_PreservesExplicitIdentityScaleForBundledFamilyMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "bundled-identity-override",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.0, 0.0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 0,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        ResoniteMaterialBinding normalized = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
+
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), normalized.TextureScale);
+        Assert.Null(normalized.TextureOffset);
+    }
+
+    [Fact]
+    public void Normalize_PreservesBundledIdentityScaleOverrideWhenAnotherMaterialBakes()
+    {
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "mixed-material-city-object",
+            DisplayName: "Mixed Material CityObject",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "dynamic-uv-material", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "bundled-identity-override", [3, 4, 5]),
+                ]),
+            Materials:
+            [
+                CreateDynamicUvMaterial(new ResoniteFloat2(0.5, 0.25), new ResoniteFloat2(0.125, 0.75)) with
+                {
+                    SubmeshIndices = [0],
+                },
+                new ResoniteMaterialBinding(
+                    MaterialKey: "bundled-identity-override",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    TextureScale: new ResoniteFloat2(1.0, 1.0),
+                    TextureOffset: new ResoniteFloat2(0.0, 0.0),
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    BundledVariantIndex: 0,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+            ],
+            SourceObjectKey: "unit-a:mixed-material-city-object",
+            SourceUnitKey: "unit-a",
+            SourceFileRelativePath: "unit-a.gml");
+
+        ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        ResoniteMaterialBinding bundledMaterial = Assert.Single(
+            normalized.Materials,
+            static material => string.Equals(material.MaterialKey, "bundled-identity-override", StringComparison.Ordinal));
+
+        Assert.NotSame(cityObject, normalized);
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), bundledMaterial.TextureScale);
+        Assert.Null(bundledMaterial.TextureOffset);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleCityObject(
         ResoniteFloat2? textureScale,
         ResoniteFloat2? textureOffset)
