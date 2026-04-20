@@ -91,6 +91,8 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
 
         (TerrainTextureOverlay[] overlays, DemTerrainGeoReferencedRasterCatalog? demRasterCatalog) = await CreateDemTerrainTextureOverlaysAsync(
             request,
+            documentSet,
+            demSourceFiles,
             demRequestedMeshCodes.Length > 0
                 ? demRequestedMeshCodes
                 : documentSet.RequestedMeshCodes.Count > 0
@@ -118,6 +120,8 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
 
     private async Task<(TerrainTextureOverlay[] Overlays, DemTerrainGeoReferencedRasterCatalog? RasterCatalog)> CreateDemTerrainTextureOverlaysAsync(
         PlateauImportRequest request,
+        LocalCityGmlDocumentSet documentSet,
+        IReadOnlyList<SourceFileDescriptor> demSourceFiles,
         IReadOnlyList<string> requestedMeshCodes,
         CancellationToken cancellationToken)
     {
@@ -131,10 +135,17 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
                 [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
         }
 
-        TerrainTextureOverlay[] overlays = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
-            requestedMeshCodes,
-            demRasterCatalog,
-            cancellationToken);
+        TerrainTextureOverlay[] overlays = request.DemTextureSource is null
+            ? await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
+                requestedMeshCodes,
+                demRasterCatalog,
+                cancellationToken)
+            : await CreateExplicitDemTerrainTextureOverlaysAsync(
+                documentSet,
+                demSourceFiles,
+                requestedMeshCodes,
+                demRasterCatalog,
+                cancellationToken);
         if (request.DemTextureSource is not null
             && overlays.Any(static overlay => !overlay.EnumerateGeoReferencedRasterSources().Any()))
         {
@@ -143,6 +154,55 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IResoniteConstruct
         }
 
         return (overlays, demRasterCatalog);
+    }
+
+    internal static async Task<TerrainTextureOverlay[]> CreateExplicitDemTerrainTextureOverlaysAsync(
+        LocalCityGmlDocumentSet documentSet,
+        IReadOnlyList<SourceFileDescriptor> demSourceFiles,
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
+        CancellationToken cancellationToken)
+    {
+        TerrainTextureOverlay[] requestScopedFallbackOverlays = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
+            requestedMeshCodes,
+            demRasterCatalog,
+            cancellationToken);
+        if (demSourceFiles.Count == 0)
+        {
+            return requestScopedFallbackOverlays;
+        }
+
+        List<TerrainTextureOverlay> geometryScopedOverlays = [];
+        foreach (SourceFilePipeline pipeline in documentSet.BootstrapSourceFilePipelines
+                     .Where(pipeline => demSourceFiles.Contains(pipeline.SourceFile)))
+        {
+            BootstrapParsedCityObject[] parsedCityObjects = await pipeline.StreamParsedCityObjectsAsync(cancellationToken)
+                .ToArrayAsync(cancellationToken);
+            DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+                [new ParsedSourceFileResult(pipeline.SourceFile, parsedCityObjects, null, [], TimeSpan.Zero)],
+                fallbackBounds: null);
+            if (demBounds is null)
+            {
+                continue;
+            }
+
+            geometryScopedOverlays.AddRange(
+                await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
+                    demBounds,
+                    requestedMeshCodes,
+                    demRasterCatalog,
+                    cancellationToken));
+        }
+
+        return geometryScopedOverlays.Count > 0
+            ? geometryScopedOverlays
+                .Distinct()
+                .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+                .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
+                .ToArray()
+            : requestScopedFallbackOverlays;
     }
 
     private static bool MatchesDemRequestedMeshCode(

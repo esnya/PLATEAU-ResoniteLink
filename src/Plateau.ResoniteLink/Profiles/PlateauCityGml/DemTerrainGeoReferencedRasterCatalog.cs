@@ -103,8 +103,13 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
         {
             if (!cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out resolveTask!))
             {
-                resolveTask = ResolveRasterSourceCoreAsync(meshCode, overlayBounds, cancellationToken);
+                resolveTask = ResolveRasterSourceCoreAsync(meshCode, overlayBounds, CancellationToken.None);
                 cachedRasterSourceTasksByMeshCode[cacheKey] = resolveTask;
+                _ = resolveTask.ContinueWith(
+                    completedTask => RemoveFaultedResolveTask(cacheKey, completedTask),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
             }
         }
 
@@ -114,6 +119,11 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
         }
         catch
         {
+            if (!resolveTask.IsCompleted)
+            {
+                throw;
+            }
+
             lock (cachedRasterSourceTaskGate)
             {
                 if (cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
@@ -149,6 +159,25 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
         }
 
         return null;
+    }
+
+    private void RemoveFaultedResolveTask(
+        string cacheKey,
+        Task<TerrainTextureGeoReferencedRasterSource?> completedTask)
+    {
+        if (!completedTask.IsFaulted && !completedTask.IsCanceled)
+        {
+            return;
+        }
+
+        lock (cachedRasterSourceTaskGate)
+        {
+            if (cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
+                && ReferenceEquals(cachedTask, completedTask))
+            {
+                cachedRasterSourceTasksByMeshCode.Remove(cacheKey);
+            }
+        }
     }
 
     private async Task<IReadOnlyList<string>> ResolveCandidateRasterPathsAsync(

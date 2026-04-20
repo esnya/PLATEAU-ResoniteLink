@@ -100,6 +100,57 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             static error => error.Contains("GeoTIFF", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task CreateExplicitDemTerrainTextureOverlaysAsyncLimitsCoverageToActualDemGeometry()
+    {
+        Assert.True(
+            PlateauMeshCode.TryGetBounds(
+                "53394525",
+                out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) meshBounds));
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor demSourceFile = new("udx/dem/533945/sample.gml", "dem", "533945", RequiresMeshAreaFilter: false);
+        BootstrapParsedCityObject demCityObject = CreateDemParsedCityObject(
+            demSourceFile,
+            referenceSystem,
+            meshBounds.SouthLatitude + 0.0001,
+            meshBounds.WestLongitude + 0.0001);
+        SourceFilePipeline demPipeline = new(
+            demSourceFile,
+            () => Task.FromResult(
+                new ParsedSourceFileResult(
+                    demSourceFile,
+                    [demCityObject],
+                    referenceSystem,
+                    [],
+                    TimeSpan.Zero)));
+        RecordingDocumentReader reader = new(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                [demSourceFile.RelativePath],
+                ["dem"],
+                [],
+                ["533945"],
+                [demPipeline],
+                [],
+                referenceSystem,
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                terrainHeightSampler: null));
+        TerrainTextureOverlay[] overlays = await LocalCityGmlConstructionSourceFactory.CreateExplicitDemTerrainTextureOverlaysAsync(
+            reader.DocumentSet,
+            [demSourceFile],
+            ["533945"],
+            demRasterCatalog: null,
+            CancellationToken.None);
+
+        TerrainTextureOverlay overlay = Assert.Single(overlays);
+        Assert.Empty(overlay.EnumerateGeoReferencedRasterSources());
+        Assert.True(
+            overlay.GeographicBounds.MinLatitude >= meshBounds.SouthLatitude
+            && overlay.GeographicBounds.MaxLatitude <= meshBounds.NorthLatitude
+            && overlay.GeographicBounds.MinLongitude >= meshBounds.WestLongitude
+            && overlay.GeographicBounds.MaxLongitude <= meshBounds.EastLongitude);
+    }
+
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
         public RecordingDocumentReader(LocalCityGmlDocumentSet? documentSet = null)
@@ -242,4 +293,45 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             return Task.FromResult(datasetSource);
         }
     }
+
+    private static BootstrapParsedCityObject CreateDemParsedCityObject(
+        SourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem,
+        double southLatitude,
+        double westLongitude)
+    {
+        GeodeticPoint[] vertices =
+        [
+            new(southLatitude, westLongitude, 10.0),
+            new(southLatitude, westLongitude + 0.001, 10.0),
+            new(southLatitude + 0.001, westLongitude + 0.001, 10.0),
+            new(southLatitude + 0.001, westLongitude, 10.0),
+        ];
+
+        return new BootstrapParsedCityObject(
+            SlotKey: "dem",
+            DisplayName: "dem",
+            PackageName: "dem",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Surfaces:
+            [
+                new BootstrapParsedSurface(
+                    PolygonId: "surface",
+                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new BootstrapParsedRing("ring", vertices, null),
+                    InteriorRings: [],
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: false),
+            ],
+            ReferenceSystem: referenceSystem,
+            SourceFileRelativePath: sourceFile.RelativePath,
+            SourceUnitIdentity: sourceFile.RelativePath,
+            SourceIdentity: $"{sourceFile.RelativePath}:dem",
+            SharedAcrossMeshCodes: false,
+            TerrainAligned: false,
+            OriginOverride: null);
+    }
+
 }
