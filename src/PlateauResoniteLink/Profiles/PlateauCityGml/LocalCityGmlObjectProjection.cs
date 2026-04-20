@@ -1491,7 +1491,7 @@ public static partial class LocalCityGmlObjectProjection
                     BundledVariantIndex: representativeSurface.Material.BundledVariantIndex));
         }
 
-        return new ResoniteConstructionCityObject(
+        return ResoniteDynamicMaterialUvNormalizer.Normalize(new ResoniteConstructionCityObject(
             SlotKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
@@ -1502,7 +1502,7 @@ public static partial class LocalCityGmlObjectProjection
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
+            SourceFileRelativePath: cityObject.SourceFileRelativePath));
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)

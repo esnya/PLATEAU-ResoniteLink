@@ -103,12 +103,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[commonMaterialContainerSlotId],
             StringComparison.Ordinal);
-        Field_float2 textureScale = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureScale"]);
-        Field_float2 textureOffset = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureOffset"]);
-        Assert.Equal(0.4f, textureScale.Value.x, 6);
-        Assert.Equal(0.1f, textureScale.Value.y, 6);
-        Assert.Equal(0.25f, textureOffset.Value.x, 6);
-        Assert.Equal(0.5f, textureOffset.Value.y, 6);
+        Assert.DoesNotContain("TextureScale", sharedMaterial.Members.Keys);
+        Assert.DoesNotContain("TextureOffset", sharedMaterial.Members.Keys);
         Assert.Equal("[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", propertyBlock.ComponentType);
         string propertyBlockReferenceId = Assert.IsType<Reference>(Assert.Single(propertyBlocks.Elements)).TargetID;
         AddComponent plannedPropertyBlock = Assert.Single(

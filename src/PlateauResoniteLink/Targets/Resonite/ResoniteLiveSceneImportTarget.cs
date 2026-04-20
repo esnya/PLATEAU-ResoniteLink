@@ -889,6 +889,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
     {
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
         {
             try

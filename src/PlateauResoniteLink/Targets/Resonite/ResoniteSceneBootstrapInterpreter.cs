@@ -372,7 +372,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         foreach (ResoniteMaterialBinding material in canonicalMaterialsByKey.Values.OrderBy(static material => material.MaterialKey, StringComparer.Ordinal))
         {
-            string family = material.Family ?? BundledDefaultMaterialFamilies.Other;
+            string family = ResoniteSceneMaterialConventions.GetCommonMaterialFamilySlotName(material);
             commonMaterialFamilies.Add(family);
             string familySlotName = family;
             if (!familyParentIds.TryGetValue(family, out string? familyParentId))

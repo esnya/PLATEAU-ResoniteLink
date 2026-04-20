@@ -73,8 +73,8 @@ public sealed class ResoniteSceneMaterialConventionsTests
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
 
         Assert.Contains("pbs-uv_uv_", slotName, StringComparison.Ordinal);
-        Assert.Contains("_0.5x0.25_", slotName, StringComparison.Ordinal);
-        Assert.Contains("_0.125x0.75_", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("_0.5x0.25_", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("_0.125x0.75_", slotName, StringComparison.Ordinal);
         Assert.Contains("_2x3_", slotName, StringComparison.Ordinal);
     }
 
@@ -98,9 +98,17 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 
-        Assert.StartsWith("shared_uv_generic_", slotName, StringComparison.Ordinal);
-        Assert.Contains("scale_1x1", slotName, StringComparison.Ordinal);
-        Assert.Contains("offset_0.25x0.75", slotName, StringComparison.Ordinal);
+        Assert.Equal("shared_uv_generic_scale_1x1_offset_0.25x0.75", slotName);
+    }
+
+    [Fact]
+    public void CreateMaterialSlotName_ForVertexColorCommonMaterial_UsesVertexColorName()
+    {
+        ResoniteMaterialBinding material = ResoniteMaterialSharing.CreateSharedVertexColorCommonMaterial();
+
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+
+        Assert.Equal("shared_uv_vertex-color", slotName);
     }
 
     [Fact]
@@ -136,5 +144,31 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal("generic|Uv|scale:none|offset:none|depth:none", normalizedMaterial.MaterialKey);
         Assert.Null(normalizedMaterial.TerrainOverlay);
         Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), normalizedMaterial.BaseColor);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_AllowsVertexColorSharedCommonMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "vertex-color-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.VertexColor,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out ResoniteMaterialBinding normalizedMaterial,
+            out string familySlotName);
+
+        Assert.True(normalized);
+        Assert.Equal("vertex-color", familySlotName);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
+        Assert.Equal("vertex-color|Uv|depth:none", normalizedMaterial.MaterialKey);
+        Assert.Equal(ResoniteMaterialType.VertexColor, normalizedMaterial.MaterialType);
     }
 }

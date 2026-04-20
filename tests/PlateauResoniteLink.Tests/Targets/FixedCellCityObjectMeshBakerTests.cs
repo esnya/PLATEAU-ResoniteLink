@@ -220,6 +220,33 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public void FlushAllBakesDynamicUvTransformIntoMeshAndClearsMaterialTransform()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "dynamic-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(2.0, 0.5),
+            TextureOffset: new ResoniteFloat2(0.25, 0.75));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("dynamic", 10.0, 12.0, "unit-a", null, material), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        ResoniteMaterialBinding bakedMaterial = Assert.Single(baked.Materials);
+        Assert.Null(bakedMaterial.TextureScale);
+        Assert.Null(bakedMaterial.TextureOffset);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), baked.Mesh.Vertices[0].UV0);
+        Assert.Equal(new ResoniteFloat2(2.25, 0.75), baked.Mesh.Vertices[1].UV0);
+        Assert.Equal(new ResoniteFloat2(0.25, 1.25), baked.Mesh.Vertices[2].UV0);
+    }
+
+    [Fact]
     public void FlushAllMergesEquivalentBundledFamilyMaterialsAcrossObjects()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);

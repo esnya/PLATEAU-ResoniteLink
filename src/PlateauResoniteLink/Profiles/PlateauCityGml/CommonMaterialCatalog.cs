@@ -55,6 +55,13 @@ public static class CommonMaterialCatalog
             }
         }
 
+        materials.Add(ResoniteMaterialSharing.CreateSharedAlbedoCommonMaterial());
+        materials.Add(ResoniteMaterialSharing.CreateSharedVertexColorCommonMaterial());
+        foreach (ResoniteFloat2 offset in ResoniteMaterialSharing.FixedSharedAlbedoOffsets)
+        {
+            materials.Add(ResoniteMaterialSharing.CreateSharedAlbedoCommonMaterial(offset));
+        }
+
         return materials;
     }
 

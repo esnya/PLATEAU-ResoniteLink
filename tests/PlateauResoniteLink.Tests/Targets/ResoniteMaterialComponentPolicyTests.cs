@@ -24,6 +24,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
             TextureScale: new ResoniteFloat2(0.5, 0.25),
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
             Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
 
         string componentType = ResoniteMaterialComponentPolicy.GetComponentType(material);
@@ -46,6 +47,28 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.Equal(0.75f, textureOffset.Value.y, 6);
         Assert.Equal(2.0f, offsetFactor.Value, 6);
         Assert.Equal(3.0f, offsetUnits.Value, 6);
+    }
+
+    [Fact]
+    public void CreateMembersOmitsUvTransformForDynamicMaterialsThatBakeIntoMesh()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "dynamic-overlay",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(0.5, 0.25),
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+
+        Assert.DoesNotContain("TextureScale", members.Keys);
+        Assert.DoesNotContain("TextureOffset", members.Keys);
     }
 
     [Fact]

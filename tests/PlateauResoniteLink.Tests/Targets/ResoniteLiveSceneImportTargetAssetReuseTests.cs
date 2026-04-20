@@ -140,6 +140,104 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
+    public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithDifferentUvTransforms()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreatePayloadTriangleCityObject(
+                    "dataset-texture-scaled-one",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/albedo-scaled-one.png"),
+                    textureScale: new ResoniteFloat2(0.5, 0.25),
+                    textureOffset: new ResoniteFloat2(0.125, 0.75)),
+                CreatePayloadTriangleCityObject(
+                    "dataset-texture-scaled-two",
+                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/albedo-scaled-two.png"),
+                    textureScale: new ResoniteFloat2(2.0, 1.5),
+                    textureOffset: new ResoniteFloat2(0.25, 0.5)),
+            ],
+            client);
+
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-two");
+        HashSet<string> commonMaterialIds = client.AddedComponents
+            .Where(request => client.SlotPaths.TryGetValue(request.ContainerSlotId, out string? path)
+                && path.Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal))
+            .Select(static request => request.Data.ID)
+            .Where(static id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.Contains(firstMaterialId, commonMaterialIds);
+    }
+
+    [Fact]
+    public async Task BuildAsyncBootstrapsFixedGenericAndVertexColorCommonMaterials()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [CreateBundledTriangleCityObject("bootstrap-common-check")],
+            client);
+
+        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
+
+        Assert.Contains(
+            client.SlotPaths.Values,
+            path => string.Equals(
+                path,
+                $"{client.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            client.SlotPaths.Values,
+            path => string.Equals(
+                path,
+                $"{client.SlotPaths[commonRoot.ID!]}/vertex-color/shared_uv_vertex-color",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            client.SlotPaths.Values,
+            path => path.EndsWith("/generic/shared_uv_generic_offset_0.5x0", StringComparison.Ordinal));
+        Assert.Contains(
+            client.SlotPaths.Values,
+            path => path.EndsWith("/generic/shared_uv_generic_offset_0x0.5", StringComparison.Ordinal));
+        Assert.Contains(
+            client.SlotPaths.Values,
+            path => path.EndsWith("/generic/shared_uv_generic_offset_0.5x0.5", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncReusesSharedCommonMaterialForVertexColor()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        using SceneBuilderRecordingClient client = new();
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [
+                CreateVertexColorTriangleCityObject("vertex-color-one"),
+                CreateVertexColorTriangleCityObject("vertex-color-two"),
+            ],
+            client);
+
+        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-one");
+        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-two");
+        string commonMaterialContainerSlotId = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, firstMaterialId, StringComparison.Ordinal)).ContainerSlotId;
+
+        Assert.Equal(firstMaterialId, secondMaterialId);
+        Assert.Contains("/vertex-color/", client.SlotPaths[commonMaterialContainerSlotId], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncUsesDistinctPropertyBlocksForSameMaterialKeyWithDifferentPayloadOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -770,6 +868,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     private static ResoniteConstructionCityObject CreatePayloadTriangleCityObject(
         string objectIdentity,
         ResoniteTexturePayload payload,
+        ResoniteFloat2? textureScale = null,
+        ResoniteFloat2? textureOffset = null,
         string sourceFileRelativePath = PrimarySourceFile)
     {
         return new ResoniteConstructionCityObject(
@@ -791,7 +891,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0],
+                    TextureScale: textureScale,
                     Family: null,
+                    TextureOffset: textureOffset,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: objectIdentity,
@@ -872,6 +974,35 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: objectIdentity,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateVertexColorTriangleCityObject(
+        string objectIdentity,
+        string sourceFileRelativePath = PrimarySourceFile)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "vertex-color-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.VertexColor,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
