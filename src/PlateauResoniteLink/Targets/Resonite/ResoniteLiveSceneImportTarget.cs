@@ -889,8 +889,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
     {
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-
         if (cityObject.Geometry is ResoniteTriangleMeshGeometry triangleGeometry)
         {
             try
@@ -907,6 +905,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             }
 
         }
+
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
 
         TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)

@@ -110,6 +110,78 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public void TryBufferSkipsNonTargetCityObjectsWithoutNormalizingDynamicUvTransform()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 2, maxVerticesPerBatch: 1000);
+        ResoniteMaterialBinding dynamicMaterial = new(
+            MaterialKey: "lod2-dynamic-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(2.0, 0.5),
+            TextureOffset: new ResoniteFloat2(0.25, 0.75));
+        ResoniteConstructionCityObject lod2Building = CreateTriangleBuilding(
+            "lod2-dynamic",
+            x: 10.0,
+            z: 10.0,
+            sourceUnitKey: "unit-a",
+            sourceFileRelativePath: null,
+            material: dynamicMaterial) with
+        {
+            LodLevel = 2,
+        };
+
+        bool buffered = baker.TryBuffer(lod2Building, out ResoniteConstructionCityObject? baked);
+
+        Assert.False(buffered);
+        Assert.Null(baked);
+        Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(lod2Building.Materials).TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(lod2Building.Materials).TextureOffset);
+        Assert.Equal(3, lod2Building.Mesh.Vertices.Count);
+        Assert.Empty(baker.FlushAll());
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncSkipsNonTargetCityObjectsWithoutNormalizingDynamicUvTransform()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 2, maxVerticesPerBatch: 1000);
+        ResoniteMaterialBinding dynamicMaterial = new(
+            MaterialKey: "lod2-dynamic-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/dynamic.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(2.0, 0.5),
+            TextureOffset: new ResoniteFloat2(0.25, 0.75));
+        ResoniteConstructionCityObject lod2Building = CreateTriangleBuilding(
+            "lod2-dynamic-async",
+            x: 10.0,
+            z: 10.0,
+            sourceUnitKey: "unit-a",
+            sourceFileRelativePath: null,
+            material: dynamicMaterial) with
+        {
+            LodLevel = 2,
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(lod2Building);
+
+        Assert.False(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(lod2Building.Materials).TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(lod2Building.Materials).TextureOffset);
+        Assert.Equal(3, lod2Building.Mesh.Vertices.Count);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public void FlushAllRejectsBufferedMeshBakeWhenSubmeshMaterialAssignmentIsMissing()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
