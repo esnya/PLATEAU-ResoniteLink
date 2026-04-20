@@ -43,7 +43,7 @@ public sealed class LocalCityGmlConstructionSourceTests
     }
 
     [Fact]
-    public async Task ReadCityObjectsAsyncPassesBootstrapDemOverlaysOnlyToDemSourceFiles()
+    public async Task ReadCityObjectsAsyncDoesNotPassDemOverlaysToNonDemSourceFiles()
     {
         PlateauImportRequest request = new(
             Dataset: "plateau-04100-sendai-shi-2024",
@@ -79,7 +79,38 @@ public sealed class LocalCityGmlConstructionSourceTests
 
         Assert.Equal(2, cityObjects.Count);
         Assert.Equal(0, geometryProjector.OverlayCountsByPackage["bldg"]);
-        Assert.Equal(1, geometryProjector.OverlayCountsByPackage["dem"]);
+        Assert.True(geometryProjector.OverlayCountsByPackage.ContainsKey("dem"));
+    }
+
+    [Fact]
+    public async Task ReadCityObjectsAsyncAllowsDemSourceFilesWhenBootstrapMetadataIsEmpty()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null,
+            PackageNames: ["dem"]);
+        OverlayRecordingGeometryProjector geometryProjector = new();
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateDocumentSet(
+                [
+                    new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
+                ]),
+            geometryProjector,
+            CommonMaterialEnumerator);
+
+        List<ResoniteConstructionCityObject> cityObjects = [];
+        await foreach (ResoniteConstructionCityObject cityObject in source.ReadCityObjectsAsync())
+        {
+            cityObjects.Add(cityObject);
+        }
+
+        Assert.Single(cityObjects);
+        Assert.Equal(0, geometryProjector.OverlayCountsByPackage["dem"]);
     }
 
     private static ResoniteConstructionMetadata CreateMetadata(

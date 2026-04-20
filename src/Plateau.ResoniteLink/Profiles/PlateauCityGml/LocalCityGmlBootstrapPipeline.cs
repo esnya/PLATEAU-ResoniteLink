@@ -142,36 +142,9 @@ internal static class LocalCityGmlBootstrapPipeline
                 appearanceStoreFactory,
                 lodSelector,
                 cancellationToken);
-        ParsedSourceFileResult[] demParsedSourceFiles = (await Task.WhenAll(
-            sourceFilePipelines
-                .Where(static pipeline => string.Equals(pipeline.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-                .Select(static pipeline => pipeline.GetParseTask())))
-            .ToArray();
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
-            request.DemTextureSource,
-            datasetContentSourceFactory,
-            cancellationToken);
-        if (request.DemTextureSource is not null && demRasterCatalog is null)
-        {
-            throw new PlateauImportValidationException(
-                [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
-        }
-
-        TerrainTextureOverlay[] terrainTextureOverlays = await CreateBootstrapTerrainTextureOverlaysAsync(
-            demParsedSourceFiles,
-            discoveryResult.RequestedMeshCodes,
-            demRasterCatalog,
-            cancellationToken);
-        if (request.DemTextureSource is not null
-            && terrainTextureOverlays.Any(static overlay => !overlay.EnumerateGeoReferencedRasterSources().Any()))
-        {
-            throw new PlateauImportValidationException(
-                [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
-        }
-
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
         if (resolvedLocalOrigin is null)
@@ -197,39 +170,13 @@ internal static class LocalCityGmlBootstrapPipeline
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
-            terrainTextureOverlays,
+            [],
             discoveryResult.RequestedMeshCodes,
             sourceFilePipelines.Select(static pipeline => new SourceFilePipeline(pipeline.SourceFile, pipeline.GetParseTask, pipeline.StreamParsedCityObjectsAsync)).ToArray(),
             [],
             referenceSystem: null,
             GeodeticPoint.FromLegacy(globalOriginPoint),
             terrainHeightSampler: null);
-    }
-
-    private static async Task<TerrainTextureOverlay[]> CreateBootstrapTerrainTextureOverlaysAsync(
-        ParsedSourceFileResult[] demParsedSourceFiles,
-        IReadOnlyList<string> requestedMeshCodes,
-        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
-        CancellationToken cancellationToken)
-    {
-        if (demParsedSourceFiles.Length == 0)
-        {
-            return [];
-        }
-
-        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
-            demParsedSourceFiles,
-            fallbackBounds: null);
-        if (demBounds is null)
-        {
-            return [];
-        }
-
-        return await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
-            demBounds,
-            requestedMeshCodes,
-            demRasterCatalog,
-            cancellationToken);
     }
 
     private static void ValidateCompatibleReferenceSystem(

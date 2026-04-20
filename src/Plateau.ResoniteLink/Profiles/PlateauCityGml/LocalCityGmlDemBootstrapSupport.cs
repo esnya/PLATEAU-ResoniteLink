@@ -127,6 +127,36 @@ internal static class LocalCityGmlDemBootstrapSupport
         ];
     }
 
+    internal static async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requestedMeshCodes);
+
+        List<TerrainTextureOverlay> overlays = [];
+        foreach (string meshCode in ExpandToThirdMeshCodes(requestedMeshCodes))
+        {
+            if (!PlateauMeshCode.TryGetBounds(meshCode, out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds))
+            {
+                continue;
+            }
+
+            overlays.Add(await CreateDemTerrainTextureOverlayAsync(
+                meshCode,
+                bounds,
+                demRasterCatalog,
+                cancellationToken));
+        }
+
+        return overlays
+            .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
+            .ThenBy(static overlay => overlay.GeographicBounds.MaxLongitude)
+            .ToArray();
+    }
+
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
         DemTerrainBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)

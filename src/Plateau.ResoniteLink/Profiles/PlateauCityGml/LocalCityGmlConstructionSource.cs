@@ -53,10 +53,12 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         {
             CoordinateReferenceSystem? resolvedReferenceSystem = null;
             LocalCartesian? globalCartesian = null;
-            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(sourceFile.SourceFile.PackageName);
 
             await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
             {
+                IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(
+                    sourceFile.SourceFile,
+                    parsedCityObject);
                 foreach (ResoniteMaterialBinding material in commonMaterialEnumerator.Enumerate(
                              new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                              resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem),
@@ -232,7 +234,6 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         Stopwatch fileStopwatch = Stopwatch.StartNew();
         CoordinateReferenceSystem? resolvedReferenceSystem = null;
         LocalCartesian? globalCartesian = null;
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(sourceFile.SourceFile.PackageName);
         int parsedCount = 0;
         int yieldedCount = 0;
 
@@ -242,6 +243,9 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
             parsedCount++;
             resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem);
             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem);
+            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(
+                sourceFile.SourceFile,
+                parsedCityObject);
 
             foreach (ResoniteConstructionCityObject cityObject in geometryProjector.MaterializeCityObjects(
                          new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
@@ -295,7 +299,36 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
 
     private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(ParsedSourceFileResult parsedSourceFile)
     {
-        return CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
+        if (!string.Equals(parsedSourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+
+        TerrainTextureOverlay[] bootstrapOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
+        if (bootstrapOverlays.Length == 0)
+        {
+            return CreateDemTerrainTextureOverlaysFromParsedSourceFile(parsedSourceFile, preferRequestedMeshCodeSplit: true);
+        }
+
+        if (HasOverlayCoverage(parsedSourceFile, bootstrapOverlays))
+        {
+            return bootstrapOverlays;
+        }
+
+        return CreateDemTerrainTextureOverlaysFromParsedSourceFile(parsedSourceFile, preferRequestedMeshCodeSplit: false);
+    }
+
+    private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        SourceFileDescriptor sourceFile,
+        BootstrapParsedCityObject parsedCityObject)
+    {
+        return CreateDemTerrainTextureOverlays(
+            new ParsedSourceFileResult(
+                sourceFile,
+                [parsedCityObject],
+                parsedCityObject.ReferenceSystem,
+                [],
+                TimeSpan.Zero));
     }
 
     private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(string packageName)
@@ -307,6 +340,74 @@ internal sealed class LocalCityGmlConstructionSource : IResoniteConstructionSour
         }
 
         return Metadata.SourceDataset.TerrainTextureOverlays.ToArray();
+    }
+
+    private TerrainTextureOverlay[] CreateDemTerrainTextureOverlaysFromParsedSourceFile(
+        ParsedSourceFileResult parsedSourceFile,
+        bool preferRequestedMeshCodeSplit)
+    {
+        DemTerrainBounds? fallbackBounds = MeshCodeBounds.TryMerge(requestedMeshAreas) is { } requestedMeshBounds
+            ? new DemTerrainBounds(
+                requestedMeshBounds.SouthLatitude,
+                requestedMeshBounds.NorthLatitude,
+                requestedMeshBounds.WestLongitude,
+                requestedMeshBounds.EastLongitude)
+            : null;
+        IReadOnlyList<string> requestedMeshCodes =
+            preferRequestedMeshCodeSplit && Metadata.SourceDataset.RequestedMeshCodes is { Count: > 0 }
+                ? Metadata.SourceDataset.RequestedMeshCodes
+                : [];
+        if (!HasAnyVertices(parsedSourceFile.CityObjects))
+        {
+            if (fallbackBounds is null)
+            {
+                return [];
+            }
+
+            return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+                fallbackBounds,
+                requestedMeshCodes);
+        }
+
+        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+            [parsedSourceFile],
+            fallbackBounds);
+        if (demBounds is null)
+        {
+            return [];
+        }
+
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+            demBounds,
+            requestedMeshCodes);
+    }
+
+    private bool HasOverlayCoverage(
+        ParsedSourceFileResult parsedSourceFile,
+        IReadOnlyList<TerrainTextureOverlay> overlays)
+    {
+        try
+        {
+            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+            {
+                _ = DemTerrainOverlayAssignment.SplitParsedCityObject(
+                        parsedCityObject.ToLegacy(),
+                        overlays,
+                        requestedMeshAreas)
+                    .ToArray();
+            }
+
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static bool HasAnyVertices(IEnumerable<BootstrapParsedCityObject> cityObjects)
+    {
+        return cityObjects.Any(static cityObject => cityObject.Surfaces.Any(static surface => surface.Vertices.Any()));
     }
 
     private static void ValidateCompatibleReferenceSystem(

@@ -31,23 +31,61 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         Assert.Same(progressReporter, composer.LastProgressReporter);
     }
 
+    [Fact]
+    public async Task CreateAsyncAddsDemOverlaysDuringConstructionWhenBootstrapDocumentSetIsDiscoveryOnly()
+    {
+        RecordingDocumentReader reader = new(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                ["udx/dem/53394525/terrain.gml"],
+                ["dem"],
+                [],
+                ["53394525"],
+                [],
+                [],
+                CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                terrainHeightSampler: null));
+        RecordingComposer composer = new(new StubConstructionSource());
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/plateau",
+            PackageNames: ["dem"],
+            ServerUri: null);
+
+        _ = await factory.CreateAsync(request);
+
+        Assert.NotSame(reader.DocumentSet, composer.LastDocumentSet);
+        Assert.Empty(reader.DocumentSet.TerrainTextureOverlays);
+        TerrainTextureOverlay overlay = Assert.Single(composer.LastDocumentSet!.TerrainTextureOverlays);
+        Assert.Equal("dem", overlay.PackageName);
+    }
+
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
+        public RecordingDocumentReader(LocalCityGmlDocumentSet? documentSet = null)
+        {
+            DocumentSet = documentSet ?? new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                [],
+                [],
+                [],
+                [],
+                [],
+                [],
+                CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
+                new GeodeticPoint(35.0, 139.0, 0.0),
+                terrainHeightSampler: null);
+        }
+
         public PlateauImportRequest? LastRequest { get; private set; }
 
         public Action<string>? LastProgressReporter { get; private set; }
 
-        public LocalCityGmlDocumentSet DocumentSet { get; } = new(
-            new EmptyDatasetContentSource(),
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697"),
-            new GeodeticPoint(35.0, 139.0, 0.0),
-            terrainHeightSampler: null);
+        public LocalCityGmlDocumentSet DocumentSet { get; }
 
         public Task<LocalCityGmlDocumentSet> ReadAsync(
             PlateauImportRequest request,
