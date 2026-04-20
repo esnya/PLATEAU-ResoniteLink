@@ -52,7 +52,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
     {
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         _ = maxBufferedSourceUnitsForCompatibility;
         _ = maxBufferedCityObjectsPerSourceUnitForCompatibility;
 
@@ -62,6 +61,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return new BufferedCityObjectBufferResult(Buffered: false, []);
         }
 
+        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         SourceUnitBatchKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         BufferedCityObject bufferedCityObject = new(cityObject, policy);

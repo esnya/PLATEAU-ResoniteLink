@@ -234,6 +234,30 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncSkipsNonTargetCityObjectsWithoutNormalizingDynamicUvTransform()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject nonTargetCityObject = CreateUvScaledLod2Building(
+            "lod1-dynamic",
+            CreatePayload("textures/lod1-dynamic.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a",
+            new ResoniteFloat2(2.0, 0.5),
+            new ResoniteFloat2(0.25, 0.75)) with
+        {
+            LodLevel = 1,
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(nonTargetCityObject);
+
+        Assert.False(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(nonTargetCityObject.Materials).TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(nonTargetCityObject.Materials).TextureOffset);
+        Assert.Equal(3, nonTargetCityObject.Mesh.Vertices.Count);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public async Task FlushAllAsyncCapsAtlasTileSizeForSmallMemoryProfile()
     {
         Lod2AtlasCityObjectBaker baker = new(
