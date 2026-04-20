@@ -753,6 +753,61 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncFailsFastOnDuplicateMaterialSubmeshAssignmentBeforeDynamicUvNormalization()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "invalid-submesh-duplicate-dynamic",
+            DisplayName: "Invalid Submesh Duplicate Dynamic",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: CreateTwoSubmeshMesh(),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "first-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/duplicate-a.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: new ResoniteFloat2(2.0, 0.5),
+                    TextureOffset: new ResoniteFloat2(0.25, 0.75)),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "second-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/duplicate-b.png"),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0, 1]),
+            ],
+            SourceObjectKey: "invalid-submesh-duplicate-dynamic");
+
+        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
+            () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
+
+        Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("materials=2", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task BuildAsyncFailsFastOnUnassignedMeshSubmesh()
     {
         using TemporaryDirectory datasetDirectory = new();
