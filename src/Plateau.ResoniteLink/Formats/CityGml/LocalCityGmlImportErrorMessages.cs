@@ -38,11 +38,11 @@ internal static class LocalCityGmlImportErrorMessages
         return demTextureSource switch
         {
             PlateauLocalImportSource localSource =>
-                $"The ortho source '{localSource.LocalSourcePath}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+                $"The GeoTIFF source '{localSource.LocalSourcePath}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
             PlateauRemoteImportSource remoteSource =>
-                $"The ortho source '{remoteSource.ServerUri}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+                $"The GeoTIFF source '{remoteSource.ServerUri}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
             _ =>
-                "The ortho source did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
+                "The GeoTIFF source did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
         };
     }
 
