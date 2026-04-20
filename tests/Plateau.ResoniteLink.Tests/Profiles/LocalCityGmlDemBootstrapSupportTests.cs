@@ -87,6 +87,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
                 Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, tileSource.UrlTemplate);
                 Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, tileSource.ZoomLevel);
             });
+        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize);
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoOnly, overlay.LicenseMode);
     }
 
