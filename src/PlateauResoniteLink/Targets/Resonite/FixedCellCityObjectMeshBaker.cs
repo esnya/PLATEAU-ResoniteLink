@@ -66,6 +66,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             return false;
         }
 
+        EnsureUniqueMaterialAssignments(cityObject);
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         CellKey cellKey = CreateCellKey(cityObject);
         bool createdBuffer = false;
@@ -85,6 +86,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
         if (!CanBake(cityObject))
@@ -92,6 +94,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
+        EnsureUniqueMaterialAssignments(cityObject);
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         CellKey cellKey = CreateCellKey(cityObject);
         bool createdBuffer = false;
@@ -210,6 +213,22 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             scopeIdentity,
             CellX: 0,
             CellZ: 0);
+    }
+
+    private static void EnsureUniqueMaterialAssignments(ResoniteConstructionCityObject cityObject)
+    {
+        HashSet<int> assignedSubmeshIndices = [];
+        foreach (ResoniteMaterialBinding material in cityObject.Materials)
+        {
+            foreach (int submeshIndex in material.SubmeshIndices)
+            {
+                if (!assignedSubmeshIndices.Add(submeshIndex))
+                {
+                    throw new InvalidOperationException(
+                        $"Buffered mesh bake city object '{cityObject.DisplayName}' contained duplicate material assignments for submesh index {submeshIndex}.");
+                }
+            }
+        }
     }
 
     private ResoniteConstructionCityObject FlushCell(CellKey cellKey)

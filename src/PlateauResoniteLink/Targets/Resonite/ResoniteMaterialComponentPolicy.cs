@@ -54,10 +54,10 @@ internal static class ResoniteMaterialComponentPolicy
 
         if (material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
-            && material.TextureScale is not null
-            && !ResoniteDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material))
+            && (material.TextureScale is not null || material.TextureOffset is not null)
+            && !ShouldOmitUvTransformMembers(material))
         {
-            AddTextureTransformMembers(materialMembers, material.TextureScale, material.TextureOffset);
+            AddTextureTransformMembers(materialMembers, material.TextureScale ?? new ResoniteFloat2(1.0, 1.0), material.TextureOffset);
         }
 
         if (material.MaterialType == ResoniteMaterialType.Standard
@@ -185,6 +185,20 @@ internal static class ResoniteMaterialComponentPolicy
         }
 
         return null;
+    }
+
+    private static bool ShouldOmitUvTransformMembers(ResoniteMaterialBinding material)
+    {
+        if (material.AssetScope == ResoniteMaterialAssetScope.Common
+            && string.IsNullOrWhiteSpace(material.Family))
+        {
+            return true;
+        }
+
+        return ResoniteDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material)
+            && material.TextureScale is not null
+            && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
+                || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
     }
 
     public static Field_colorX CreateColorMember(ResoniteColor color)

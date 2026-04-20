@@ -175,10 +175,10 @@ public sealed class LocalCityGmlObjectProjectionTests
         double maxV = demCityObject.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
         Assert.True(maxU - minU > 0.79);
         Assert.True(maxV - minV > 0.49);
-        Assert.InRange(minU, 0.0, 1.0);
+        Assert.InRange(minU, 0.0, 0.1);
         Assert.InRange(minV, 0.0, 0.11);
-        Assert.InRange(maxU, 0.89, 0.95);
-        Assert.InRange(maxV, 0.89, 0.95);
+        Assert.InRange(maxU, 0.89, 1.0);
+        Assert.InRange(maxV, 0.89, 1.0);
         Assert.Single(demCityObject.Mesh.Submeshes);
         Assert.InRange(demCityObject.Mesh.Vertices.Count, 4, 6);
     }

@@ -290,23 +290,42 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     public static async Task<string?> TryGetExistingCommonMaterialComponentIdAsync(
         IResoniteLinkClient client,
         string familySlotId,
-        string materialSlotName,
+        IReadOnlyList<string> materialSlotNames,
         string materialComponentType,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentException.ThrowIfNullOrWhiteSpace(familySlotId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
+        ArgumentNullException.ThrowIfNull(materialSlotNames);
+        if (materialSlotNames.Count == 0 || materialSlotNames.All(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException("At least one material slot lookup name is required.", nameof(materialSlotNames));
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(materialComponentType);
 
         Slot? familySlotSnapshot = await client.GetSlotAsync(familySlotId, 1, cancellationToken);
-        ResoniteSceneChildLookupResult materialLookup = new ResoniteSceneSlotSnapshot(familySlotSnapshot)
-            .GetUniqueChildLookupResult(materialSlotName, familySlotId);
-        return materialLookup.Slot?.Components?
-            .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
-            .OrderBy(static component => component.ID, StringComparer.Ordinal)
-            .Select(static component => component.ID)
-            .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+        if (familySlotSnapshot is null)
+        {
+            return null;
+        }
+
+        ResoniteSceneSlotSnapshot familySlot = new(familySlotSnapshot);
+        foreach (string materialSlotName in materialSlotNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
+        {
+            ResoniteSceneChildLookupResult materialLookup = familySlot.GetUniqueChildLookupResult(materialSlotName, familySlotId);
+            string? existingMaterialComponentId = materialLookup.Slot?.Components?
+                .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
+                .OrderBy(static component => component.ID, StringComparer.Ordinal)
+                .Select(static component => component.ID)
+                .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+            if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
+            {
+                return existingMaterialComponentId;
+            }
+        }
+
+        return null;
     }
 
     public static async Task<CreatedComponent> CreateComponentAsync(

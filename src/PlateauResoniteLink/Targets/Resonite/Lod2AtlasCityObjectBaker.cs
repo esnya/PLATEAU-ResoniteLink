@@ -263,7 +263,14 @@ internal sealed class Lod2AtlasCityObjectBaker(
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
         Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
-        if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
+        if (!TryCreateMaterialBySubmeshIndex(cityObject, out _))
+        {
+            throw new InvalidOperationException(
+                $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
+        }
+
+        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        if (!TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(
                 $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
@@ -271,7 +278,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         List<AtlasBatchEntry> atlasEntries = [];
         List<PreservedSubmeshEntry> preservedEntries = [];
-        foreach (ResoniteMeshSubmesh submesh in cityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
+        foreach (ResoniteMeshSubmesh submesh in normalizedCityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
@@ -284,22 +291,24 @@ internal sealed class Lod2AtlasCityObjectBaker(
             switch (category)
             {
                 case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
-                    UvBounds uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
+                    UvBounds uvBounds = ComputeUvBounds(normalizedCityObject.Mesh.Vertices, submesh, material);
                     MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
-                    atlasEntries.Add(new AtlasBatchEntry(cityObject, submesh, material, tile, uvBounds));
+                    atlasEntries.Add(new AtlasBatchEntry(normalizedCityObject, submesh, material, tile, uvBounds));
                     break;
                 case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedOther:
-                    preservedEntries.Add(new PreservedSubmeshEntry(cityObject, submesh, material));
+                    ResoniteMeshSubmesh normalizedSubmesh = normalizedCityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
+                    ResoniteMaterialBinding normalizedMaterial = normalizedCityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
+                    preservedEntries.Add(new PreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
                     break;
             }
         }
 
         if (policy.RequireAtlasCandidateMaterial && atlasEntries.Count == 0)
         {
-            DisposeCandidateImages(new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries));
+            DisposeCandidateImages(new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries));
             return null;
         }
 
@@ -309,7 +318,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 $"LOD2 atlas bake city object '{cityObject.DisplayName}' produced no atlas or preserved submesh candidate.");
         }
 
-        return new CityObjectBakeCandidate(cityObject, atlasEntries, preservedEntries);
+        return new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries);
     }
 
     private async Task<MaterialAtlasTile> CreateAtlasTileAsync(
@@ -433,7 +442,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
         if (material.AssetScope == ResoniteMaterialAssetScope.Common
             || !string.IsNullOrWhiteSpace(material.Family))
         {
-            return Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial;
+            return CanPreserveAsCommonMaterial(material)
+                ? Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial
+                : Lod2AtlasMaterialBakeCategory.PreservedOther;
         }
 
         if (IsAtlasBakeCandidate(material))
@@ -447,6 +458,16 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
 
         return Lod2AtlasMaterialBakeCategory.PreservedOther;
+    }
+
+    private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
+    {
+        ResoniteMaterialBinding commonCandidate = material with
+        {
+            AssetScope = ResoniteMaterialAssetScope.Common,
+        };
+        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(commonCandidate).AssetScope
+            == ResoniteMaterialAssetScope.Common;
     }
 
     private AtlasBatchPlan BuildAtlasCandidateBatches(
@@ -1467,7 +1488,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
             || normalizedMaterial.TexturePayload is not null
             || normalizedMaterial.TerrainOverlay is not null
             || string.IsNullOrWhiteSpace(normalizedMaterial.Family)
-            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled)
+            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled
+            || !ResoniteMaterialSharing.IsWhiteBaseColor(normalizedMaterial.BaseColor)
+            || normalizedMaterial.TextureOffset is not null
+            || normalizedMaterial.DepthOffset is not null)
         {
             return normalizedMaterial;
         }
