@@ -70,8 +70,8 @@ public sealed class ResoniteSceneMaterialConventionsTests
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
 
         Assert.Contains("pbs-uv_uv_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_0.5x0.25_", slotName, StringComparison.Ordinal);
-        Assert.DoesNotContain("_0.125x0.75_", slotName, StringComparison.Ordinal);
+        Assert.Contains("_0.5x0.25_", slotName, StringComparison.Ordinal);
+        Assert.Contains("_0.125x0.75_", slotName, StringComparison.Ordinal);
         Assert.Contains("_2x3_", slotName, StringComparison.Ordinal);
     }
 

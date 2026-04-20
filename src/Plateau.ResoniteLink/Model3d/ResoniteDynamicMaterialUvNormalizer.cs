@@ -10,6 +10,8 @@ public static class ResoniteDynamicMaterialUvNormalizer
             && material.Projection == ResoniteMaterialProjection.Uv
             && material.TerrainOverlay is null
             && material.AssetScope != ResoniteMaterialAssetScope.Common
+            && !(material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+                && !string.IsNullOrWhiteSpace(material.Family))
             && (material.TextureScale is not null || material.TextureOffset is not null);
     }
 

@@ -516,6 +516,146 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncPreservesBundledFamilyUvScaleForPresentationScopedInputs()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "bundled-family-scale-check",
+            DisplayName: "Bundled Family Scale Check",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("bundled-family-scale-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "bundled-family-scale-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: new ResoniteFloat2(0.5, 0.5),
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    BundledVariantIndex: 0),
+            ],
+            SourceObjectKey: "bundled-family-scale-source",
+            SourceFileRelativePath: sourceFile);
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            enableMeshBake: false);
+
+        Component meshRenderer = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Bundled Family Scale Check", StringComparison.Ordinal))
+            .Data;
+        SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
+        string materialId = Assert.IsType<Reference>(Assert.Single(materials.Elements)).TargetID;
+        Component sharedMaterial = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)).Data;
+        string commonMaterialContainerSlotId = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)).ContainerSlotId;
+        Field_float2 textureScale = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureScale"]);
+
+        Assert.Contains(
+            "PLATEAU Shared Assets/Common Materials/",
+            client.SlotPaths[commonMaterialContainerSlotId],
+            StringComparison.Ordinal);
+        Assert.Equal(0.5f, textureScale.Value.x, 6);
+        Assert.Equal(0.5f, textureScale.Value.y, 6);
+    }
+
+    [Fact]
+    public async Task BuildAsyncPreservesBundledFamilyUvTransformForDedicatedPresentationScopedInputs()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles: [sourceFile]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "bundled-family-transform-check",
+            DisplayName: "Bundled Family Transform Check",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("bundled-family-transform-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "bundled-family-transform-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: new ResoniteFloat2(0.5, 0.5),
+                    TextureOffset: new ResoniteFloat2(0.125, 0.25),
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    BundledVariantIndex: 0),
+            ],
+            SourceObjectKey: "bundled-family-transform-source",
+            SourceFileRelativePath: sourceFile);
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            enableMeshBake: false);
+
+        AddComponent materialRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && request.Data.Members.TryGetValue("TextureScale", out Member? rawTextureScale)
+                && request.Data.Members.TryGetValue("TextureOffset", out Member? rawTextureOffset)
+                && rawTextureScale is Field_float2 textureScaleField
+                && rawTextureOffset is Field_float2 textureOffsetField
+                && Math.Abs(textureScaleField.Value.x - 0.5f) < 1e-6f
+                && Math.Abs(textureScaleField.Value.y - 0.5f) < 1e-6f
+                && Math.Abs(textureOffsetField.Value.x - 0.125f) < 1e-6f
+                && Math.Abs(textureOffsetField.Value.y - 0.25f) < 1e-6f);
+        Field_float2 textureScale = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureScale"]);
+        Field_float2 textureOffset = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureOffset"]);
+
+        Assert.DoesNotContain(
+            "PLATEAU Shared Assets/Common Materials/",
+            client.SlotPaths[materialRequest.ContainerSlotId],
+            StringComparison.Ordinal);
+        Assert.Equal(0.5f, textureScale.Value.x, 6);
+        Assert.Equal(0.5f, textureScale.Value.y, 6);
+        Assert.Equal(0.125f, textureOffset.Value.x, 6);
+        Assert.Equal(0.25f, textureOffset.Value.y, 6);
+    }
+
+    [Fact]
     public async Task BuildAsyncFailsFastOnOutOfRangeMaterialSubmeshAssignment()
     {
         using TemporaryDirectory datasetDirectory = new();
