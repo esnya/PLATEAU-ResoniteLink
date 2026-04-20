@@ -90,19 +90,21 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
     }
 
     public async Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
+        string cacheKey,
         string meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
         Task<TerrainTextureGeoReferencedRasterSource?> resolveTask;
         lock (cachedRasterSourceTaskGate)
         {
-            if (!cachedRasterSourceTasksByMeshCode.TryGetValue(meshCode, out resolveTask!))
+            if (!cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out resolveTask!))
             {
                 resolveTask = ResolveRasterSourceCoreAsync(meshCode, overlayBounds, cancellationToken);
-                cachedRasterSourceTasksByMeshCode[meshCode] = resolveTask;
+                cachedRasterSourceTasksByMeshCode[cacheKey] = resolveTask;
             }
         }
 
@@ -114,10 +116,10 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
         {
             lock (cachedRasterSourceTaskGate)
             {
-                if (cachedRasterSourceTasksByMeshCode.TryGetValue(meshCode, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
+                if (cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
                     && ReferenceEquals(cachedTask, resolveTask))
                 {
-                    cachedRasterSourceTasksByMeshCode.Remove(meshCode);
+                    cachedRasterSourceTasksByMeshCode.Remove(cacheKey);
                 }
             }
 

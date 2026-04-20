@@ -247,7 +247,9 @@ internal static class LocalCityGmlDemBootstrapSupport
         ];
         if (demRasterCatalog is not null)
         {
+            string rasterLookupCacheKey = CreateRasterLookupCacheKey(meshCode, geographicBounds);
             TerrainTextureGeoReferencedRasterSource? rasterSource = await demRasterCatalog.TryResolveRasterSourceAsync(
+                rasterLookupCacheKey,
                 meshCode,
                 geographicBounds,
                 cancellationToken);
@@ -305,6 +307,20 @@ internal static class LocalCityGmlDemBootstrapSupport
             IsAvailable: true,
             IsExplicit: false,
             effectiveResolutionMeters);
+    }
+
+    private static string CreateRasterLookupCacheKey(
+        string meshCode,
+        GeographicRectangle geographicBounds)
+    {
+        if (PlateauMeshCode.TryGetBounds(meshCode, out _))
+        {
+            return meshCode;
+        }
+
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{meshCode}|{geographicBounds.MinLatitude:F6}|{geographicBounds.MaxLatitude:F6}|{geographicBounds.MinLongitude:F6}|{geographicBounds.MaxLongitude:F6}");
     }
 
     private static IEnumerable<string> ExpandToThirdMeshCodes(IEnumerable<string> requestedMeshCodes)
