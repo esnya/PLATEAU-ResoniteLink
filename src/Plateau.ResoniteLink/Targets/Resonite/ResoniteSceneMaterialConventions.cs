@@ -15,7 +15,6 @@ internal static class ResoniteSceneMaterialConventions
     public static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
     {
         ArgumentNullException.ThrowIfNull(material);
-        material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
         if (useCommonMaterialAssets)
         {
@@ -160,7 +159,6 @@ internal static class ResoniteSceneMaterialConventions
         out string familySlotName)
     {
         ArgumentNullException.ThrowIfNull(material);
-        material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
         normalizedMaterial = material;
         familySlotName = string.Empty;
@@ -216,6 +214,12 @@ internal static class ResoniteSceneMaterialConventions
             return false;
         }
 
+        if ((material.TextureScale is not null || material.TextureOffset is not null)
+            && material.TerrainOverlay is null)
+        {
+            return false;
+        }
+
         normalizedMaterial = NormalizeGenericSharedMaterialBinding(material);
         familySlotName = GetCommonMaterialFamilySlotName(normalizedMaterial);
         return true;
@@ -224,7 +228,6 @@ internal static class ResoniteSceneMaterialConventions
     public static ResoniteMaterialBinding NormalizeBatchGroupedMaterialBinding(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
-        material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
         if (TryNormalizeSharedMaterialBinding(material, out ResoniteMaterialBinding normalizedSharedMaterial, out _)
             && material.TexturePayload is null

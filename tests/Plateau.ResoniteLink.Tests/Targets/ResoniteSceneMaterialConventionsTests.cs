@@ -223,4 +223,64 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         Assert.False(normalized);
     }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_RejectsTransformedGenericSharedMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "generic-shared-transformed-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/transformed-generic.png"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0, 1.0),
+            TextureOffset: new ResoniteFloat2(0.25, 0.75),
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out _,
+            out _);
+
+        Assert.False(normalized);
+    }
+
+    [Fact]
+    public void TryNormalizeSharedMaterialBinding_AllowsTransformedTerrainOverlaySharedMaterial()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512);
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "dem-overlay-transformed-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(0.5, 0.25),
+            TextureOffset: new ResoniteFloat2(0.125, 0.375),
+            TerrainOverlay: overlay,
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+
+        bool normalized = ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+            material,
+            out ResoniteMaterialBinding normalizedMaterial,
+            out string familySlotName);
+
+        Assert.True(normalized);
+        Assert.Equal("generic", familySlotName);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
+        Assert.Equal(new ResoniteFloat2(0.5, 0.25), normalizedMaterial.TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.125, 0.375), normalizedMaterial.TextureOffset);
+        Assert.Equal("generic|Uv|scale:0.5x0.25|offset:0.125x0.375|depth:none", normalizedMaterial.MaterialKey);
+    }
 }
