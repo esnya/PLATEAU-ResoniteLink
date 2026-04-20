@@ -14,7 +14,6 @@ Shipped:
 - Treat `--resonitelink-connections` as a shipped live-send option, with a default live-send pool size of 4.
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
-- Keep LOD1 mesh bake and LOD2 atlas bake keyed by CityGML scope, package, LOD, and bake policy so emitted bake payloads do not depend on cityObject arrival order.
 - Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
 
 Pending:

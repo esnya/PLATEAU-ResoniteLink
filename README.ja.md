@@ -14,7 +14,6 @@ Shipped:
 - `--resonitelink-connections` は shipped な live-send option として扱い、既定の live-send pool size は 4 とする。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
-- LOD1 mesh bake と LOD2 atlas bake は CityGML scope、package、LOD、bake policy をキーにまとめ、emit される bake payload が cityObject の到着順に依存しないように保つ。
 - DEM terrain imagery tile は既定で local cache に永続化し、再実行時に PLATEAU Ortho や fallback の GSI tile を再利用できるようにする。
 
 Pending:

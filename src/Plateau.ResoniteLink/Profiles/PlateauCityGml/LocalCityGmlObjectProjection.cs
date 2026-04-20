@@ -22,7 +22,7 @@ public static partial class LocalCityGmlObjectProjection
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
     public const int DefaultDemTerrainTextureZoomLevel = 19;
     public const int DefaultDemTerrainTextureFallbackZoomLevel = 18;
-    public const int DefaultDemTerrainTextureMaxSize = 4096;
+    public const int DefaultDemTerrainTextureMaxSize = 8192;
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
