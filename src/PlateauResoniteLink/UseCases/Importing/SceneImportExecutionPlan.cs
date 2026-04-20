@@ -6,23 +6,29 @@ public sealed record SceneImportExecutionPlan
 {
     public SceneImportExecutionPlan(
         PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
         SceneBuildRequest sceneBuildRequest)
     {
         ArgumentNullException.ThrowIfNull(normalizedRequest);
+        ArgumentNullException.ThrowIfNull(resolvedRequest);
         ArgumentNullException.ThrowIfNull(sceneBuildRequest);
 
-        ValidateRequestConsistency(normalizedRequest, sceneBuildRequest.Metadata.Request);
+        ValidateRequestConsistency(normalizedRequest, resolvedRequest, sceneBuildRequest.Metadata.Request, sceneBuildRequest.WorkRoot);
 
         NormalizedRequest = normalizedRequest;
+        ResolvedRequest = resolvedRequest;
         SceneBuildRequest = sceneBuildRequest;
     }
 
     public PlateauImportRequest NormalizedRequest { get; }
 
+    public PlateauImportRequest ResolvedRequest { get; }
+
     public SceneBuildRequest SceneBuildRequest { get; }
 
     public static SceneImportExecutionPlan Create(
         PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest,
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot)
@@ -33,6 +39,7 @@ public sealed record SceneImportExecutionPlan
 
         return new SceneImportExecutionPlan(
             normalizedRequest,
+            resolvedRequest,
             new SceneBuildRequest(
                 metadata,
                 resolvedSourcePath,
@@ -41,11 +48,16 @@ public sealed record SceneImportExecutionPlan
 
     private static void ValidateRequestConsistency(
         PlateauImportRequest normalizedRequest,
-        PlateauImportRequest buildRequest)
+        PlateauImportRequest resolvedRequest,
+        PlateauImportRequest buildRequest,
+        string workRoot)
     {
         if (!string.Equals(normalizedRequest.Dataset, buildRequest.Dataset, StringComparison.Ordinal)
             || !string.Equals(normalizedRequest.MeshCode, buildRequest.MeshCode, StringComparison.Ordinal)
-            || !HasCompatibleSourceResolution(normalizedRequest, buildRequest)
+            || !HasCompatibleSourceResolution(normalizedRequest.Source, resolvedRequest.Source, workRoot, "source-archive")
+            || !HasCompatibleSourceResolution(normalizedRequest.DemTextureSource, resolvedRequest.DemTextureSource, workRoot, "source-ortho")
+            || !SourcesEqual(resolvedRequest.Source, buildRequest.Source)
+            || !SourcesEqual(resolvedRequest.DemTextureSource, buildRequest.DemTextureSource)
             || normalizedRequest.IncludeMarkingAlways != buildRequest.IncludeMarkingAlways
             || normalizedRequest.DemTerrainMode != buildRequest.DemTerrainMode
             || normalizedRequest.DemHeightmapMetersPerVertex != buildRequest.DemHeightmapMetersPerVertex
@@ -62,16 +74,54 @@ public sealed record SceneImportExecutionPlan
     }
 
     private static bool HasCompatibleSourceResolution(
-        PlateauImportRequest normalizedRequest,
-        PlateauImportRequest buildRequest)
+        PlateauImportSource? normalizedSource,
+        PlateauImportSource? resolvedSource,
+        string workRoot,
+        string remotePathPrefix)
     {
-        if (normalizedRequest.SourceKind == buildRequest.SourceKind)
+        if (normalizedSource is null || resolvedSource is null)
+        {
+            return normalizedSource is null && resolvedSource is null;
+        }
+
+        if (normalizedSource.SourceKind == resolvedSource.SourceKind)
+        {
+            return SourcesEqual(normalizedSource, resolvedSource);
+        }
+
+        if (normalizedSource is PlateauRemoteImportSource remoteSource
+            && resolvedSource is PlateauLocalImportSource localSource)
+        {
+            return RemoteDatasetResourceLayout.MatchesRemoteResourcePath(
+                workRoot,
+                remoteSource.ServerUri!,
+                remotePathPrefix,
+                localSource.LocalSourcePath);
+        }
+
+        return false;
+    }
+
+    private static bool SourcesEqual(PlateauImportSource? left, PlateauImportSource? right)
+    {
+        if (ReferenceEquals(left, right))
         {
             return true;
         }
 
-        return normalizedRequest.SourceKind == DatasetSourceKind.Remote
-            && buildRequest.SourceKind == DatasetSourceKind.Local;
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
+        return left switch
+        {
+            PlateauLocalImportSource leftLocal when right is PlateauLocalImportSource rightLocal =>
+                string.Equals(leftLocal.LocalSourcePath, rightLocal.LocalSourcePath, StringComparison.Ordinal),
+            PlateauRemoteImportSource leftRemote when right is PlateauRemoteImportSource rightRemote =>
+                Equals(leftRemote.ServerUri, rightRemote.ServerUri),
+            _ => false,
+        };
     }
 
     private static bool SequenceEqual(

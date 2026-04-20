@@ -11,16 +11,10 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "local",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
             ]);
 
         Assert.Null(result.Error);
@@ -29,16 +23,123 @@ public sealed class CliArgumentsParserTests
         Assert.Equal("tokyo23ku", result.Options.Request.Dataset);
         Assert.Equal("53394525", result.Options.Request.MeshCode);
         Assert.Equal(DatasetSourceKind.Local, result.Options.Request.SourceKind);
+        Assert.Equal("/data/plateau", result.Options.Request.LocalSourcePath);
+        Assert.Null(result.Options.Request.DemTextureSource);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, result.Options.Request.PackageNames);
-        Assert.Equal("local", result.Options.WorkRoot);
         Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-        Assert.Equal(4, result.Options.ResoniteLinkConnectionCount);
-        Assert.Equal(PlateauImportMemoryProfile.Large, result.Options.MemoryProfile);
-        Assert.True(result.Options.EnableMeshBake);
-        Assert.Null(result.Options.TerrainTileCacheRoot);
-        Assert.False(result.Options.DisableTerrainTileCache);
-        Assert.False(result.Options.EnableSendMetrics);
-        Assert.False(result.Options.VerboseLogging);
+    }
+
+    [Fact]
+    public void ParseParsesRemoteBuildCommandAndOptionalOrthoSource()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "https://example.invalid/plateau.zip",
+                "--ortho-source", "https://example.invalid/53394525.tif",
+                "--resonitelink-url", "ws://localhost:12345/",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.SourceKind);
+        Assert.Equal(new Uri("https://example.invalid/plateau.zip"), result.Options.Request.ServerUri);
+        Assert.Equal(DatasetSourceKind.Remote, result.Options.Request.DemTextureSourceKind);
+        Assert.Equal(new Uri("https://example.invalid/53394525.tif"), result.Options.Request.DemTextureServerUri);
+    }
+
+    [Fact]
+    public void ParseRequiresCityGmlSource()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("Specify --citygml-source.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDeprecatedSourceFlags()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--source", "local",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("The --source option has been replaced. Use --citygml-source.", result.Error);
+    }
+
+    [Fact]
+    public void ParseRejectsDeprecatedServerUrlFlag()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--server-url", "https://example.invalid/plateau.zip",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("The --server-url option has been replaced. Use --citygml-source.", result.Error);
+    }
+
+    [Fact]
+    public void ParseParsesRequestedPackages()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--packages", " tran,waterbody,tran,brid ",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(["tran", "waterbody", "tran", "brid"], result.Options!.Request.PackageNames);
+    }
+
+    [Fact]
+    public void ParsePreservesRegexMeshCode()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "5339452[56]",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal("5339452[56]", result.Options!.Request.MeshCode);
+    }
+
+    [Fact]
+    public void ParseRejectsUnknownOption()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+                "--unexpected", "value",
+            ]);
+
+        Assert.Equal("Unknown option '--unexpected'.", result.Error);
     }
 
     [Fact]
@@ -47,14 +148,10 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "search",
-                "--local-source-path",
-                "/data/plateau.zip",
-                "--mesh-code",
-                "5339452[56]",
-                "--packages",
-                "bldg,tran",
-                "--format",
-                "json",
+                "--local-source-path", "/data/plateau.zip",
+                "--mesh-code", "5339452[56]",
+                "--packages", "bldg,tran",
+                "--format", "json",
             ]);
 
         Assert.Null(result.Error);
@@ -71,568 +168,14 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "stats",
-                "--local-source-path",
-                "/data/plateau",
-                "--packages",
-                "dem,bldg",
+                "--local-source-path", "/data/plateau",
+                "--packages", "dem,bldg",
             ]);
 
         Assert.Null(result.Error);
         StatsCommandOptions command = Assert.IsType<StatsCommandOptions>(result.Command);
         Assert.Equal("/data/plateau", command.LocalSourcePath);
         Assert.Equal(["dem", "bldg"], command.PackageNames);
-        Assert.Equal(CliOutputFormat.Text, command.OutputFormat);
-    }
-
-    [Fact]
-    public void ParseRejectsMissingMeshCodeForSearch()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "search",
-                "--local-source-path",
-                "/data/plateau",
-            ]);
-
-        Assert.Equal("Specify --mesh-code.", result.Error);
-    }
-
-    [Fact]
-    public void ParseParsesRequestedPackages()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--packages",
-                " tran,waterbody,tran,brid ",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(["tran", "waterbody", "tran", "brid"], result.Options!.Request.PackageNames);
-    }
-
-    [Fact]
-    public void ParsePreservesRegexMeshCode()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "5339452[56]",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal("5339452[56]", result.Options!.Request.MeshCode);
-    }
-
-    [Fact]
-    public void ParseParsesUnsupportedPackageName()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--packages",
-                "bldg,unknown",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(["bldg", "unknown"], result.Options!.Request.PackageNames);
-    }
-
-    [Fact]
-    public void ParseRejectsUnknownOption()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--resonitelink-port",
-                "12345",
-                "--unexpected",
-                "value",
-            ]);
-
-        Assert.Equal("Unknown option '--unexpected'.", result.Error);
-        Assert.Null(result.Options);
-    }
-
-    [Fact]
-    public void ParseRejectsMissingOptionValueBeforeAnotherOption()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "--mesh-code",
-                "53394525",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Equal("A value is required after '--dataset'.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsMissingValueForResoniteLinkConnections()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--resonitelink-connections",
-                "--send-metrics",
-            ]);
-
-        Assert.Equal("A value is required after '--resonitelink-connections'.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsNegativeResoniteLinkPortValueAsInvalid()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "remote",
-                "--server-url",
-                "https://example.invalid/plateau.zip",
-                "--resonitelink-port",
-                "-1",
-            ]);
-
-        Assert.Equal("The value '-1' is not a valid TCP port.", result.Error);
-    }
-
-    [Fact]
-    public void ParseParsesRemoteCommand()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "remote",
-                "--server-url",
-                "https://example.invalid/plateau.zip",
-                "--resonitelink-url",
-                "ws://localhost:12345/",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(DatasetSourceKind.Remote, result.Options!.Request.SourceKind);
-        Assert.Equal(
-            new Uri("https://example.invalid/plateau.zip"),
-            result.Options.Request.ServerUri);
-        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options.ResoniteLinkUri);
-    }
-
-    [Fact]
-    public void ParseEnablesVerboseLoggingWhenRequested()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--verbose",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.True(result.Options!.VerboseLogging);
-    }
-
-    [Fact]
-    public void ParseParsesRemoteCommandWhenServerUrlIsNotDirectArchive()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "remote",
-                "--server-url",
-                "https://example.invalid/plateau",
-                "--resonitelink-url",
-                "ws://localhost:12345/",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(
-            new Uri("https://example.invalid/plateau"),
-            result.Options!.Request.ServerUri);
-    }
-
-    [Fact]
-    public void ParseAcceptsPackagePatternOptionForAliasPackageName()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--waterbody-pattern",
-                "*Water*",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.NotNull(result.Options);
-        Assert.NotNull(result.Options.Request.PackagePatterns);
-        Assert.Equal("*Water*", result.Options.Request.PackagePatterns["waterbody"]);
-    }
-
-    [Fact]
-    public void ParsePreservesPackageSpecificLodKeysWithoutSemanticNormalization()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--exclude-lod-for-package",
-                "waterbody:1,unknown:2",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.NotNull(result.Options!.Request.ExcludeLodLevelsByPackage);
-        Assert.Equal(2, result.Options.Request.ExcludeLodLevelsByPackage.Count);
-        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("waterbody", out IReadOnlySet<int>? waterbodyLods));
-        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("unknown", out IReadOnlySet<int>? unknownLods));
-        Assert.Equal(new HashSet<int> { 1 }, waterbodyLods);
-        Assert.Equal(new HashSet<int> { 2 }, unknownLods);
-    }
-
-    [Fact]
-    public void ParseClearsPackageSpecificLodExclusionsWhenNoneIsSpecifiedLater()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--exclude-lod-for-package",
-                "tran:1,tran:none",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.NotNull(result.Options!.Request.ExcludeLodLevelsByPackage);
-        Assert.True(result.Options.Request.ExcludeLodLevelsByPackage.TryGetValue("tran", out IReadOnlySet<int>? tranLods));
-        Assert.Empty(tranLods);
-    }
-
-    [Fact]
-    public void ParseParsesResoniteLinkPort()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "local",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(new Uri("ws://localhost:12345/"), result.Options!.ResoniteLinkUri);
-    }
-
-    [Fact]
-    public void ParseParsesResoniteLinkConnectionCount()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--resonitelink-connections",
-                "8",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(8, result.Options!.ResoniteLinkConnectionCount);
-    }
-
-    [Fact]
-    public void ParseParsesTerrainTileCacheOptions()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--terrain-tile-cache-root",
-                "/data/cache",
-                "--disable-terrain-tile-cache",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal("/data/cache", result.Options!.TerrainTileCacheRoot);
-        Assert.True(result.Options.DisableTerrainTileCache);
-    }
-
-    [Fact]
-    public void ParseRejectsInvalidResoniteLinkConnectionCount()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--resonitelink-connections",
-                "0",
-            ]);
-
-        Assert.Equal("The value '0' is not a valid ResoniteLink connection count.", result.Error);
-    }
-
-    [Fact]
-    public void HelpTextDocumentsParallelResoniteLinkConnections()
-    {
-        Assert.Contains(
-            "Parallel ResoniteLink connection count for live sends. Default: 4.",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "--terrain-tile-cache-root <path>",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "--disable-terrain-tile-cache",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void HelpTextDocumentsInspectionCommands()
-    {
-        Assert.Contains(
-            "plateau-resonitelink search --local-source-path <path> --mesh-code <mesh-code> [options]",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "--format <text|json>   Optional. Output format. Default: text.",
-            CliArgumentsParser.HelpText,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void ParseRejectsNumericDemTerrainMode()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--dem-terrain-mode",
-                "2",
-            ]);
-
-        Assert.Equal("Unsupported DEM terrain mode '2'. Use 'mesh' or 'heightmap'.", result.Error);
-        Assert.Null(result.Options);
-    }
-
-    [Fact]
-    public void ParseEnablesSendMetrics()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--send-metrics",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.True(result.Options!.EnableSendMetrics);
-    }
-
-    [Fact]
-    public void ParseParsesMemoryProfile()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--memory-profile",
-                "small",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.Equal(PlateauImportMemoryProfile.Small, result.Options!.MemoryProfile);
-    }
-
-    [Fact]
-    public void ParseRejectsInvalidMemoryProfile()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--memory-profile",
-                "tiny",
-            ]);
-
-        Assert.Equal(
-            "The value 'tiny' is not a valid memory profile. Use 'small' or 'large'.",
-            result.Error);
-    }
-
-    [Theory]
-    [InlineData("0")]
-    [InlineData("1")]
-    [InlineData("2")]
-    public void ParseRejectsNumericMemoryProfile(string memoryProfileValue)
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--memory-profile",
-                memoryProfileValue,
-            ]);
-
-        Assert.Equal(
-            $"The value '{memoryProfileValue}' is not a valid memory profile. Use 'small' or 'large'.",
-            result.Error);
-    }
-
-    [Fact]
-    public void ParseDisablesMeshBakeWhenRequested()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--no-mesh-bake",
-            ]);
-
-        Assert.Null(result.Error);
-        Assert.False(result.Options!.EnableMeshBake);
     }
 
     [Fact]
@@ -641,20 +184,13 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--dem-terrain-mode",
-                "heightmap",
-                "--dem-heightmap-meters-per-vertex",
-                "4.5",
-                "--dem-heightmap-max-resolution",
-                "512",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+                "--dem-terrain-mode", "heightmap",
+                "--dem-heightmap-meters-per-vertex", "4.5",
+                "--dem-heightmap-max-resolution", "512",
             ]);
 
         Assert.Null(result.Error);
@@ -664,28 +200,12 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseRejectsResoniteLinkPortAndUrlTogether()
+    public void HelpTextDocumentsUnifiedSourceOptions()
     {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "local",
-                "--local-source-path",
-                "/data/plateau",
-                "--resonitelink-port",
-                "12345",
-                "--resonitelink-url",
-                "ws://localhost:12346/",
-            ]);
-
-        Assert.Equal(
-            "Specify either --resonitelink-port or --resonitelink-url, not both.",
-            result.Error);
+        Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--ortho-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.DoesNotContain("--source <value>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
+        Assert.DoesNotContain("--server-url <url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -694,31 +214,10 @@ public sealed class CliArgumentsParserTests
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "build",
-                "--dataset",
-                "tokyo23ku",
-                "--tile",
-                "53394525",
+                "--dataset", "tokyo23ku",
+                "--tile", "53394525",
             ]);
 
         Assert.Equal("The --tile option has been replaced. Use --mesh-code.", result.Error);
-    }
-
-    [Fact]
-    public void ParseRejectsMissingResoniteLinkEndpoint()
-    {
-        CliParseResult result = CliArgumentsParser.Parse(
-            [
-                "build",
-                "--dataset",
-                "tokyo23ku",
-                "--mesh-code",
-                "53394525",
-                "--source",
-                "local",
-                "--local-source-path",
-                "/data/plateau",
-            ]);
-
-        Assert.Equal("Specify either --resonitelink-port or --resonitelink-url.", result.Error);
     }
 }

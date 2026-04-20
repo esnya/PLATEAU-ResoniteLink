@@ -13,27 +13,31 @@ public sealed class PlateauImportServiceTests
     [Fact]
     public async Task ExecuteAsync_UsesNormalizedRequestForConnectionAndResolvedRequestForBootstrapAndSourceCreation()
     {
-        using TemporaryDirectory rawSourceRoot = new();
-        using TemporaryDirectory resolvedSourceRoot = new();
         using TemporaryDirectory workRoot = new();
 
+        Uri rawSourceUri = new("https://example.invalid/tokyo23ku/source-archive.zip");
+        string datasetWorkRoot = Path.Combine(workRoot.Path, "tokyo23ku");
+        string resolvedSourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
+            datasetWorkRoot,
+            rawSourceUri,
+            "source-archive");
         PlateauImportRequest rawRequest = new(
             Dataset: " tokyo23ku ",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(rawSourceRoot.Path),
+            Source: PlateauImportSource.Remote(rawSourceUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(resolvedSourceRoot.Path),
+            Source: PlateauImportSource.Local(resolvedSourcePath),
             PackageNames: ["bldg"]);
         ValidatedPlateauImportRequest validatedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
-            Source: new ValidatedPlateauLocalImportSource(resolvedSourceRoot.Path),
+            Source: new ValidatedPlateauLocalImportSource(resolvedSourcePath),
             PackageNames: ["bldg"]);
-        RecordingDatasetSource datasetSource = new(resolvedSourceRoot.Path);
+        RecordingDatasetSource datasetSource = new(resolvedSourcePath);
         LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
@@ -54,22 +58,22 @@ public sealed class PlateauImportServiceTests
         Assert.NotNull(sceneBuilder.ConnectedRequest);
         Assert.Equal("tokyo23ku", sceneBuilder.ConnectedRequest!.Dataset);
         Assert.Equal("53394525", sceneBuilder.ConnectedRequest.MeshCode);
-        Assert.Equal(rawSourceRoot.Path, sceneBuilder.ConnectedRequest.LocalSourcePath);
+        Assert.Equal(rawSourceUri, sceneBuilder.ConnectedRequest.ServerUri);
         Assert.Equal(["bldg"], sceneBuilder.ConnectedRequest.PackageNames);
         Assert.NotNull(documentReader.LastRequest);
         Assert.Equal("tokyo23ku", documentReader.LastRequest!.Dataset);
         Assert.Equal("53394525", documentReader.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourceRoot.Path, documentReader.LastRequest.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, documentReader.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], documentReader.LastRequest.PackageNames);
         Assert.NotNull(constructionSourceFactory.LastRequest);
         Assert.Equal("tokyo23ku", constructionSourceFactory.LastRequest!.Dataset);
         Assert.Equal("53394525", constructionSourceFactory.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourceRoot.Path, constructionSourceFactory.LastRequest.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, constructionSourceFactory.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
         Assert.Same(readResult, constructionSourceFactory.LastReadResult);
         Assert.NotNull(sceneBuilder.BeginRequest);
-        Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
-        Assert.Equal(resolvedSourceRoot.Path, sceneBuilder.BeginRequest.ResolvedSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
+        Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest.ResolvedSourcePath);
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
         Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);

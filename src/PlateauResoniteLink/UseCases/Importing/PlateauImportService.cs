@@ -66,6 +66,7 @@ public sealed class PlateauImportService(
             ImportedSceneMetadata metadata = source.Metadata;
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
+                resolvedRequest,
                 metadata,
                 documentSet.DatasetSource.SourcePath,
                 datasetWorkRoot);

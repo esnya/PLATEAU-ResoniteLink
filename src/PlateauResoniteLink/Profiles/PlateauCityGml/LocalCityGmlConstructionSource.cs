@@ -69,6 +69,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                              globalOriginPoint,
                              globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem),
                              demTerrainTextureOverlays,
+                             requestedMeshAreas,
                              request,
                              emittedMaterialKeys))
                 {

@@ -51,6 +51,26 @@ internal static class DemTerrainOverlaySurfaceClipper
         return results;
     }
 
+    public static IReadOnlyList<LocalCityGmlObjectProjection.ParsedSurface> ClipGeneratedSurfaceToBounds(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        IReadOnlyList<GeographicRectangle> bounds)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(bounds);
+
+        return ClipSurfaceCore(surface, bounds, preserveGeneratedTexture: true);
+    }
+
+    public static IReadOnlyList<LocalCityGmlObjectProjection.ParsedSurface> ClipSurfaceToBounds(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        IReadOnlyList<GeographicRectangle> bounds)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(bounds);
+
+        return ClipSurfaceCore(surface, bounds, preserveGeneratedTexture: surface.UsesGeneratedDemTexture);
+    }
+
     private static IEnumerable<Polygon> ClipToOverlay(
         LocalCityGmlObjectProjection.ParsedSurface surface,
         GeographicRectangle rectangle)
@@ -78,6 +98,46 @@ internal static class DemTerrainOverlaySurfaceClipper
                 yield return polygon;
             }
         }
+    }
+
+    private static List<LocalCityGmlObjectProjection.ParsedSurface> ClipSurfaceCore(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        IReadOnlyList<GeographicRectangle> bounds,
+        bool preserveGeneratedTexture)
+    {
+        List<LocalCityGmlObjectProjection.ParsedSurface> results = [];
+        foreach (GeographicRectangle rectangle in bounds)
+        {
+            int polygonIndex = 0;
+            foreach (Polygon polygon in ClipToOverlay(surface, rectangle))
+            {
+                LocalCityGmlObjectProjection.GeodeticPoint[] vertices = polygon.Coordinates
+                    .Take(Math.Max(polygon.Coordinates.Length - 1, 0))
+                    .Select(coordinate => ResolveSurfacePoint(surface, coordinate))
+                    .Distinct()
+                    .ToArray();
+                vertices = PreserveSurfaceWinding(surface.ExteriorRing.Vertices, vertices);
+                if (vertices.Length < 3)
+                {
+                    continue;
+                }
+
+                string suffix = $"{CreateOverlayToken(rectangle)}_{polygonIndex:D2}";
+                results.Add(
+                    surface with
+                    {
+                        PolygonId = $"{surface.PolygonId}_{suffix}",
+                        ExteriorRing = new LocalCityGmlObjectProjection.ParsedRing(
+                            $"{surface.ExteriorRing.RingId}_{suffix}",
+                            vertices,
+                            UVs: null),
+                        UsesGeneratedDemTexture = preserveGeneratedTexture,
+                    });
+                polygonIndex++;
+            }
+        }
+
+        return results;
     }
 
     private static IEnumerable<Geometry> EnumeratePolygons(Geometry geometry)

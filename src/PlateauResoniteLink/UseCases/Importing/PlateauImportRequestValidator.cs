@@ -7,6 +7,7 @@ namespace PlateauResoniteLink.Application.Importing;
 public static class PlateauImportRequestValidator
 {
     private static readonly string[] SupportedRemoteArchiveExtensions = [".zip", ".7z"];
+    private static readonly string[] SupportedTerrainTextureExtensions = [".zip", ".7z", ".tif", ".tiff"];
 
     public static IReadOnlyList<string> Validate(PlateauImportRequest request)
     {
@@ -28,6 +29,7 @@ public static class PlateauImportRequestValidator
         IReadOnlyDictionary<string, IReadOnlySet<int>>? normalizedPackageExclusions = null;
         IReadOnlyDictionary<string, string>? normalizedPackagePatterns = null;
         ValidatedPlateauImportSource? validatedSource = null;
+        ValidatedPlateauImportSource? validatedDemTextureSource = null;
 
         if (string.IsNullOrWhiteSpace(normalizedRequest.Dataset))
         {
@@ -139,7 +141,7 @@ public static class PlateauImportRequestValidator
             case PlateauLocalImportSource localSource:
                 if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
                 {
-                    validationErrors.Add("The --local-source-path value is required when --source local is used.");
+                    validationErrors.Add("The --citygml-source value is required.");
                     break;
                 }
 
@@ -150,29 +152,85 @@ public static class PlateauImportRequestValidator
                     break;
                 }
 
+                if (!LooksLikeSupportedLocalCityGmlSourcePath(localSource.LocalSourcePath))
+                {
+                    validationErrors.Add("The --citygml-source value must point to a .zip/.7z archive or directory containing extracted CityGML dataset contents.");
+                    break;
+                }
+
                 validatedSource = new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath);
                 break;
             case PlateauRemoteImportSource remoteSource:
                 if (remoteSource.ServerUri is null)
                 {
-                    validationErrors.Add("The --server-url value is required when --source remote is used.");
+                    validationErrors.Add("The --citygml-source value is required.");
                     break;
                 }
 
                 if (!remoteSource.ServerUri.IsAbsoluteUri)
                 {
-                    validationErrors.Add("The --server-url value must be an absolute URI.");
+                    validationErrors.Add("The --citygml-source value must be an absolute URI.");
                     break;
                 }
 
                 if (!LooksLikeSupportedArchiveUri(remoteSource.ServerUri))
                 {
-                    validationErrors.Add("The --server-url value must point directly to a .zip or .7z CityGML archive over http or https.");
+                    validationErrors.Add("The --citygml-source value must point directly to a .zip or .7z CityGML archive over http or https.");
                     break;
                 }
 
                 validatedSource = new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri);
                 break;
+        }
+
+        if (normalizedRequest.DemTextureSource is not null)
+        {
+            switch (normalizedRequest.DemTextureSource)
+            {
+                case PlateauLocalImportSource localSource:
+                    if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+                    {
+                        validationErrors.Add("The --ortho-source value must not be empty.");
+                        break;
+                    }
+
+                    if (!Directory.Exists(localSource.LocalSourcePath)
+                        && !File.Exists(localSource.LocalSourcePath))
+                    {
+                        validationErrors.Add($"The ortho source path '{localSource.LocalSourcePath}' does not exist.");
+                        break;
+                    }
+
+                    if (!LooksLikeSupportedLocalTerrainTextureSourcePath(localSource.LocalSourcePath))
+                    {
+                        validationErrors.Add("The --ortho-source value must point to a .zip/.7z archive, .tif/.tiff raster, or directory containing those files.");
+                        break;
+                    }
+
+                    validatedDemTextureSource = new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath);
+                    break;
+                case PlateauRemoteImportSource remoteSource:
+                    if (remoteSource.ServerUri is null)
+                    {
+                        validationErrors.Add("The --ortho-source value must not be empty.");
+                        break;
+                    }
+
+                    if (!remoteSource.ServerUri.IsAbsoluteUri)
+                    {
+                        validationErrors.Add("The --ortho-source value must be an absolute URI.");
+                        break;
+                    }
+
+                    if (!LooksLikeSupportedTerrainTextureUri(remoteSource.ServerUri))
+                    {
+                        validationErrors.Add("The --ortho-source value must point directly to a .zip/.7z archive or .tif/.tiff raster over http or https.");
+                        break;
+                    }
+
+                    validatedDemTextureSource = new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri);
+                    break;
+            }
         }
 
         if (normalizedRequest.DemHeightmapMetersPerVertex <= 0)
@@ -197,6 +255,7 @@ public static class PlateauImportRequestValidator
             normalizedRequest.MeshCode,
             meshCodePattern!,
             validatedSource!,
+            validatedDemTextureSource,
             normalizedPackageNames,
             normalizedRequest.GlobalExcludeLodLevels,
             normalizedPackageExclusions,
@@ -231,6 +290,21 @@ public static class PlateauImportRequestValidator
 
         string extension = Path.GetExtension(serverUri.AbsolutePath);
         return SupportedRemoteArchiveExtensions.Any(
+            supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
+    }
+
+    internal static bool LooksLikeSupportedTerrainTextureUri(Uri serverUri)
+    {
+        ArgumentNullException.ThrowIfNull(serverUri);
+
+        if (!string.Equals(serverUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(serverUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        string extension = Path.GetExtension(serverUri.AbsolutePath);
+        return SupportedTerrainTextureExtensions.Any(
             supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -278,6 +352,7 @@ public static class PlateauImportRequestValidator
             Dataset = TrimToEmpty(request.Dataset),
             MeshCode = TrimToEmpty(request.MeshCode),
             Source = NormalizeSource(request.Source),
+            DemTextureSource = request.DemTextureSource is null ? null : NormalizeSource(request.DemTextureSource),
             PackageNames = request.PackageNames is null
                 ? null
                 : request.PackageNames.Select(static packageName => TrimToEmpty(packageName)).ToArray(),
@@ -330,5 +405,31 @@ public static class PlateauImportRequestValidator
     private static string TrimToEmpty(string? value)
     {
         return value?.Trim() ?? string.Empty;
+    }
+
+    private static bool LooksLikeSupportedLocalTerrainTextureSourcePath(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (Directory.Exists(fullPath))
+        {
+            return true;
+        }
+
+        string extension = Path.GetExtension(fullPath);
+        return SupportedTerrainTextureExtensions.Any(
+            supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool LooksLikeSupportedLocalCityGmlSourcePath(string path)
+    {
+        string fullPath = Path.GetFullPath(path);
+        if (Directory.Exists(fullPath))
+        {
+            return true;
+        }
+
+        string extension = Path.GetExtension(fullPath);
+        return SupportedRemoteArchiveExtensions.Any(
+            supportedExtension => string.Equals(extension, supportedExtension, StringComparison.OrdinalIgnoreCase));
     }
 }

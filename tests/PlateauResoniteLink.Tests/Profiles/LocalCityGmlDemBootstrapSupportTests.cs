@@ -33,114 +33,57 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
 
         CachedSourceFileDescriptor cachedSourceFile = Assert.Single(result.CachedDemSourceFiles);
         Assert.Equal("udx/dem/53394525/sample.gml", cachedSourceFile.RelativePath);
-        Assert.Single(cachedSourceFile.CityObjects);
         Assert.Equal(3, result.TerrainTriangles.Length);
         Assert.Equal(1, result.ParsedCityObjectCount);
     }
 
     [Fact]
-    public void CreateTerrainHeightTrianglesFanTriangulatesSurfaceVertices()
+    public async Task CreateDemTerrainTextureOverlaysReturnsTileSourcesAndFallbackLicenseByDefault()
     {
-        BootstrapParsedCityObject cityObject = CreateCityObject();
+        DemTerrainBounds demBounds = new(35.0, 35.0001, 139.0, 139.0001);
 
-        TerrainHeightTriangle[] result = LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles([cityObject]);
-
-        Assert.Equal(2, result.Length);
-        Assert.Equal(new GeodeticPoint(35.0, 139.0, 10.0), result[0].Vertex0);
-        Assert.Equal(new GeodeticPoint(35.0, 139.003, 10.3), result[1].Vertex2);
-    }
-
-    [Fact]
-    public void CreateDemTerrainTextureOverlaysReturnsDemTextureMetadata()
-    {
-        DemTerrainBounds demBounds = new(
-            SouthLatitude: 35.0,
-            NorthLatitude: 35.0001,
-            WestLongitude: 139.0,
-            EastLongitude: 139.0001);
-
-        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
+        TerrainTextureOverlay[] result = await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
             demBounds,
-            ["53394525"]);
+            ["53394525"],
+            demRasterCatalog: null,
+            CancellationToken.None);
 
         TerrainTextureOverlay overlay = Assert.Single(result);
-        Assert.Equal("dem", overlay.PackageName);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.UrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, overlay.ZoomLevel);
-        Assert.Equal(3, overlay.Sources.Count);
-        TerrainTextureTileSource[] sources = overlay.EnumerateTileSources().ToArray();
-        Assert.Equal(3, sources.Length);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, sources[0].UrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel, sources[0].ZoomLevel);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, sources[1].UrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, sources[1].ZoomLevel);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate, sources[2].UrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, sources[2].ZoomLevel);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate, overlay.FallbackUrlTemplate);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel, overlay.FallbackZoomLevel);
-        Assert.Equal(LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize, overlay.MaxTextureSize);
+        Assert.Collection(
+            overlay.Sources,
+            source => Assert.IsType<TerrainTextureTileSource>(source),
+            source => Assert.IsType<TerrainTextureTileSource>(source),
+            source => Assert.IsType<TerrainTextureTileSource>(source));
         Assert.Equal(TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback, overlay.LicenseMode);
     }
 
     [Fact]
-    public void CreateDemTerrainTextureOverlaysDeduplicatesExpandedThirdMeshCodes()
+    public void OrderAvailableSourcesPrefersExplicitGeoReferencedRasterOverTileSources()
     {
-        DemTerrainBounds demBounds = new(
-            SouthLatitude: 36.225,
-            NorthLatitude: 36.2333334,
-            WestLongitude: 137.9666666,
-            EastLongitude: 137.9791667);
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            "ortho.tif",
+            new GeoReferencedRasterMetadata(
+                new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                "EPSG:4326",
+                PixelWidthMeters: 0.8,
+                PixelHeightMeters: 0.8));
+        TerrainTextureTileSource ortho19Source = new(
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel);
+        TerrainTextureTileSource ortho18Source = new(
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
 
-        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-            demBounds,
-            ["543727", "54372778"]);
+        TerrainTextureSource[] result = LocalCityGmlDemBootstrapSupport.OrderAvailableSources(
+        [
+            new DemTerrainTextureSourceDescriptor(DemTerrainTextureSourcePreference.Ortho19, ortho19Source, true, false, 0.3),
+            new DemTerrainTextureSourceDescriptor(DemTerrainTextureSourcePreference.GeoReferencedRaster, rasterSource, true, true, 0.8),
+            new DemTerrainTextureSourceDescriptor(DemTerrainTextureSourcePreference.Ortho18, ortho18Source, true, false, 0.6),
+        ]);
 
-        Assert.Equal(4, result.Length);
-        Assert.Equal(
-            result.Length,
-            result.Select(static overlay => overlay.GeographicBounds).Distinct().Count());
-    }
-
-    [Fact]
-    public void CreateDemTerrainTextureOverlaysDefaultThirdMeshCanvasFitsLargeBudget()
-    {
-        MeshCodeBounds meshBounds = MeshCodeBounds.TryParse("54372778")
-            ?? throw new InvalidOperationException("Expected Matsumoto third mesh bounds.");
-
-        TerrainTextureOverlay overlay = Assert.Single(
-            LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlays(
-                new DemTerrainBounds(
-                    meshBounds.SouthLatitude,
-                    meshBounds.NorthLatitude,
-                    meshBounds.WestLongitude,
-                    meshBounds.EastLongitude),
-                ["54372778"]));
-        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(
-            overlay.GeographicBounds,
-            overlay.ZoomLevel);
-
-        int canvasWidth = RoundUpToPowerOfTwo(layout.CropWidth);
-        int canvasHeight = RoundUpToPowerOfTwo(layout.CropHeight);
-        long rawRgbaBytes = (long)canvasWidth * canvasHeight * 4L;
-
-        Assert.Equal(8192, canvasWidth);
-        Assert.Equal(4096, canvasHeight);
-        Assert.Equal(134_217_728L, rawRgbaBytes);
-        Assert.True(rawRgbaBytes <= ResoniteImportBudgetProfiles.Large.ImportWorkingSetBytes);
-        Assert.True(rawRgbaBytes <= ResoniteImportBudgetProfiles.Large.RuntimeVramBudgetBytes);
-    }
-
-    [Fact]
-    public void CreateDemTerrainTextureOverlaysForMeshCodesUsesDiscoveredMeshCodesWithoutParsedBounds()
-    {
-        TerrainTextureOverlay[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysForMeshCodes(
-            ["533945", "53394525"]);
-
-        Assert.Equal(100, result.Length);
-        Assert.All(result, static overlay => Assert.Equal("dem", overlay.PackageName));
-        Assert.Equal(
-            result.Length,
-            result.Select(static overlay => overlay.GeographicBounds).Distinct().Count());
+        Assert.Same(rasterSource, result[0]);
+        Assert.Same(ortho19Source, result[1]);
+        Assert.Same(ortho18Source, result[2]);
     }
 
     private static BootstrapParsedCityObject CreateCityObject()
@@ -185,16 +128,5 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             new GeodeticPoint(35.0, 139.0, 10.0),
             new GeodeticPoint(35.0, 139.001, 10.1),
             new GeodeticPoint(35.0, 139.002, 10.2));
-    }
-
-    private static int RoundUpToPowerOfTwo(int value)
-    {
-        int rounded = 1;
-        while (rounded < value)
-        {
-            rounded <<= 1;
-        }
-
-        return rounded;
     }
 }

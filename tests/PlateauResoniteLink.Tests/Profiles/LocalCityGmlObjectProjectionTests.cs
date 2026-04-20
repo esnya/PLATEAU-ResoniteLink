@@ -348,15 +348,41 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
         Directory.CreateDirectory(packageDirectory);
+        (double south, double north, double west, double east) = GetMeshBounds("53394525");
+
+        string westTriangle = CreateTrianglePosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            (0.08, 0.06, 5.0),
+            (0.92, 0.06, 10.0),
+            (0.92, 0.44, 12.0));
+        string eastTriangle = CreateTrianglePosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            (0.08, 0.56, 6.0),
+            (0.92, 0.56, 8.0),
+            (0.92, 0.94, 14.0));
+        string texturedTriangle = CreateTrianglePosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            (0.10, 0.18, 4.0),
+            (0.90, 0.18, 7.0),
+            (0.90, 0.36, 8.0));
 
         string xml =
-            """
+            $$"""
             <?xml version="1.0" encoding="UTF-8"?>
             <core:CityModel xmlns:app="http://www.opengis.net/citygml/appearance/2.0" xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
-                  <gml:lowerCorner>35.0000 139.0000 0</gml:lowerCorner>
-                  <gml:upperCorner>35.0100 139.0400 20</gml:upperCorner>
+                  <gml:lowerCorner>{{south.ToString("F8", CultureInfo.InvariantCulture)}} {{west.ToString("F8", CultureInfo.InvariantCulture)}} 0</gml:lowerCorner>
+                  <gml:upperCorner>{{north.ToString("F8", CultureInfo.InvariantCulture)}} {{east.ToString("F8", CultureInfo.InvariantCulture)}} 20</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <app:appearanceMember>
@@ -384,21 +410,21 @@ public sealed class LocalCityGmlObjectProjectionTests
                             <gml:Triangle gml:id="tri-dem-west">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-west">
-                                  <gml:posList>35.0000 139.0000 5 35.0100 139.0000 10 35.0100 139.0180 12 35.0000 139.0000 5</gml:posList>
+                                  <gml:posList>{{westTriangle}}</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-east">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-east">
-                                  <gml:posList>35.0000 139.0220 6 35.0100 139.0220 8 35.0100 139.0400 14 35.0000 139.0220 6</gml:posList>
+                                  <gml:posList>{{eastTriangle}}</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-textured">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-textured">
-                                  <gml:posList>35.0001 139.0040 4 35.0099 139.0040 7 35.0099 139.0120 8 35.0001 139.0040 4</gml:posList>
+                                  <gml:posList>{{texturedTriangle}}</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
@@ -423,15 +449,32 @@ public sealed class LocalCityGmlObjectProjectionTests
     {
         string packageDirectory = Path.Combine(datasetRoot, "udx", "dem", "53394525");
         Directory.CreateDirectory(packageDirectory);
+        (double south, double north, double west, double east) = GetMeshBounds("53394525");
+        string triangleA = CreateTrianglePosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            (0.10, 0.08, 5.0),
+            (0.92, 0.08, 10.0),
+            (0.92, 0.92, 12.0));
+        string triangleB = CreateTrianglePosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            (0.10, 0.08, 5.0),
+            (0.92, 0.92, 12.0),
+            (0.10, 0.92, 7.0));
 
         string xml =
-            """
+            $$"""
             <?xml version="1.0" encoding="UTF-8"?>
             <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
-                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
-                  <gml:upperCorner>35.6699 139.7100 20</gml:upperCorner>
+                  <gml:lowerCorner>{{south.ToString("F8", CultureInfo.InvariantCulture)}} {{west.ToString("F8", CultureInfo.InvariantCulture)}} 0</gml:lowerCorner>
+                  <gml:upperCorner>{{north.ToString("F8", CultureInfo.InvariantCulture)}} {{east.ToString("F8", CultureInfo.InvariantCulture)}} 20</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <core:cityObjectMember>
@@ -445,14 +488,14 @@ public sealed class LocalCityGmlObjectProjectionTests
                             <gml:Triangle gml:id="tri-dem-a">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-a">
-                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7008 10 35.6698 139.7098 12 35.6669 139.7008 5</gml:posList>
+                                  <gml:posList>{{triangleA}}</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
                             <gml:Triangle gml:id="tri-dem-b">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-dem-b">
-                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7098 12 35.6669 139.7098 7 35.6669 139.7008 5</gml:posList>
+                                  <gml:posList>{{triangleB}}</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
@@ -475,15 +518,35 @@ public sealed class LocalCityGmlObjectProjectionTests
         string landUseDirectory = Path.Combine(datasetRoot, "udx", "luse", "53394525");
         Directory.CreateDirectory(demDirectory);
         Directory.CreateDirectory(landUseDirectory);
+        (double south, double north, double west, double east) = GetMeshBounds("53394525");
+        string demTriangle = CreateTrianglePosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            (0.10, 0.08, 5.0),
+            (0.92, 0.08, 6.0),
+            (0.92, 0.38, 7.0));
+        string landUsePolygon = CreatePolygonPosListFromRatios(
+            south,
+            north,
+            west,
+            east,
+            [
+                (0.18, 0.62, 50.0),
+                (0.82, 0.62, 50.0),
+                (0.82, 0.90, 50.0),
+                (0.18, 0.90, 50.0),
+            ]);
 
         string demXml =
-            """
+            $$"""
             <?xml version="1.0" encoding="UTF-8"?>
             <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:dem="http://www.opengis.net/citygml/relief/2.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
-                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
-                  <gml:upperCorner>35.6699 139.7100 20</gml:upperCorner>
+                  <gml:lowerCorner>{{south.ToString("F8", CultureInfo.InvariantCulture)}} {{west.ToString("F8", CultureInfo.InvariantCulture)}} 0</gml:lowerCorner>
+                  <gml:upperCorner>{{north.ToString("F8", CultureInfo.InvariantCulture)}} {{east.ToString("F8", CultureInfo.InvariantCulture)}} 20</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <core:cityObjectMember>
@@ -497,7 +560,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                             <gml:Triangle gml:id="tri-gap-a">
                               <gml:exterior>
                                 <gml:LinearRing gml:id="ring-gap-a">
-                                  <gml:posList>35.6669 139.7008 5 35.6698 139.7008 6 35.6698 139.7040 7 35.6669 139.7008 5</gml:posList>
+                                  <gml:posList>{{demTriangle}}</gml:posList>
                                 </gml:LinearRing>
                               </gml:exterior>
                             </gml:Triangle>
@@ -513,13 +576,13 @@ public sealed class LocalCityGmlObjectProjectionTests
         File.WriteAllText(Path.Combine(demDirectory, "plateau_tokyo23ku_dem_53394525_gap.gml"), demXml);
 
         string landUseXml =
-            """
+            $$"""
             <?xml version="1.0" encoding="UTF-8"?>
             <core:CityModel xmlns:core="http://www.opengis.net/citygml/2.0" xmlns:gml="http://www.opengis.net/gml" xmlns:luse="http://www.opengis.net/citygml/landuse/2.0">
               <gml:boundedBy>
                 <gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/6697" srsDimension="3">
-                  <gml:lowerCorner>35.6667 139.7000 0</gml:lowerCorner>
-                  <gml:upperCorner>35.6699 139.7100 60</gml:upperCorner>
+                  <gml:lowerCorner>{{south.ToString("F8", CultureInfo.InvariantCulture)}} {{west.ToString("F8", CultureInfo.InvariantCulture)}} 0</gml:lowerCorner>
+                  <gml:upperCorner>{{north.ToString("F8", CultureInfo.InvariantCulture)}} {{east.ToString("F8", CultureInfo.InvariantCulture)}} 60</gml:upperCorner>
                 </gml:Envelope>
               </gml:boundedBy>
               <core:cityObjectMember>
@@ -531,7 +594,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                         <gml:Polygon gml:id="luse-gap-polygon">
                           <gml:exterior>
                             <gml:LinearRing gml:id="luse-gap-ring">
-                              <gml:posList>35.6672 139.7060 50 35.6692 139.7060 50 35.6692 139.7085 50 35.6672 139.7085 50 35.6672 139.7060 50</gml:posList>
+                              <gml:posList>{{landUsePolygon}}</gml:posList>
                             </gml:LinearRing>
                           </gml:exterior>
                         </gml:Polygon>
@@ -737,6 +800,60 @@ public sealed class LocalCityGmlObjectProjectionTests
                 longitude0.ToString("F8", CultureInfo.InvariantCulture),
                 heightA.ToString("F3", CultureInfo.InvariantCulture),
             ]);
+    }
+
+    private static string CreateTrianglePosListFromRatios(
+        double southLatitude,
+        double northLatitude,
+        double westLongitude,
+        double eastLongitude,
+        (double LatitudeRatio, double LongitudeRatio, double Height) vertex0,
+        (double LatitudeRatio, double LongitudeRatio, double Height) vertex1,
+        (double LatitudeRatio, double LongitudeRatio, double Height) vertex2)
+    {
+        return CreatePosList(
+            southLatitude,
+            northLatitude,
+            westLongitude,
+            eastLongitude,
+            [vertex0, vertex1, vertex2, vertex0]);
+    }
+
+    private static string CreatePolygonPosListFromRatios(
+        double southLatitude,
+        double northLatitude,
+        double westLongitude,
+        double eastLongitude,
+        IReadOnlyList<(double LatitudeRatio, double LongitudeRatio, double Height)> vertices)
+    {
+        return CreatePosList(
+            southLatitude,
+            northLatitude,
+            westLongitude,
+            eastLongitude,
+            [.. vertices, vertices[0]]);
+    }
+
+    private static string CreatePosList(
+        double southLatitude,
+        double northLatitude,
+        double westLongitude,
+        double eastLongitude,
+        IReadOnlyList<(double LatitudeRatio, double LongitudeRatio, double Height)> vertices)
+    {
+        return string.Join(
+            ' ',
+            vertices.SelectMany(vertex => new[]
+            {
+                Interpolate(southLatitude, northLatitude, vertex.LatitudeRatio).ToString("F8", CultureInfo.InvariantCulture),
+                Interpolate(westLongitude, eastLongitude, vertex.LongitudeRatio).ToString("F8", CultureInfo.InvariantCulture),
+                vertex.Height.ToString("F3", CultureInfo.InvariantCulture),
+            }));
+    }
+
+    private static double Interpolate(double min, double max, double ratio)
+    {
+        return min + ((max - min) * ratio);
     }
 
     private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundariesForTest(

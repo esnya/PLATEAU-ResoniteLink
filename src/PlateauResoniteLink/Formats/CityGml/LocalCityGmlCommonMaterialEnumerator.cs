@@ -15,6 +15,7 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         PlateauImportRequest request,
         ISet<string>? emittedMaterialKeys = null)
     {
@@ -24,6 +25,7 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
             globalOriginPoint.ToLegacy(),
             globalCartesian,
             demTerrainTextureOverlays,
+            requestedMeshAreas,
             terrainHeightSampler: null,
             request,
             materialResolver,

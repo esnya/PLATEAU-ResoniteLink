@@ -3,7 +3,6 @@ using System.Globalization;
 using GeographicLib;
 
 using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class LocalCityGmlDemBootstrapSupport
@@ -77,9 +76,11 @@ internal static class LocalCityGmlDemBootstrapSupport
                 bounds.Value.maxLongitude);
     }
 
-    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+    internal static async Task<TerrainTextureOverlay[]> CreateDemTerrainTextureOverlaysAsync(
         DemTerrainBounds demBounds,
-        IReadOnlyList<string> requestedMeshCodes)
+        IReadOnlyList<string> requestedMeshCodes,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(demBounds);
         ArgumentNullException.ThrowIfNull(requestedMeshCodes);
@@ -100,7 +101,7 @@ internal static class LocalCityGmlDemBootstrapSupport
                 continue;
             }
 
-            overlays.Add(CreateDemTerrainTextureOverlay(meshCode, bounds));
+            overlays.Add(await CreateDemTerrainTextureOverlayAsync(meshCode, bounds, demRasterCatalog, cancellationToken));
         }
 
         if (overlays.Count > 0)
@@ -115,10 +116,25 @@ internal static class LocalCityGmlDemBootstrapSupport
 
         return
         [
-            CreateDemTerrainTextureOverlay(
+            await CreateDemTerrainTextureOverlayAsync(
                 "dem-fallback",
-                (demBounds.SouthLatitude, demBounds.NorthLatitude, demBounds.WestLongitude, demBounds.EastLongitude)),
+                (demBounds.SouthLatitude, demBounds.NorthLatitude, demBounds.WestLongitude, demBounds.EastLongitude),
+                demRasterCatalog,
+                cancellationToken),
         ];
+    }
+
+    internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(
+        DemTerrainBounds demBounds,
+        IReadOnlyList<string> requestedMeshCodes)
+    {
+        return CreateDemTerrainTextureOverlaysAsync(
+                demBounds,
+                requestedMeshCodes,
+                demRasterCatalog: null,
+                CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
     }
 
     internal static TerrainTextureOverlay[] CreateDemTerrainTextureOverlaysForMeshCodes(
@@ -127,17 +143,16 @@ internal static class LocalCityGmlDemBootstrapSupport
         ArgumentNullException.ThrowIfNull(meshCodes);
 
         return ExpandToThirdMeshCodes(meshCodes)
-            .Select(
-                static meshCode => new
-                {
-                    MeshCode = meshCode,
-                    HasBounds = PlateauMeshCode.TryGetBounds(
-                        meshCode,
-                        out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds),
-                    Bounds = bounds,
-                })
+            .Select(static meshCode => new
+            {
+                MeshCode = meshCode,
+                HasBounds = PlateauMeshCode.TryGetBounds(
+                    meshCode,
+                    out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds),
+                Bounds = bounds,
+            })
             .Where(static entry => entry.HasBounds)
-            .Select(static entry => CreateDemTerrainTextureOverlay(entry.MeshCode, entry.Bounds))
+            .Select(static entry => CreateLegacyBootstrapOverlay(entry.MeshCode, entry.Bounds))
             .OrderBy(static overlay => overlay.GeographicBounds.MinLatitude)
             .ThenBy(static overlay => overlay.GeographicBounds.MinLongitude)
             .ThenBy(static overlay => overlay.GeographicBounds.MaxLatitude)
@@ -162,31 +177,108 @@ internal static class LocalCityGmlDemBootstrapSupport
             geocentric);
     }
 
-    private static TerrainTextureOverlay CreateDemTerrainTextureOverlay(
+    private static async Task<TerrainTextureOverlay> CreateDemTerrainTextureOverlayAsync(
+        string meshCode,
+        (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds,
+        DemTerrainGeoReferencedRasterCatalog? demRasterCatalog,
+        CancellationToken cancellationToken)
+    {
+        GeographicRectangle geographicBounds = new(
+            MinLatitude: bounds.SouthLatitude,
+            MaxLatitude: bounds.NorthLatitude,
+            MinLongitude: bounds.WestLongitude,
+            MaxLongitude: bounds.EastLongitude);
+        List<DemTerrainTextureSourceDescriptor> candidates =
+        [
+            CreateTileDescriptor(
+                DemTerrainTextureSourcePreference.Ortho19,
+                geographicBounds,
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel)),
+            CreateTileDescriptor(
+                DemTerrainTextureSourcePreference.Ortho18,
+                geographicBounds,
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)),
+            CreateTileDescriptor(
+                DemTerrainTextureSourcePreference.Gsi18,
+                geographicBounds,
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)),
+        ];
+
+        TerrainTextureLicenseMode licenseMode = TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback;
+        if (demRasterCatalog is not null)
+        {
+            TerrainTextureGeoReferencedRasterSource? rasterSource = await demRasterCatalog.TryResolveRasterSourceAsync(
+                meshCode,
+                geographicBounds,
+                cancellationToken);
+            if (rasterSource?.Metadata is { IsUsable: true } metadata)
+            {
+                candidates.Add(new DemTerrainTextureSourceDescriptor(
+                    DemTerrainTextureSourcePreference.GeoReferencedRaster,
+                    rasterSource,
+                    IsAvailable: true,
+                    IsExplicit: true,
+                    EffectiveResolutionMeters: Math.Max(metadata.PixelWidthMeters, metadata.PixelHeightMeters)));
+                licenseMode = TerrainTextureLicenseMode.PlateauOrthoOnly;
+            }
+        }
+
+        return new TerrainTextureOverlay(
+            PackageName: "dem",
+            GeographicBounds: geographicBounds,
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
+            Sources: OrderAvailableSources(candidates),
+            LicenseMode: licenseMode);
+    }
+
+    internal static TerrainTextureSource[] OrderAvailableSources(
+        IEnumerable<DemTerrainTextureSourceDescriptor> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+
+        return candidates
+            .Where(static descriptor => descriptor.IsAvailable)
+            .OrderByDescending(static descriptor => descriptor.IsExplicit)
+            .ThenBy(static descriptor => descriptor.EffectiveResolutionMeters)
+            .ThenBy(static descriptor => (int)descriptor.Preference)
+            .Select(static descriptor => descriptor.Source)
+            .ToArray();
+    }
+
+    private static DemTerrainTextureSourceDescriptor CreateTileDescriptor(
+        DemTerrainTextureSourcePreference preference,
+        GeographicRectangle geographicBounds,
+        TerrainTextureTileSource source)
+    {
+        TerrainTextureLayoutPlan layoutPlan = TerrainTextureLayoutPlanner.Create(geographicBounds, source.ZoomLevel);
+        double widthMeters = DegreesLongitudeToMeters(
+            (geographicBounds.MinLatitude + geographicBounds.MaxLatitude) * 0.5,
+            geographicBounds.MaxLongitude - geographicBounds.MinLongitude);
+        double heightMeters = DegreesLatitudeToMeters(geographicBounds.MaxLatitude - geographicBounds.MinLatitude);
+        double effectiveResolutionMeters = Math.Max(
+            widthMeters / layoutPlan.CropWidth,
+            heightMeters / layoutPlan.CropHeight);
+        return new DemTerrainTextureSourceDescriptor(
+            preference,
+            source,
+            IsAvailable: true,
+            IsExplicit: false,
+            effectiveResolutionMeters);
+    }
+
+    private static TerrainTextureOverlay CreateLegacyBootstrapOverlay(
         string meshCode,
         (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)
     {
-        return new TerrainTextureOverlay(
-            PackageName: "dem",
-            GeographicBounds: new GeographicRectangle(
-                MinLatitude: bounds.SouthLatitude,
-                MaxLatitude: bounds.NorthLatitude,
-                MinLongitude: bounds.WestLongitude,
-                MaxLongitude: bounds.EastLongitude),
-            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
-            Sources:
-            [
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
-                new TerrainTextureTileSource(
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
-            ],
-            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        return CreateDemTerrainTextureOverlayAsync(meshCode, bounds, null, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
     }
 
     private static IEnumerable<string> ExpandToThirdMeshCodes(IEnumerable<string> requestedMeshCodes)
@@ -264,9 +356,34 @@ internal static class LocalCityGmlDemBootstrapSupport
             Math.Max(current.Value.maxLongitude, next.maxLongitude),
             Math.Min(current.Value.minAltitude, next.minAltitude));
     }
+
+    private static double DegreesLatitudeToMeters(double degrees)
+    {
+        return Math.Abs(degrees) * 111_320.0;
+    }
+
+    private static double DegreesLongitudeToMeters(double latitude, double degrees)
+    {
+        return Math.Abs(degrees) * 111_320.0 * Math.Cos(latitude * (Math.PI / 180.0));
+    }
 }
 
 internal sealed record DemBootstrapAggregation(
     CachedSourceFileDescriptor[] CachedDemSourceFiles,
     TerrainHeightTriangle[] TerrainTriangles,
     int ParsedCityObjectCount);
+
+internal enum DemTerrainTextureSourcePreference
+{
+    Ortho19 = 0,
+    GeoReferencedRaster = 1,
+    Ortho18 = 2,
+    Gsi18 = 3,
+}
+
+internal sealed record DemTerrainTextureSourceDescriptor(
+    DemTerrainTextureSourcePreference Preference,
+    TerrainTextureSource Source,
+    bool IsAvailable,
+    bool IsExplicit,
+    double EffectiveResolutionMeters);

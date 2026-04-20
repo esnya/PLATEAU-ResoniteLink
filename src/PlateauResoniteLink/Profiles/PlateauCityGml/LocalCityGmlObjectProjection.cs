@@ -2849,6 +2849,7 @@ public static partial class LocalCityGmlObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
@@ -2865,6 +2866,7 @@ public static partial class LocalCityGmlObjectProjection
                          globalOriginPoint,
                          globalCartesian,
                          demTerrainTextureOverlays,
+                         requestedMeshAreas,
                          terrainHeightSampler,
                          request,
                          materialResolver))
@@ -2895,17 +2897,9 @@ public static partial class LocalCityGmlObjectProjection
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
-                     demTerrainTextureOverlays))
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas))
         {
-            if (terrainAlignedCityObject.SharedAcrossMeshCodes
-                && requestedMeshAreas.Count > 0
-                && splitCityObject.CityObject.ReferenceSystem.IsGeographic
-                && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                && !IntersectsMeshCodeBounds(splitCityObject.CityObject.Surfaces, requestedMeshAreas))
-            {
-                continue;
-            }
-
             ResoniteConstructionCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
                 && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 && TryProjectDemHeightMapCityObject(
@@ -2983,6 +2977,7 @@ public static partial class LocalCityGmlObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
         TerrainHeightSampler? terrainHeightSampler,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)
@@ -2991,7 +2986,8 @@ public static partial class LocalCityGmlObjectProjection
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
-                     demTerrainTextureOverlays))
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas))
         {
             GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
             LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
@@ -3840,11 +3836,13 @@ public static partial class LocalCityGmlObjectProjection
 
     private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
         ParsedCityObject parsedCityObject,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays)
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas = null)
     {
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) entry in DemTerrainOverlayAssignment.SplitParsedCityObject(
                      parsedCityObject,
-                     demTerrainTextureOverlays))
+                     demTerrainTextureOverlays,
+                     requestedMeshAreas))
         {
             yield return entry;
         }

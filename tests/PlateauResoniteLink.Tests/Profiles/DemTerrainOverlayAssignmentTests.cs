@@ -6,7 +6,7 @@ namespace PlateauResoniteLink.Tests.Application;
 public sealed class DemTerrainOverlayAssignmentTests
 {
     [Fact]
-    public void SplitParsedCityObjectCollapsesCentimeterClassBoundarySliverToDominantOverlay()
+    public void SplitParsedCityObjectCollapsesCentimeterClassBoundarySliverToDominantClippedOverlay()
     {
         const double boundaryLongitude = 139.0100;
         LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
@@ -30,11 +30,10 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.NotNull(overlay);
         Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
         Assert.Equal(boundaryLongitude, overlay.GeographicBounds.MaxLongitude, 6);
-
-        LocalCityGmlObjectProjection.ParsedSurface collapsedSurface = Assert.Single(splitCityObject.Surfaces);
-        Assert.Equal(surface.PolygonId, collapsedSurface.PolygonId);
-        Assert.Equal(surface.ExteriorRing.Vertices, collapsedSurface.ExteriorRing.Vertices);
-        Assert.True(collapsedSurface.UsesGeneratedDemTexture);
+        Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
+        GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
+        Assert.Equal(139.0000, bounds.MinLongitude, 6);
+        Assert.Equal(boundaryLongitude + 0.0000005, bounds.MaxLongitude, 9);
     }
 
     [Fact]
@@ -60,52 +59,10 @@ public sealed class DemTerrainOverlayAssignmentTests
 
         Assert.Equal(2, results.Length);
         Assert.All(results, static result => Assert.Single(result.CityObject.Surfaces));
-        Assert.Contains(
-            results,
-            static result => result.Overlay is not null
-                && result.Overlay.GeographicBounds.MinLongitude == 139.0000
-                && result.Overlay.GeographicBounds.MaxLongitude == boundaryLongitude);
-        Assert.Contains(
-            results,
-            static result => result.Overlay is not null
-                && result.Overlay.GeographicBounds.MinLongitude == boundaryLongitude
-                && result.Overlay.GeographicBounds.MaxLongitude == 139.0200);
     }
 
     [Fact]
-    public void SplitParsedCityObjectCollapsesMultipleThinBoundarySliversToDominantOverlay()
-    {
-        const double boundaryOne = 139.0100;
-        const double boundaryTwo = 139.0100003;
-        const double boundaryThree = 139.0100006;
-        LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
-            "dem-many-slivers",
-            [
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
-                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, boundaryThree + 0.0000002, 2.0),
-            ]);
-        LocalCityGmlObjectProjection.ParsedCityObject cityObject = CreateCityObject(surface);
-        TerrainTextureOverlay[] overlays =
-        [
-            CreateOverlay(139.0000, boundaryOne),
-            CreateOverlay(boundaryOne, boundaryTwo),
-            CreateOverlay(boundaryTwo, boundaryThree),
-            CreateOverlay(boundaryThree, 139.0200),
-        ];
-
-        (LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
-
-        (LocalCityGmlObjectProjection.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
-        Assert.NotNull(overlay);
-        Assert.Equal(139.0000, overlay.GeographicBounds.MinLongitude, 6);
-        Assert.Equal(boundaryOne, overlay.GeographicBounds.MaxLongitude, 6);
-        Assert.Single(splitCityObject.Surfaces);
-    }
-
-    [Fact]
-    public void SplitParsedCityObjectFallsBackToNearestOverlayWhenSurfaceMissesOverlayBounds()
+    public void SplitParsedCityObjectRejectsGeneratedSurfaceWhenSurfaceMissesOverlayBounds()
     {
         LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
             "dem-nearest-overlay",
@@ -121,14 +78,38 @@ public sealed class DemTerrainOverlayAssignmentTests
             CreateOverlay(139.0100, 139.0200),
         ];
 
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray());
+
+        Assert.Contains("no matching terrain overlay coverage", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SplitParsedCityObjectClipsSharedDemToRequestedMeshEvenWhenNoOverlaysExist()
+    {
+        LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(
+            "dem-parent",
+            [
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
+                new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200, 2.0),
+            ]);
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject = CreateCityObject(surface) with
+        {
+            SharedAcrossMeshCodes = true,
+        };
+        MeshCodeBounds[] requestedMeshAreas =
+        [
+            new(35.0000, 35.0200, 139.0000, 139.0100),
+        ];
+
         (LocalCityGmlObjectProjection.ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)[] results =
-            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray();
+            DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, [], requestedMeshAreas).ToArray();
 
         (LocalCityGmlObjectProjection.ParsedCityObject splitCityObject, TerrainTextureOverlay? overlay) = Assert.Single(results);
-        Assert.NotNull(overlay);
-        Assert.Equal(139.0100, overlay.GeographicBounds.MinLongitude, 6);
-        Assert.Equal(139.0200, overlay.GeographicBounds.MaxLongitude, 6);
-        Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
+        Assert.Null(overlay);
+        GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
+        Assert.True(bounds.MaxLongitude <= 139.0100 + 1e-9);
     }
 
     private static LocalCityGmlObjectProjection.ParsedCityObject CreateCityObject(
@@ -155,10 +136,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         return new LocalCityGmlObjectProjection.ParsedSurface(
             PolygonId: polygonId,
             Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
-            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
-                $"{polygonId}-ring",
-                vertices,
-                UVs: null),
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing($"{polygonId}-ring", vertices, UVs: null),
             InteriorRings: [],
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
@@ -169,14 +147,17 @@ public sealed class DemTerrainOverlayAssignmentTests
     {
         return new TerrainTextureOverlay(
             PackageName: "dem",
-            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
-            ZoomLevel: 18,
-            GeographicBounds: new GeographicRectangle(
-                MinLatitude: 35.0000,
-                MaxLatitude: 35.0200,
-                MinLongitude: westLongitude,
-                MaxLongitude: eastLongitude),
-            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize);
+            GeographicBounds: new GeographicRectangle(35.0000, 35.0200, westLongitude, eastLongitude),
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize,
+            Sources: [new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 18)]);
     }
 
+    private static GeographicRectangle GetSurfaceBounds(LocalCityGmlObjectProjection.ParsedSurface surface)
+    {
+        return new GeographicRectangle(
+            MinLatitude: surface.ExteriorRing.Vertices.Min(static point => point.Latitude),
+            MaxLatitude: surface.ExteriorRing.Vertices.Max(static point => point.Latitude),
+            MinLongitude: surface.ExteriorRing.Vertices.Min(static point => point.Longitude),
+            MaxLongitude: surface.ExteriorRing.Vertices.Max(static point => point.Longitude));
+    }
 }

@@ -36,7 +36,13 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
 
         if (request.Source is ValidatedPlateauLocalImportSource)
         {
-            return request;
+            return request with
+            {
+                DemTextureSource = await ResolveOptionalDemTextureSourceAsync(
+                    request.DemTextureSource,
+                    workRoot,
+                    cancellationToken),
+            };
         }
 
         ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)request.Source;
@@ -59,6 +65,10 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 return request with
                 {
                     Source = new ValidatedPlateauLocalImportSource(archivePath),
+                    DemTextureSource = await ResolveOptionalDemTextureSourceAsync(
+                        request.DemTextureSource,
+                        workRoot,
+                        cancellationToken),
                 };
             }
         }
@@ -68,7 +78,40 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         return request with
         {
             Source = new ValidatedPlateauLocalImportSource(archivePath),
+            DemTextureSource = await ResolveOptionalDemTextureSourceAsync(
+                request.DemTextureSource,
+                workRoot,
+                cancellationToken),
         };
+    }
+
+    private async Task<ValidatedPlateauImportSource?> ResolveOptionalDemTextureSourceAsync(
+        ValidatedPlateauImportSource? source,
+        string workRoot,
+        CancellationToken cancellationToken)
+    {
+        if (source is null || source is ValidatedPlateauLocalImportSource)
+        {
+            return source;
+        }
+
+        ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)source;
+        Uri resourceUri = remoteSource.ServerUri;
+        string resourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, resourceUri, "source-ortho");
+        string metadataPath = RemoteDatasetResourceLayout.GetRemoteResourceMetadataPath(resourcePath);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(resourcePath)!);
+
+        if (File.Exists(resourcePath))
+        {
+            if (await TryReuseCachedArchiveAsync(workRoot, resourceUri, resourcePath, metadataPath, cancellationToken))
+            {
+                return new ValidatedPlateauLocalImportSource(resourcePath);
+            }
+        }
+
+        await DownloadArchiveAsync(workRoot, resourceUri, resourcePath, metadataPath, cancellationToken);
+        return new ValidatedPlateauLocalImportSource(resourcePath);
     }
 
     private async Task<bool> TryReuseCachedArchiveAsync(

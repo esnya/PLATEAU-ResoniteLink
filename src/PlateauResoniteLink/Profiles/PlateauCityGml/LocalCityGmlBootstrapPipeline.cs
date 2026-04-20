@@ -113,8 +113,11 @@ internal static class LocalCityGmlBootstrapPipeline
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-        TerrainTextureOverlay[] terrainTextureOverlays =
-            CreateBootstrapTerrainTextureOverlays(discoveredSourceFiles);
+        TerrainTextureOverlay[] terrainTextureOverlays = await CreateBootstrapTerrainTextureOverlaysAsync(
+            request,
+            datasetContentSourceFactory,
+            discoveredSourceFiles,
+            cancellationToken);
 
         ResoniteLocalOrigin? resolvedLocalOrigin =
             LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
@@ -152,8 +155,11 @@ internal static class LocalCityGmlBootstrapPipeline
         return new LocalCityGmlDocumentReadResult(documentSet, bootstrapContext);
     }
 
-    private static TerrainTextureOverlay[] CreateBootstrapTerrainTextureOverlays(
-        IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles)
+    private static async Task<TerrainTextureOverlay[]> CreateBootstrapTerrainTextureOverlaysAsync(
+        PlateauImportRequest request,
+        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
+        IReadOnlyList<LocalCityGmlSourceFileDescriptor> discoveredSourceFiles,
+        CancellationToken cancellationToken)
     {
         List<string> demMeshCodes = discoveredSourceFiles
             .Where(static sourceFile => string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
@@ -167,6 +173,24 @@ internal static class LocalCityGmlBootstrapPipeline
             return [];
         }
 
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysForMeshCodes(demMeshCodes);
+        DemTerrainGeoReferencedRasterCatalog? rasterCatalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
+            request.DemTextureSource,
+            datasetContentSourceFactory,
+            cancellationToken);
+
+        MeshCodeBounds[] requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(demMeshCodes);
+        DemTerrainBounds? demBounds = MeshCodeBounds.TryMerge(requestedMeshAreas) is { } merged
+            ? new DemTerrainBounds(merged.SouthLatitude, merged.NorthLatitude, merged.WestLongitude, merged.EastLongitude)
+            : null;
+        if (demBounds is null)
+        {
+            return [];
+        }
+
+        return await LocalCityGmlDemBootstrapSupport.CreateDemTerrainTextureOverlaysAsync(
+            demBounds,
+            demMeshCodes,
+            rasterCatalog,
+            cancellationToken);
     }
 }

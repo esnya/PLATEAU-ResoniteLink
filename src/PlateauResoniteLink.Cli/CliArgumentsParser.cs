@@ -28,16 +28,16 @@ public static class CliArgumentsParser
           --{package}-pattern <pattern>
                                 Optional. Pattern filter for specific package (e.g., --tran-pattern "*Marking").
                                 Supports: "*suffix", "prefix*", "*middle*", "exact".
-          --source <value>       Optional. local or remote. Default: local.
+          --citygml-source <path-or-url>
+                                Required. Local dataset/archive path or absolute direct .zip/.7z CityGML archive URL.
+          --ortho-source <path-or-url>
+                                Optional. Local raster/archive path or absolute direct .zip/.7z/.tif/.tiff ortho source URL.
           --dem-terrain-mode <mesh|heightmap>
                                 Optional. DEM import mode. Default: mesh.
           --dem-heightmap-meters-per-vertex <value>
                                 Optional. Heightmap sampling spacing in meters. Default: 2.0.
           --dem-heightmap-max-resolution <value>
                                 Optional. Maximum heightmap resolution per DEM chunk. Default: 1024.
-          --local-source-path <path>
-                                Required when --source local is used. Mirrors the Unity SDK LocalSourcePath naming.
-          --server-url <url>     Required when --source remote is used. Absolute direct .zip/.7z CityGML archive URL. Mirrors the Unity SDK ServerUrl naming.
           --work-root <path>     Optional. Parent directory for dataset-local archive storage and live temporary files. Default: local.
           --terrain-tile-cache-root <path>
                                 Optional. Override the persistent terrain tile cache root.
@@ -85,7 +85,8 @@ public static class CliArgumentsParser
     {
         string? dataset = null;
         string? meshCode = null;
-        string? localSourcePath = null;
+        string? cityGmlSourceInput = null;
+        string? orthoSourceInput = null;
         string workRoot = "local";
         string? terrainTileCacheRoot = null;
         bool disableTerrainTileCache = false;
@@ -95,8 +96,6 @@ public static class CliArgumentsParser
         bool enableMeshBake = true;
         bool enableSendMetrics = false;
         bool verboseLogging = false;
-        DatasetSourceKind sourceKind = DatasetSourceKind.Local;
-        Uri? serverUri = null;
         IReadOnlyList<string> packageNames = DefaultPackageNames;
         IReadOnlySet<int>? globalExcludeLods = null;
         IReadOnlyDictionary<string, IReadOnlySet<int>>? packageExcludeLods = null;
@@ -138,8 +137,11 @@ public static class CliArgumentsParser
                     case "--tile":
                         return CliParseResult.Failure(
                             "The --tile option has been replaced. Use --mesh-code.");
-                    case "--local-source-path":
-                        localSourcePath = ReadValue(args, ref index, token);
+                    case "--citygml-source":
+                        cityGmlSourceInput = ReadValue(args, ref index, token);
+                        break;
+                    case "--ortho-source":
+                        orthoSourceInput = ReadValue(args, ref index, token);
                         break;
                     case "--work-root":
                         workRoot = ReadValue(args, ref index, token);
@@ -232,16 +234,7 @@ public static class CliArgumentsParser
                         verboseLogging = true;
                         break;
                     case "--source":
-                        {
-                            string sourceValue = ReadValue(args, ref index, token);
-                            if (!Enum.TryParse<DatasetSourceKind>(sourceValue, ignoreCase: true, out sourceKind))
-                            {
-                                return CliParseResult.Failure(
-                                    $"Unsupported source '{sourceValue}'. Use 'local' or 'remote'.");
-                            }
-
-                            break;
-                        }
+                        return CliParseResult.Failure("The --source option has been replaced. Use --citygml-source.");
                     case "--dem-terrain-mode":
                         {
                             string demTerrainModeValue = ReadValue(args, ref index, token);
@@ -289,17 +282,10 @@ public static class CliArgumentsParser
 
                             break;
                         }
+                    case "--local-source-path":
+                        return CliParseResult.Failure("The --local-source-path option has been replaced. Use --citygml-source.");
                     case "--server-url":
-                        {
-                            string serverUrl = ReadValue(args, ref index, token);
-                            if (!Uri.TryCreate(serverUrl, UriKind.Absolute, out serverUri))
-                            {
-                                return CliParseResult.Failure(
-                                    $"The value '{serverUrl}' is not a valid absolute URL.");
-                            }
-
-                            break;
-                        }
+                        return CliParseResult.Failure("The --server-url option has been replaced. Use --citygml-source.");
                     case "--exclude-lod":
                         {
                             string excludeLodValue = ReadValue(args, ref index, token);
@@ -359,17 +345,28 @@ public static class CliArgumentsParser
             };
         }
 
-        PlateauImportSource source = sourceKind switch
+        if (string.IsNullOrWhiteSpace(cityGmlSourceInput))
         {
-            DatasetSourceKind.Local => new PlateauLocalImportSource(localSourcePath),
-            DatasetSourceKind.Remote => new PlateauRemoteImportSource(serverUri),
-            _ => throw new InvalidOperationException($"Unsupported dataset source kind '{sourceKind}'."),
-        };
+            return CliParseResult.Failure("Specify --citygml-source.");
+        }
+
+        if (!TryParseImportSourceInput(cityGmlSourceInput, out PlateauImportSource? source, out string? sourceError))
+        {
+            return CliParseResult.Failure(sourceError!);
+        }
+
+        PlateauImportSource? demTextureSource = null;
+        if (!string.IsNullOrWhiteSpace(orthoSourceInput)
+            && !TryParseImportSourceInput(orthoSourceInput, out demTextureSource, out string? demTextureSourceError))
+        {
+            return CliParseResult.Failure(demTextureSourceError!);
+        }
 
         PlateauImportRequest request = new(
             Dataset: dataset ?? string.Empty,
             MeshCode: meshCode ?? string.Empty,
-            Source: source,
+            Source: source!,
+            DemTextureSource: demTextureSource,
             PackageNames: packageNames,
             GlobalExcludeLodLevels: globalExcludeLods,
             ExcludeLodLevelsByPackage: packageExcludeLods,
@@ -715,6 +712,39 @@ public static class CliArgumentsParser
         string requestedPackageName = token["--".Length..^"-pattern".Length];
         packageName = requestedPackageName;
         patternValue = ReadValue(args, ref index, token);
+        return true;
+    }
+
+    private static bool TryParseImportSourceInput(
+        string input,
+        out PlateauImportSource? source,
+        out string? error)
+    {
+        string trimmedInput = input.Trim();
+        if (Path.IsPathRooted(trimmedInput))
+        {
+            source = PlateauImportSource.Local(trimmedInput);
+            error = null;
+            return true;
+        }
+
+        if (Uri.TryCreate(trimmedInput, UriKind.Absolute, out Uri? absoluteUri))
+        {
+            if (!string.Equals(absoluteUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(absoluteUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                source = null;
+                error = $"The value '{input}' is not a supported local path or http/https URL.";
+                return false;
+            }
+
+            source = PlateauImportSource.Remote(absoluteUri);
+            error = null;
+            return true;
+        }
+
+        source = PlateauImportSource.Local(trimmedInput);
+        error = null;
         return true;
     }
 }

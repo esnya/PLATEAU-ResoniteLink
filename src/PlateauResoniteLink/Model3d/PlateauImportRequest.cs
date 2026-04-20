@@ -4,6 +4,7 @@ public sealed record PlateauImportRequest(
     string Dataset,
     string MeshCode,
     PlateauImportSource Source,
+    PlateauImportSource? DemTextureSource = null,
     IReadOnlyList<string>? PackageNames = null,
     IReadOnlySet<int>? GlobalExcludeLodLevels = null,
     IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
@@ -19,6 +20,9 @@ public sealed record PlateauImportRequest(
         DatasetSourceKind SourceKind,
         string? LocalSourcePath,
         Uri? ServerUri,
+        DatasetSourceKind? DemTextureSourceKind = null,
+        string? DemTextureLocalSourcePath = null,
+        Uri? DemTextureServerUri = null,
         IReadOnlyList<string>? PackageNames = null,
         IReadOnlySet<int>? GlobalExcludeLodLevels = null,
         IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
@@ -31,6 +35,9 @@ public sealed record PlateauImportRequest(
             Dataset,
             MeshCode,
             PlateauImportSource.FromLegacy(SourceKind, LocalSourcePath, ServerUri),
+            DemTextureSourceKind is null
+                ? null
+                : PlateauImportSource.FromLegacy(DemTextureSourceKind.Value, DemTextureLocalSourcePath, DemTextureServerUri),
             PackageNames,
             GlobalExcludeLodLevels,
             ExcludeLodLevelsByPackage,
@@ -47,4 +54,10 @@ public sealed record PlateauImportRequest(
     public string? LocalSourcePath => Source is PlateauLocalImportSource localSource ? localSource.LocalSourcePath : null;
 
     public Uri? ServerUri => Source is PlateauRemoteImportSource remoteSource ? remoteSource.ServerUri : null;
+
+    public DatasetSourceKind? DemTextureSourceKind => DemTextureSource?.SourceKind;
+
+    public string? DemTextureLocalSourcePath => DemTextureSource is PlateauLocalImportSource localSource ? localSource.LocalSourcePath : null;
+
+    public Uri? DemTextureServerUri => DemTextureSource is PlateauRemoteImportSource remoteSource ? remoteSource.ServerUri : null;
 }
