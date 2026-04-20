@@ -1,4 +1,4 @@
 interface:
   display_name: "Resonite Live Send Debug"
   short_description: "Run real live-send repros with direct slot primitives"
-  default_prompt: "Use $resonite-live-send-debug to run a direct live-send repro with Plateau.ResoniteLink.Cli and the file-based session-tool.cs commands. If start-headless has no explicit --headless-path, try only the standard Windows Steam install root, then inspect the resulting Resonite world state."
+  default_prompt: "Use $resonite-live-send-debug to run a direct live-send repro with PlateauResoniteLink.Cli and the file-based session-tool.cs commands. If start-headless has no explicit --headless-path, try only the standard Windows Steam install root, then inspect the resulting Resonite world state."

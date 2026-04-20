@@ -57,7 +57,7 @@ disposable な headless validation では、次の operator sequence を優先�
 2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot --runtime-root <headless-runtime> --output <repo>/runtime/windows/resonite/root-dumps/baseline.json`
 3. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
 4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/post-removal-pre-send.json`
-5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
+5. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
 6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/after-send.json`
 7. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
 
@@ -65,9 +65,9 @@ disposable な headless validation では、次の operator sequence を優先�
 
 1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
 2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
-3. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372778 --resonitelink-connections 1`
 4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-base-heightmap-after-send.json`
-5. `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372788 --resonitelink-connections 1`
+5. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- build --dataset plateau-20202-matsumoto-shi-2020 --source local --local-source-path <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --mesh-code 54372788 --resonitelink-connections 1`
 6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
 
 world に `PLATEAU Shared Assets` や `Common Materials` のような stale root が追加で残っている場合は、root dump を見て exact な slot ID または exact な root-child name を選び、`remove-slot` で 1 つずつ除去します。それらの name を stable API とみなしません。
@@ -165,7 +165,7 @@ world に `PLATEAU Shared Assets` や `Common Materials` のような stale root
 この skill 配下には、少なくとも次の tracked file がある前提です。
 
 - `tools/session-tool.cs`
-- `src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj`
+- `src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj`
 
 direct `dotnet` 実行では、session tool script や CLI が on demand で rebuild されます。dump、removal、headless、live-send command に fresh local build output が含まれるのは expected execution path です。
 
@@ -192,5 +192,5 @@ direct `dotnet` 実行では、session tool script や CLI が on demand で reb
   明示した slot を 1 つ remove します。
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:<port>/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
   `Root` 直下の exact direct child を 1 つ解決して remove します。これは operator workflow の convenience であり、semantic cleanup API ではありません。
-- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build --dataset <dataset> --source local --local-source-path <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --mesh-code <mesh> --resonitelink-connections <n>`
+- `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- build --dataset <dataset> --source local --local-source-path <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --mesh-code <mesh> --resonitelink-connections <n>`
   `runtime/windows/resonite` 配下へ explicit log を出しながら、direct live send を 1 回実行します。

@@ -1,5 +1,5 @@
-Default DEM terrain imagery in this repository is generated on demand from the
-Geospatial Information Authority of Japan (GSI) seamless photo tile endpoint:
+GSI seamless photo imagery in this repository is used as the fallback DEM
+terrain imagery source when the primary PLATEAU ortho endpoint is unavailable:
 
 - https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg
 
@@ -12,12 +12,14 @@ Official reference pages:
 
 Current repository behavior:
 
-- The default URL template is defined in
-  src/Plateau.ResoniteLink/Profiles/PlateauCityGml/LocalCityGmlResonitePlanBuilder.cs
+- The primary URL template is defined in
+  src/PlateauResoniteLink/Profiles/PlateauCityGml/LocalCityGmlObjectProjection.cs
   as `DefaultDemTerrainTextureUrlTemplate`.
+- The GSI fallback URL template is defined in the same file as
+  `DefaultDemTerrainTextureFallbackUrlTemplate`.
 - The imagery is not checked into this repository as a bundled asset.
-- The CLI downloads tiles at build time only when DEM terrain texture overlays
-  are generated.
+- The CLI downloads fallback tiles at build time only when DEM terrain texture
+  overlays are generated and the primary source cannot satisfy the request.
 
 Usage and attribution note:
 

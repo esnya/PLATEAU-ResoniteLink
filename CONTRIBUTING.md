@@ -28,13 +28,13 @@ Unlabeled PRs fall through to the catch-all `Other changes` section in the gener
 The canonical verification command sequence is:
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet restore PlateauResoniteLink.sln --locked-mode --disable-build-servers
 dotnet format whitespace . --folder --verify-no-changes
-dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
+dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-Skill-owned tests under `.agents/skills/` are intentionally kept outside `Plateau.ResoniteLink.sln`.
+Skill-owned tests under `.agents/skills/` are intentionally kept outside `PlateauResoniteLink.sln`.
 When you change `.agents/skills/resonite-live-send-debug/tools/session-tool.cs` or its skill-local test contracts, run this additional verification command before push or PR update:
 
 ```bash
@@ -45,7 +45,7 @@ dotnet test .agents/skills/resonite-live-send-debug/tools/tests/ResoniteLiveSend
 For quick non-slow iteration between low-conflict changes, use:
 
 ```bash
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
+dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
 ```
 
 If you need to keep a large repository-improvement plan around temporarily, keep it under `.tmp/plans/` and leave it untracked. Do not treat that area as canonical documentation, do not link it from active docs as current operating guidance, and reflect only adopted conclusions in tracked documentation and code review artifacts.

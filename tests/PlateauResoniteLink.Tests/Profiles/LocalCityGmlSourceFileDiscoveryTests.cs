@@ -1,0 +1,144 @@
+using PlateauResoniteLink.Application.Importing;
+
+namespace PlateauResoniteLink.Tests.Application;
+
+public sealed class LocalCityGmlSourceFileDiscoveryTests
+{
+    [Fact]
+    public void DiscoverOrdersPackagesFromRequestedCenterOutward()
+    {
+        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+            datasetRoot,
+            "53394525",
+            packageNames: null).SourceFiles.ToArray();
+
+        Assert.Equal(["bldg", "dem", "luse", "tran"], result.Select(static file => file.PackageName).ToArray());
+        Assert.Equal(
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            result[0].RelativePath);
+        Assert.All(result, static file => Assert.False(file.RequiresMeshAreaFilter));
+    }
+
+    [Fact]
+    public void DiscoverFiltersPackagesAndKeepsParentMeshMatches()
+    {
+        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+            datasetRoot,
+            "53394525",
+            ["waterbody", "tran", "dem"]).SourceFiles.ToArray();
+
+        Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
+        Assert.Contains(
+            result,
+            static file =>
+                file.RelativePath == "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"
+                && file.RequiresMeshAreaFilter);
+        Assert.Contains(
+            result,
+            static file =>
+                file.RelativePath == "udx/tran/533945/plateau_tokyo23ku_tran_533945.gml"
+                && file.RequiresMeshAreaFilter);
+    }
+
+    [Fact]
+    public void DiscoverMatchesRegexMeshCodesFromFileNamesAndDirectories()
+    {
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+            [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/tran/53394526/plateau_tokyo23ku_tran_mesh.gml",
+                "udx/dem/53394527/plateau_tokyo23ku_dem_53394527.gml",
+                "udx/bldg/533945/plateau_tokyo23ku_bldg_533945.gml",
+            ],
+            "5339452[56]",
+            packageNames: null).SourceFiles.ToArray();
+
+        Assert.Equal(
+            [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/tran/53394526/plateau_tokyo23ku_tran_mesh.gml",
+                "udx/bldg/533945/plateau_tokyo23ku_bldg_533945.gml",
+            ],
+            result.Select(static file => file.RelativePath).ToArray());
+        Assert.Equal(["53394525", "53394526", "533945"], result.Select(static file => file.MatchedMeshCode).ToArray());
+        Assert.Equal([false, false, true], result.Select(static file => file.RequiresMeshAreaFilter).ToArray());
+    }
+
+    [Fact]
+    public void DiscoverRegexSelectionKeepsParentMeshFilesForMatchedDetailedMeshes()
+    {
+        string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+
+        LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
+            datasetRoot,
+            "5339452.",
+            ["dem", "tran"]);
+        LocalCityGmlSourceFileDescriptor[] result = discoveryResult.SourceFiles.ToArray();
+
+        Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
+        Assert.All(result, static file => Assert.Equal("533945", file.MatchedMeshCode));
+        Assert.All(result, static file => Assert.True(file.RequiresMeshAreaFilter));
+        Assert.Contains("53394525", discoveryResult.RequestedMeshCodes);
+    }
+
+    [Fact]
+    public void DiscoverRegexSelectionDerivesRequestedMeshCodesOnlyFromRequestedPackages()
+    {
+        LocalCityGmlSourceFileDiscoveryResult result = LocalCityGmlSourceFileDiscovery.Discover(
+            [
+                "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml",
+                "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
+            ],
+            "5339452.",
+            ["dem"]);
+
+        Assert.Equal(["53394525"], result.RequestedMeshCodes);
+        Assert.Equal(
+            ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            result.SourceFiles.Select(static file => file.RelativePath).ToArray());
+    }
+
+    [Fact]
+    public void DiscoverOrdersSamePriorityPackagesFromRequestedCenterOutward()
+    {
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+            [
+                "udx/bldg/53394521/plateau_tokyo23ku_bldg_53394521.gml",
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/bldg/53394529/plateau_tokyo23ku_bldg_53394529.gml",
+            ],
+            "5339452[159]",
+            ["bldg"]).SourceFiles.ToArray();
+
+        Assert.Equal(
+            [
+                "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+                "udx/bldg/53394521/plateau_tokyo23ku_bldg_53394521.gml",
+                "udx/bldg/53394529/plateau_tokyo23ku_bldg_53394529.gml",
+            ],
+            result.Select(static file => file.RelativePath).ToArray());
+    }
+
+    [Fact]
+    public void DiscoverIgnoresFilesOutsideRecognizedUdxPackageLayout()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        Directory.CreateDirectory(Path.Combine(datasetRoot.Path, "misc"));
+        File.WriteAllText(Path.Combine(datasetRoot.Path, "misc", "53394525_misc.gml"), "<root />");
+        Directory.CreateDirectory(Path.Combine(datasetRoot.Path, "udx", "unknown", "53394525"));
+        File.WriteAllText(
+            Path.Combine(datasetRoot.Path, "udx", "unknown", "53394525", "plateau_tokyo23ku_unknown_53394525.gml"),
+            "<root />");
+
+        LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
+            datasetRoot.Path,
+            "53394525",
+            packageNames: null).SourceFiles.ToArray();
+
+        Assert.Empty(result);
+    }
+}

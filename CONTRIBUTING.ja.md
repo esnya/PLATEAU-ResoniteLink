@@ -28,13 +28,13 @@ label がない PR は、生成される release notes の catch-all である `
 正本となる検証コマンド列は次です。
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet restore PlateauResoniteLink.sln --locked-mode --disable-build-servers
 dotnet format whitespace . --folder --verify-no-changes
-dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
+dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
-`.agents/skills/` 配下の skill-owned test は、意図的に `Plateau.ResoniteLink.sln` の外で運用します。
+`.agents/skills/` 配下の skill-owned test は、意図的に `PlateauResoniteLink.sln` の外で運用します。
 `.agents/skills/resonite-live-send-debug/tools/session-tool.cs` またはその skill-local test contract を変更した場合は、push や PR update の前に次も追加で実行してください。
 
 ```bash
@@ -45,7 +45,7 @@ dotnet test .agents/skills/resonite-live-send-debug/tools/tests/ResoniteLiveSend
 低競合の変更の間で non-slow だけを素早く回したいときは、次を使います。
 
 ```bash
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
+dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity minimal -m:1 --disable-build-servers -p:UseSharedCompilation=false --filter "Category!=Slow"
 ```
 
 大きな repository-improvement plan を一時的に保持したい場合は、`.tmp/plans/` 配下に置き、untracked のまま維持してください。その領域を canonical documentation として扱わず、active docs から現行運用の案内としてリンクせず、採用した結論だけを tracked documentation と review 成果物へ反映してください。

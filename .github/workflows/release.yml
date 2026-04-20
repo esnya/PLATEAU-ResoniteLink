@@ -26,10 +26,10 @@ jobs:
 
       - name: Verify
         run: |
-          dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+          dotnet restore PlateauResoniteLink.sln --locked-mode --disable-build-servers
           dotnet format whitespace . --folder --verify-no-changes
-          dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
-          dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
+          dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+          dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 
       - name: Compute release metadata
         id: metadata
@@ -38,22 +38,22 @@ jobs:
           current_tag="${GITHUB_REF_NAME}"
           previous_tag="$(git tag --sort=-version:refname | grep -Fxv "${current_tag}" | head -n 1 || true)"
           echo "previous_tag=${previous_tag}" >> "${GITHUB_OUTPUT}"
-          echo "asset_name=Plateau.ResoniteLink-cli-${current_tag}.zip" >> "${GITHUB_OUTPUT}"
+          echo "asset_name=PlateauResoniteLink-cli-${current_tag}.zip" >> "${GITHUB_OUTPUT}"
 
       - name: Publish CLI
-        run: dotnet publish src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj --configuration Release --no-restore --output artifacts/release/publish
+        run: dotnet publish src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj --configuration Release --no-restore --output artifacts/release/publish
 
       - name: Add asset readme
         env:
           CURRENT_TAG: ${{ github.ref_name }}
         run: |
           cat > artifacts/release/publish/README.txt <<EOF
-          Plateau.ResoniteLink CLI ${CURRENT_TAG}
+          PlateauResoniteLink CLI ${CURRENT_TAG}
 
           This release asset is framework-dependent and requires .NET 10.
 
           Quick start:
-            dotnet Plateau.ResoniteLink.Cli.dll --help
+            dotnet PlateauResoniteLink.Cli.dll --help
 
           Canonical changelog:
             https://github.com/${{ github.repository }}/releases/tag/${CURRENT_TAG}
@@ -80,8 +80,8 @@ jobs:
           ## Summary
 
           - Automated release for ${CURRENT_TAG}.
-          - GitHub Releases are the canonical changelog for Plateau.ResoniteLink.
-          - \`Plateau.ResoniteLink-cli-${CURRENT_TAG}.zip\` is a framework-dependent asset and requires .NET 10.
+          - GitHub Releases are the canonical changelog for PlateauResoniteLink.
+          - \`PlateauResoniteLink-cli-${CURRENT_TAG}.zip\` is a framework-dependent asset and requires .NET 10.
 
           EOF
 
@@ -89,7 +89,7 @@ jobs:
             cat >> "${output_path}" <<'EOF'
           ## Initial release context
 
-          This tag starts the formal GitHub Releases-based changelog for Plateau.ResoniteLink.
+          This tag starts the formal GitHub Releases-based changelog for PlateauResoniteLink.
 
           Highlights before this first tagged release:
           - Added the live CLI pipeline for streaming PLATEAU CityGML datasets into Resonite through ResoniteLink.
@@ -115,7 +115,7 @@ jobs:
           set -euo pipefail
           args=(
             release create "${CURRENT_TAG}"
-            "artifacts/release/${ASSET_NAME}#Plateau.ResoniteLink CLI ${CURRENT_TAG}"
+            "artifacts/release/${ASSET_NAME}#PlateauResoniteLink CLI ${CURRENT_TAG}"
             --verify-tag
             --title "${CURRENT_TAG}"
             --generate-notes

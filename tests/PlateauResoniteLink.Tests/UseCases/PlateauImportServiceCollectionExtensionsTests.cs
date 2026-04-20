@@ -1,0 +1,183 @@
+using Microsoft.Extensions.DependencyInjection;
+
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Domain.Importing;
+
+namespace PlateauResoniteLink.Tests.UseCases;
+
+public sealed class PlateauImportServiceCollectionExtensionsTests
+{
+    [Fact]
+    public async Task AddPlateauCityGmlImportServicesUsesCustomReaderAndComposerWhenFactoryCreatesSource()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Local(TestData.GetFixturePath("LocalPlateauDataset")));
+        LocalCityGmlDocumentReadResult expectedReadResult = new(
+            new LocalCityGmlDocumentSet(
+                new StubDatasetContentSource(request.LocalSourcePath!),
+                [],
+                ["bldg"],
+                [],
+                ["53394525"]),
+            new LocalCityGmlBootstrapContext(
+                [],
+                new GeodeticPoint(35.0, 139.0, 0.0)));
+        StubConstructionSource expectedSource = new();
+        CustomCityGmlDocumentReader reader = new(expectedReadResult);
+        RecordingConstructionComposer composer = new(expectedSource);
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<ICityGmlDocumentReader>(reader)
+            .AddSingleton<IImportedSceneSourceComposer>(composer)
+            .AddPlateauCityGmlImportServices()
+            .BuildServiceProvider();
+        IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
+
+        IImportedSceneSource source = await factory.CreateAsync(request);
+
+        Assert.Same(expectedSource, source);
+        Assert.Same(request, reader.LastRequest);
+        Assert.Same(request, composer.LastRequest);
+        Assert.Same(expectedReadResult, composer.LastReadResult);
+    }
+
+    [Fact]
+    public void AddPlateauCityGmlImportServicesPreservesCustomDatasetContentSourceFactory()
+    {
+        CustomPlateauDatasetContentSourceFactory factory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IPlateauDatasetContentSourceFactory>(factory)
+            .AddPlateauCityGmlImportServices()
+            .BuildServiceProvider();
+
+        Assert.Same(factory, provider.GetRequiredService<IPlateauDatasetContentSourceFactory>());
+    }
+
+    [Fact]
+    public void AddPlateauCityGmlImportServicesPreservesCustomDocumentReader()
+    {
+        CustomCityGmlDocumentReader reader = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<ICityGmlDocumentReader>(reader)
+            .AddPlateauCityGmlImportServices()
+            .BuildServiceProvider();
+
+        Assert.Same(reader, provider.GetRequiredService<ICityGmlDocumentReader>());
+    }
+
+    [Fact]
+    public void AddPlateauCityGmlImportServicesPreservesCustomConstructionSourceFactory()
+    {
+        CustomConstructionSourceFactory factory = new();
+        ServiceProvider provider = new ServiceCollection()
+            .AddSingleton<IImportedSceneSourceFactory>(factory)
+            .AddPlateauCityGmlImportServices()
+            .BuildServiceProvider();
+
+        Assert.Same(factory, provider.GetRequiredService<IImportedSceneSourceFactory>());
+    }
+
+    private sealed class CustomPlateauDatasetContentSourceFactory : IPlateauDatasetContentSourceFactory
+    {
+        public Task<IPlateauDatasetContentSource> CreateAsync(
+            string sourcePath,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class CustomCityGmlDocumentReader(LocalCityGmlDocumentReadResult? readResult = null) : ICityGmlDocumentReader
+    {
+        public PlateauImportRequest? LastRequest { get; private set; }
+
+        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
+            PlateauImportRequest request,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            return Task.FromResult(readResult ?? throw new NotSupportedException());
+        }
+    }
+
+    private sealed class CustomConstructionSourceFactory : IImportedSceneSourceFactory
+    {
+        public Task<IImportedSceneSource> CreateAsync(
+            PlateauImportRequest request,
+            Action<string>? progressReporter = null,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class RecordingConstructionComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
+    {
+        public PlateauImportRequest? LastRequest { get; private set; }
+
+        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
+
+        public IImportedSceneSource Compose(
+            PlateauImportRequest request,
+            LocalCityGmlDocumentReadResult readResult,
+            Action<string>? progressReporter = null)
+        {
+            LastRequest = request;
+            LastReadResult = readResult;
+            return source;
+        }
+    }
+
+    private sealed class StubDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
+    {
+        public string SourcePath { get; } = sourcePath;
+
+        public IReadOnlyList<string> EnumerateFiles() => [];
+
+        public bool FileExists(string relativePath) => false;
+
+        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task<string> EnsureLocalFileAsync(
+            string relativePath,
+            string outputRoot,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+    }
+
+    private sealed class StubConstructionSource : IImportedSceneSource
+    {
+        public ImportedSceneMetadata Metadata { get; } = new(
+            "3.0",
+            "stub",
+            new PlateauImportRequest("stub", "53394525", PlateauImportSource.Local("/tmp")),
+            new PlateauSourceDataset([], [], [], []),
+            new Attribution(
+                new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
+                []),
+            GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
+
+        public IEnumerable<ImportedCityObject> ReadCityObjects() => [];
+
+        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+
+        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.CompletedTask;
+            yield break;
+        }
+    }
+}

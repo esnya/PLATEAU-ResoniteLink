@@ -1,8 +1,8 @@
-# Plateau.ResoniteLink
+# PlateauResoniteLink
 
 <img width="2560" height="1440" alt="2026-04-08 03 02 41" src="https://github.com/user-attachments/assets/7dac58c7-8855-4362-855d-f12e884dc05e" />
 
-Plateau.ResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `Plateau.ResoniteLink-cli-vX.Y.Z.zip` を公開します。
+PlateauResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `PlateauResoniteLink-cli-vX.Y.Z.zip` を公開します。
 
 この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / pending / intentionally regressed はここ と tests に揃えます。
 
@@ -35,10 +35,10 @@ Intentionally regressed:
 pull request を作成または更新する前に、repository の正本となる検証コマンド列を実行します。
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet restore PlateauResoniteLink.sln --locked-mode --disable-build-servers
 dotnet format whitespace . --folder --verify-no-changes
-dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
+dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
 contributor workflow、環境 bootstrap、検証フローの ownership は [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md) を参照してください。
@@ -48,7 +48,7 @@ contributor workflow、環境 bootstrap、検証フローの ownership は [CONT
 ローカル import 例:
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372778 \
@@ -60,7 +60,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 remote archive import 例:
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372788 \
@@ -74,14 +74,14 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 ローカル inspection の例:
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   search \
   --local-source-path /path/to/plateau-or-archive.zip \
   --mesh-code 5437277.
 ```
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   stats \
   --local-source-path /path/to/plateau-or-archive.zip
 ```
@@ -104,6 +104,6 @@ CLI は既定でマイルストーン級の進捗だけを表示し、file ご�
 - [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) は portal-level の既定条件であり、dataset 固有条件を上書きしません。
 - [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) では、dataset ごとに PDL 1.0、CC BY 4.0、ODC BY、ODbL など異なる条件がありうると案内されています。
 - PLATEAU SDK for Unity は別 upstream の MIT licensed project で、license 控えは `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt` にあります。
-- `src/Plateau.ResoniteLink/Assets/DefaultMaterials/` 配下の bundled default material texture は AmbientCG 由来で、追跡メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` にあります。
-- 既定の DEM terrain imagery overlay は bundled asset ではありません。GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg` から生成し、repository 内の追跡メモは `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` にあります。
+- `src/PlateauResoniteLink/Assets/DefaultMaterials/` 配下の bundled default material texture は AmbientCG 由来で、追跡メモは `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt` にあります。
+- 既定の DEM terrain imagery overlay は bundled asset ではありません。PLATEAU ortho tile endpoint `https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png` から生成し、取得できない場合は GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg` に fallback します。fallback source の repository 内メモは `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt` にあります。
 - NuGet package やその他の runtime dependency には upstream license が適用されます。binary や vendored asset を再配布する前に、実際に出荷する version を確認してください。
