@@ -132,6 +132,43 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         Assert.Equal(2, datasetSource.MaterializeCallCount);
     }
 
+    [Fact]
+    public async Task TryResolveRasterSourceAsyncKeepsSuccessfulCachedTaskAfterCanceledWaiter()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        SucceedingGateableDatasetContentSource datasetSource = CreateSucceedingGateableDatasetSource(datasetRoot.Path);
+        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        GeographicRectangle bounds = new(35.0, 35.1, 139.0, 139.1);
+        using CancellationTokenSource firstCallerCancellation = new();
+
+        Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
+            "dem-fallback",
+            "dem-fallback",
+            bounds,
+            firstCallerCancellation.Token);
+        await datasetSource.MaterializeStarted.Task.WaitAsync(CancellationToken.None);
+        Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
+            "dem-fallback",
+            "dem-fallback",
+            bounds,
+            CancellationToken.None);
+
+        await firstCallerCancellation.CancelAsync();
+        datasetSource.ReleaseMaterialize.TrySetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await firstCall);
+        TerrainTextureGeoReferencedRasterSource? secondResult = await secondCall;
+        Assert.Null(secondResult);
+
+        TerrainTextureGeoReferencedRasterSource? thirdResult = await catalog.TryResolveRasterSourceAsync(
+            "dem-fallback",
+            "dem-fallback",
+            bounds,
+            CancellationToken.None);
+        Assert.Null(thirdResult);
+        Assert.Equal(1, datasetSource.MaterializeCallCount);
+    }
+
     private static RecordingDatasetContentSource CreateDatasetSource(string datasetRoot)
     {
         string westRasterPath = Path.Combine(datasetRoot, "west.tif");
@@ -157,6 +194,15 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         string rasterPath = Path.Combine(datasetRoot, "faulting.tif");
         File.WriteAllText(rasterPath, "dummy");
         return new FaultingGateableDatasetContentSource(
+            datasetRoot,
+            [Path.GetFileName(rasterPath)]);
+    }
+
+    private static SucceedingGateableDatasetContentSource CreateSucceedingGateableDatasetSource(string datasetRoot)
+    {
+        string rasterPath = Path.Combine(datasetRoot, "succeeding.tif");
+        File.WriteAllText(rasterPath, "dummy");
+        return new SucceedingGateableDatasetContentSource(
             datasetRoot,
             [Path.GetFileName(rasterPath)]);
     }
@@ -305,6 +351,47 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
             {
                 BackgroundCompletion.TrySetResult();
             }
+        }
+    }
+
+    private sealed class SucceedingGateableDatasetContentSource(
+        string sourcePath,
+        IReadOnlyList<string> files) : IPlateauDatasetContentSource
+    {
+        public string SourcePath { get; } = sourcePath;
+
+        public int MaterializeCallCount { get; private set; }
+
+        public TaskCompletionSource MaterializeStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource ReleaseMaterialize { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IReadOnlyList<string> EnumerateFiles()
+        {
+            return files;
+        }
+
+        public bool FileExists(string relativePath)
+        {
+            return files.Contains(relativePath, StringComparer.OrdinalIgnoreCase);
+        }
+
+        public ValueTask<Stream> OpenReadAsync(
+            string relativePath,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public async Task<string> MaterializeFileAsync(
+            string relativePath,
+            string outputRoot,
+            CancellationToken cancellationToken = default)
+        {
+            MaterializeCallCount++;
+            MaterializeStarted.TrySetResult();
+            await ReleaseMaterialize.Task.WaitAsync(cancellationToken);
+            return Path.Combine(SourcePath, relativePath);
         }
     }
 }

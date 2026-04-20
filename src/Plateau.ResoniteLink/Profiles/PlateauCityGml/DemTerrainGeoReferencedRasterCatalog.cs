@@ -124,6 +124,11 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog
                 throw;
             }
 
+            if (resolveTask.IsCompletedSuccessfully)
+            {
+                throw;
+            }
+
             lock (cachedRasterSourceTaskGate)
             {
                 if (cachedRasterSourceTasksByMeshCode.TryGetValue(cacheKey, out Task<TerrainTextureGeoReferencedRasterSource?>? cachedTask)
