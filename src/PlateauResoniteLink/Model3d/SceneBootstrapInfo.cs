@@ -10,9 +10,6 @@ public sealed record SceneBootstrapInfo(
     LicenseAttributionMetadata DatasetLicense,
     IReadOnlyList<LicenseAttributionMetadata> AdditionalDatasetLicenses)
 {
-    private const string GsiLicenseName = "GSI Maps Terms";
-    private const string GsiLicenseUrl = "https://maps.gsi.go.jp/help/termsofuse.html";
-
     public static SceneBootstrapInfo CreateFromMetadata(
         ResoniteConstructionMetadata metadata,
         string? localSourcePath = null)
@@ -35,15 +32,7 @@ public sealed record SceneBootstrapInfo(
     private static LicenseAttributionMetadata[] CreateAdditionalDatasetLicenses(
         ResoniteConstructionMetadata metadata)
     {
-        return metadata.SourceDataset.TerrainTextureOverlays
-            .Select(static overlay => overlay.LicenseMode)
-            .Where(static licenseMode => licenseMode == TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback)
-            .Select(static _ => new LicenseAttributionMetadata(
-                RequireCredit: true,
-                CreditText: "DEM terrain imagery may use fallback to GSI seamless photo tiles where PLATEAU-Ortho coverage is unavailable.",
-                LicenseName: GsiLicenseName,
-                LicenseUrl: GsiLicenseUrl))
-            .Distinct()
-            .ToArray();
+        ArgumentNullException.ThrowIfNull(metadata);
+        return [];
     }
 }

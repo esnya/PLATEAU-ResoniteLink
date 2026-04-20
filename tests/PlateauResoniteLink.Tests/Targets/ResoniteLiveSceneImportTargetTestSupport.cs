@@ -131,11 +131,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null)
     {
+        string? resolvedSourcePath = normalizedRequest?.Source is PlateauRemoteImportSource
+            ? null
+            : metadata.Request.LocalSourcePath;
         return CreateExecutionPlan(
             SceneImportContractMapper.ToContract(metadata),
             workDirectory,
             normalizedRequest ?? metadata.Request,
-            metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)));
+            resolvedSourcePath);
     }
 
     public static SceneImportExecutionPlan CreateExecutionPlan(
@@ -144,11 +147,66 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         PlateauImportRequest? normalizedRequest = null,
         string? resolvedSourcePath = null)
     {
+        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
+        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
+            effectiveNormalizedRequest,
+            metadata.Request,
+            workDirectory,
+            resolvedSourcePath);
+        ImportedSceneMetadata effectiveMetadata = metadata with { Request = resolvedRequest };
+
         return SceneImportExecutionPlan.Create(
-            normalizedRequest ?? metadata.Request,
-            metadata,
-            resolvedSourcePath ?? metadata.Request.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
+            effectiveNormalizedRequest,
+            resolvedRequest,
+            effectiveMetadata,
+            resolvedRequest.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
             workDirectory);
+    }
+
+    private static PlateauImportRequest CreateResolvedRequest(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest metadataRequest,
+        string workDirectory,
+        string? resolvedSourcePath)
+    {
+        string? effectiveResolvedSourcePath = resolvedSourcePath
+            ?? ResolveLocalPath(normalizedRequest.Source, workDirectory, "source-archive")
+            ?? metadataRequest.LocalSourcePath;
+        if (string.IsNullOrWhiteSpace(effectiveResolvedSourcePath))
+        {
+            throw new ArgumentException("Metadata request must include a local source path.", nameof(metadataRequest));
+        }
+
+        PlateauImportSource? resolvedDemTextureSource = metadataRequest.DemTextureSource;
+        if (normalizedRequest.DemTextureSource is not null)
+        {
+            string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource, workDirectory, "source-ortho");
+            resolvedDemTextureSource = resolvedDemTexturePath is null
+                ? metadataRequest.DemTextureSource
+                : PlateauImportSource.Local(resolvedDemTexturePath);
+        }
+
+        return metadataRequest with
+        {
+            Source = PlateauImportSource.Local(effectiveResolvedSourcePath),
+            DemTextureSource = resolvedDemTextureSource,
+        };
+    }
+
+    private static string? ResolveLocalPath(
+        PlateauImportSource source,
+        string workDirectory,
+        string prefix)
+    {
+        return source switch
+        {
+            PlateauLocalImportSource localSource => localSource.LocalSourcePath,
+            PlateauRemoteImportSource remoteSource => RemoteDatasetResourceLayout.GetRemoteResourcePath(
+                workDirectory,
+                remoteSource.ServerUri ?? throw new ArgumentException("Remote source must include a URI.", nameof(source)),
+                prefix),
+            _ => null,
+        };
     }
 
     public static Slot FindUniqueSlotByPathSuffix(SceneBuilderRecordingClient client, string suffix)
@@ -220,6 +278,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     new ResoniteSceneSlotLocator(),
                     new ResoniteMaterialPlanning(),
                     new ResoniteSceneAnchorResolver()),
+                new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(),
                 new ResoniteBatchEmissionPlanner(),
@@ -609,8 +668,13 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         };
     }
 
-    private static string TryResolveLocalId(string id, IReadOnlyDictionary<string, string> localIds)
+    private static string? TryResolveLocalId(string? id, IReadOnlyDictionary<string, string> localIds)
     {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return id;
+        }
+
         return localIds.TryGetValue(id, out string? resolvedId)
             ? resolvedId
             : id;

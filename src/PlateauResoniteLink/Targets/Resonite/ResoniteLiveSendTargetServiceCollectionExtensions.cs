@@ -26,6 +26,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
                 serviceProvider.GetRequiredService<IResoniteSceneSlotLocator>(),
                 serviceProvider.GetRequiredService<IResoniteMaterialPlanning>(),
                 serviceProvider.GetRequiredService<IResoniteSceneAnchorResolver>()));
+        services.TryAddScoped<IResoniteDatasetLicenseWriter, ResoniteDatasetLicenseWriter>();
         services.TryAddScoped<IResoniteLiveSceneImportDependencyFactory, ResoniteLiveSceneImportDependencyFactory>();
         services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
 
@@ -106,6 +107,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
     IResoniteClientSessionFactory clientSessionFactory,
     ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory,
     IResoniteSceneBootstrapInterpreter sceneBootstrapInterpreter,
+    IResoniteDatasetLicenseWriter datasetLicenseWriter,
     IResoniteGeometryAssetAssembler geometryAssetAssembler,
     IResoniteMaterialPlanning materialPlanning,
     IResoniteBatchEmissionPlanner batchEmissionPlanner,
@@ -129,6 +131,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             diagnostics,
             terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
             sceneBootstrapInterpreter,
+            datasetLicenseWriter,
             geometryAssetAssembler,
             materialPlanning,
             batchEmissionPlanner,

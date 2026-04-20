@@ -13,7 +13,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
-        using TemporaryDirectory rawDatasetDirectory = new();
         using TemporaryDirectory resolvedDatasetDirectory = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
@@ -35,6 +34,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
                 new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(),
                 new ResoniteBatchEmissionPlanner(),
@@ -42,7 +42,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
 
-        PlateauImportRequest normalizedRequest = CreateRequest(rawDatasetDirectory.Path);
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: PlateauImportSource.Remote(new Uri("https://example.invalid/tokyo23ku/source-archive.zip")));
         ResoniteConstructionMetadata metadata = CreateMetadata(
             CreateRequest(resolvedDatasetDirectory.Path),
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
@@ -87,6 +90,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
                 new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(),
                 new ResoniteBatchEmissionPlanner(),
@@ -138,6 +142,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
                 new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
                 new ResoniteMaterialPlanning(),
                 new ResoniteBatchEmissionPlanner(),
@@ -231,6 +236,201 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         Assert.Single(
             routedClient.SlotsById[datasetRoot.ID!].Components!,
             component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal));
+        Assert.Empty(routedClient.UpdatedComponents);
+        Assert.DoesNotContain(
+            routedClient.Batches.SelectMany(static operations => operations),
+            static operation => operation is UpdateComponent);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AddsGsiFallbackLicenseOnlyWhenGsiTileIsActuallyUsed()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512,
+            PrimarySource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+            FallbackSource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    "terrain-overlay/dem/gsi-used"),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel)));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            routedClient,
+            terrainTextureGenerator,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            terrainTextureOverlays: [overlay]);
+
+        _ = await builder.ExecuteAsync(
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+            CreateImportedCityObjects(
+                CreateDemCityObject("dem-run", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
+        Component[] licenses = datasetRoot.Components!
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, licenses.Length);
+        string[] creditStrings = licenses
+            .Select(static component => ((Field_string)component.Members["CreditString"]).Value)
+            .ToArray();
+        Assert.Contains(creditStrings, static creditString => creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
+        Assert.Contains(creditStrings, static creditString => !creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
+        Assert.Empty(routedClient.UpdatedComponents);
+        Assert.DoesNotContain(
+            routedClient.Batches.SelectMany(static operations => operations),
+            static operation => operation is UpdateComponent);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotAddGsiFallbackLicenseWhenPrimaryTerrainSourceIsUsed()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512,
+            PrimarySource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+            FallbackSource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    "terrain-overlay/dem/ortho-used"),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel)));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            routedClient,
+            terrainTextureGenerator,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            terrainTextureOverlays: [overlay]);
+
+        _ = await builder.ExecuteAsync(
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+            CreateImportedCityObjects(
+                CreateDemCityObject("dem-primary", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
+        Component[] licenses = datasetRoot.Components!
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Single(licenses);
+        string creditString = ((Field_string)licenses[0].Members["CreditString"]).Value;
+        Assert.DoesNotContain("GSI Maps Terms", creditString, StringComparison.Ordinal);
+        Assert.Empty(routedClient.UpdatedComponents);
+        Assert.DoesNotContain(
+            routedClient.Batches.SelectMany(static operations => operations),
+            static operation => operation is UpdateComponent);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_DoesNotAddGsiFallbackLicenseWhenExplicitRasterSourceIsUsed()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            Path.Combine(datasetDirectory.Path, "dem-ortho.tif"),
+            new GeoReferencedRasterMetadata(
+                new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                "EPSG:4326",
+                1.0,
+                1.0));
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512,
+            PrimarySource: rasterSource,
+            FallbackSource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    "terrain-overlay/dem/raster-used"),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                rasterSource));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            routedClient,
+            terrainTextureGenerator,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            terrainTextureOverlays: [overlay]);
+
+        _ = await builder.ExecuteAsync(
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+            CreateImportedCityObjects(
+                CreateDemCityObject("dem-raster", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
+        Component[] licenses = datasetRoot.Components!
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Single(licenses);
+        string creditString = ((Field_string)licenses[0].Members["CreditString"]).Value;
+        Assert.DoesNotContain("GSI Maps Terms", creditString, StringComparison.Ordinal);
         Assert.Empty(routedClient.UpdatedComponents);
         Assert.DoesNotContain(
             routedClient.Batches.SelectMany(static operations => operations),
@@ -386,6 +586,37 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0]),
+            ],
+            CollisionEnabled: true,
+            SourceObjectKey: objectKey,
+            SourceUnitKey: objectKey,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateDemCityObject(
+        string objectKey,
+        string sourceFileRelativePath,
+        TerrainTextureOverlay overlay)
+    {
+        return new ResoniteConstructionCityObject(
+            objectKey,
+            $"DEM {objectKey}",
+            "dem",
+            "53394525",
+            0,
+            new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-material"),
+            [
+                new ResoniteMaterialBinding(
+                    "dem-material",
+                    new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    ResoniteMaterialType.Standard,
+                    null,
+                    ResoniteTextureSourceKind.Dataset,
+                    ResoniteMaterialProjection.Uv,
+                    null,
+                    [0],
+                    TerrainOverlay: overlay),
             ],
             CollisionEnabled: true,
             SourceObjectKey: objectKey,

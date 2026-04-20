@@ -19,7 +19,8 @@ internal interface ITerrainTextureAssetGenerator
 internal sealed record GeneratedTerrainTexture(
     ResoniteRawTextureImport TextureImport,
     ResoniteFloat2 CanvasScale,
-    ResoniteFloat2 CanvasOffset);
+    ResoniteFloat2 CanvasOffset,
+    TerrainTextureSource? UsedSource = null);
 
 internal sealed class TerrainTextureAssetGenerator(
     HttpClient? httpClient = null,
@@ -79,7 +80,8 @@ internal sealed class TerrainTextureAssetGenerator(
                 GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
                     image,
                     terrainTextureOverlay.MaxTextureSize,
-                    CreateOverlayIdentity(terrainTextureOverlay, source));
+                    CreateOverlayIdentity(terrainTextureOverlay, source),
+                    source);
                 return new CachedTerrainTexture(generatedTexture, source);
             }
         }
@@ -173,19 +175,20 @@ internal sealed class TerrainTextureAssetGenerator(
     private static GeneratedTerrainTexture CreateGeneratedTexture(
         Image<Rgba32> image,
         int maxTextureSize,
-        string identity)
+        string identity,
+        TerrainTextureSource usedSource)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
         using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
 
-        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, identity, out GeneratedTerrainTexture? generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, identity, usedSource, out GeneratedTerrainTexture? generatedTexture))
         {
             return generatedTexture!;
         }
 
         int fallbackMaxTextureSize = RoundDownToPowerOfTwo(maxTextureSize);
         using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(opaqueImage, fallbackMaxTextureSize);
-        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, identity, out generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, identity, usedSource, out generatedTexture))
         {
             return generatedTexture!;
         }
@@ -198,6 +201,7 @@ internal sealed class TerrainTextureAssetGenerator(
         Image<Rgba32> image,
         int maxTextureSize,
         string identity,
+        TerrainTextureSource usedSource,
         out GeneratedTerrainTexture? generatedTexture)
     {
         int canvasWidth = RoundUpToPowerOfTwo(image.Width);
@@ -216,7 +220,8 @@ internal sealed class TerrainTextureAssetGenerator(
         generatedTexture = new GeneratedTerrainTexture(
             CreateRawTextureImport(canvasImage, identity),
             new ResoniteFloat2((double)image.Width / canvasWidth, (double)image.Height / canvasHeight),
-            new ResoniteFloat2(0.0, 0.0));
+            new ResoniteFloat2(0.0, 0.0),
+            usedSource);
         return true;
     }
 
