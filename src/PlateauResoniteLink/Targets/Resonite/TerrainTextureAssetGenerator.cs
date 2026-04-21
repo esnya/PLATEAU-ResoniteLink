@@ -26,10 +26,28 @@ internal interface ITerrainTextureAssetGenerator
 
 internal sealed record GeneratedTerrainTexture(
     ResoniteRawTextureImport TextureImport,
-    ResoniteFloat2 CanvasScale,
-    ResoniteFloat2 CanvasOffset,
+    TextureUvRect OccupiedUvRect,
     TerrainTextureSource? UsedSource = null,
-    IReadOnlyList<TerrainTextureSource>? UsedSources = null);
+    IReadOnlyList<TerrainTextureSource>? UsedSources = null)
+{
+    public GeneratedTerrainTexture(
+        ResoniteRawTextureImport textureImport,
+        ResoniteFloat2 canvasScale,
+        ResoniteFloat2 canvasOffset,
+        TerrainTextureSource? usedSource = null,
+        IReadOnlyList<TerrainTextureSource>? usedSources = null)
+        : this(
+            textureImport,
+            TextureUvRect.FromScaleOffset(canvasScale, canvasOffset),
+            usedSource,
+            usedSources)
+    {
+    }
+
+    public ResoniteFloat2 CanvasScale => OccupiedUvRect.Scale;
+
+    public ResoniteFloat2 CanvasOffset => OccupiedUvRect.Offset;
+}
 
 internal sealed class TerrainTextureAssetGenerator(
     HttpClient? httpClient = null,
@@ -276,15 +294,20 @@ internal sealed class TerrainTextureAssetGenerator(
         using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight, DefaultDemGroundFillColor);
         int drawOffsetX = 0;
         int drawOffsetY = canvasHeight - image.Height;
-        int bottomPaddingY = canvasHeight - image.Height - drawOffsetY;
         canvasImage.Mutate(context => context.DrawImage(
             image,
             new Point(drawOffsetX, drawOffsetY),
             1.0f));
+        TextureUvRect occupiedUvRect = TextureUvRect.FromTopLeftPixelRect(
+            drawOffsetX,
+            drawOffsetY,
+            image.Width,
+            image.Height,
+            canvasWidth,
+            canvasHeight);
         generatedTexture = new GeneratedTerrainTexture(
             CreateRawTextureImport(canvasImage, identity),
-            new ResoniteFloat2((double)image.Width / canvasWidth, (double)image.Height / canvasHeight),
-            new ResoniteFloat2((double)drawOffsetX / canvasWidth, (double)bottomPaddingY / canvasHeight),
+            occupiedUvRect,
             usedSource,
             usedSources.Distinct().ToArray());
         return true;

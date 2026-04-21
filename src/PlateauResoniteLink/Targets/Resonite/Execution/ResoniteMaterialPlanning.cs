@@ -391,18 +391,11 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return material;
         }
 
-        ResoniteFloat2 canvasScale = generatedTerrainTexture.CanvasScale;
-        ResoniteFloat2 canvasOffset = generatedTerrainTexture.CanvasOffset;
-        ResoniteFloat2? effectiveTextureScale = material.TextureScale is null && IsUnity(canvasScale)
-            ? null
-            : new ResoniteFloat2(
-                (material.TextureScale?.X ?? 1.0) * canvasScale.X,
-                (material.TextureScale?.Y ?? 1.0) * canvasScale.Y);
-        ResoniteFloat2? effectiveTextureOffset = material.TextureOffset is null && IsZero(canvasOffset)
-            ? null
-            : new ResoniteFloat2(
-                ((material.TextureOffset?.X) ?? 0.0) * canvasScale.X + canvasOffset.X,
-                ((material.TextureOffset?.Y) ?? 0.0) * canvasScale.Y + canvasOffset.Y);
+        (ResoniteFloat2? effectiveTextureScale, ResoniteFloat2? effectiveTextureOffset)
+            = TextureUvRect.ComposeMaterialTransform(
+                generatedTerrainTexture.OccupiedUvRect,
+                material.TextureScale,
+                material.TextureOffset);
         return material with
         {
             TextureScale = effectiveTextureScale,
@@ -531,15 +524,4 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         textures.Add(new PlannedTextureAsset(new TextureIdentity(role), assetUri));
     }
 
-    private static bool IsUnity(ResoniteFloat2 value)
-    {
-        return Math.Abs(value.X - 1.0) <= 1e-9
-            && Math.Abs(value.Y - 1.0) <= 1e-9;
-    }
-
-    private static bool IsZero(ResoniteFloat2 value)
-    {
-        return Math.Abs(value.X) <= 1e-9
-            && Math.Abs(value.Y) <= 1e-9;
-    }
 }

@@ -1386,7 +1386,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .SelectMany(material =>
                 material.TerrainOverlay is not null
                 && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? generatedTexture)
-                && HasEffectiveTerrainTextureCanvasTransform(generatedTexture)
+                && !generatedTexture.OccupiedUvRect.IsIdentity
                     ? material.SubmeshIndices.Select(submeshIndex => KeyValuePair.Create(submeshIndex, generatedTexture))
                     : [])
             .ToDictionary(static pair => pair.Key, static pair => pair.Value);
@@ -1404,7 +1404,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             {
                 ResoniteMeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
                 ResoniteFloat2 adjustedUv = generatedTextureBySubmeshIndex.TryGetValue(submesh.Index, out GeneratedTerrainTexture? generatedTexture)
-                    ? ApplyTerrainTextureCanvasTransform(sourceVertex.UV0, generatedTexture)
+                    ? TextureUvRect.Remap(sourceVertex.UV0, TextureUvRect.Identity, generatedTexture.OccupiedUvRect)
                     : sourceVertex.UV0;
                 adjustedVertices.Add(sourceVertex with { UV0 = adjustedUv });
                 adjustedIndices.Add(adjustedVertices.Count - 1);
@@ -1417,7 +1417,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             .Select(material =>
                 material.TerrainOverlay is not null
                 && preparedTerrainTextureDataByOverlay.TryGetValue(material.TerrainOverlay, out GeneratedTerrainTexture? generatedTexture)
-                && HasEffectiveTerrainTextureCanvasTransform(generatedTexture)
+                && !generatedTexture.OccupiedUvRect.IsIdentity
                     ? material with
                     {
                         TextureScale = null,
@@ -1431,23 +1431,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             Geometry = new ResoniteTriangleMeshGeometry(new ResoniteImportedMesh(adjustedVertices, adjustedSubmeshes)),
             Materials = adjustedMaterials,
         };
-    }
-
-    private static bool HasEffectiveTerrainTextureCanvasTransform(GeneratedTerrainTexture generatedTerrainTexture)
-    {
-        return Math.Abs(generatedTerrainTexture.CanvasScale.X - 1.0) > 1e-9
-            || Math.Abs(generatedTerrainTexture.CanvasScale.Y - 1.0) > 1e-9
-            || Math.Abs(generatedTerrainTexture.CanvasOffset.X) > 1e-9
-            || Math.Abs(generatedTerrainTexture.CanvasOffset.Y) > 1e-9;
-    }
-
-    private static ResoniteFloat2 ApplyTerrainTextureCanvasTransform(
-        ResoniteFloat2 sourceUv,
-        GeneratedTerrainTexture generatedTerrainTexture)
-    {
-        return new ResoniteFloat2(
-            (sourceUv.X * generatedTerrainTexture.CanvasScale.X) + generatedTerrainTexture.CanvasOffset.X,
-            (sourceUv.Y * generatedTerrainTexture.CanvasScale.Y) + generatedTerrainTexture.CanvasOffset.Y);
     }
 
     private static string CreateTriangleMeshDiagnosticSummary(

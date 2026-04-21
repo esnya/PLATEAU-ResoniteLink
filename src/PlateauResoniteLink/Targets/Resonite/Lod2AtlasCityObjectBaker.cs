@@ -296,7 +296,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             switch (category)
             {
                 case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
-                    UvBounds uvBounds = ComputeUvBounds(normalizedCityObject.Mesh.Vertices, submesh, material);
+                    TextureUvRect uvBounds = ComputeUvBounds(normalizedCityObject.Mesh.Vertices, submesh, material);
                     MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
                     atlasEntries.Add(new AtlasBatchEntry(normalizedCityObject, submesh, material, tile, uvBounds));
                     break;
@@ -328,7 +328,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private async Task<MaterialAtlasTile> CreateAtlasTileAsync(
         ResoniteMaterialBinding material,
-        UvBounds uvBounds,
+        TextureUvRect uvBounds,
         CancellationToken cancellationToken)
     {
         if (material.TexturePayload is null)
@@ -685,16 +685,19 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static ResoniteFloat2 MapUvToAtlas(
         ResoniteFloat2 sourceUv,
-        UvBounds uvBounds,
+        TextureUvRect uvBounds,
         Rect atlasRect,
         double atlasWidth,
         double atlasHeight)
     {
-        double normalizedU = NormalizeToBounds(sourceUv.X, uvBounds.MinU, uvBounds.Width);
-        double normalizedV = NormalizeToBounds(sourceUv.Y, uvBounds.MinV, uvBounds.Height);
-        return new ResoniteFloat2(
-            (atlasRect.X + (normalizedU * atlasRect.Width)) / atlasWidth,
-            (atlasHeight - atlasRect.Y - atlasRect.Height + (normalizedV * atlasRect.Height)) / atlasHeight);
+        TextureUvRect atlasUvRect = TextureUvRect.FromTopLeftPixelRect(
+            atlasRect.X,
+            atlasRect.Y,
+            atlasRect.Width,
+            atlasRect.Height,
+            (int)Math.Round(atlasWidth),
+            (int)Math.Round(atlasHeight));
+        return TextureUvRect.Remap(sourceUv, uvBounds, atlasUvRect);
     }
 
     private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
@@ -1154,7 +1157,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return new ResoniteFloat3(left.X - right.X, left.Y - right.Y, left.Z - right.Z);
     }
 
-    private static UvBounds ComputeUvBounds(
+    private static TextureUvRect ComputeUvBounds(
         IReadOnlyList<ResoniteMeshVertex> vertices,
         ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material)
@@ -1175,17 +1178,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         if (double.IsPositiveInfinity(minU) || double.IsPositiveInfinity(minV))
         {
-            return new UvBounds(0.0, 0.0, 1.0, 1.0);
+            return TextureUvRect.Identity;
         }
 
         double width = Math.Max(1.0 / 1024.0, maxU - minU);
         double height = Math.Max(1.0 / 1024.0, maxV - minV);
-        return new UvBounds(minU, minV, width, height);
+        return new TextureUvRect(minU, minV, width, height);
     }
 
     private static Image<Rgba32> BakeUsedUvRegion(
         Image<Rgba32> sourceImage,
-        UvBounds uvBounds,
+        TextureUvRect uvBounds,
         int targetWidth,
         int targetHeight)
     {
@@ -1193,12 +1196,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
         for (int y = 0; y < targetHeight; y++)
         {
             double normalizedV = 1.0 - ((y + 0.5) / targetHeight);
-            double sourceV = uvBounds.MinV + (normalizedV * uvBounds.Height);
             for (int x = 0; x < targetWidth; x++)
             {
                 double normalizedU = (x + 0.5) / targetWidth;
-                double sourceU = uvBounds.MinU + (normalizedU * uvBounds.Width);
-                bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceU, sourceV);
+                ResoniteFloat2 sourceUv = uvBounds.Denormalize(normalizedU, normalizedV);
+                bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceUv.X, sourceUv.Y);
             }
         }
 
@@ -1458,16 +1460,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return (byte)Math.Clamp(Math.Round(value), 0.0, 255.0);
     }
 
-    private static double NormalizeToBounds(double value, double min, double length)
-    {
-        if (length <= 0.0)
-        {
-            return 0.0;
-        }
-
-        return Math.Clamp((value - min) / length, 0.0, 1.0);
-    }
-
     private static PreservedMaterialGroupingKey CreatePreservedMaterialGroupingKey(ResoniteMaterialBinding material)
     {
         ResoniteMaterialBinding normalizedMaterial = NormalizePreservedMaterial(material);
@@ -1597,7 +1589,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         ResoniteMeshSubmesh Submesh,
         ResoniteMaterialBinding Material,
         MaterialAtlasTile Tile,
-        UvBounds UvBounds);
+        TextureUvRect UvBounds);
 
     private sealed record PreservedSubmeshEntry(
         ResoniteConstructionCityObject CityObject,
@@ -1650,12 +1642,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
         Rect InnerRect);
 
     private readonly record struct Rect(int X, int Y, int Width, int Height);
-
-    private readonly record struct UvBounds(
-        double MinU,
-        double MinV,
-        double Width,
-        double Height);
 
     private readonly record struct SourceUnitBatchKey(
         string ActualMeshCode,
