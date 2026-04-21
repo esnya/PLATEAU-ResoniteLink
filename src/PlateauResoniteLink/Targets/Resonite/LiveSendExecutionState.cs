@@ -51,6 +51,8 @@ internal sealed class CommonMaterialAssetCache
     public ConcurrentDictionary<string, Task> CommonMaterialFamilyWarmupTasks { get; } = new(StringComparer.Ordinal);
 
     public AsyncInFlightResultCache<string, CreatedMaterialAsset> CommonMaterialCreationTasks { get; } = new();
+
+    public required IReadOnlySet<string> BootstrapKnownMaterialKeys { get; init; }
 }
 
 internal sealed record LiveSendRunPlan(
@@ -91,5 +93,5 @@ internal sealed class LiveSendRunState
 
     public required SemaphoreSlim GsiFallbackLicenseGate { get; init; }
 
-    public required ConcurrentDictionary<string, byte> ReportedDemSourceIdentities { get; init; }
+    public required ConcurrentDictionary<string, int> DemSourceUseCounts { get; init; }
 }

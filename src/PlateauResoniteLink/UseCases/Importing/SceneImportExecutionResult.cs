@@ -7,4 +7,5 @@ namespace PlateauResoniteLink.Application.Importing;
 public sealed record SceneImportExecutionResult(
     IReadOnlyList<string> Destinations,
     int ProcessedCityObjectCount,
-    int FailedCityObjectCount = 0);
+    int FailedCityObjectCount = 0,
+    IReadOnlyList<ImportDataSourceUsage>? DataSourceUsages = null);

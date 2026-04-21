@@ -126,6 +126,17 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(source.Metadata.SceneName, result.Metadata.SceneName);
         Assert.Equal(source.Metadata.SourceDataset.PackageNames, result.Metadata.SourceDataset.PackageNames);
         Assert.Equal(["stub://destination"], result.Destinations);
+        Assert.Equal(1 + readResult.DocumentSet.RelativeSourceFiles.Count, result.DataSourceUsages?.Count);
+        Assert.Contains(
+            result.DataSourceUsages ?? [],
+            static usage => usage.Category == ImportDataSourceCategory.CityGmlSourceFile
+                && string.Equals(usage.Identity, "udx/bldg/53394525/building.gml", StringComparison.Ordinal)
+                && usage.UsedCount == 1);
+        Assert.Contains(
+            result.DataSourceUsages ?? [],
+            static usage => usage.Category == ImportDataSourceCategory.DemTextureSource
+                && string.Equals(usage.Identity, "terrain://ortho-primary", StringComparison.Ordinal)
+                && usage.UsedCount == 2);
     }
 
     [Fact]
@@ -283,7 +294,16 @@ public sealed class PlateauImportServiceTests
             }
 
             return ExecutionResultFactory is null
-                ? new SceneImportExecutionResult(["stub://destination"], ProcessedCityObjects.Count)
+                ? new SceneImportExecutionResult(
+                    ["stub://destination"],
+                    ProcessedCityObjects.Count,
+                    DataSourceUsages:
+                    [
+                        new ImportDataSourceUsage(
+                            ImportDataSourceCategory.DemTextureSource,
+                            "terrain://ortho-primary",
+                            2),
+                    ])
                 : ExecutionResultFactory(ProcessedCityObjects.Count);
         }
 

@@ -127,7 +127,10 @@ public sealed class PlateauImportService(
                     + $"(failed={executionResult.FailedCityObjectCount}).");
             }
 
-            return new ImportExecutionResult(metadata, executionResult.Destinations);
+            return new ImportExecutionResult(
+                metadata,
+                executionResult.Destinations,
+                CreateDataSourceUsages(metadata, executionResult));
         }
         finally
         {
@@ -149,6 +152,26 @@ public sealed class PlateauImportService(
 
         return materialByKey.Values.ToArray();
     }
+
+    private static List<ImportDataSourceUsage> CreateDataSourceUsages(
+        ImportedSceneMetadata metadata,
+        SceneImportExecutionResult executionResult)
+    {
+        List<ImportDataSourceUsage> usages = metadata.SourceDataset.SourceFiles
+            .Select(static sourceFile => new ImportDataSourceUsage(
+                ImportDataSourceCategory.CityGmlSourceFile,
+                sourceFile,
+                UsedCount: 1))
+            .ToList();
+
+        if (executionResult.DataSourceUsages is { Count: > 0 })
+        {
+            usages.AddRange(executionResult.DataSourceUsages);
+        }
+
+        return usages;
+    }
+
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);

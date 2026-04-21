@@ -75,6 +75,8 @@ public sealed class CliApplication
                             await standardOutput.WriteLineAsync($"Resonite location: {destination}");
                         }
 
+                        await WriteDataSourceUsagesAsync(result.DataSourceUsages, cancellationToken);
+
                         return 0;
                     }
                 case SearchCommandOptions options:
@@ -178,6 +180,43 @@ public sealed class CliApplication
                 ", ",
                 counts.Select(
                     static pair => $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}"));
+    }
+
+    private async Task WriteDataSourceUsagesAsync(
+        IReadOnlyList<ImportDataSourceUsage>? dataSourceUsages,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (dataSourceUsages is not { Count: > 0 })
+        {
+            return;
+        }
+
+        IEnumerable<IGrouping<ImportDataSourceCategory, ImportDataSourceUsage>> usagesByCategory = dataSourceUsages
+            .GroupBy(static usage => usage.Category)
+            .OrderBy(static group => group.Key);
+
+        await standardOutput.WriteLineAsync("Data sources:");
+        foreach (IGrouping<ImportDataSourceCategory, ImportDataSourceUsage> categoryGroup in usagesByCategory)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await standardOutput.WriteLineAsync($"  {FormatDataSourceCategory(categoryGroup.Key)}:");
+            foreach (ImportDataSourceUsage usage in categoryGroup.OrderBy(static usage => usage.Identity, StringComparer.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await standardOutput.WriteLineAsync($"    {usage.Identity} ({usage.UsedCount.ToString(CultureInfo.InvariantCulture)})");
+            }
+        }
+    }
+
+    private static string FormatDataSourceCategory(ImportDataSourceCategory category)
+    {
+        return category switch
+        {
+            ImportDataSourceCategory.CityGmlSourceFile => "CityGML source files",
+            ImportDataSourceCategory.DemTextureSource => "DEM texture sources",
+            _ => category.ToString(),
+        };
     }
 
     private Action<string> CreateReporter(PlateauLogLevel minimumLogLevel)

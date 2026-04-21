@@ -210,6 +210,59 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_FailsWhenBootstrapKnownCommonMaterialWasNotResolvedDuringSetup()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        await using ResoniteLiveSceneImportTarget builder = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            new ResoniteLiveSceneImportDependencies(
+                session,
+                ResoniteLinkSendDiagnostics.Disabled,
+                new TerrainTextureAssetGenerator(),
+                new MissingCommonMaterialBootstrapInterpreter(),
+                new ResoniteDatasetLicenseWriter(),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+        IReadOnlyList<ResoniteMaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(["bldg"]);
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
+            SceneImportContractMapper.ToContract(metadata),
+            request.LocalSourcePath!,
+            workDirectory.Path,
+            commonMaterials);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => builder.ExecuteAsync(
+                plan,
+                CreateImportedCityObjects(CreateBundledFacadeCityObject("bootstrap-common-missing"))));
+
+        Assert.Contains(
+            "Bootstrap did not resolve shared/common material",
+            exception.Message,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_KeepsDatasetLicenseComponentsCreateOnlyAcrossRepeatedRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -287,7 +340,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
             terrainTextureOverlays: [overlay]);
 
-        _ = await builder.ExecuteAsync(
+        SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
             CreateImportedCityObjects(
                 CreateDemCityObject("dem-run", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
@@ -302,6 +355,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             .ToArray();
         Assert.Contains(creditStrings, static creditString => creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
         Assert.Contains(creditStrings, static creditString => !creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
+        ImportDataSourceUsage demSourceUsage = Assert.Single(executionResult.DataSourceUsages ?? []);
+        Assert.Equal(ImportDataSourceCategory.DemTextureSource, demSourceUsage.Category);
+        Assert.Equal(
+            new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel).IdentityKey,
+            demSourceUsage.Identity);
+        Assert.Equal(1, demSourceUsage.UsedCount);
         Assert.Empty(routedClient.UpdatedComponents);
         Assert.DoesNotContain(
             routedClient.Batches.SelectMany(static operations => operations),
@@ -627,5 +688,104 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             SourceObjectKey: objectKey,
             SourceUnitKey: objectKey,
             SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateBundledFacadeCityObject(string objectKey)
+    {
+        string family = BundledDefaultMaterialFamilies.Facade;
+        int variantIndex = 0;
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
+        return new ResoniteConstructionCityObject(
+            objectKey,
+            $"CityObject {objectKey}",
+            "bldg",
+            "53394525",
+            0,
+            new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("common|facade|variant:0|Uv"),
+            [
+                new ResoniteMaterialBinding(
+                    "common|facade|variant:0|Uv",
+                    new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    ResoniteMaterialType.Standard,
+                    null,
+                    ResoniteTextureSourceKind.Bundled,
+                    ResoniteMaterialProjection.Uv,
+                    null,
+                    [0],
+                    TextureScale: BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath),
+                    Family: family,
+                    TextureOffset: null,
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    BundledVariantIndex: variantIndex),
+            ],
+            CollisionEnabled: true,
+            SourceObjectKey: objectKey,
+            SourceUnitKey: objectKey,
+            SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
+    }
+
+    private sealed class MissingCommonMaterialBootstrapInterpreter : IResoniteSceneBootstrapInterpreter
+    {
+        public async Task<ResoniteSceneBootstrapState> BootstrapAsync(
+            IResoniteLinkClient setupClient,
+            SceneBootstrapInfo setupInfo,
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
+            CancellationToken cancellationToken)
+        {
+            _ = setupInfo;
+            _ = commonMaterials;
+
+            string datasetRootId = await setupClient.AddSlotAsync(
+                new AddSlot
+                {
+                    Data = new Slot
+                    {
+                        Parent = new Reference { TargetID = "Root" },
+                        Name = new Field_string { Value = "PLATEAU tokyo23ku" },
+                    },
+                },
+                cancellationToken);
+            string assetsRootId = await setupClient.AddSlotAsync(
+                new AddSlot
+                {
+                    Data = new Slot
+                    {
+                        Parent = new Reference { TargetID = datasetRootId },
+                        Name = new Field_string { Value = "Assets" },
+                    },
+                },
+                cancellationToken);
+            string commonRootId = await setupClient.AddSlotAsync(
+                new AddSlot
+                {
+                    Data = new Slot
+                    {
+                        Parent = new Reference { TargetID = "Root" },
+                        Name = new Field_string { Value = "PLATEAU Shared Assets" },
+                    },
+                },
+                cancellationToken);
+            string commonMaterialsRootId = await setupClient.AddSlotAsync(
+                new AddSlot
+                {
+                    Data = new Slot
+                    {
+                        Parent = new Reference { TargetID = commonRootId },
+                        Name = new Field_string { Value = "Common Materials" },
+                    },
+                },
+                cancellationToken);
+
+            return new ResoniteSceneBootstrapState(
+                new CreatedSlot(datasetRootId, "PLATEAU tokyo23ku"),
+                new CreatedSlot(assetsRootId, "Assets"),
+                new CreatedSlot(commonMaterialsRootId, "Common Materials"),
+                DatasetRootExisted: false,
+                new SceneAnchor(datasetRootId, "53394525", new ResoniteFloat3(0.0, 0.0, 0.0), null),
+                DatasetRootSnapshot: null,
+                CommonMaterialAssetsByKey: new Dictionary<string, CreatedMaterialAsset>(StringComparer.Ordinal),
+                CommonMaterialFamilies: []);
+        }
     }
 }

@@ -43,6 +43,11 @@ internal sealed class AsyncInFlightResultCache<TKey, TValue>
         inFlightTasks.TryRemove(key, out _);
     }
 
+    public bool TryGetCompleted(TKey key, out TValue? value)
+    {
+        return completedValues.TryGetValue(key, out value);
+    }
+
     public void Remove(TKey key)
     {
         completedValues.TryRemove(key, out _);

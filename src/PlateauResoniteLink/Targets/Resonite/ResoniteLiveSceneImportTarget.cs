@@ -108,7 +108,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             return new SceneImportExecutionResult(
                 destinations,
                 state.Progress.ProcessedCityObjectCount,
-                state.Progress.FailedCityObjectCount);
+                state.Progress.FailedCityObjectCount,
+                CreateDataSourceUsages(state));
         }
         finally
         {
@@ -161,7 +162,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 + $"(dataset='{bootstrapInfo.Dataset}', mesh='{bootstrapInfo.MeshCode}')."));
         IResoniteLinkClient routedClient = GetRoutedClient();
         LiveSendProgressSink progress = new();
-        CommonMaterialAssetCache materials = new();
+        CommonMaterialAssetCache materials = new()
+        {
+            BootstrapKnownMaterialKeys = CollectBootstrapKnownCommonMaterialKeys(commonMaterials),
+        };
         ReportProgress(
             PlateauLog.Info(
                 "live",
@@ -256,7 +260,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             ImportedTextureUriCache = new AsyncCompletedResultCache<TextureImportCacheKey, Uri>(),
             Runtime = runtime,
             GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
-            ReportedDemSourceIdentities = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal),
+            DemSourceUseCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal),
         };
         Stopwatch laneStartStopwatch = Stopwatch.StartNew();
         Diagnostics.StartSendWindow(connectionCount);
@@ -984,7 +988,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 terrainTextureOverlay,
                 cancellationToken);
             TerrainTextureSource usedSource = terrainTexture.UsedSource ?? terrainTextureOverlay.PrimarySource;
-            if (state.ReportedDemSourceIdentities.TryAdd(usedSource.IdentityKey, 0))
+            int useCount = state.DemSourceUseCounts.AddOrUpdate(
+                usedSource.IdentityKey,
+                1,
+                static (_, current) => checked(current + 1));
+            if (useCount == 1)
             {
                 ReportProgress(
                     PlateauLog.Info(
@@ -1430,16 +1438,28 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 await familyWarmupTask.WaitAsync(ct);
             }
 
-            CreatedMaterialAsset existingMaterialAsset = await runState.Materials.CommonMaterialCreationTasks.GetOrCreateAsync(
-                materialKey,
-                () => new LazySharedMaterialTaskFactory(
-                    runState,
-                    client,
-                    materialPlanning,
-                    normalizedSharedMaterial,
-                    familySlotName,
-                    ResoniteMaterialPlanning.CreateComponentAsync).CreateLazySharedMaterialTask(materialKey),
-                ct);
+            CreatedMaterialAsset existingMaterialAsset;
+            if (runState.Materials.BootstrapKnownMaterialKeys.Contains(materialKey))
+            {
+                if (!runState.Materials.CommonMaterialCreationTasks.TryGetCompleted(materialKey, out existingMaterialAsset))
+                {
+                    throw new InvalidOperationException(
+                        $"Bootstrap did not resolve shared/common material '{materialKey}' before runtime emission.");
+                }
+            }
+            else
+            {
+                existingMaterialAsset = await runState.Materials.CommonMaterialCreationTasks.GetOrCreateAsync(
+                    materialKey,
+                    () => new LazySharedMaterialTaskFactory(
+                        runState,
+                        client,
+                        materialPlanning,
+                        normalizedSharedMaterial,
+                        familySlotName,
+                        ResoniteMaterialPlanning.CreateComponentAsync).CreateLazySharedMaterialTask(materialKey),
+                    ct);
+            }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
                 existingMaterialAsset.MaterialComponentId);
@@ -1536,6 +1556,35 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private static bool IsDemPackage(string packageName)
     {
         return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ImportDataSourceUsage[] CreateDataSourceUsages(LiveSendRunState state)
+    {
+        return state.DemSourceUseCounts
+            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static pair => new ImportDataSourceUsage(
+                ImportDataSourceCategory.DemTextureSource,
+                pair.Key,
+                pair.Value))
+            .ToArray();
+    }
+
+    private static HashSet<string> CollectBootstrapKnownCommonMaterialKeys(
+        IReadOnlyList<ResoniteMaterialBinding> commonMaterials)
+    {
+        HashSet<string> keys = new(StringComparer.Ordinal);
+        foreach (ResoniteMaterialBinding material in commonMaterials)
+        {
+            if (ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+                    material,
+                    out ResoniteMaterialBinding normalizedSharedMaterial,
+                    out _))
+            {
+                keys.Add(normalizedSharedMaterial.MaterialKey);
+            }
+        }
+
+        return keys;
     }
 
     private async Task<PlannedGeometryAsset> PlanGeometryAssetAsync(

@@ -90,6 +90,9 @@ public sealed class CliApplicationTests
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
         Assert.Contains("World: PLATEAU tokyo23ku 53394525", standardOutput.ToString());
         Assert.Contains("Resonite location: stub://resonite/location", standardOutput.ToString());
+        Assert.Contains("Data sources:", standardOutput.ToString());
+        Assert.Contains("CityGML source files:", standardOutput.ToString());
+        Assert.Contains("DEM texture sources:", standardOutput.ToString());
         Assert.Equal(string.Empty, standardError.ToString());
     }
 
@@ -234,7 +237,16 @@ public sealed class CliApplicationTests
                 CityObjects.Add(cityObject);
             }
 
-            return new SceneImportExecutionResult(["stub://resonite/location"], CityObjects.Count);
+            return new SceneImportExecutionResult(
+                ["stub://resonite/location"],
+                CityObjects.Count,
+                DataSourceUsages:
+                [
+                    new ImportDataSourceUsage(
+                        ImportDataSourceCategory.DemTextureSource,
+                        "terrain://ortho-primary",
+                        1),
+                ]);
         }
 
         public ValueTask DisposeAsync()
