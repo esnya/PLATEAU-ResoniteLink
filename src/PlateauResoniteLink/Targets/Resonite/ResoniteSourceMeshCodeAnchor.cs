@@ -72,14 +72,6 @@ internal static partial class ResoniteSourceMeshCodeAnchor
         return ResolveMeshCodeClosestToBoundsCenter(concreteSourceMeshCodes);
     }
 
-    public static string ResolveCompletionMeshCode(ResoniteConstructionMetadata metadata)
-    {
-        ArgumentNullException.ThrowIfNull(metadata);
-
-        return ResolveCompletionMeshCode(
-            SceneBootstrapInfo.CreateFromMetadata(metadata));
-    }
-
     private static IEnumerable<string> EnumerateSourceFileMeshCodes(
         IReadOnlyList<string> sourceFiles,
         bool includeDemPackages)

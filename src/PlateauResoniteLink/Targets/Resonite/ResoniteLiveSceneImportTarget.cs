@@ -998,23 +998,26 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
                 terrainTextureOverlay,
                 cancellationToken);
-            TerrainTextureSource usedSource = terrainTexture.UsedSource ?? terrainTextureOverlay.PrimarySource;
-            int useCount = state.DemSourceUseCounts.AddOrUpdate(
-                usedSource.IdentityKey,
-                1,
-                static (_, current) => checked(current + 1));
-            if (useCount == 1)
+            TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture, terrainTextureOverlay);
+            foreach (TerrainTextureSource usedSource in usedSources)
             {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "live",
-                        $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
-                        + $"to {DescribeTerrainTextureSource(usedSource)}."));
-            }
+                int useCount = state.DemSourceUseCounts.AddOrUpdate(
+                    usedSource.IdentityKey,
+                    1,
+                    static (_, current) => checked(current + 1));
+                if (useCount == 1)
+                {
+                    ReportProgress(
+                        PlateauLog.Info(
+                            "live",
+                            $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
+                            + $"to {DescribeTerrainTextureSource(usedSource)}."));
+                }
 
-            if (IsGsiFallbackSource(usedSource))
-            {
-                await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
+                if (IsGsiFallbackSource(usedSource))
+                {
+                    await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
+                }
             }
 
             return new PreparedTextureReference(
@@ -1032,6 +1035,23 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                     $"Skipping terrain overlay texture for '{terrainTextureOverlay.SourceIdentityKey}' after texture generation failure."));
             return null;
         }
+    }
+
+    private static TerrainTextureSource[] GetTrackedTerrainTextureSources(
+        GeneratedTerrainTexture terrainTexture,
+        TerrainTextureOverlay terrainTextureOverlay)
+    {
+        if (terrainTexture.UsedSources is { Count: > 0 })
+        {
+            return terrainTexture.UsedSources
+                .Distinct()
+                .ToArray();
+        }
+
+        return
+        [
+            terrainTexture.UsedSource ?? terrainTextureOverlay.PrimarySource,
+        ];
     }
 
     private async Task EnsureGsiFallbackLicenseAsync(
@@ -1855,10 +1875,23 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
     {
-        ResoniteConstructionMetadata metadata = SceneImportContractMapper.ToInternal(request.Metadata);
-        return SceneBootstrapInfo.CreateFromMetadata(
-            metadata,
-            request.ResolvedSourcePath);
+        ArgumentNullException.ThrowIfNull(request);
+
+        return new SceneBootstrapInfo(
+            request.Metadata.Request.Dataset,
+            request.Metadata.Request.MeshCode,
+            request.ResolvedSourcePath
+                ?? request.Metadata.Request.LocalSourcePath
+                ?? string.Empty,
+            request.Metadata.SourceDataset.PackageNames,
+            request.Metadata.SourceDataset.SourceFiles,
+            request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
+            new LicenseAttributionMetadata(
+                request.Metadata.Attribution.DatasetLicense.RequireCredit,
+                request.Metadata.Attribution.DatasetLicense.CreditText,
+                request.Metadata.Attribution.DatasetLicense.LicenseName,
+                request.Metadata.Attribution.DatasetLicense.LicenseUrl),
+            []);
     }
 
     internal sealed record QueuedCityObject(

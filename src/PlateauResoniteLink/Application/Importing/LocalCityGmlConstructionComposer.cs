@@ -23,25 +23,41 @@ internal sealed class LocalCityGmlConstructionComposer(
         ArgumentNullException.ThrowIfNull(readResult);
         LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
         LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
-
         ResoniteAttribution attribution = PlateauResoniteAttributionFactory.Create(request);
-        ResoniteConstructionMetadata metadata = new(
+
+        ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
-            WorldName: $"PLATEAU {request.Dataset} {request.MeshCode}",
+            SceneName: $"PLATEAU {request.Dataset} {request.MeshCode}",
             Request: request,
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: documentSet.PackageNames.ToArray(),
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
                 TerrainTextureOverlays: documentSet.TerrainTextureOverlays.ToArray(),
                 SelectedMeshCodes: documentSet.SelectedMeshCodes),
-            Attribution: attribution,
-            LocalOrigin: new ResoniteLocalOrigin(
+            Attribution: new Attribution(
+                DatasetLicense: new LicenseMetadata(
+                    attribution.DatasetLicense.RequireCredit,
+                    attribution.DatasetLicense.CreditText,
+                    attribution.DatasetLicense.LicenseName,
+                    attribution.DatasetLicense.LicenseUrl),
+                MaterialLicenses: attribution.MaterialLicenses
+                    .Select(static license => new MaterialAttribution(
+                        license.MaterialKey,
+                        license.License is null
+                            ? null
+                            : new LicenseMetadata(
+                                license.License.RequireCredit,
+                                license.License.CreditText,
+                                license.License.LicenseName,
+                                license.License.LicenseUrl)))
+                    .ToArray()),
+            GeodeticOrigin: new GeodeticOrigin(
                 Latitude: bootstrapContext.GlobalOriginPoint.Latitude,
                 Longitude: bootstrapContext.GlobalOriginPoint.Longitude,
                 Altitude: bootstrapContext.GlobalOriginPoint.Altitude));
 
         return new LocalCityGmlConstructionSource(
-            SceneImportContractMapper.ToContract(metadata),
+            metadata,
             request,
             readResult,
             geometryProjector,

@@ -379,6 +379,89 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_TracksEveryDemSourceUsedInComposedOverlay()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            Path.Combine(datasetDirectory.Path, "dem-partial.tif"),
+            new GeoReferencedRasterMetadata(
+                new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                "EPSG:4326",
+                1.0,
+                1.0));
+        TerrainTextureTileSource gsiFallbackSource = new(
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+            LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512,
+            PrimarySource: rasterSource,
+            FallbackSource: gsiFallbackSource,
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    "terrain-overlay/dem/mixed-used"),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                gsiFallbackSource,
+                [rasterSource, gsiFallbackSource]));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            routedClient,
+            terrainTextureGenerator,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            terrainTextureOverlays: [overlay]);
+
+        SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+            CreateImportedCityObjects(
+                CreateDemCityObject("dem-mixed", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+
+        ImportDataSourceUsage[] usages = executionResult.DataSourceUsages?
+            .OrderBy(static usage => usage.Identity, StringComparer.Ordinal)
+            .ToArray()
+            ?? [];
+        Assert.Equal(2, usages.Length);
+        Assert.Contains(
+            usages,
+            static usage => usage.Category == ImportDataSourceCategory.DemTextureSource
+                && usage.Identity == new TerrainTextureTileSource(
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                    LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel).IdentityKey
+                && usage.UsedCount == 1);
+        Assert.Contains(
+            usages,
+            usage => usage.Category == ImportDataSourceCategory.DemTextureSource
+                && usage.Identity == rasterSource.IdentityKey
+                && usage.UsedCount == 1);
+
+        Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
+        Component[] licenses = datasetRoot.Components!
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.License", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, licenses.Length);
+        Assert.Contains(
+            licenses.Select(static component => ((Field_string)component.Members["CreditString"]).Value),
+            static creditString => creditString.Contains("GSI Maps Terms", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_DoesNotAddGsiFallbackLicenseWhenPrimaryTerrainSourceIsUsed()
     {
         using TemporaryDirectory datasetDirectory = new();

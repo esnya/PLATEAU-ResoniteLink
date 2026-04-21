@@ -11,14 +11,14 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeUsesNonDemSourceFilenames()
     {
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        SceneBootstrapInfo setupInfo = CreateSetupInfo(
             [
                 "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
                 "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
                 "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
             ]);
 
-        string meshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(metadata);
+        string meshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
 
         Assert.Equal("53394525", meshCode);
     }
@@ -26,10 +26,10 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeFallsBackToDemFilenamesWhenNeeded()
     {
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        SceneBootstrapInfo setupInfo = CreateSetupInfo(
             ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"]);
 
-        string meshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(metadata);
+        string meshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
 
         Assert.Equal("533945", meshCode);
     }
@@ -37,41 +37,28 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeThrowsWhenSourceFilenamesDoNotContainAMeshCode()
     {
-        ResoniteConstructionMetadata metadata = CreateMetadata(
-            ["udx/bldg/unknown/plateau_tokyo23ku_bldg_regex.gml"]);
-        metadata = metadata with
-        {
-            SourceDataset = metadata.SourceDataset with
-            {
-                SelectedMeshCodes = [],
-            },
-        };
+        SceneBootstrapInfo setupInfo = CreateSetupInfo(
+            ["udx/bldg/unknown/plateau_tokyo23ku_bldg_regex.gml"],
+            []);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(metadata));
+            () => ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo));
 
         Assert.Contains("discovered source filenames", exception.Message, StringComparison.Ordinal);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(IReadOnlyList<string> sourceFiles)
+    private static SceneBootstrapInfo CreateSetupInfo(
+        IReadOnlyList<string> sourceFiles,
+        IReadOnlyList<string>? selectedMeshCodes = null)
     {
-        return new ResoniteConstructionMetadata(
-            SchemaVersion: "3.0",
-            WorldName: "PLATEAU tokyo23ku 5339452[56]",
-            Request: new PlateauImportRequest(
-                Dataset: "tokyo23ku",
-                MeshCode: "5339452[56]",
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: "/tmp",
-                ServerUri: null),
-            SourceDataset: new PlateauSourceDataset(
-                PackageNames: ["bldg", "dem"],
-                SourceFiles: sourceFiles,
-                TerrainTextureOverlays: [],
-                SelectedMeshCodes: ["53394525", "53394526"]),
-            Attribution: new ResoniteAttribution(
-                new LicenseAttributionMetadata(true, "credit", "name", "url"),
-                []),
-            LocalOrigin: new ResoniteLocalOrigin(35.0, 139.0, 0.0));
+        return new SceneBootstrapInfo(
+            Dataset: "tokyo23ku",
+            MeshCode: "5339452[56]",
+            LocalSourcePath: "/tmp",
+            PackageNames: ["bldg", "dem"],
+            SourceFiles: sourceFiles,
+            SelectedMeshCodes: selectedMeshCodes ?? ["53394525", "53394526"],
+            DatasetLicense: new LicenseAttributionMetadata(true, "credit", "name", "url"),
+            AdditionalDatasetLicenses: []);
     }
 }
