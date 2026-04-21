@@ -63,13 +63,28 @@ public sealed class PlateauImportService(
             sourceStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
+
+            Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
+            IReadOnlyList<ResoniteMaterialBinding> discoveredCommonMaterials = await ReadCommonMaterialsAsync(
+                source,
+                cancellationToken);
+            commonMaterialStopwatch.Stop();
+            ReportProgress(
+                PlateauLog.Info(
+                    "import",
+                    $"Read {discoveredCommonMaterials.Count} shared common materials from source in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s."));
+            IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = discoveredCommonMaterials.Count == 0
+                ? null
+                : discoveredCommonMaterials;
+
             ImportedSceneMetadata metadata = source.Metadata;
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
                 resolvedRequest,
                 metadata,
                 documentSet.DatasetSource.SourcePath,
-                datasetWorkRoot);
+                datasetWorkRoot,
+                commonMaterials);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
@@ -120,6 +135,20 @@ public sealed class PlateauImportService(
         }
     }
 
+    private static async Task<IReadOnlyList<ResoniteMaterialBinding>> ReadCommonMaterialsAsync(
+        IImportedSceneSource source,
+        CancellationToken cancellationToken)
+    {
+        Dictionary<string, ResoniteMaterialBinding> materialByKey = new(StringComparer.Ordinal);
+        await foreach (MaterialBinding material in source.ReadCommonMaterialsAsync(cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResoniteMaterialBinding internalMaterial = SceneImportContractMapper.ToInternal(material);
+            materialByKey.TryAdd(internalMaterial.MaterialKey, internalMaterial);
+        }
+
+        return materialByKey.Values.ToArray();
+    }
     private void ReportProgress(string message)
     {
         progressReporter?.Invoke(message);

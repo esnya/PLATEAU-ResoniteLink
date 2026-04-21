@@ -31,7 +31,8 @@ public sealed record SceneImportExecutionPlan
         PlateauImportRequest resolvedRequest,
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
-        string workRoot)
+        string workRoot,
+        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedSourcePath);
@@ -43,7 +44,8 @@ public sealed record SceneImportExecutionPlan
             new SceneBuildRequest(
                 metadata,
                 resolvedSourcePath,
-                workRoot));
+                workRoot,
+                commonMaterials));
     }
 
     private static void ValidateRequestConsistency(

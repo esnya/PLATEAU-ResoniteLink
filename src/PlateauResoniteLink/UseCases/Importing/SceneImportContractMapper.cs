@@ -266,7 +266,7 @@ internal static class SceneImportContractMapper
         return new InternalModel.ResoniteMeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
     }
 
-    private static InternalModel.ResoniteMaterialBinding ToInternal(MaterialBinding binding)
+    internal static InternalModel.ResoniteMaterialBinding ToInternal(MaterialBinding binding)
     {
         return new InternalModel.ResoniteMaterialBinding(
             binding.MaterialKey,

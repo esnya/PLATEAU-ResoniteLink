@@ -39,10 +39,44 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(resolvedSourcePath);
         LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        IReadOnlyList<MaterialBinding> commonMaterials = [
+            new MaterialBinding(
+                MaterialKey: "shared-mat-a",
+                BaseColor: new ColorRgba(1, 1, 1, 1),
+                MaterialType: MaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: TextureSourceKind.Dataset,
+                Projection: MaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0],
+                ReuseScope: MaterialReuseScope.Shared),
+            new MaterialBinding(
+                MaterialKey: "shared-mat-b",
+                BaseColor: new ColorRgba(1, 1, 1, 1),
+                MaterialType: MaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: TextureSourceKind.Dataset,
+                Projection: MaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [1],
+                ReuseScope: MaterialReuseScope.Shared),
+            new MaterialBinding(
+                MaterialKey: "shared-mat-a",
+                BaseColor: new ColorRgba(1, 1, 1, 1),
+                MaterialType: MaterialType.Standard,
+                TexturePayload: null,
+                TextureSourceKind: TextureSourceKind.Dataset,
+                Projection: MaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [2],
+                ReuseScope: MaterialReuseScope.Shared),
+        ];
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         RecordingDocumentReader documentReader = new(readResult);
-        StubConstructionSource source = new(CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
+        StubConstructionSource source = new(
+            CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
+            commonMaterials);
         RecordingConstructionSourceFactory constructionSourceFactory = new(source);
 
         PlateauImportService service = new(
@@ -78,6 +112,11 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
         Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(readResult.DocumentSet.RequestedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.RequestedMeshCodes);
+        Assert.NotNull(sceneBuilder.BeginRequest.CommonMaterials);
+        Assert.Equal(2, sceneBuilder.BeginRequest.CommonMaterials.Count);
+        Assert.Equal(
+            ["shared-mat-a", "shared-mat-b"],
+            [.. sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
         Assert.Single(sceneBuilder.ProcessedCityObjects);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, documentReader.ReadCallCount);
@@ -111,7 +150,9 @@ public sealed class PlateauImportServiceTests
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         RecordingDocumentReader documentReader = new(readResult);
-        StubConstructionSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles), []);
+        StubConstructionSource source = new(
+            CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
+            cityObjects: []);
         RecordingConstructionSourceFactory constructionSourceFactory = new(source);
 
         PlateauImportService service = new(
@@ -318,27 +359,36 @@ public sealed class PlateauImportServiceTests
 
     private sealed class StubConstructionSource(
         ImportedSceneMetadata metadata,
+        IReadOnlyList<MaterialBinding>? commonMaterials = null,
         IReadOnlyList<ImportedCityObject>? cityObjects = null)
         : IImportedSceneSource
     {
+        private readonly IReadOnlyList<MaterialBinding> commonMaterials = commonMaterials ?? [];
+        private readonly IReadOnlyList<ImportedCityObject> cityObjects = cityObjects ?? [CreateCityObject()];
+
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
         public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            foreach (MaterialBinding material in this.commonMaterials)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                yield return material;
+            }
+
             await Task.CompletedTask;
-            yield break;
         }
 
         public IEnumerable<ImportedCityObject> ReadCityObjects()
         {
-            return cityObjects ?? [CreateCityObject()];
+            return cityObjects;
         }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            foreach (ImportedCityObject cityObject in cityObjects ?? [CreateCityObject()])
+            foreach (ImportedCityObject cityObject in cityObjects)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return cityObject;

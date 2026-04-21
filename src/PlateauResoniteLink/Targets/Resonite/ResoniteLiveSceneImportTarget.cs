@@ -93,7 +93,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             state = await CreateRunStateAsync(
                 CreateBootstrapInfo(request),
                 request.WorkRoot,
-                CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
+                request.CommonMaterials ?? CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
                 plan.NormalizedRequest,
                 SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
                 cancellationToken);

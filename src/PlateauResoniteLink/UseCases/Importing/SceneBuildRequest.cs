@@ -1,6 +1,9 @@
+using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record SceneBuildRequest(
     ImportedSceneMetadata Metadata,
     string ResolvedSourcePath,
-    string WorkRoot);
+    string WorkRoot,
+    IReadOnlyList<ResoniteMaterialBinding>? CommonMaterials = null);
