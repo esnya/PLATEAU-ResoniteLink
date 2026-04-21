@@ -10,6 +10,7 @@ PR を出す前に、次を確認してください。
 - 明確な理由がない限り、runtime と SDK の前提は .NET 10 のまま保つ。
 - English Markdown を変更した場合は、対応する `.ja.md` も更新する。
 - 挙動が変わる場合は、test を追加または更新する。
+- namespace とフォルダ所有境界は一致させる。部分的な名前変更や移動で namespace とパスのズレを残さない。
 - 補助的な git worktree はリポジトリ直下の `.worktree/` 配下（例: `.../<repo>/.worktree/<name>`）で運用し、隣接ディレクトリや `/tmp` の worktree を作らないこと。
 - 概念 ownership を grep ベースの architecture test / naming test で縛らないこと。project reference による境界、review checklist、挙動仕様 test を優先する。
 
@@ -56,6 +57,8 @@ review 時には次も確認してください。
 
 - 概念名、directory 配置、namespace 配置が ownership に一致し、互換 alias を残していない
 - project reference が意図した依存方向を保っている
+- 最終状態の source tree に global using が残っていない
+- internal contract が target-neutral を保ち、target 固有変換が adapter edge に隔離されている
 - 挙動変更が grep ベースの naming / boundary test ではなく、behavior-oriented test で守られている
 - naming rule や boundary rule を変えた場合に、agent guidance と reviewer guidance も更新されている
 

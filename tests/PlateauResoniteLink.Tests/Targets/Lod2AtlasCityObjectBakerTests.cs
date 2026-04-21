@@ -1,4 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;

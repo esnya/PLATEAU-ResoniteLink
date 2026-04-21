@@ -1,6 +1,13 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -8,7 +15,7 @@ using PlateauResoniteLink.Domain.Importing;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace PlateauResoniteLink.Tests.Application;
+namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class LocalCityGmlObjectProjectionTests
 {

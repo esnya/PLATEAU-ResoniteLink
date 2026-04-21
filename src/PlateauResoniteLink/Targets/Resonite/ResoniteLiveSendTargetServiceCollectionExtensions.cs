@@ -1,7 +1,11 @@
+using System;
+using System.Net.Http;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 

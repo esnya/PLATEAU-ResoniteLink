@@ -1,7 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
-namespace PlateauResoniteLink.Tests.Application;
+namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class DemTerrainOverlaySurfaceClipperTests
 {

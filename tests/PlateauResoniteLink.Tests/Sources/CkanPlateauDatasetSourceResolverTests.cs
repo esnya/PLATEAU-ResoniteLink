@@ -1,6 +1,11 @@
+using System;
+using System.IO;
 using System.IO.Compression;
 using System.Net;
+using System.Net.Http;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -8,7 +13,7 @@ using PlateauResoniteLink.Domain.Importing;
 using SharpCompress.Common;
 using SharpCompress.Writers.SevenZip;
 
-namespace PlateauResoniteLink.Tests.Application;
+namespace PlateauResoniteLink.Tests.Sources;
 
 [Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverTests

@@ -1,12 +1,18 @@
+using System;
+using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
-namespace PlateauResoniteLink.Tests.Application;
+namespace PlateauResoniteLink.Tests.Sources;
 
 [Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverCacheTests

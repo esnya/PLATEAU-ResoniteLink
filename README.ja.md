@@ -4,7 +4,7 @@
 
 PlateauResoniteLink は、[PLATEAU](https://www.mlit.go.jp/plateau/) の CityGML データセットを [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink) 経由で Resonite に逐次送信する .NET 10 CLI です。インポート挙動と用語は [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/) に揃えています。changelog の正本は GitHub Releases で、各 `vX.Y.Z` release は framework-dependent な CLI asset `PlateauResoniteLink-cli-vX.Y.Z.zip` を公開します。
 
-この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped / pending / intentionally regressed はここ と tests に揃えます。
+この README は、現在の `beta` branch における、人間向け current scope の正本です。`requirements` のような別文書は復活させず、shipped と intentionally regressed はここ と tests に揃えます。
 
 ## Scope
 
@@ -16,9 +16,6 @@ Shipped:
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
 - source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - DEM terrain imagery tile は既定で local cache に永続化し、再実行時に PLATEAU Ortho や fallback の GSI tile を再利用できるようにする。
-
-Pending:
-- target-agnostic IR の抽出と、`Targets.Resonite` / `Transport.ResoniteLink` の深い責務分離は、この release では完了済み保証に含めない内部 follow-up です。
 
 Intentionally regressed:
 - standalone の requirements 文書は release-truth surface としては維持しません。product scope は `README.md` と tests に置き、live-send の実行手順は `.agents/skills/resonite-live-send-debug/` 配下の Coding Agent skill に置きます。

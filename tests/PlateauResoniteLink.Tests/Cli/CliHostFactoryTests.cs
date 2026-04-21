@@ -1,8 +1,13 @@
+using System;
+using System.Net.Http;
+using System.Threading.Tasks;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using PlateauResoniteLink.Cli;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Cli;
 

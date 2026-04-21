@@ -30,6 +30,10 @@ This repository builds a .NET 10 CLI-first import pipeline that maps PLATEAU dat
 - Keep legacy conversions and static projection helpers in adapter-edge code only. Core concepts and neutral contracts must not depend on `ToLegacy`, `FromLegacy`, or target-specific mapper utilities.
 - Keep result models pure. Do not store bootstrap-only, discovery-only, connection-only, or layout-only state on document/read results when a separate context or snapshot can carry it.
 - When renaming concepts, update directories, filenames, namespaces, project names, resources, and docs in the same cut. Do not leave compatibility aliases behind.
+- Keep namespace declarations aligned to folder ownership boundaries. When changing ownership boundaries, update namespaces and directory layout in one cut so the source path can be read as the ownership signal.
+- Do not keep global using directives in the final-state architecture. Declare dependencies in each file so cross-boundary usage stays explicit and mechanically reviewable.
+- Keep internal contracts target-neutral. Internal models must not depend on Resonite-specific vector semantics; keep target-specific conversions inside dedicated adapter-edge converters.
+- Prefer `ILogger<T>` and framework-integrated observability over custom logging pipelines when evolving diagnostics, and use `System.Diagnostics.Metrics` for first-class metrics instrumentation.
 
 - Keep auxiliary git worktrees under `<repo>/.worktree/`, and avoid sibling directories or `/tmp` worktrees; this keeps ephemeral worktrees consistently ignored and separated from the main checkout.
 

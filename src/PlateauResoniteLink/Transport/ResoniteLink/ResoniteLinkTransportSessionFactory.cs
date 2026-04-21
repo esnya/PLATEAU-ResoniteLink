@@ -1,3 +1,5 @@
+using System;
+
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal static class ResoniteLinkTransportSessionFactory

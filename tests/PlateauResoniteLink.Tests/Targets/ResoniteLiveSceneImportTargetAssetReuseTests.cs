@@ -1,7 +1,15 @@
-using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 using GeographicLib;
+
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
 

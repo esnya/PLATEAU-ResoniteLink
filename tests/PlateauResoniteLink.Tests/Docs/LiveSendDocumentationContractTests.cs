@@ -1,3 +1,6 @@
+using System.IO;
+using System.Linq;
+
 using System.Text.RegularExpressions;
 
 namespace PlateauResoniteLink.Tests.Docs;

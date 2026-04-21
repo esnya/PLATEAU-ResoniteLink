@@ -1,3 +1,10 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Targets.Resonite.Execution;
+
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;

@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
 

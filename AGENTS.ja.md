@@ -31,6 +31,10 @@
 - legacy 変換と static projection helper は adapter edge にだけ置くこと。core concept と neutral contract は、`ToLegacy`、`FromLegacy`、target 固有 mapper utility に依存しない。
 - result model は純粋に保つこと。document/read result に bootstrap 専用・discovery 専用・connection 専用・layout 専用の state を持ち込まず、必要なら別の context / snapshot に分離する。
 - 概念名を rename するときは、directory、filename、namespace、project 名、resource、docs を同じ cut で揃え、互換 alias を残さない。
+- namespace は directory ownership と一致させる。ownership boundary を変える場合は、namespace とディレクトリ構成を同一切りで更新し、パスと namespace の対応関係を一貫性のある境界シグナルとして保つ。
+- 最終状態のアーキテクチャでは global using を残さない。dependency は各ファイルで明示し、cross-boundary usage が機械的に読める状態を保つ。
+- internal contract は target-neutral に保つ。internal model に Resonite 固有の vector semantics を持ち込まず、target 固有変換は adapter edge の converter に閉じる。
+- diagnostics を進化させるときは custom logging pipeline より `ILogger<T>` と framework 統合 observability を優先し、metrics は `System.Diagnostics.Metrics` を第一級の instrumentation として扱う。
 
 ## Live Send 手順
 - Coding Agent が live test を行うときは [.agents/skills/resonite-live-send-debug/SKILL.md](.agents/skills/resonite-live-send-debug/SKILL.md) に従うこと。

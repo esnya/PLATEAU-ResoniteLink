@@ -1,3 +1,6 @@
+using System;
+using System.IO;
+
 namespace PlateauResoniteLink.Tests;
 
 public sealed class TemporaryDirectory : IDisposable

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace PlateauResoniteLink.Cli;
 
 public sealed record SearchCommandOptions(

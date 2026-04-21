@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
-    <NoWarn>$(NoWarn);IDE0130;CA1822;CA1859</NoWarn>
+    <RootNamespace>PlateauResoniteLink.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);CA1822;CA1859</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

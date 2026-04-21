@@ -10,6 +10,7 @@ Before opening a PR:
 - Keep runtime and SDK assumptions on .NET 10 unless the change clearly requires otherwise.
 - Update the matching `.ja.md` file when you change an English Markdown document.
 - Add or update tests when behavior changes.
+- Keep namespace declarations aligned with folder ownership boundaries and avoid partial renames that leave namespace or path mismatches.
 - Keep auxiliary git worktrees in the repository root `.worktree/` directory (for example `.../<repo>/.worktree/<name>`), and avoid leaving worktrees in sibling directories or `/tmp`.
 - Do not add grep-based architecture or naming tests to enforce concept ownership. Prefer project-reference boundaries, review checklist enforcement, and behavior-oriented tests.
 
@@ -56,6 +57,8 @@ Reviewers should also check:
 
 - concept names, directory placement, and namespace placement match ownership without leaving compatibility aliases behind
 - project references still enforce the intended dependency direction
+- no global using directives remain in the final-state source tree
+- internal contracts stay target-neutral, with target-specific conversions isolated at adapter edges
 - behavior changes are covered by behavior-oriented tests rather than grep-based naming or boundary checks
 - agent guidance and reviewer guidance are updated when naming or boundary rules change
 
