@@ -15,6 +15,16 @@ internal static class ResoniteSceneMaterialConventions
 {
     private static readonly IReadOnlyList<string> EmptyLookupNames = [];
 
+    internal enum TextureMemberRole
+    {
+        Albedo,
+        Normal,
+        Height,
+        Metallic,
+        Emission,
+        TerrainMainTextureOverride,
+    }
+
     public static string CreateMaterialSlotName(ResoniteMaterialBinding material, bool useCommonMaterialAssets)
     {
         ArgumentNullException.ThrowIfNull(material);
@@ -301,15 +311,37 @@ internal static class ResoniteSceneMaterialConventions
         return ResoniteMaterialSharing.CreateCanonicalVertexColorCommonMaterialKey(projection, depthOffset);
     }
 
-    public static Dictionary<string, Member> CreateTextureMembers(Uri assetUri)
+    public static Dictionary<string, Member> CreateTextureMembers(Uri assetUri, TextureMemberRole role)
     {
-        return new Dictionary<string, Member>(StringComparer.Ordinal)
+        ArgumentNullException.ThrowIfNull(assetUri);
+
+        Dictionary<string, Member> members = new(StringComparer.Ordinal)
         {
             ["URL"] = new Field_Uri
             {
                 Value = assetUri,
             },
         };
+
+        switch (role)
+        {
+            case TextureMemberRole.Normal:
+            case TextureMemberRole.Height:
+            case TextureMemberRole.Metallic:
+                members["PreferredProfile"] = CreateNullableEnumMember(ResoniteTextureColorProfiles.Linear);
+                break;
+            case TextureMemberRole.TerrainMainTextureOverride:
+                members["WrapModeU"] = CreateEnumMember("Clamp");
+                members["WrapModeV"] = CreateEnumMember("Clamp");
+                break;
+            case TextureMemberRole.Albedo:
+            case TextureMemberRole.Emission:
+                break;
+            default:
+                throw new InvalidOperationException($"Unsupported texture member role '{role}'.");
+        }
+
+        return members;
     }
 
     private static bool IsBundledCommonMaterialCandidate(ResoniteMaterialBinding material)
@@ -552,5 +584,21 @@ internal static class ResoniteSceneMaterialConventions
         return textureOffset is null
             || (Math.Abs(textureOffset.X) < 1e-9
                 && Math.Abs(textureOffset.Y) < 1e-9);
+    }
+
+    private static Field_Enum CreateEnumMember(string value)
+    {
+        return new Field_Enum
+        {
+            Value = value,
+        };
+    }
+
+    private static Field_Nullable_Enum CreateNullableEnumMember(string value)
+    {
+        return new Field_Nullable_Enum
+        {
+            Value = value,
+        };
     }
 }

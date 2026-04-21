@@ -217,7 +217,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 albedoTextureId,
                 materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(albedoTextureUri)));
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    albedoTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo)));
             materialMembers["AlbedoTexture"] = new Reference
             {
                 TargetID = albedoTextureId.Value,
@@ -232,7 +234,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 normalTextureId,
                 materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(normalTextureUri)));
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    normalTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal)));
             materialMembers["NormalMap"] = new Reference
             {
                 TargetID = normalTextureId.Value,
@@ -251,7 +255,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 heightTextureId,
                 materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(heightTextureUri)));
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    heightTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Height)));
             materialMembers["HeightMap"] = new Reference
             {
                 TargetID = heightTextureId.Value,
@@ -270,7 +276,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 metallicTextureId,
                 materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(metallicTextureUri)));
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    metallicTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic)));
             materialMembers["MetallicMap"] = new Reference
             {
                 TargetID = metallicTextureId.Value,
@@ -289,7 +297,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 emissionTextureId,
                 materialContainerId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(emissionTextureUri)));
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    emissionTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission)));
             materialMembers["EmissiveMap"] = new Reference
             {
                 TargetID = emissionTextureId.Value,
@@ -367,11 +377,16 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     {
         string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
         BatchPlanEntityId textureId = CreateBatchPlanEntityId($"renderer-texture:{overrideIdentity}");
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding.ClampWrapMode
+            ? ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride
+            : ResoniteSceneMaterialConventions.TextureMemberRole.Albedo;
         componentEmissions.Add(new PlannedBatchComponentEmission(
             textureId,
             assetSlotId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
-            ResoniteSceneMaterialConventions.CreateTextureMembers(binding.MainTexture.AssetUri)));
+            ResoniteSceneMaterialConventions.CreateTextureMembers(
+                binding.MainTexture.AssetUri,
+                textureRole)));
 
         BatchPlanEntityId propertyBlockId = CreateBatchPlanEntityId($"renderer-main-texture-property-block:{overrideIdentity}");
         componentEmissions.Add(new PlannedBatchComponentEmission(

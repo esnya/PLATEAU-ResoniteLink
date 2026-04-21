@@ -1491,7 +1491,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 ct);
             PlannedRendererMaterialBinding rendererBinding = mainTextureOverride is null
                 ? new PlannedDirectRendererMaterialBinding(sharedMaterialAsset.Identity)
-                : new PlannedMainTextureOverrideRendererMaterialBinding(sharedMaterialAsset.Identity, mainTextureOverride);
+                : new PlannedMainTextureOverrideRendererMaterialBinding(
+                    sharedMaterialAsset.Identity,
+                    mainTextureOverride,
+                    ClampWrapMode: sourceMaterial.TerrainOverlay is not null);
             return (sharedMaterialAsset, rendererBinding);
         }
 
