@@ -27,7 +27,7 @@ public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await LocalCityGmlBootstrapPipeline.ReadAsync(
+        return await LocalCityGmlBootstrapPipeline.ReadDocumentSetCoreAsync(
             request,
             datasetContentSourceFactory,
             appearanceStoreFactory,

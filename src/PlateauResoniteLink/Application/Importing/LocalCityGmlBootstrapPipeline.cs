@@ -12,23 +12,6 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class LocalCityGmlBootstrapPipeline
 {
-    public static async Task<LocalCityGmlDocumentReadResult> ReadAsync(
-        PlateauImportRequest request,
-        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
-        Action<string>? progressReporter = null,
-        CancellationToken cancellationToken = default)
-    {
-        return await ReadDocumentSetCoreAsync(
-            request,
-            datasetContentSourceFactory,
-            appearanceStoreFactory,
-            lodSelector,
-            progressReporter,
-            cancellationToken);
-    }
-
     internal static async Task<LocalCityGmlDocumentReadResult> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,

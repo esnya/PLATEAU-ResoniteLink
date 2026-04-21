@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class LocalCityGmlBootstrapContext
+internal sealed class LocalCityGmlBootstrapContext
 {
     internal LocalCityGmlBootstrapContext(
         IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
