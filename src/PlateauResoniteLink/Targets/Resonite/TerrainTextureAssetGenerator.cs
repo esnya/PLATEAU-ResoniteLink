@@ -54,6 +54,10 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
+        Image<Rgba32>? composedTexture = null;
+        List<TerrainTextureSource> usedSources = [];
+        TerrainTextureSource? usedSource = null;
+
         for (int sourceIndex = 0; sourceIndex < terrainTextureOverlay.Sources.Count; sourceIndex++)
         {
             TerrainTextureSource source = terrainTextureOverlay.Sources[sourceIndex];
@@ -69,7 +73,6 @@ internal sealed class TerrainTextureAssetGenerator(
                     cancellationToken),
                 _ => null,
             };
-
             if (image is null)
             {
                 continue;
@@ -77,17 +80,57 @@ internal sealed class TerrainTextureAssetGenerator(
 
             using (image)
             {
-                GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
-                    image,
-                    terrainTextureOverlay.MaxTextureSize,
-                    CreateOverlayIdentity(terrainTextureOverlay, source),
-                    source);
-                return new CachedTerrainTexture(generatedTexture, source);
+                if (!HasRenderablePixels(image))
+                {
+                    continue;
+                }
+
+                if (composedTexture is null)
+                {
+                    composedTexture = image.Clone();
+                    usedSource = source;
+                    usedSources.Add(source);
+                }
+                else
+                {
+                    using Image<Rgba32> resizedImage = ResizeSourceImage(image, composedTexture.Width, composedTexture.Height);
+                    if (FillTransparentPixels(composedTexture, resizedImage))
+                    {
+                        usedSource = source;
+                        usedSources.Add(source);
+                    }
+                }
+                if (!HasTransparentPixels(composedTexture))
+                {
+                    break;
+                }
             }
         }
 
-        throw new HttpRequestException(
-            $"Terrain texture generation failed for '{terrainTextureOverlay.SourceIdentityKey}'.");
+        if (composedTexture is null)
+        {
+            throw new HttpRequestException(
+                $"Terrain texture generation failed for '{terrainTextureOverlay.SourceIdentityKey}'.");
+        }
+
+        if (HasTransparentPixels(composedTexture)
+            && usedSources.Any(static source => source is TerrainTextureTileSource))
+        {
+            composedTexture.Dispose();
+            throw new HttpRequestException(
+                $"Terrain texture generation left uncovered tile-backed pixels for '{terrainTextureOverlay.SourceIdentityKey}'.");
+        }
+
+        using (composedTexture)
+        {
+            TerrainTextureSource terrainTextureSource = usedSource ?? terrainTextureOverlay.PrimarySource;
+            GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
+                composedTexture,
+                terrainTextureOverlay.MaxTextureSize,
+                CreateOverlayIdentity(terrainTextureOverlay, usedSources),
+                terrainTextureSource);
+            return new CachedTerrainTexture(generatedTexture, terrainTextureSource);
+        }
     }
 
     private async Task<Image<Rgba32>?> TryCreateTextureFromTileSourceAsync(
@@ -99,7 +142,7 @@ internal sealed class TerrainTextureAssetGenerator(
             terrainTextureOverlay.GeographicBounds,
             tileSource.ZoomLevel);
         using Image<Rgba32> stitchedImage = new(layoutPlan.StitchedWidth, layoutPlan.StitchedHeight);
-
+        bool anyTileRendered = false;
         for (int tileY = layoutPlan.MinTileY; tileY <= layoutPlan.MaxTileY; tileY++)
         {
             for (int tileX = layoutPlan.MinTileX; tileX <= layoutPlan.MaxTileX; tileX++)
@@ -111,11 +154,12 @@ internal sealed class TerrainTextureAssetGenerator(
                     cancellationToken);
                 if (tileImage is null)
                 {
-                    return null;
+                    continue;
                 }
 
                 using (tileImage)
                 {
+                    anyTileRendered = true;
                     stitchedImage.Mutate(context => context.DrawImage(
                         tileImage,
                         new Point(
@@ -124,6 +168,11 @@ internal sealed class TerrainTextureAssetGenerator(
                         1.0f));
                 }
             }
+        }
+
+        if (!anyTileRendered)
+        {
+            return null;
         }
 
         return stitchedImage.Clone(context => context.Crop(new Rectangle(
@@ -277,15 +326,95 @@ internal sealed class TerrainTextureAssetGenerator(
 
     private static string CreateOverlayIdentity(
         TerrainTextureOverlay terrainTextureOverlay,
-        TerrainTextureSource usedSource)
+        IReadOnlyList<TerrainTextureSource> usedSources)
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"terrain-overlay/{terrainTextureOverlay.PackageName}/{usedSource.IdentityKey}/"
+            $"terrain-overlay/{terrainTextureOverlay.PackageName}/{string.Join("|then|", usedSources.Select(static source => source.IdentityKey))}/"
             + $"{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######},"
             + $"{terrainTextureOverlay.GeographicBounds.MaxLatitude:0.######},"
             + $"{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######},"
             + $"{terrainTextureOverlay.GeographicBounds.MaxLongitude:0.######}");
+    }
+
+    private static Image<Rgba32> ResizeSourceImage(Image<Rgba32> image, int width, int height)
+    {
+        return image.Width == width && image.Height == height
+            ? image.Clone()
+            : image.Clone(context => context.Resize(new ResizeOptions
+            {
+                Mode = ResizeMode.Stretch,
+                Size = new Size(width, height),
+                Sampler = KnownResamplers.Lanczos3,
+            }));
+    }
+
+    private static bool HasRenderablePixels(Image<Rgba32> image)
+    {
+        bool hasRenderablePixels = false;
+        image.ProcessPixelRows(accessor =>
+        {
+            for (int y = 0; y < accessor.Height && !hasRenderablePixels; y++)
+            {
+                ReadOnlySpan<Rgba32> row = accessor.GetRowSpan(y);
+                for (int x = 0; x < row.Length; x++)
+                {
+                    if (row[x].A > 0)
+                    {
+                        hasRenderablePixels = true;
+                        break;
+                    }
+                }
+            }
+        });
+
+        return hasRenderablePixels;
+    }
+
+    private static bool HasTransparentPixels(Image<Rgba32> image)
+    {
+        bool hasTransparentPixels = false;
+        image.ProcessPixelRows(accessor =>
+        {
+            for (int y = 0; y < accessor.Height && !hasTransparentPixels; y++)
+            {
+                ReadOnlySpan<Rgba32> row = accessor.GetRowSpan(y);
+                for (int x = 0; x < row.Length; x++)
+                {
+                    if (row[x].A == 0)
+                    {
+                        hasTransparentPixels = true;
+                        break;
+                    }
+                }
+            }
+        });
+
+        return hasTransparentPixels;
+    }
+
+    private static bool FillTransparentPixels(Image<Rgba32> destination, Image<Rgba32> fallback)
+    {
+        bool filledAny = false;
+        for (int y = 0; y < destination.Height; y++)
+        {
+            for (int x = 0; x < destination.Width; x++)
+            {
+                if (destination[x, y].A > 0)
+                {
+                    continue;
+                }
+
+                Rgba32 fallbackPixel = fallback[x, y];
+                if (fallbackPixel.A > 0)
+                {
+                    destination[x, y] = fallbackPixel;
+                    filledAny = true;
+                }
+            }
+        }
+
+        return filledAny;
     }
 
     private async Task<Image<Rgba32>?> TryDownloadTileAsync(

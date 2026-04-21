@@ -226,6 +226,62 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncFillsTransparentGeoReferencedRasterPixelsFromFallbackTileSource()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
+        GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(bounds, 1);
+        using (Image<Rgba32> rasterImage = new(layout.CropWidth, layout.CropHeight))
+        {
+            for (int y = 0; y < rasterImage.Height; y++)
+            {
+                for (int x = 0; x < rasterImage.Width; x++)
+                {
+                    rasterImage[x, y] = x < rasterImage.Width / 2
+                        ? new Rgba32(0, 0, 0, 0)
+                        : new Rgba32(12, 34, 56, 255);
+                }
+            }
+
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 4096,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 1.0, 1.0)),
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
+            texture.TextureImport.RawRgba32Bytes,
+            texture.TextureImport.Width,
+            texture.TextureImport.Height);
+        int occupiedTop = outputImage.Height - layout.CropHeight;
+        Assert.NotEqual(
+            TerrainTextureAssetGenerator.DefaultDemGroundFillColor,
+            outputImage[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)]);
+        Assert.Equal(
+            new Rgba32(12, 34, 56, 255),
+            outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
+        Assert.Contains("georaster|", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
+    }
+
+    [Fact]
     public async Task EnsureTextureAsyncSkipsUnsupportedGeoReferencedRasterSource()
     {
         GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);

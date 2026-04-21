@@ -244,11 +244,10 @@ public sealed class TerrainTextureAssetGeneratorTests
         TerrainTextureOverlay overlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
 
         await Assert.ThrowsAsync<HttpRequestException>(() => generator.EnsureTextureAsync(overlay, CancellationToken.None));
-
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(512, texture.TextureImport.Width);
-        Assert.Equal(5, handler.RequestCount);
+        Assert.Equal(8, handler.RequestCount);
     }
 
     [Fact]
@@ -271,7 +270,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(512, texture.TextureImport.Width);
-        Assert.Equal(4, secondHandler.RequestCount);
+        Assert.Equal(1, secondHandler.RequestCount);
     }
 
     [Fact]
@@ -376,6 +375,33 @@ public sealed class TerrainTextureAssetGeneratorTests
     }
 
     [Fact]
+    public async Task EnsureTextureAsyncPartiallyFallsBackFromPrimaryToSecondarySource()
+    {
+        using PartialSourceFallbackMapTileHandler handler = new((1, 1));
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: WebMercatorTileMath.PixelYToLatitude(2 * WebMercatorTileMath.TileSizePixels, 1),
+                MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
+                MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, 1),
+                MaxLongitude: WebMercatorTileMath.PixelXToLongitude(2 * WebMercatorTileMath.TileSizePixels, 1)),
+            MaxTextureSize: 4096,
+            PrimarySource: new TerrainTextureTileSource("https://primary.example/{z}/{x}/{y}.png", 1),
+            FallbackSource: new TerrainTextureTileSource("https://fallback.example/{z}/{x}/{y}.png", 1));
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Contains("tile|1|https://primary.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.Contains("primary.example", handler.RequestedHosts);
+        Assert.Contains("fallback.example", handler.RequestedHosts);
+
+        using Image<Rgba32> image = LoadImage(texture.TextureImport);
+        Assert.True(ContainsColor(image, 255, 0, 0));
+        Assert.True(ContainsColor(image, 255, 0, 255));
+    }
+    [Fact]
     public async Task EnsureTextureAsyncRetriesTransientTileFailureWithinSingleGeneration()
     {
         using RetryOnceMapTileHandler handler = new();
@@ -407,6 +433,29 @@ public sealed class TerrainTextureAssetGeneratorTests
     private static Image<Rgba32> LoadImage(ResoniteRawTextureImport texture)
     {
         return Image.LoadPixelData<Rgba32>(texture.RawRgba32Bytes, texture.Width, texture.Height);
+    }
+    private static bool ContainsColor(Image<Rgba32> image, byte expectedR, byte expectedG, byte expectedB)
+    {
+        bool found = false;
+
+        image.ProcessPixelRows(accessor =>
+        {
+            for (int y = 0; y < accessor.Height && !found; y++)
+            {
+                ReadOnlySpan<Rgba32> row = accessor.GetRowSpan(y);
+                for (int x = 0; x < row.Length; x++)
+                {
+                    Rgba32 pixel = row[x];
+                    if (pixel.R == expectedR && pixel.G == expectedG && pixel.B == expectedB)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        });
+
+        return found;
     }
 
     private static void AssertColor(Rgba32 color, byte expectedR, byte expectedG, byte expectedB)
@@ -518,6 +567,49 @@ public sealed class TerrainTextureAssetGeneratorTests
             await image.SaveAsPngAsync(stream, cancellationToken);
             stream.Position = 0;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) };
+        }
+    }
+
+    private sealed class PartialSourceFallbackMapTileHandler((int x, int y) missingPrimaryTile) : HttpMessageHandler
+    {
+        private readonly HashSet<(int X, int Y)> missingPrimaryTiles = [missingPrimaryTile];
+        public List<string> RequestedHosts { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            string[] segments = request.RequestUri!.AbsolutePath.Trim('/').Split('/');
+            int tileX = int.Parse(segments[^2], CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), CultureInfo.InvariantCulture);
+            RequestedHosts.Add(request.RequestUri.Host);
+
+            if (string.Equals(request.RequestUri.Host, "primary.example", StringComparison.Ordinal)
+                && missingPrimaryTiles.Contains((tileX, tileY)))
+            {
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            using Image<Rgba32> image = new(
+                WebMercatorTileMath.TileSizePixels,
+                WebMercatorTileMath.TileSizePixels,
+                GetTileColorForRequest(request.RequestUri.Host, tileX, tileY));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            };
+        }
+
+        private static Rgba32 GetTileColorForRequest(string host, int tileX, int tileY)
+        {
+            if (string.Equals(host, "fallback.example", StringComparison.Ordinal))
+            {
+                return new Rgba32(255, 0, 255, byte.MaxValue);
+            }
+
+            return FakeMapTileHandler.GetTileColorForTests(tileX, tileY);
         }
     }
 
