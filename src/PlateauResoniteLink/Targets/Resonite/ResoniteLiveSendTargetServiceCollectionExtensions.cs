@@ -23,7 +23,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
-        services.TryAddScoped<IResoniteClientSessionFactory, ResoniteClientSessionFactory>();
+        services.TryAddScoped<ResoniteClientSessionFactory>(_ => CreateClientSession);
         services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
         services.TryAddScoped<IResoniteSceneBootstrapInterpreter>(
             static serviceProvider => new ResoniteSceneBootstrapInterpreter(
@@ -35,6 +35,19 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteLiveSceneImportFactory, ResoniteLiveSceneImportFactory>();
 
         return services;
+    }
+
+    private static ILiveSendClientSession CreateClientSession(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLinkSendDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        return ResoniteLinkTransportSessionFactory.Create(
+            options.Endpoint,
+            options.ConnectionCount,
+            diagnostics,
+            options.ProgressReporter);
     }
 }
 
@@ -66,24 +79,9 @@ internal interface IResoniteLiveSceneImportDependencyFactory
         HttpClient terrainTextureAssetHttpClient);
 }
 
-internal interface IResoniteClientSessionFactory
-{
-    ILiveSendClientSession Create(ResoniteLiveSceneImportTargetOptions options, ResoniteLinkSendDiagnostics diagnostics);
-}
-
-internal sealed class ResoniteClientSessionFactory : IResoniteClientSessionFactory
-{
-    public ILiveSendClientSession Create(ResoniteLiveSceneImportTargetOptions options, ResoniteLinkSendDiagnostics diagnostics)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(diagnostics);
-        return ResoniteLinkTransportSessionFactory.Create(
-            options.Endpoint,
-            options.ConnectionCount,
-            diagnostics,
-            options.ProgressReporter);
-    }
-}
+internal delegate ILiveSendClientSession ResoniteClientSessionFactory(
+    ResoniteLiveSceneImportTargetOptions options,
+    ResoniteLinkSendDiagnostics diagnostics);
 
 internal interface ITerrainTextureAssetGeneratorFactory
 {
@@ -108,7 +106,7 @@ internal sealed class TerrainTextureAssetGeneratorFactory : ITerrainTextureAsset
 }
 
 internal sealed class ResoniteLiveSceneImportDependencyFactory(
-    IResoniteClientSessionFactory clientSessionFactory,
+    ResoniteClientSessionFactory createClientSession,
     ITerrainTextureAssetGeneratorFactory terrainTextureAssetGeneratorFactory,
     IResoniteSceneBootstrapInterpreter sceneBootstrapInterpreter,
     IResoniteDatasetLicenseWriter datasetLicenseWriter,
@@ -131,7 +129,7 @@ internal sealed class ResoniteLiveSceneImportDependencyFactory(
             : ResoniteLinkSendDiagnostics.Disabled;
 
         return new ResoniteLiveSceneImportDependencies(
-            clientSessionFactory.Create(options, diagnostics),
+            createClientSession(options, diagnostics),
             diagnostics,
             terrainTextureAssetGeneratorFactory.Create(terrainTextureAssetHttpClient, options),
             sceneBootstrapInterpreter,

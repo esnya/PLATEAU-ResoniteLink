@@ -102,9 +102,16 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
     public async Task AddResoniteLiveSendTargetServicesPreservesPreRegisteredSessionFactory()
     {
-        RecordingClientSessionFactory sessionFactory = new();
+        ILiveSendClientSession? recordedSession = null;
         ServiceProvider provider = new ServiceCollection()
-            .AddScoped<IResoniteClientSessionFactory>(_ => sessionFactory)
+            .AddScoped<ResoniteClientSessionFactory>(
+                serviceProvider => (ResoniteClientSessionFactory)((options, diagnostics) =>
+                {
+                    _ = serviceProvider;
+                    _ = options;
+                    _ = diagnostics;
+                    return recordedSession = new DelegatingClientSession();
+                }))
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -124,7 +131,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 terrainTextureAssetHttpClient);
         await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
 
-        Assert.Same(sessionFactory.LastCreatedSession, builder.ClientSession);
+        Assert.NotNull(recordedSession);
+        Assert.Same(recordedSession, builder.ClientSession);
     }
 
     [Fact]
@@ -211,18 +219,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
-    }
-
-    private sealed class RecordingClientSessionFactory : IResoniteClientSessionFactory
-    {
-        public ILiveSendClientSession? LastCreatedSession { get; private set; }
-
-        public ILiveSendClientSession Create(ResoniteLiveSceneImportTargetOptions options, ResoniteLinkSendDiagnostics diagnostics)
-        {
-            _ = options;
-            LastCreatedSession = new DelegatingClientSession();
-            return LastCreatedSession;
-        }
     }
 
     private sealed class RecordingTerrainTextureAssetGeneratorFactory : ITerrainTextureAssetGeneratorFactory
