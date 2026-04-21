@@ -95,7 +95,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         {
             pendingAssets = CreatePendingBatchSlot("bootstrap_assets_root", "Assets", batchScopeToken);
             operations.Add(ResoniteBatchOperations.CreateAddSlotOperation(existingDatasetRoot.Value.SlotId, "Assets", null, null, pendingAssets.Value));
-            assetsParentId = pendingAssets.Value.LocalId;
+            assetsParentId = pendingAssets.Value.LocalId.Value;
         }
         else
         {
@@ -107,7 +107,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         {
             pendingSharedAssets = CreatePendingBatchSlot("bootstrap_shared_assets_root", SharedAssetsRootName, batchScopeToken);
             operations.Add(ResoniteBatchOperations.CreateAddSlotOperation("Root", SharedAssetsRootName, null, null, pendingSharedAssets.Value));
-            sharedAssetsParentId = pendingSharedAssets.Value.LocalId;
+            sharedAssetsParentId = pendingSharedAssets.Value.LocalId.Value;
         }
 
         if (sharedCommonMaterialsSlot is null)
@@ -117,7 +117,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         }
 
         string commonParentId = sharedCommonMaterialsSlot?.ID
-            ?? pendingSharedCommon?.LocalId
+            ?? pendingSharedCommon?.LocalId.Value
             ?? throw new InvalidOperationException("Bootstrap could not determine the shared Common Materials parent slot.");
 
         SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
@@ -222,7 +222,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         List<DataModelOperation> operations =
         [
             ResoniteBatchOperations.CreateAddSlotOperation("Root", datasetRootName, null, null, pendingDatasetRootSlot),
-            ResoniteBatchOperations.CreateAddSlotOperation(pendingDatasetRootSlot.LocalId, "Assets", null, null, pendingDatasetAssetsRootSlot),
+            ResoniteBatchOperations.CreateAddSlotOperation(pendingDatasetRootSlot.LocalId.Value, "Assets", null, null, pendingDatasetAssetsRootSlot),
         ];
         ResoniteBatchOperations.PendingBatchSlot? pendingSharedAssetsRootSlot = null;
         ResoniteBatchOperations.PendingBatchSlot? pendingSharedCommonMaterialsRootSlot = null;
@@ -231,7 +231,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         {
             pendingSharedAssetsRootSlot = CreatePendingBatchSlot("bootstrap_shared_assets_root", SharedAssetsRootName, batchScopeToken);
             operations.Add(ResoniteBatchOperations.CreateAddSlotOperation("Root", SharedAssetsRootName, null, null, pendingSharedAssetsRootSlot.Value));
-            sharedAssetsParentId = pendingSharedAssetsRootSlot.Value.LocalId;
+            sharedAssetsParentId = pendingSharedAssetsRootSlot.Value.LocalId.Value;
         }
 
         if (existingSharedCommonMaterialsSlot is null)
@@ -247,7 +247,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 LicenseComponentType,
                 batchScopeToken);
             operations.Add(ResoniteBatchOperations.CreateAddComponentOperation(
-                pendingDatasetRootSlot.LocalId,
+                pendingDatasetRootSlot.LocalId.Value,
                 LicenseComponentType,
                 datasetLicense.Members,
                 pendingLicense));
@@ -258,7 +258,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 setupClient,
                 commonMaterials,
                 commonSlot: existingSharedCommonMaterialsSlot,
-                commonParentId: existingSharedCommonMaterialsSlot?.ID ?? pendingSharedCommonMaterialsRootSlot?.LocalId ?? throw new InvalidOperationException("Bootstrap could not determine the shared Common Materials parent slot."),
+                commonParentId: existingSharedCommonMaterialsSlot?.ID
+                    ?? pendingSharedCommonMaterialsRootSlot?.LocalId.Value
+                    ?? throw new InvalidOperationException("Bootstrap could not determine the shared Common Materials parent slot."),
                 batchScopeToken,
                 operations,
                 cancellationToken);
@@ -396,7 +398,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                         familySlotName,
                         batchScopeToken);
                     operations.Add(ResoniteBatchOperations.CreateAddSlotOperation(commonParentId, familySlotName, null, null, pendingFamilySlot));
-                    familyParentId = pendingFamilySlot.LocalId;
+                    familyParentId = pendingFamilySlot.LocalId.Value;
                 }
                 else
                 {
@@ -465,7 +467,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                     $"bootstrap_common_material_slot_{materialIndex}",
                     materialSlotName,
                     batchScopeToken);
-                materialContainerId = pendingMaterialSlot.Value.LocalId;
+                materialContainerId = pendingMaterialSlot.Value.LocalId.Value;
                 operations.Add(ResoniteBatchOperations.CreateAddSlotOperation(familyParentId, materialSlotName, null, null, pendingMaterialSlot.Value));
             }
 
@@ -532,7 +534,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 albedoTexture));
             materialMembers["AlbedoTexture"] = new Reference
             {
-                TargetID = albedoTexture.LocalId,
+                TargetID = albedoTexture.LocalId.Value,
             };
         }
 
@@ -552,7 +554,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 normalTexture));
             materialMembers["NormalMap"] = new Reference
             {
-                TargetID = normalTexture.LocalId,
+                TargetID = normalTexture.LocalId.Value,
             };
             materialMembers["NormalScale"] = new Field_float
             {
@@ -576,7 +578,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 heightTexture));
             materialMembers["HeightMap"] = new Reference
             {
-                TargetID = heightTexture.LocalId,
+                TargetID = heightTexture.LocalId.Value,
             };
             materialMembers["HeightScale"] = new Field_float
             {
@@ -600,11 +602,11 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 metallicTexture));
             materialMembers["MetallicMap"] = new Reference
             {
-                TargetID = metallicTexture.LocalId,
+                TargetID = metallicTexture.LocalId.Value,
             };
             materialMembers["OcclusionMap"] = new Reference
             {
-                TargetID = metallicTexture.LocalId,
+                TargetID = metallicTexture.LocalId.Value,
             };
         }
 
@@ -624,7 +626,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 emissionTexture));
             materialMembers["EmissiveMap"] = new Reference
             {
-                TargetID = emissionTexture.LocalId,
+                TargetID = emissionTexture.LocalId.Value,
             };
             materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
@@ -664,8 +666,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         string batchScopeToken)
     {
         return new ResoniteBatchOperations.PendingBatchSlot(
-            $"{prefix}_{batchScopeToken}",
-            $"{prefix}_message_{batchScopeToken}",
+            new ResoniteBatchOperations.BatchTemporarySlotId($"{prefix}_{batchScopeToken}"),
+            new ResoniteBatchOperations.BatchTemporaryMessageId($"{prefix}_message_{batchScopeToken}"),
             slotName);
     }
 
@@ -675,8 +677,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         string batchScopeToken)
     {
         return new ResoniteBatchOperations.PendingBatchComponent(
-            $"{prefix}_{batchScopeToken}",
-            $"{prefix}_message_{batchScopeToken}",
+            new ResoniteBatchOperations.BatchTemporaryComponentId($"{prefix}_{batchScopeToken}"),
+            new ResoniteBatchOperations.BatchTemporaryMessageId($"{prefix}_message_{batchScopeToken}"),
             componentType);
     }
 

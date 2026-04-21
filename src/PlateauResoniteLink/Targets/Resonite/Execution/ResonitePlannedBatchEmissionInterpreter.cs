@@ -1,19 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
-
-using static PlateauResoniteLink.Targets.Resonite.Execution.ResoniteBatchOperations;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
@@ -46,13 +41,13 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         Action<string>? reportProgress,
         CancellationToken cancellationToken)
     {
-        BatchOperationAccumulator batchBuilder = new();
-        Dictionary<string, PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
-        Dictionary<string, PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
+        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        Dictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
+        Dictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
 
         foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
         {
-            PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
+            ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
                 ResolveTargetId(slotEmission.ParentId, pendingSlotsByPlanId, pendingComponentsByPlanId),
                 slotEmission.SlotName,
                 slotEmission.Position,
@@ -77,7 +72,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                     + $"({points.Value.x}x{points.Value.y}, displacement={displacement.Value:F3}).");
             }
 
-            PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
+            ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
                 ResolveTargetId(componentEmission.ContainerId, pendingSlotsByPlanId, pendingComponentsByPlanId),
                 componentEmission.ComponentType,
                 translatedMembers);
@@ -114,22 +109,22 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static string ResolveTargetId(
         string targetId,
-        IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
     {
         if (string.IsNullOrWhiteSpace(targetId))
         {
             return targetId;
         }
 
-        if (pendingSlotsByPlanId.TryGetValue(targetId, out PendingBatchSlot pendingSlot))
+        if (pendingSlotsByPlanId.TryGetValue(targetId, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
         {
-            return pendingSlot.LocalId;
+            return pendingSlot.LocalId.Value;
         }
 
-        if (pendingComponentsByPlanId.TryGetValue(targetId, out PendingBatchComponent pendingComponent))
+        if (pendingComponentsByPlanId.TryGetValue(targetId, out ResoniteBatchOperations.PendingBatchComponent pendingComponent))
         {
-            return pendingComponent.LocalId;
+            return pendingComponent.LocalId.Value;
         }
 
         return targetId;
@@ -137,8 +132,8 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static Dictionary<string, Member> TranslateMembers(
         IReadOnlyDictionary<string, Member> members,
-        IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
     {
         return members.ToDictionary(
             static pair => pair.Key,
@@ -148,8 +143,8 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
     private static Member TranslateMember(
         Member member,
-        IReadOnlyDictionary<string, PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, PendingBatchComponent> pendingComponentsByPlanId)
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
     {
         return member switch
         {
@@ -167,48 +162,4 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         };
     }
 
-    private sealed class BatchOperationAccumulator
-    {
-        private readonly string batchScopeToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
-        private int nextEntityId;
-        private int nextMessageId;
-
-        public List<DataModelOperation> Operations { get; } = [];
-        public List<PendingBatchOperation> PendingOperations { get; } = [];
-
-        public PendingBatchSlot AddSlot(
-            string parentId,
-            string slotName,
-            ResoniteFloat3? position,
-            ResoniteFloatQ? rotation)
-        {
-            string localId = AllocateEntityId("local_slot");
-            string messageId = AllocateMessageId();
-            Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
-            PendingOperations.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
-            return new PendingBatchSlot(localId, messageId, slotName);
-        }
-
-        public PendingBatchComponent AddComponent(
-            string containerSlotId,
-            string componentType,
-            IReadOnlyDictionary<string, Member> members)
-        {
-            string localId = AllocateEntityId("local_component");
-            string messageId = AllocateMessageId();
-            Operations.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
-            PendingOperations.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
-            return new PendingBatchComponent(localId, messageId, componentType);
-        }
-
-        private string AllocateEntityId(string prefix)
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"{prefix}_{batchScopeToken}_{++nextEntityId}");
-        }
-
-        private string AllocateMessageId()
-        {
-            return string.Create(CultureInfo.InvariantCulture, $"batch_message_{batchScopeToken}_{++nextMessageId}");
-        }
-    }
 }

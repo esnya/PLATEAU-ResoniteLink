@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
 
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -11,19 +12,110 @@ namespace PlateauResoniteLink.Targets.Resonite.Execution;
 
 internal static class ResoniteBatchOperations
 {
+    internal readonly record struct BatchTemporarySlotId(string Value);
+    internal readonly record struct BatchTemporaryComponentId(string Value);
+    internal readonly record struct BatchTemporaryMessageId(string Value);
+
     internal readonly record struct PendingBatchSlot(
-        string LocalId,
-        string MessageId,
+        BatchTemporarySlotId LocalId,
+        BatchTemporaryMessageId MessageId,
         string SlotName);
 
     internal readonly record struct PendingBatchComponent(
-        string LocalId,
-        string MessageId,
+        BatchTemporaryComponentId LocalId,
+        BatchTemporaryMessageId MessageId,
         string ComponentType);
 
     internal readonly record struct PendingBatchOperation(
-        string MessageId,
+        BatchTemporaryMessageId MessageId,
         string Description);
+
+    internal sealed class BatchOperationAccumulator
+    {
+        private readonly string batchScopeToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
+        private int nextEntityId;
+        private int nextMessageId;
+
+        public List<DataModelOperation> Operations { get; } = [];
+        public List<PendingBatchOperation> PendingOperations { get; } = [];
+
+        public PendingBatchSlot AddSlot(
+            string parentId,
+            string slotName,
+            ResoniteFloat3? position,
+            ResoniteFloatQ? rotation)
+        {
+            return AddSlot(
+                AllocateSlotId("local_slot"),
+                AllocateMessageId("batch_message"),
+                parentId,
+                slotName,
+                position,
+                rotation);
+        }
+
+        public PendingBatchSlot AddSlot(
+            BatchTemporarySlotId localId,
+            BatchTemporaryMessageId messageId,
+            string parentId,
+            string slotName,
+            ResoniteFloat3? position,
+            ResoniteFloatQ? rotation)
+        {
+            Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
+            PendingOperations.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
+            return new PendingBatchSlot(localId, messageId, slotName);
+        }
+
+        public PendingBatchComponent AddComponent(
+            string containerSlotId,
+            string componentType,
+            IReadOnlyDictionary<string, Member> members)
+        {
+            return AddComponent(
+                AllocateComponentId("local_component"),
+                AllocateMessageId("batch_message"),
+                containerSlotId,
+                componentType,
+                members);
+        }
+
+        public PendingBatchComponent AddComponent(
+            BatchTemporaryComponentId localId,
+            BatchTemporaryMessageId messageId,
+            string containerSlotId,
+            string componentType,
+            IReadOnlyDictionary<string, Member> members)
+        {
+            Operations.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
+            PendingOperations.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
+            return new PendingBatchComponent(localId, messageId, componentType);
+        }
+
+        private BatchTemporarySlotId AllocateSlotId(string prefix)
+        {
+            return new BatchTemporarySlotId(
+                string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{prefix}_{batchScopeToken}_{++nextEntityId}"));
+        }
+
+        private BatchTemporaryComponentId AllocateComponentId(string prefix)
+        {
+            return new BatchTemporaryComponentId(
+                string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{prefix}_{batchScopeToken}_{++nextEntityId}"));
+        }
+
+        private BatchTemporaryMessageId AllocateMessageId(string prefix)
+        {
+            return new BatchTemporaryMessageId(
+                string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"{prefix}_{batchScopeToken}_{++nextMessageId}"));
+        }
+    }
 
     public static AddSlot CreateAddSlotOperation(
         string parentId,
@@ -32,7 +124,30 @@ internal static class ResoniteBatchOperations
         ResoniteFloatQ? rotation,
         PendingBatchSlot pendingSlot)
     {
-        return CreateAddSlotOperation(parentId, slotName, position, rotation, pendingSlot.LocalId, pendingSlot.MessageId);
+        return CreateAddSlotOperation(
+            parentId,
+            slotName,
+            position,
+            rotation,
+            pendingSlot.LocalId,
+            pendingSlot.MessageId);
+    }
+
+    public static AddSlot CreateAddSlotOperation(
+        string parentId,
+        string slotName,
+        ResoniteFloat3? position,
+        ResoniteFloatQ? rotation,
+        BatchTemporarySlotId requestedSlotId,
+        BatchTemporaryMessageId messageId)
+    {
+        return CreateAddSlotOperation(
+            parentId,
+            slotName,
+            position,
+            rotation,
+            requestedSlotId.Value,
+            messageId.Value);
     }
 
     public static AddSlot CreateAddSlotOperation(
@@ -75,6 +190,21 @@ internal static class ResoniteBatchOperations
             members,
             pendingComponent.LocalId,
             pendingComponent.MessageId);
+    }
+
+    public static AddComponent CreateAddComponentOperation(
+        string containerSlotId,
+        string componentType,
+        IReadOnlyDictionary<string, Member> members,
+        BatchTemporaryComponentId requestedComponentId,
+        BatchTemporaryMessageId messageId)
+    {
+        return CreateAddComponentOperation(
+            containerSlotId,
+            componentType,
+            members,
+            requestedComponentId.Value,
+            messageId.Value);
     }
 
     public static AddComponent CreateAddComponentOperation(
@@ -144,7 +274,7 @@ internal sealed class CanonicalBatchEntityMap
         return new CanonicalBatchEntityMap(
             (batchResponse.Responses ?? [])
                 .Where(static response => !string.IsNullOrWhiteSpace(response.SourceMessageID))
-                .ToDictionary(response => response.SourceMessageID, StringComparer.Ordinal),
+                .ToDictionary(response => response.SourceMessageID!, StringComparer.Ordinal),
             new Queue<Response>(
                 (batchResponse.Responses ?? [])
                     .Where(static response => string.IsNullOrWhiteSpace(response.SourceMessageID))));
@@ -185,18 +315,18 @@ internal sealed class CanonicalBatchEntityMap
         }
     }
 
-    private Response ResolveResponse(string messageId)
+    private Response ResolveResponse(ResoniteBatchOperations.BatchTemporaryMessageId messageId)
     {
-        return ResolveResponse(messageId, $"resolve batch message '{messageId}'");
+        return ResolveResponse(messageId, $"resolve batch message '{messageId.Value}'");
     }
 
-    private Response ResolveResponse(string messageId, string operationName)
+    private Response ResolveResponse(ResoniteBatchOperations.BatchTemporaryMessageId messageId, string operationName)
     {
-        if (!responsesByMessageId.TryGetValue(messageId, out Response? response))
+        if (!responsesByMessageId.TryGetValue(messageId.Value, out Response? response))
         {
             if (responsesWithoutMessageId.Count == 0)
             {
-                throw new InvalidOperationException($"Batch response did not include message '{messageId}'.");
+                throw new InvalidOperationException($"Batch response did not include message '{messageId.Value}'.");
             }
 
             response = responsesWithoutMessageId.Dequeue();

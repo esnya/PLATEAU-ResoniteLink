@@ -1,4 +1,3 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -30,13 +29,13 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        ResoniteBatchOperations.PendingBatchSlot pendingSlot = new(
-            LocalId: $"single_slot_{Guid.NewGuid():N}",
-            MessageId: $"single_slot_message_{Guid.NewGuid():N}",
-            SlotName: slotName);
-        BatchResponse response = await client.RunDataModelOperationBatchAsync(
-            [ResoniteBatchOperations.CreateAddSlotOperation(parentId, slotName, position, rotation, requestedSlotId: pendingSlot.LocalId, messageId: pendingSlot.MessageId)],
-            cancellationToken);
+        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
+            parentId,
+            slotName,
+            position,
+            rotation);
+        BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveSlot(pendingSlot);
     }
 }
