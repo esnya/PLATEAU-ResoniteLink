@@ -2144,10 +2144,16 @@ public static partial class LocalCityGmlObjectProjection
         GeographicRectangle objectBounds = IntersectGeographicBounds(
             cityObjectBounds,
             demTerrainTextureOverlay.GeographicBounds);
-        double west = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MinLongitude);
-        double east = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MaxLongitude);
-        double north = WebMercatorTileMath.LatitudeToNormalizedY(objectBounds.MaxLatitude);
-        double south = WebMercatorTileMath.LatitudeToNormalizedY(objectBounds.MinLatitude);
+        if (objectBounds.MinLatitude >= objectBounds.MaxLatitude
+            || objectBounds.MinLongitude >= objectBounds.MaxLongitude)
+        {
+            return null;
+        }
+
+        double west = WebMercatorTileMath.LongitudeToNormalizedX(demTerrainTextureOverlay.GeographicBounds.MinLongitude);
+        double east = WebMercatorTileMath.LongitudeToNormalizedX(demTerrainTextureOverlay.GeographicBounds.MaxLongitude);
+        double north = WebMercatorTileMath.LatitudeToNormalizedY(demTerrainTextureOverlay.GeographicBounds.MaxLatitude);
+        double south = WebMercatorTileMath.LatitudeToNormalizedY(demTerrainTextureOverlay.GeographicBounds.MinLatitude);
         double width = Math.Max(east - west, 1e-12);
         double height = Math.Max(south - north, 1e-12);
 

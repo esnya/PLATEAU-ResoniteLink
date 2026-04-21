@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -344,6 +345,47 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 path,
                 $"{routedClient.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
                 StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PropagatesTerrainOverlayGenerationFailure()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512,
+            PrimarySource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+            FallbackSource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => throw new HttpRequestException("offline"));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            routedClient,
+            terrainTextureGenerator,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            terrainTextureOverlays: [overlay]);
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => builder.ExecuteAsync(
+                ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
+                CreateImportedCityObjects(
+                    CreateDemCityObject("dem-overlay-failure", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay))));
     }
 
     [Fact]

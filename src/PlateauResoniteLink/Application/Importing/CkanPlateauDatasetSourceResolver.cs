@@ -79,7 +79,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             workRoot,
             remoteSource.ServerUri,
             resourcePrefix);
-        string metadataPath = RemoteDatasetResourceLayout.GetRemoteResourceMetadataPath(resourcePath);
+        string metadataPath = remoteArchiveDistributionPolicy.GetSourceArchiveMetadataPath(resourcePath);
 
         Directory.CreateDirectory(Path.GetDirectoryName(resourcePath)!);
 

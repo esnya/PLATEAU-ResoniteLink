@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -1004,48 +1003,37 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         TerrainTextureOverlay terrainTextureOverlay,
         CancellationToken cancellationToken)
     {
-        try
+        GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
+            terrainTextureOverlay,
+            cancellationToken);
+        TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture, terrainTextureOverlay);
+        foreach (TerrainTextureSource usedSource in usedSources)
         {
-            GeneratedTerrainTexture terrainTexture = await terrainTextureAssetGenerator.EnsureTextureAsync(
-                terrainTextureOverlay,
-                cancellationToken);
-            TerrainTextureSource[] usedSources = GetTrackedTerrainTextureSources(terrainTexture, terrainTextureOverlay);
-            foreach (TerrainTextureSource usedSource in usedSources)
+            int useCount = state.DemSourceUseCounts.AddOrUpdate(
+                usedSource.IdentityKey,
+                1,
+                static (_, current) => checked(current + 1));
+            if (useCount == 1)
             {
-                int useCount = state.DemSourceUseCounts.AddOrUpdate(
-                    usedSource.IdentityKey,
-                    1,
-                    static (_, current) => checked(current + 1));
-                if (useCount == 1)
-                {
-                    ReportProgress(
-                        PlateauLog.Info(
-                            "live",
-                            $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
-                            + $"to {DescribeTerrainTextureSource(usedSource)}."));
-                }
-
-                if (IsGsiFallbackSource(usedSource))
-                {
-                    await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
-                }
+                ReportProgress(
+                    PlateauLog.Info(
+                        "live",
+                        $"Resolved DEM terrain texture source for package '{terrainTextureOverlay.PackageName}' "
+                        + $"to {DescribeTerrainTextureSource(usedSource)}."));
             }
 
-            return new PreparedTextureReference(
-                TextureIdentity: null,
-                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
-                TextureImport: terrainTexture.TextureImport,
-                TerrainOverlay: terrainTextureOverlay,
-                GeneratedTerrainTexture: terrainTexture);
+            if (IsGsiFallbackSource(usedSource))
+            {
+                await EnsureGsiFallbackLicenseAsync(state, cancellationToken);
+            }
         }
-        catch (HttpRequestException)
-        {
-            ReportProgress(
-                PlateauLog.Warning(
-                    "live",
-                    $"Skipping terrain overlay texture for '{terrainTextureOverlay.SourceIdentityKey}' after texture generation failure."));
-            return null;
-        }
+
+        return new PreparedTextureReference(
+            TextureIdentity: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            TextureImport: terrainTexture.TextureImport,
+            TerrainOverlay: terrainTextureOverlay,
+            GeneratedTerrainTexture: terrainTexture);
     }
 
     private static TerrainTextureSource[] GetTrackedTerrainTextureSources(

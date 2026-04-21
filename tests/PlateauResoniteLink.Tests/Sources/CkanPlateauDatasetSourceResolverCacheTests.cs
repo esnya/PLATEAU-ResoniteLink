@@ -220,6 +220,36 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     }
 
     [Fact]
+    public async Task ResolveAsyncUsesInjectedArchivePolicyForMetadataPath()
+    {
+        byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
+        using TemporaryDirectory workRoot = new();
+        Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
+        CustomRemoteArchiveDistributionPolicy archivePolicy = new();
+        string archivePath = archivePolicy.GetSourceArchivePath(
+            workRoot.Path,
+            archiveUri,
+            archivePolicy.GetArchiveFileName(archiveUri));
+        string metadataPath = archivePolicy.GetSourceArchiveMetadataPath(archivePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(archivePath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(metadataPath)!);
+        await File.WriteAllBytesAsync(archivePath, zipBytes);
+        await File.WriteAllTextAsync(metadataPath, """{"etag":"\"v1\"","lastModifiedUtc":"2026-01-01T00:00:00+00:00"}""");
+
+        using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotModified));
+        using HttpClient httpClient = new(handler);
+        CkanPlateauDatasetSourceResolver resolver = new(httpClient, archivePolicy, new ArchiveFileLayoutPolicy());
+
+        ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
+            CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
+            workRoot.Path);
+
+        Assert.Equal(archivePath, resolvedRequest.LocalSourcePath);
+        Assert.True(File.Exists(metadataPath));
+        Assert.False(File.Exists(RemoteDatasetResourceLayout.GetRemoteResourceMetadataPath(archivePath)));
+    }
+
+    [Fact]
     public async Task ResolveAsyncRetriesDownloadAfterInterruptionWithoutLeavingArchive()
     {
         byte[] zipBytes = CreateZipArchive(("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", "<CityModel />"));
@@ -483,6 +513,25 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
                 System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.AbsoluteUri)))
             .ToLowerInvariant();
         return Path.Combine(workRoot, $"source-archive-{digest[..12]}{extension}");
+    }
+
+    private sealed class CustomRemoteArchiveDistributionPolicy : IRemoteArchiveDistributionPolicy
+    {
+        public bool IsSupportedArchivePath(string path) => string.Equals(Path.GetExtension(path), ".zip", StringComparison.OrdinalIgnoreCase);
+
+        public string GetArchiveFileName(Uri archiveUri) => Path.GetFileName(archiveUri.LocalPath);
+
+        public string GetSourceArchivePath(string datasetRoot, Uri archiveUri, string archiveFileName)
+        {
+            string extension = Path.GetExtension(archiveFileName).ToLowerInvariant();
+            string digest = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(archiveUri.AbsoluteUri)))
+                .ToLowerInvariant();
+            return Path.Combine(datasetRoot, $"source-archive-{digest[..12]}{extension}");
+        }
+
+        public string GetSourceArchiveMetadataPath(string archivePath)
+            => Path.Combine(Path.GetDirectoryName(archivePath)!, "metadata", $"{Path.GetFileName(archivePath)}.custom.json");
     }
 
     private sealed class FailingHttpContent(byte[] content, int failAfterBytes) : HttpContent
