@@ -42,13 +42,13 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         _ = archiveFileLayoutPolicy.CreateSafePathSegment(request.Dataset);
         _ = TryCreateSafePathSegment(request.MeshCode, out _);
 
-        ValidatedPlateauImportSource resolvedSource = await ResolveOptionalRemoteImportSourceAsync(
+        ValidatedDatasetLocation resolvedSource = await ResolveOptionalRemoteDatasetLocationAsync(
             request.Source,
             workRoot,
             resourcePrefix: "source-archive",
             invalidateLocalFileCache: true,
             cancellationToken) ?? throw new InvalidOperationException("The normalized CityGML source must resolve to a local or remote source.");
-        ValidatedPlateauImportSource? resolvedDemTextureSource = await ResolveOptionalRemoteImportSourceAsync(
+        ValidatedDatasetLocation? resolvedDemTextureSource = await ResolveOptionalRemoteDatasetLocationAsync(
             request.DemTextureSource,
             workRoot,
             resourcePrefix: "source-ortho",
@@ -62,19 +62,19 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
         };
     }
 
-    private async Task<ValidatedPlateauImportSource?> ResolveOptionalRemoteImportSourceAsync(
-        ValidatedPlateauImportSource? source,
+    private async Task<ValidatedDatasetLocation?> ResolveOptionalRemoteDatasetLocationAsync(
+        ValidatedDatasetLocation? source,
         string workRoot,
         string resourcePrefix,
         bool invalidateLocalFileCache,
         CancellationToken cancellationToken)
     {
-        if (source is null || source is ValidatedPlateauLocalImportSource)
+        if (source is null || source is ValidatedLocalDatasetLocation)
         {
             return source;
         }
 
-        ValidatedPlateauRemoteImportSource remoteSource = (ValidatedPlateauRemoteImportSource)source;
+        ValidatedRemoteDatasetLocation remoteSource = (ValidatedRemoteDatasetLocation)source;
         string resourcePath = RemoteDatasetResourceLayout.GetRemoteResourcePath(
             workRoot,
             remoteSource.ServerUri,
@@ -92,7 +92,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
                 invalidateLocalFileCache,
                 cancellationToken))
         {
-            return new ValidatedPlateauLocalImportSource(resourcePath);
+            return new ValidatedLocalDatasetLocation(resourcePath);
         }
 
         await DownloadRemoteResourceAsync(
@@ -102,7 +102,7 @@ public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceReso
             metadataPath,
             invalidateLocalFileCache,
             cancellationToken);
-        return new ValidatedPlateauLocalImportSource(resourcePath);
+        return new ValidatedLocalDatasetLocation(resourcePath);
     }
 
     private async Task<bool> TryReuseCachedRemoteResourceAsync(

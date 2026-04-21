@@ -6,8 +6,8 @@ namespace PlateauResoniteLink.Domain.Importing;
 public sealed record PlateauImportRequest(
     string Dataset,
     string MeshCode,
-    PlateauImportSource Source,
-    PlateauImportSource? DemTextureSource = null,
+    DatasetLocation Source,
+    DatasetLocation? DemTextureSource = null,
     IReadOnlyList<string>? PackageNames = null,
     IReadOnlySet<int>? GlobalExcludeLodLevels = null,
     IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
@@ -37,10 +37,10 @@ public sealed record PlateauImportRequest(
         : this(
             Dataset,
             MeshCode,
-            PlateauImportSource.FromLegacy(SourceKind, LocalSourcePath, ServerUri),
+            DatasetLocation.FromLegacy(SourceKind, LocalSourcePath, ServerUri),
             DemTextureSourceKind is null
                 ? null
-                : PlateauImportSource.FromLegacy(DemTextureSourceKind.Value, DemTextureLocalSourcePath, DemTextureServerUri),
+                : DatasetLocation.FromLegacy(DemTextureSourceKind.Value, DemTextureLocalSourcePath, DemTextureServerUri),
             PackageNames,
             GlobalExcludeLodLevels,
             ExcludeLodLevelsByPackage,
@@ -54,13 +54,13 @@ public sealed record PlateauImportRequest(
 
     public DatasetSourceKind SourceKind => Source.SourceKind;
 
-    public string? LocalSourcePath => Source is PlateauLocalImportSource localSource ? localSource.LocalSourcePath : null;
+    public string? LocalSourcePath => Source is LocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
 
-    public Uri? ServerUri => Source is PlateauRemoteImportSource remoteSource ? remoteSource.ServerUri : null;
+    public Uri? ServerUri => Source is RemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
 
     public DatasetSourceKind? DemTextureSourceKind => DemTextureSource?.SourceKind;
 
-    public string? DemTextureLocalSourcePath => DemTextureSource is PlateauLocalImportSource localSource ? localSource.LocalSourcePath : null;
+    public string? DemTextureLocalSourcePath => DemTextureSource is LocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
 
-    public Uri? DemTextureServerUri => DemTextureSource is PlateauRemoteImportSource remoteSource ? remoteSource.ServerUri : null;
+    public Uri? DemTextureServerUri => DemTextureSource is RemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
 }

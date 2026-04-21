@@ -37,13 +37,13 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     }
 
     public static async Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-        PlateauImportSource? source,
+        DatasetLocation? source,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
 
-        if (source is not PlateauLocalImportSource localSource
+        if (source is not LocalDatasetLocation localSource
             || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
             return null;

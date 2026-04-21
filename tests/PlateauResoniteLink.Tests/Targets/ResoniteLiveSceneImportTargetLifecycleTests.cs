@@ -54,7 +54,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Remote(new Uri("https://example.invalid/tokyo23ku/source-archive.zip")));
+            Source: DatasetLocation.Remote(new Uri("https://example.invalid/tokyo23ku/source-archive.zip")));
         ResoniteConstructionMetadata metadata = CreateMetadata(
             CreateRequest(resolvedDatasetDirectory.Path),
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);

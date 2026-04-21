@@ -32,8 +32,8 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("C:\\dataset"),
-            DemTextureSource: PlateauImportSource.Local("C:\\ortho"),
+            Source: DatasetLocation.Local("C:\\dataset"),
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"),
             PackageNames: ["dem"]);
 
         ResolvedDemTextureSources result = await policy.ResolveAsync(request, ["53394525"]);
@@ -58,8 +58,8 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("C:\\dataset"),
-            DemTextureSource: PlateauImportSource.Local("C:\\ortho"),
+            Source: DatasetLocation.Local("C:\\dataset"),
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"),
             PackageNames: ["dem"]);
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -79,7 +79,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("C:\\dataset"),
+            Source: DatasetLocation.Local("C:\\dataset"),
             PackageNames: ["dem"]);
 
         ResolvedDemTextureSources result = await policy.ResolveAsync(request, ["53394525"]);
@@ -150,7 +150,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
         : IDemTerrainGeoReferencedRasterCatalogFactory
     {
         public Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-            PlateauImportSource? source,
+            DatasetLocation? source,
             CancellationToken cancellationToken)
         {
             return Task.FromResult(catalog);

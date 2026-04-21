@@ -62,7 +62,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             dataset,
             mesh,
             new System.Text.RegularExpressions.Regex(".*"),
-            new ValidatedPlateauRemoteImportSource(new Uri("https://example.test/direct.zip", UriKind.Absolute)));
+            new ValidatedRemoteDatasetLocation(new Uri("https://example.test/direct.zip", UriKind.Absolute)));
 
         await Assert.ThrowsAsync<PlateauImportValidationException>(
             () => resolver.ResolveAsync(request, workRoot.Path));

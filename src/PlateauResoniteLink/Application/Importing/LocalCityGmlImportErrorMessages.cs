@@ -35,15 +35,15 @@ internal static class LocalCityGmlImportErrorMessages
             + "or pass an extracted dataset directory that contains udx/<package>/<mesh-code>/.";
     }
 
-    public static string InvalidDemTextureSource(PlateauImportSource demTextureSource)
+    public static string InvalidDemTextureSource(DatasetLocation demTextureSource)
     {
         ArgumentNullException.ThrowIfNull(demTextureSource);
 
         return demTextureSource switch
         {
-            PlateauLocalImportSource localSource =>
+            LocalDatasetLocation localSource =>
                 $"The GeoTIFF source '{localSource.LocalSourcePath}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
-            PlateauRemoteImportSource remoteSource =>
+            RemoteDatasetLocation remoteSource =>
                 $"The GeoTIFF source '{remoteSource.ServerUri}' did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",
             _ =>
                 "The GeoTIFF source did not resolve any usable GeoTIFF raster covering the requested DEM bounds.",

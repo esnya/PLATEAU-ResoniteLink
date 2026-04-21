@@ -59,7 +59,7 @@ internal static class LocalCityGmlBootstrapPipeline
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);
         ArgumentNullException.ThrowIfNull(lodSelector);
 
-        if (request.Source is not PlateauLocalImportSource localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
+        if (request.Source is not LocalDatasetLocation localSource || string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
         {
             throw new PlateauImportValidationException(
                 [LocalCityGmlImportErrorMessages.MissingLocalSourcePath()]);

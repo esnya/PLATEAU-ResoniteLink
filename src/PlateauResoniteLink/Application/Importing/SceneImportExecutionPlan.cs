@@ -80,8 +80,8 @@ public sealed record SceneImportExecutionPlan
     }
 
     private static bool HasCompatibleSourceResolution(
-        PlateauImportSource? normalizedSource,
-        PlateauImportSource? resolvedSource,
+        DatasetLocation? normalizedSource,
+        DatasetLocation? resolvedSource,
         string workRoot,
         string remotePathPrefix)
     {
@@ -95,8 +95,8 @@ public sealed record SceneImportExecutionPlan
             return SourcesEqual(normalizedSource, resolvedSource);
         }
 
-        if (normalizedSource is PlateauRemoteImportSource remoteSource
-            && resolvedSource is PlateauLocalImportSource localSource)
+        if (normalizedSource is RemoteDatasetLocation remoteSource
+            && resolvedSource is LocalDatasetLocation localSource)
         {
             return RemoteDatasetResourceLayout.MatchesRemoteResourcePath(
                 workRoot,
@@ -108,7 +108,7 @@ public sealed record SceneImportExecutionPlan
         return false;
     }
 
-    private static bool SourcesEqual(PlateauImportSource? left, PlateauImportSource? right)
+    private static bool SourcesEqual(DatasetLocation? left, DatasetLocation? right)
     {
         if (ReferenceEquals(left, right))
         {
@@ -122,9 +122,9 @@ public sealed record SceneImportExecutionPlan
 
         return left switch
         {
-            PlateauLocalImportSource leftLocal when right is PlateauLocalImportSource rightLocal =>
+            LocalDatasetLocation leftLocal when right is LocalDatasetLocation rightLocal =>
                 string.Equals(leftLocal.LocalSourcePath, rightLocal.LocalSourcePath, StringComparison.Ordinal),
-            PlateauRemoteImportSource leftRemote when right is PlateauRemoteImportSource rightRemote =>
+            RemoteDatasetLocation leftRemote when right is RemoteDatasetLocation rightRemote =>
                 Equals(leftRemote.ServerUri, rightRemote.ServerUri),
             _ => false,
         };

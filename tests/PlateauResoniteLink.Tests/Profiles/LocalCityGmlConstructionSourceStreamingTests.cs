@@ -92,7 +92,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("/tmp/streaming"),
+            Source: DatasetLocation.Local("/tmp/streaming"),
             PackageNames: ["bldg", "dem", "tran"]);
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -209,7 +209,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("/tmp/streaming"),
+            Source: DatasetLocation.Local("/tmp/streaming"),
             PackageNames: packageNames);
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",

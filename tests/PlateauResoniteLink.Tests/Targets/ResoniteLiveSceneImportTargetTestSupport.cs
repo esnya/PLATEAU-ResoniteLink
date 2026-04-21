@@ -139,7 +139,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null)
     {
-        string? resolvedSourcePath = normalizedRequest?.Source is PlateauRemoteImportSource
+        string? resolvedSourcePath = normalizedRequest?.Source is RemoteDatasetLocation
             ? null
             : metadata.Request.LocalSourcePath;
         return CreateExecutionPlan(
@@ -185,31 +185,31 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             throw new ArgumentException("Metadata request must include a local source path.", nameof(metadataRequest));
         }
 
-        PlateauImportSource? resolvedDemTextureSource = metadataRequest.DemTextureSource;
+        DatasetLocation? resolvedDemTextureSource = metadataRequest.DemTextureSource;
         if (normalizedRequest.DemTextureSource is not null)
         {
             string? resolvedDemTexturePath = ResolveLocalPath(normalizedRequest.DemTextureSource, workDirectory, "source-ortho");
             resolvedDemTextureSource = resolvedDemTexturePath is null
                 ? metadataRequest.DemTextureSource
-                : PlateauImportSource.Local(resolvedDemTexturePath);
+                : DatasetLocation.Local(resolvedDemTexturePath);
         }
 
         return metadataRequest with
         {
-            Source = PlateauImportSource.Local(effectiveResolvedSourcePath),
+            Source = DatasetLocation.Local(effectiveResolvedSourcePath),
             DemTextureSource = resolvedDemTextureSource,
         };
     }
 
     private static string? ResolveLocalPath(
-        PlateauImportSource source,
+        DatasetLocation source,
         string workDirectory,
         string prefix)
     {
         return source switch
         {
-            PlateauLocalImportSource localSource => localSource.LocalSourcePath,
-            PlateauRemoteImportSource remoteSource => RemoteDatasetResourceLayout.GetRemoteResourcePath(
+            LocalDatasetLocation localSource => localSource.LocalSourcePath,
+            RemoteDatasetLocation remoteSource => RemoteDatasetResourceLayout.GetRemoteResourcePath(
                 workDirectory,
                 remoteSource.ServerUri ?? throw new ArgumentException("Remote source must include a URI.", nameof(source)),
                 prefix),

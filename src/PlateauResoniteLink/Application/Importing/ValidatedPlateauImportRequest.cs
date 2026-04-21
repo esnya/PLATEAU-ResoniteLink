@@ -11,8 +11,8 @@ public sealed record ValidatedPlateauImportRequest(
     string Dataset,
     string MeshCode,
     Regex MeshCodePattern,
-    ValidatedPlateauImportSource Source,
-    ValidatedPlateauImportSource? DemTextureSource = null,
+    ValidatedDatasetLocation Source,
+    ValidatedDatasetLocation? DemTextureSource = null,
     IReadOnlyList<string>? PackageNames = null,
     IReadOnlySet<int>? GlobalExcludeLodLevels = null,
     IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
@@ -24,29 +24,29 @@ public sealed record ValidatedPlateauImportRequest(
 {
     public DatasetSourceKind SourceKind => Source.SourceKind;
 
-    public string? LocalSourcePath => Source is ValidatedPlateauLocalImportSource localSource ? localSource.LocalSourcePath : null;
+    public string? LocalSourcePath => Source is ValidatedLocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
 
-    public Uri? ServerUri => Source is ValidatedPlateauRemoteImportSource remoteSource ? remoteSource.ServerUri : null;
+    public Uri? ServerUri => Source is ValidatedRemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
 
     public DatasetSourceKind? DemTextureSourceKind => DemTextureSource?.SourceKind;
 
-    public string? DemTextureLocalSourcePath => DemTextureSource is ValidatedPlateauLocalImportSource localSource ? localSource.LocalSourcePath : null;
+    public string? DemTextureLocalSourcePath => DemTextureSource is ValidatedLocalDatasetLocation localSource ? localSource.LocalSourcePath : null;
 
-    public Uri? DemTextureServerUri => DemTextureSource is ValidatedPlateauRemoteImportSource remoteSource ? remoteSource.ServerUri : null;
+    public Uri? DemTextureServerUri => DemTextureSource is ValidatedRemoteDatasetLocation remoteSource ? remoteSource.ServerUri : null;
 
     public PlateauImportRequest ToImportRequest()
     {
-        PlateauImportSource rawSource = Source switch
+        DatasetLocation rawSource = Source switch
         {
-            ValidatedPlateauLocalImportSource localSource => new PlateauLocalImportSource(localSource.LocalSourcePath),
-            ValidatedPlateauRemoteImportSource remoteSource => new PlateauRemoteImportSource(remoteSource.ServerUri),
+            ValidatedLocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath),
+            ValidatedRemoteDatasetLocation remoteSource => new RemoteDatasetLocation(remoteSource.ServerUri),
             _ => throw new InvalidOperationException($"Unsupported validated source kind '{SourceKind}'."),
         };
-        PlateauImportSource? rawDemTextureSource = DemTextureSource switch
+        DatasetLocation? rawDemTextureSource = DemTextureSource switch
         {
             null => null,
-            ValidatedPlateauLocalImportSource localSource => new PlateauLocalImportSource(localSource.LocalSourcePath),
-            ValidatedPlateauRemoteImportSource remoteSource => new PlateauRemoteImportSource(remoteSource.ServerUri),
+            ValidatedLocalDatasetLocation localSource => new LocalDatasetLocation(localSource.LocalSourcePath),
+            ValidatedRemoteDatasetLocation remoteSource => new RemoteDatasetLocation(remoteSource.ServerUri),
             _ => throw new InvalidOperationException($"Unsupported validated terrain texture source kind '{DemTextureSourceKind}'."),
         };
 

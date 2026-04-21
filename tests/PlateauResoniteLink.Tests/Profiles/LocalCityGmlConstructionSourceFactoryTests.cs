@@ -109,9 +109,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
-            Source: PlateauImportSource.Local("/tmp/plateau"),
+            Source: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem", "bldg"],
-            DemTextureSource: PlateauImportSource.Local("C:\\ortho"));
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
         _ = await factory.CreateAsync(request);
 
@@ -140,9 +140,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("/tmp/plateau"),
+            Source: DatasetLocation.Local("/tmp/plateau"),
             PackageNames: ["dem"],
-            DemTextureSource: PlateauImportSource.Local("C:\\ortho"));
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
             () => factory.CreateAsync(request));

@@ -357,14 +357,14 @@ public static class CliArgumentsParser
             return CliParseResult.Failure("Specify --citygml-source.");
         }
 
-        if (!TryParseImportSourceInput(cityGmlSourceInput, out PlateauImportSource? source, out string? sourceError))
+        if (!TryParseDatasetLocationInput(cityGmlSourceInput, out DatasetLocation? source, out string? sourceError))
         {
             return CliParseResult.Failure(sourceError!);
         }
 
-        PlateauImportSource? demTextureSource = null;
+        DatasetLocation? demTextureSource = null;
         if (!string.IsNullOrWhiteSpace(geotiffSourceInput)
-            && !TryParseImportSourceInput(geotiffSourceInput, out demTextureSource, out string? demTextureSourceError))
+            && !TryParseDatasetLocationInput(geotiffSourceInput, out demTextureSource, out string? demTextureSourceError))
         {
             return CliParseResult.Failure(demTextureSourceError!);
         }
@@ -726,15 +726,15 @@ public static class CliArgumentsParser
         return true;
     }
 
-    private static bool TryParseImportSourceInput(
+    private static bool TryParseDatasetLocationInput(
         string input,
-        out PlateauImportSource? source,
+        out DatasetLocation? source,
         out string? error)
     {
         string trimmedInput = input.Trim();
         if (Path.IsPathRooted(trimmedInput))
         {
-            source = PlateauImportSource.Local(trimmedInput);
+            source = DatasetLocation.Local(trimmedInput);
             error = null;
             return true;
         }
@@ -749,12 +749,12 @@ public static class CliArgumentsParser
                 return false;
             }
 
-            source = PlateauImportSource.Remote(absoluteUri);
+            source = DatasetLocation.Remote(absoluteUri);
             error = null;
             return true;
         }
 
-        source = PlateauImportSource.Local(trimmedInput);
+        source = DatasetLocation.Local(trimmedInput);
         error = null;
         return true;
     }

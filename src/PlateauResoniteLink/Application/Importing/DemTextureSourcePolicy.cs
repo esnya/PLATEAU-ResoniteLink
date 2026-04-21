@@ -33,7 +33,7 @@ internal interface IDemTerrainGeoReferencedRasterCatalog
 internal interface IDemTerrainGeoReferencedRasterCatalogFactory
 {
     Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-        PlateauImportSource? source,
+        DatasetLocation? source,
         CancellationToken cancellationToken);
 }
 
@@ -42,7 +42,7 @@ internal sealed class DefaultDemTerrainGeoReferencedRasterCatalogFactory(
     : IDemTerrainGeoReferencedRasterCatalogFactory
 {
     public Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
-        PlateauImportSource? source,
+        DatasetLocation? source,
         CancellationToken cancellationToken)
     {
         return DemTerrainGeoReferencedRasterCatalog.CreateAsync(

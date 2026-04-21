@@ -47,8 +47,8 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("C:/dataset"),
-            DemTextureSource: PlateauImportSource.Remote(new Uri("https://example.invalid/ortho.png")));
+            Source: DatasetLocation.Local("C:/dataset"),
+            DemTextureSource: DatasetLocation.Remote(new Uri("https://example.invalid/ortho.png")));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -67,7 +67,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(rasterPath));
+            Source: DatasetLocation.Local(rasterPath));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -86,8 +86,8 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: " tokyo23ku ",
             MeshCode: " 53394525 ",
-            Source: PlateauImportSource.Local($"  {sourceRoot.Path}  "),
-            DemTextureSource: PlateauImportSource.Local($"  {geoTiffPath}  "),
+            Source: DatasetLocation.Local($"  {sourceRoot.Path}  "),
+            DemTextureSource: DatasetLocation.Local($"  {geoTiffPath}  "),
             PackageNames: [" waterbody ", " tran "]);
 
         bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
@@ -101,7 +101,7 @@ public sealed class PlateauImportRequestValidatorTests
         Assert.Equal("tokyo23ku", validatedRequest!.Dataset);
         Assert.Equal("53394525", validatedRequest.MeshCode);
         Assert.Matches(validatedRequest.MeshCodePattern, "53394525");
-        Assert.IsType<ValidatedPlateauLocalImportSource>(validatedRequest.Source);
+        Assert.IsType<ValidatedLocalDatasetLocation>(validatedRequest.Source);
         Assert.Equal(sourceRoot.Path, validatedRequest.LocalSourcePath);
         Assert.Equal(geoTiffPath, validatedRequest.DemTextureLocalSourcePath);
         Assert.Equal(["wtr", "tran"], validatedRequest.PackageNames);
@@ -116,8 +116,8 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local(sourceRoot.Path),
-            DemTextureSource: PlateauImportSource.Local(geoTiffRoot.Path));
+            Source: DatasetLocation.Local(sourceRoot.Path),
+            DemTextureSource: DatasetLocation.Local(geoTiffRoot.Path));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -132,7 +132,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("/path/that/does/not/exist"));
+            Source: DatasetLocation.Local("/path/that/does/not/exist"));
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
@@ -147,7 +147,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("C:/dataset"),
+            Source: DatasetLocation.Local("C:/dataset"),
             DemHeightmapMetersPerVertex: metersPerVertex);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
@@ -164,7 +164,7 @@ public sealed class PlateauImportRequestValidatorTests
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("C:/dataset"),
+            Source: DatasetLocation.Local("C:/dataset"),
             DemHeightmapMaxResolution: maxResolution);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);

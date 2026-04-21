@@ -18,11 +18,11 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Remote(remoteCityGmlUri),
+            Source: DatasetLocation.Remote(remoteCityGmlUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = normalizedRequest with
         {
-            Source = PlateauImportSource.Local(
+            Source = DatasetLocation.Local(
                 RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteCityGmlUri, "source-archive")),
         };
 
@@ -42,11 +42,11 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Remote(new Uri("https://example.test/tokyo23ku.zip")),
+            Source: DatasetLocation.Remote(new Uri("https://example.test/tokyo23ku.zip")),
             PackageNames: ["bldg"]);
         PlateauImportRequest mismatchedRequest = normalizedRequest with
         {
-            Source = PlateauImportSource.Remote(new Uri("https://example.test/other.zip")),
+            Source = DatasetLocation.Remote(new Uri("https://example.test/other.zip")),
         };
 
         Assert.Throws<ArgumentException>(
@@ -62,12 +62,12 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("raw-source"),
-            DemTextureSource: PlateauImportSource.Local("ortho-a.tif"),
+            Source: DatasetLocation.Local("raw-source"),
+            DemTextureSource: DatasetLocation.Local("ortho-a.tif"),
             PackageNames: ["bldg"]);
         PlateauImportRequest mismatchedRequest = normalizedRequest with
         {
-            DemTextureSource = PlateauImportSource.Local("ortho-b.tif"),
+            DemTextureSource = DatasetLocation.Local("ortho-b.tif"),
         };
 
         Assert.Throws<ArgumentException>(
@@ -85,12 +85,12 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("raw-source"),
-            DemTextureSource: PlateauImportSource.Remote(remoteDemTextureUri),
+            Source: DatasetLocation.Local("raw-source"),
+            DemTextureSource: DatasetLocation.Remote(remoteDemTextureUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = normalizedRequest with
         {
-            DemTextureSource = PlateauImportSource.Local(
+            DemTextureSource = DatasetLocation.Local(
                 RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho")),
         };
 
@@ -112,12 +112,12 @@ public sealed class SceneImportExecutionPlanTests
         PlateauImportRequest normalizedRequest = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
-            Source: PlateauImportSource.Local("raw-source"),
-            DemTextureSource: PlateauImportSource.Remote(remoteDemTextureUri),
+            Source: DatasetLocation.Local("raw-source"),
+            DemTextureSource: DatasetLocation.Remote(remoteDemTextureUri),
             PackageNames: ["bldg"]);
         PlateauImportRequest resolvedRequest = normalizedRequest with
         {
-            DemTextureSource = PlateauImportSource.Local("unexpected-local-ortho.tif"),
+            DemTextureSource = DatasetLocation.Local("unexpected-local-ortho.tif"),
         };
 
         Assert.Throws<ArgumentException>(

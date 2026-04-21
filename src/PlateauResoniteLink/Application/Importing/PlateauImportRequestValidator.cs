@@ -33,8 +33,8 @@ public static class PlateauImportRequestValidator
         IReadOnlyList<string>? normalizedPackageNames = null;
         IReadOnlyDictionary<string, IReadOnlySet<int>>? normalizedPackageExclusions = null;
         IReadOnlyDictionary<string, string>? normalizedPackagePatterns = null;
-        ValidatedPlateauImportSource? validatedSource = null;
-        ValidatedPlateauImportSource? validatedDemTextureSource = null;
+        ValidatedDatasetLocation? validatedSource = null;
+        ValidatedDatasetLocation? validatedDemTextureSource = null;
 
         if (string.IsNullOrWhiteSpace(normalizedRequest.Dataset))
         {
@@ -136,7 +136,7 @@ public static class PlateauImportRequestValidator
 
         switch (normalizedRequest.Source)
         {
-            case PlateauLocalImportSource localSource:
+            case LocalDatasetLocation localSource:
                 if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
                 {
                     validationErrors.Add("The --citygml-source value is required.");
@@ -164,9 +164,9 @@ public static class PlateauImportRequestValidator
                     break;
                 }
 
-                validatedSource = new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath);
+                validatedSource = new ValidatedLocalDatasetLocation(localSource.LocalSourcePath);
                 break;
-            case PlateauRemoteImportSource remoteSource:
+            case RemoteDatasetLocation remoteSource:
                 if (remoteSource.ServerUri is null)
                 {
                     validationErrors.Add("The --citygml-source value is required.");
@@ -185,7 +185,7 @@ public static class PlateauImportRequestValidator
                     break;
                 }
 
-                validatedSource = new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri);
+                validatedSource = new ValidatedRemoteDatasetLocation(remoteSource.ServerUri);
                 break;
         }
 
@@ -193,7 +193,7 @@ public static class PlateauImportRequestValidator
         {
             switch (normalizedRequest.DemTextureSource)
             {
-                case PlateauLocalImportSource localSource:
+                case LocalDatasetLocation localSource:
                     if (string.IsNullOrWhiteSpace(localSource.LocalSourcePath))
                     {
                         validationErrors.Add("The --geotiff-source value must not be empty.");
@@ -213,9 +213,9 @@ public static class PlateauImportRequestValidator
                         break;
                     }
 
-                    validatedDemTextureSource = new ValidatedPlateauLocalImportSource(localSource.LocalSourcePath);
+                    validatedDemTextureSource = new ValidatedLocalDatasetLocation(localSource.LocalSourcePath);
                     break;
-                case PlateauRemoteImportSource remoteSource:
+                case RemoteDatasetLocation remoteSource:
                     if (remoteSource.ServerUri is null)
                     {
                         validationErrors.Add("The --geotiff-source value must not be empty.");
@@ -234,7 +234,7 @@ public static class PlateauImportRequestValidator
                         break;
                     }
 
-                    validatedDemTextureSource = new ValidatedPlateauRemoteImportSource(remoteSource.ServerUri);
+                    validatedDemTextureSource = new ValidatedRemoteDatasetLocation(remoteSource.ServerUri);
                     break;
             }
         }
@@ -379,16 +379,16 @@ public static class PlateauImportRequestValidator
         };
     }
 
-    private static PlateauImportSource NormalizeSource(PlateauImportSource source)
+    private static DatasetLocation NormalizeSource(DatasetLocation source)
     {
         return source switch
         {
-            PlateauLocalImportSource localSource => new PlateauLocalImportSource(
+            LocalDatasetLocation localSource => new LocalDatasetLocation(
                 string.IsNullOrWhiteSpace(localSource.LocalSourcePath)
                     ? null
                     : localSource.LocalSourcePath.Trim()),
-            PlateauRemoteImportSource remoteSource => remoteSource.ServerUri is null
-                ? new PlateauRemoteImportSource(null)
+            RemoteDatasetLocation remoteSource => remoteSource.ServerUri is null
+                ? new RemoteDatasetLocation(null)
                 : remoteSource,
             _ => source,
         };

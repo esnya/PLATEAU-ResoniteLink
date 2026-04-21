@@ -128,7 +128,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     private static async Task<DemTerrainGeoReferencedRasterCatalog> CreateCatalogAsync(IPlateauDatasetContentSource datasetSource)
     {
         IDemTerrainGeoReferencedRasterCatalog? catalog = await DemTerrainGeoReferencedRasterCatalog.CreateAsync(
-            PlateauImportSource.Local(datasetSource.SourcePath),
+            DatasetLocation.Local(datasetSource.SourcePath),
             new StubDatasetContentSourceFactory(datasetSource),
             CancellationToken.None);
         return Assert.IsType<DemTerrainGeoReferencedRasterCatalog>(catalog);
