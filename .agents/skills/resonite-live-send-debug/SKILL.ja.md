@@ -51,7 +51,7 @@ description: Run and debug PLATEAU-ResoniteLink live-send reproductions against 
 
 operator-facing direct command は次だけを使います。
 
-- `dotnet run --project src/Plateau.ResoniteLink.Cli/Plateau.ResoniteLink.Cli.csproj -- build ...`
+- `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- build ...`
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session ...`
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ...`
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ...`

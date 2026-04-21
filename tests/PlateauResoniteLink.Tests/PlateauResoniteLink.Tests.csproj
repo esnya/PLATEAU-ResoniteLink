@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>PlateauResoniteLink.Tests</RootNamespace>
+    <NoWarn>$(NoWarn);CA1822;CA1859</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="SharpCompress" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Tools\ResoniteSessionToolCommandLineParserTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PlateauResoniteLink\PlateauResoniteLink.csproj" />
+    <ProjectReference Include="..\..\src\PlateauResoniteLink.Cli\PlateauResoniteLink.Cli.csproj" />
+  </ItemGroup>
+
+</Project>

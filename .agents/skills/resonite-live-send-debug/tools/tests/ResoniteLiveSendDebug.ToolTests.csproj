@@ -20,8 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\..\..\..\tests\Plateau.ResoniteLink.Tests\TestData.cs" Link="TestData.cs" />
-    <Compile Include="..\..\..\..\..\tests\Plateau.ResoniteLink.Tests\Tools\ResoniteSessionToolCommandLineParserTests.cs" Link="ResoniteSessionToolCommandLineParserTests.cs" />
+    <Compile Include="..\..\..\..\..\tests\PlateauResoniteLink.Tests\TestData.cs" Link="TestData.cs" />
+    <Compile Include="..\..\..\..\..\tests\PlateauResoniteLink.Tests\Tools\ResoniteSessionToolCommandLineParserTests.cs" Link="ResoniteSessionToolCommandLineParserTests.cs" />
   </ItemGroup>
 
 </Project>

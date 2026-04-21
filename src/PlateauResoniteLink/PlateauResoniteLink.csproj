@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>PlateauResoniteLink</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GeographicLib.NET" />
+    <PackageReference Include="LibTessDotNet" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="NetTopologySuite" />
+    <PackageReference Include="SharpCompress" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="YellowDogMan.ResoniteLink" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets/DefaultMaterials/**/*.jpg" />
+    <EmbeddedResource Include="Assets/DefaultMaterials/**/*.png" />
+  </ItemGroup>
+
+</Project>

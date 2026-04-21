@@ -6,7 +6,7 @@
     <RepositoryHostOs Condition="$([MSBuild]::IsOSPlatform('OSX'))">macos</RepositoryHostOs>
 
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
@@ -28,5 +28,6 @@
     <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)artifacts/build/$(RepositoryHostOs)/obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
     <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
     <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)/artifacts/**;$(MSBuildProjectDirectory)/bin/**;$(MSBuildProjectDirectory)/obj/**</DefaultItemExcludes>
+    <CompilerVisibleProperty>$(CompilerVisibleProperty);RootNamespace;ProjectDir</CompilerVisibleProperty>
   </PropertyGroup>
 </Project>

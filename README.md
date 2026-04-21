@@ -1,10 +1,10 @@
-# Plateau.ResoniteLink
+# PlateauResoniteLink
 
 <img width="2560" height="1440" alt="2026-04-08 03 02 41" src="https://github.com/user-attachments/assets/7dac58c7-8855-4362-855d-f12e884dc05e" />
 
-Plateau.ResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.go.jp/plateau/) CityGML datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). Import behavior and terminology stay aligned with [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/). GitHub Releases are the canonical changelog, and each `vX.Y.Z` release publishes a framework-dependent CLI asset named `Plateau.ResoniteLink-cli-vX.Y.Z.zip`.
+PlateauResoniteLink is a .NET 10 CLI for streaming [PLATEAU](https://www.mlit.go.jp/plateau/) CityGML datasets into Resonite through [ResoniteLink](https://github.com/Yellow-Dog-Man/ResoniteLink). Import behavior and terminology stay aligned with [PLATEAU SDK for Unity](https://project-plateau.github.io/PLATEAU-SDK-for-Unity/). GitHub Releases are the canonical changelog, and each `vX.Y.Z` release publishes a framework-dependent CLI asset named `PlateauResoniteLink-cli-vX.Y.Z.zip`.
 
-This README is the canonical human-readable scope statement for the current `beta` branch. Keep shipped, pending, and intentionally regressed behavior aligned here and in tests instead of reviving a separate requirements document.
+This README is the canonical human-readable scope statement for the current `beta` branch. Keep shipped and intentionally regressed behavior aligned here and in tests instead of reviving a separate requirements document.
 
 ## Scope
 
@@ -16,9 +16,6 @@ Shipped:
 - Preserve deterministic mesh/material ordering, keep `ParameterizedTexture` appearance data where present, and fall back to bundled default materials when source textures are missing.
 - After source bootstrap completes, build dataset and mesh-code branches incrementally so imported content can begin appearing in Resonite before the full live send completes.
 - Persist terrain imagery tiles under a local cache by default so repeated DEM imports can reuse already downloaded PLATEAU Ortho or fallback GSI tiles.
-
-Pending:
-- Target-agnostic IR extraction and the deeper `Targets.Resonite` versus `Transport.ResoniteLink` split are internal follow-up work, not completed guarantees of this release.
 
 Intentionally regressed:
 - A standalone requirements document is not maintained as a release-truth surface. Product scope lives in `README.md` and tests, while live-send execution guidance is kept in the Coding Agent skill under `.agents/skills/resonite-live-send-debug/`.
@@ -35,10 +32,10 @@ Intentionally regressed:
 Before opening or updating a pull request, run the canonical repository verification command sequence:
 
 ```bash
-dotnet restore Plateau.ResoniteLink.sln --locked-mode --disable-build-servers
+dotnet restore PlateauResoniteLink.sln --locked-mode --disable-build-servers
 dotnet format whitespace . --folder --verify-no-changes
-dotnet build Plateau.ResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
-dotnet test Plateau.ResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
+dotnet build PlateauResoniteLink.sln --configuration Release --no-restore --disable-build-servers -m:1 -p:UseSharedCompilation=false
+dotnet test PlateauResoniteLink.sln --configuration Release --no-restore --verbosity normal -m:1 --disable-build-servers -p:UseSharedCompilation=false
 ```
 
 For contributor workflow details, environment bootstrap guidance, and verification ownership, see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -48,7 +45,7 @@ For contributor workflow details, environment bootstrap guidance, and verificati
 Local import example:
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372778 \
@@ -59,7 +56,7 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 Remote archive example:
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   build \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372788 \
@@ -73,14 +70,14 @@ dotnet run --project src/Plateau.ResoniteLink.Cli -- \
 Local inspection examples:
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   search \
   --citygml-source /path/to/plateau-or-archive.zip \
   --mesh-code 5437277.
 ```
 
 ```bash
-dotnet run --project src/Plateau.ResoniteLink.Cli -- \
+dotnet run --project src/PlateauResoniteLink.Cli -- \
   stats \
   --citygml-source /path/to/plateau-or-archive.zip
 ```
@@ -103,6 +100,6 @@ When `--work-root` is omitted, the CLI stores dataset-local archives and live te
 - The [PLATEAU Site Policy](https://www.mlit.go.jp/plateau/site-policy/) is only the portal-level default and does not override dataset-specific terms.
 - The [PLATEAU Start Guide](https://www.mlit.go.jp/plateau/start-guide/) notes that dataset terms vary by source, including licenses such as PDL 1.0, CC BY 4.0, ODC BY, or ODbL.
 - PLATEAU SDK for Unity is a separate upstream MIT-licensed project. A local copy of that license is tracked in `THIRD_PARTY_LICENSES/PLATEAU-SDK-for-Unity-LICENSE.txt`.
-- Bundled default material textures under `src/Plateau.ResoniteLink/Assets/DefaultMaterials/` are sourced from AmbientCG and tracked in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
-- The default DEM terrain imagery overlay is not bundled. It is generated from the GSI seamless photo tile endpoint `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`, with repository-local notes in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
+- Bundled default material textures under `src/PlateauResoniteLink/Assets/DefaultMaterials/` are sourced from AmbientCG and tracked in `THIRD_PARTY_LICENSES/ambientCG-CC0-1.0.txt`.
+- The default DEM terrain imagery overlay is not bundled. It is generated from the PLATEAU ortho tile endpoint `https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png`, with GSI seamless photo fallback `https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg`. Repository-local notes for the fallback source live in `THIRD_PARTY_LICENSES/gsi-seamlessphoto.txt`.
 - NuGet packages and other runtime dependencies keep their own upstream licenses. Review the exact versions you ship before redistributing binaries or vendored assets.
