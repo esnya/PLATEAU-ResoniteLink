@@ -9,7 +9,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static class LocalCityGmlSourceFileDiscovery
+internal static class LocalCityGmlSourceFileDiscovery
 {
     private static readonly Regex MeshCodeTokenRegex = new(
         @"(?<!\d)(\d{8}|\d{6})(?!\d)",
@@ -393,13 +393,13 @@ internal sealed record LocalCityGmlDatasetSourceFileCandidate(
     string[] FileMeshCodes,
     string[] DirectoryMeshCodes);
 
-public sealed record LocalCityGmlSourceFileDescriptor(
+internal sealed record LocalCityGmlSourceFileDescriptor(
     string AbsolutePath,
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
     bool RequiresMeshAreaFilter);
 
-public sealed record LocalCityGmlSourceFileDiscoveryResult(
+internal sealed record LocalCityGmlSourceFileDiscoveryResult(
     IReadOnlyList<LocalCityGmlSourceFileDescriptor> SourceFiles,
     IReadOnlyList<string> SelectedMeshCodes);
