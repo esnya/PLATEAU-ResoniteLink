@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -41,55 +39,6 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        LocalCityGmlDocumentReadResult resolvedReadResult = await ResolveReadResultAsync(
-            request,
-            readResult,
-            cancellationToken);
-        return constructionComposer.Compose(request, resolvedReadResult, progressReporter);
-    }
-
-    private async Task<LocalCityGmlDocumentReadResult> ResolveReadResultAsync(
-        PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(readResult);
-
-        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
-        if (documentSet.TerrainTextureOverlays.Count > 0
-            || !documentSet.PackageNames.Contains("dem", StringComparer.Ordinal))
-        {
-            return readResult;
-        }
-
-        IReadOnlyList<string> requestedDemMeshCodes = ResolveRequestedDemMeshCodes(request, documentSet);
-        IReadOnlyList<DemTerrainOverlayRegion> requestedOverlayRegions = await readResult
-            .ResolveRequestedDemOverlayRegionsAsync(requestedDemMeshCodes, cancellationToken);
-        ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
-            request,
-            requestedOverlayRegions,
-            cancellationToken);
-        if (resolvedDemTextureSources.Overlays.Count == 0)
-        {
-            return readResult;
-        }
-
-        LocalCityGmlDocumentSet resolvedDocumentSet = documentSet.WithTerrainTextureOverlays(
-            resolvedDemTextureSources.Overlays);
-        return readResult.WithDocumentSet(resolvedDocumentSet);
-    }
-
-    private static IReadOnlyList<string> ResolveRequestedDemMeshCodes(
-        PlateauImportRequest request,
-        LocalCityGmlDocumentSet documentSet)
-    {
-        LocalCityGmlSourceFileDiscoveryResult demDiscovery = LocalCityGmlSourceFileDiscovery.Discover(
-            documentSet.RelativeSourceFiles,
-            request.MeshCode,
-            ["dem"]);
-        return demDiscovery.SelectedMeshCodes.Count > 0
-            ? demDiscovery.SelectedMeshCodes
-            : [request.MeshCode];
+        return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter));
     }
 }

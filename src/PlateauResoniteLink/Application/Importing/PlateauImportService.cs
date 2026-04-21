@@ -69,26 +69,12 @@ public sealed class PlateauImportService(
             ReportProgress(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-            Stopwatch commonMaterialStopwatch = Stopwatch.StartNew();
-            IReadOnlyList<MaterialBinding> discoveredCommonMaterials = await ReadCommonMaterialsAsync(
-                source,
-                cancellationToken);
-            commonMaterialStopwatch.Stop();
+            ImportedSceneMetadata metadata = source.Metadata;
+            IReadOnlyList<MaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
-                    $"Read {discoveredCommonMaterials.Count} shared common materials from source in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s."));
-            ImportedSceneMetadata metadata = source.Metadata;
-            IReadOnlyList<MaterialBinding> commonMaterials = discoveredCommonMaterials.Count == 0
-                ? CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames)
-                : discoveredCommonMaterials;
-            if (discoveredCommonMaterials.Count == 0)
-            {
-                ReportProgress(
-                    PlateauLog.Info(
-                        "import",
-                        $"No source-enumerated common materials were found; setup will use {commonMaterials.Count} package-catalog common materials."));
-            }
+                    $"Setup will use {commonMaterials.Count} package-catalog common materials."));
 
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
@@ -148,20 +134,6 @@ public sealed class PlateauImportService(
         {
             await sceneBuilder.DisposeAsync();
         }
-    }
-
-    private static async Task<IReadOnlyList<MaterialBinding>> ReadCommonMaterialsAsync(
-        IImportedSceneSource source,
-        CancellationToken cancellationToken)
-    {
-        Dictionary<string, MaterialBinding> materialByKey = new(StringComparer.Ordinal);
-        await foreach (MaterialBinding material in source.ReadCommonMaterialsAsync(cancellationToken))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            materialByKey.TryAdd(material.MaterialKey, material);
-        }
-
-        return materialByKey.Values.ToArray();
     }
 
     private static List<ImportDataSourceUsage> CreateDataSourceUsages(

@@ -41,7 +41,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsyncAddsDemOverlaysDuringConstructionWhenBootstrapReadResultIsDiscoveryOnly()
+    public async Task CreateAsyncKeepsBootstrapReadResultDiscoveryOnlyWhenDemOverlaysAreNotPreResolved()
     {
         TerrainTextureOverlay[] resolvedOverlays =
         [
@@ -78,16 +78,15 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.NotSame(reader.ReadResult, composer.LastReadResult);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
-        TerrainTextureOverlay overlay = Assert.Single(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
-        Assert.Same(resolvedOverlays[0], overlay);
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
+        Assert.Null(demTextureSourcePolicy.LastRequest);
+        Assert.Null(demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
-    public async Task CreateAsyncFiltersPolicyMeshCodesToDemRequestedFiles()
+    public async Task CreateAsyncDoesNotResolveDemOverlaysDuringComposition()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -115,11 +114,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Null(demTextureSourcePolicy.LastRequest);
+        Assert.Null(demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
-    public async Task CreateAsyncDerivesDemOverlayRegionsFromParsedDemGeometry()
+    public async Task CreateAsyncDoesNotParseDemGeometryToPreResolveOverlays()
     {
         CoordinateReferenceSystem referenceSystem =
             CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -163,11 +163,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Null(demTextureSourcePolicy.LastRequest);
+        Assert.Null(demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
-    public async Task CreateAsyncPropagatesDemTextureSourceValidationFromPolicy()
+    public async Task CreateAsyncDoesNotTriggerDemTextureSourceValidationDuringComposition()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -192,13 +193,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => factory.CreateAsync(request, reader.ReadResult));
+        IImportedSceneSource result = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Contains(
-            exception.Errors,
-            static error => error.Contains("GeoTIFF", StringComparison.OrdinalIgnoreCase));
-        Assert.Null(composer.LastReadResult);
+        Assert.Same(composer.Source, result);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
+        Assert.Null(demTextureSourcePolicy.LastRequest);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
@@ -236,7 +235,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
     private sealed class RecordingComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
     {
-        private readonly IImportedSceneSource source = source;
+        internal IImportedSceneSource Source { get; } = source;
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
@@ -252,7 +251,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LastRequest = request;
             LastReadResult = readResult;
             LastProgressReporter = progressReporter;
-            return source;
+            return Source;
         }
     }
 
