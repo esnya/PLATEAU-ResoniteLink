@@ -17,7 +17,7 @@ public sealed class LocalCityGmlDocumentSet
         RelativeSourceFiles = relativeSourceFiles;
         PackageNames = packageNames;
         TerrainTextureOverlays = terrainTextureOverlays;
-        RequestedMeshCodes = requestedMeshCodes;
+        SelectedMeshCodes = requestedMeshCodes;
     }
 
     public IPlateauDatasetContentSource DatasetSource { get; }
@@ -28,5 +28,5 @@ public sealed class LocalCityGmlDocumentSet
 
     public IReadOnlyList<TerrainTextureOverlay> TerrainTextureOverlays { get; }
 
-    public IReadOnlyList<string> RequestedMeshCodes { get; }
+    public IReadOnlyList<string> SelectedMeshCodes { get; }
 }

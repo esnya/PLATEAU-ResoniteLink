@@ -25,7 +25,7 @@ public sealed class LocalCityGmlDocumentSetTests
         Assert.Equal(["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"], documentSet.RelativeSourceFiles);
         Assert.Equal(["bldg"], documentSet.PackageNames);
         Assert.Empty(documentSet.TerrainTextureOverlays);
-        Assert.Equal(["53394525"], documentSet.RequestedMeshCodes);
+        Assert.Equal(["53394525"], documentSet.SelectedMeshCodes);
     }
 
     [Fact]

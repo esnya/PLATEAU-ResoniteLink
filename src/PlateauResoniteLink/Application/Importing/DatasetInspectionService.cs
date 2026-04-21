@@ -40,7 +40,7 @@ public sealed class DatasetInspectionService(IPlateauDatasetContentSourceFactory
 
             return new DatasetSearchResult(
                 entries,
-                discovery.RequestedMeshCodes.ToArray());
+                discovery.SelectedMeshCodes.ToArray());
         }
         catch (ArgumentException exception)
         {
@@ -198,7 +198,7 @@ public sealed class DatasetInspectionService(IPlateauDatasetContentSourceFactory
 
 public sealed record DatasetSearchResult(
     IReadOnlyList<DatasetSearchEntry> SourceFiles,
-    IReadOnlyList<string> RequestedMeshCodes);
+    IReadOnlyList<string> SelectedMeshCodes);
 
 public sealed record DatasetSearchEntry(
     string RelativePath,

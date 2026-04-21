@@ -85,11 +85,11 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
         Assert.Equal(["dem", "tran"], result.Select(static file => file.PackageName).ToArray());
         Assert.All(result, static file => Assert.Equal("533945", file.MatchedMeshCode));
         Assert.All(result, static file => Assert.True(file.RequiresMeshAreaFilter));
-        Assert.Contains("53394525", discoveryResult.RequestedMeshCodes);
+        Assert.Contains("53394525", discoveryResult.SelectedMeshCodes);
     }
 
     [Fact]
-    public void DiscoverRegexSelectionDerivesRequestedMeshCodesOnlyFromRequestedPackages()
+    public void DiscoverRegexSelectionDerivesSelectedMeshCodesOnlyFromRequestedPackages()
     {
         LocalCityGmlSourceFileDiscoveryResult result = LocalCityGmlSourceFileDiscovery.Discover(
             [
@@ -99,7 +99,7 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
             "5339452.",
             ["dem"]);
 
-        Assert.Equal(["53394525"], result.RequestedMeshCodes);
+        Assert.Equal(["53394525"], result.SelectedMeshCodes);
         Assert.Equal(
             ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
             result.SourceFiles.Select(static file => file.RelativePath).ToArray());

@@ -131,7 +131,7 @@ public sealed class DatasetInspectionServiceTests
 
         DatasetSearchResult result = await service.SearchAsync(archivePath, "5339452[56]", ["bldg"]);
 
-        Assert.Equal(["53394525", "53394526"], result.RequestedMeshCodes);
+        Assert.Equal(["53394525", "53394526"], result.SelectedMeshCodes);
         Assert.Equal(
             [
                 "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",

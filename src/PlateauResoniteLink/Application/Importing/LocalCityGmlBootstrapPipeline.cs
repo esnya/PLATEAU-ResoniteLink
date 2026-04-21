@@ -85,7 +85,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 descriptor.RequiresMeshAreaFilter))
             .ToArray();
         MeshCodeBounds[] requestedMeshAreas = requestedMeshArea is null
-            ? MeshCodeBounds.CreateManyFromRequestedMeshCodes(discoveryResult.RequestedMeshCodes)
+            ? MeshCodeBounds.CreateManyFromRequestedMeshCodes(discoveryResult.SelectedMeshCodes)
             : [requestedMeshArea];
         MeshCodeBounds? effectiveRequestedMeshArea =
             MeshCodeBounds.TryMerge(requestedMeshAreas);
@@ -144,7 +144,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 .OrderBy(static packageName => packageName, StringComparer.Ordinal)
                 .ToArray(),
             [],
-            discoveryResult.RequestedMeshCodes);
+            discoveryResult.SelectedMeshCodes);
         LocalCityGmlBootstrapContext bootstrapContext = new(
             sourceFilePipelines,
             new GeodeticPoint(

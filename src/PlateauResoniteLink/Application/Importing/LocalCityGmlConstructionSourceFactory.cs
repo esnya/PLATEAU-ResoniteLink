@@ -107,7 +107,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             documentSet.RelativeSourceFiles,
             documentSet.PackageNames,
             resolvedDemTextureSources.Overlays,
-            documentSet.RequestedMeshCodes);
+            documentSet.SelectedMeshCodes);
         LocalCityGmlBootstrapContext resolvedBootstrapContext = new(
             readResult.BootstrapContext.SourceFilePipelines,
             readResult.BootstrapContext.GlobalOriginPoint);
@@ -124,8 +124,8 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             documentSet.RelativeSourceFiles,
             request.MeshCode,
             ["dem"]);
-        return demDiscovery.RequestedMeshCodes.Count > 0
-            ? demDiscovery.RequestedMeshCodes
+        return demDiscovery.SelectedMeshCodes.Count > 0
+            ? demDiscovery.SelectedMeshCodes
             : [request.MeshCode];
     }
 }

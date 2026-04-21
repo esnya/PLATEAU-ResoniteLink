@@ -117,7 +117,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(Path.Combine(workRoot.Path, "tokyo23ku"), sceneBuilder.BeginRequest.WorkRoot);
         Assert.Equal(["bldg"], sceneBuilder.BeginRequest.Metadata.SourceDataset.PackageNames);
         Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
-        Assert.Equal(readResult.DocumentSet.RequestedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.RequestedMeshCodes);
+        Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.RequestedMeshCodes);
         Assert.NotNull(sceneBuilder.BeginRequest.CommonMaterials);
         Assert.Equal(2, sceneBuilder.BeginRequest.CommonMaterials.Count);
         Assert.Equal(

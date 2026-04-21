@@ -141,7 +141,7 @@ public sealed class CliApplication
             return;
         }
 
-        await standardOutput.WriteLineAsync($"Requested mesh codes: {FormatCsv(result.RequestedMeshCodes)}");
+        await standardOutput.WriteLineAsync($"Selected mesh codes: {FormatCsv(result.SelectedMeshCodes)}");
         await standardOutput.WriteLineAsync($"Matched source files: {result.SourceFiles.Count}");
 
         foreach (DatasetSearchEntry entry in result.SourceFiles)

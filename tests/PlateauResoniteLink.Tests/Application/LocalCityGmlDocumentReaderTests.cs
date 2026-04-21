@@ -39,7 +39,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             documentSet.RelativeSourceFiles);
         Assert.Equal(["bldg"], documentSet.PackageNames);
         Assert.Empty(documentSet.TerrainTextureOverlays);
-        Assert.Equal(["53394525"], documentSet.RequestedMeshCodes);
+        Assert.Equal(["53394525"], documentSet.SelectedMeshCodes);
     }
 
     [Fact]

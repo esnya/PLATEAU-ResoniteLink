@@ -98,17 +98,17 @@ public static class LocalCityGmlSourceFileDiscovery
         LocalCityGmlDatasetSourceFileCandidate[] candidates,
         MeshCodeSelectionMatcher matcher)
     {
-        string[] requestedMeshCodes = candidates
+        string[] selectedMeshCodes = candidates
             .Where(static candidate => candidate.IsRequestedPackage)
             .SelectMany(static candidate => candidate.FileMeshCodes.Concat(candidate.DirectoryMeshCodes))
             .Distinct(StringComparer.Ordinal)
-            .SelectMany(matcher.GetRequestedMeshCodes)
+            .SelectMany(matcher.GetSelectedMeshCodes)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
             .ToArray();
-        ResoniteLocalOrigin? requestedCenter = TryResolveRequestedCenter(matcher.RequestedValue, requestedMeshCodes);
-        HashSet<string> requestedMeshCodeSet = requestedMeshCodes.ToHashSet(StringComparer.Ordinal);
-        HashSet<string> parentMeshCodes = requestedMeshCodes
+        ResoniteLocalOrigin? requestedCenter = TryResolveRequestedCenter(matcher.RequestedValue, selectedMeshCodes);
+        HashSet<string> requestedMeshCodeSet = selectedMeshCodes.ToHashSet(StringComparer.Ordinal);
+        HashSet<string> parentMeshCodes = selectedMeshCodes
             .Where(static matchedMeshCode => matchedMeshCode.Length == 8)
             .Select(static matchedMeshCode => matchedMeshCode[..6])
             .ToHashSet(StringComparer.Ordinal);
@@ -121,7 +121,7 @@ public static class LocalCityGmlSourceFileDiscovery
             .ThenBy(static descriptor => descriptor.RelativePath, StringComparer.Ordinal)
             .ToArray();
 
-        return new LocalCityGmlSourceFileDiscoveryResult(sourceFiles, requestedMeshCodes);
+        return new LocalCityGmlSourceFileDiscoveryResult(sourceFiles, selectedMeshCodes);
     }
 
     private static LocalCityGmlDatasetSourceFileCandidate? CreateCandidateSourceFile(
@@ -323,7 +323,7 @@ public static class LocalCityGmlSourceFileDiscovery
             return new MeshCodeSelectionMatcher(requestedValue, [], regex);
         }
 
-        public IEnumerable<string> GetRequestedMeshCodes(string candidateMeshCode)
+        public IEnumerable<string> GetSelectedMeshCodes(string candidateMeshCode)
         {
             if (IsLiteral)
             {
@@ -402,4 +402,4 @@ public sealed record LocalCityGmlSourceFileDescriptor(
 
 public sealed record LocalCityGmlSourceFileDiscoveryResult(
     IReadOnlyList<LocalCityGmlSourceFileDescriptor> SourceFiles,
-    IReadOnlyList<string> RequestedMeshCodes);
+    IReadOnlyList<string> SelectedMeshCodes);
