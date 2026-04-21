@@ -317,7 +317,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
 
         public IReadOnlyCollection<string> Calls => calls.ToArray();
 
-        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
+        public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -341,20 +341,21 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 }
 
                 calls.Enqueue(cityObject.PackageName);
-                yield return new ResoniteConstructionCityObject(
+                yield return new ImportedCityObject(
                     cityObject.SlotKey,
                     cityObject.DisplayName,
                     cityObject.PackageName,
                     cityObject.ActualMeshCode,
                     cityObject.LodLevel,
-                    new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-                    new ResoniteImportedMesh(
-                        [
-                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
-                            new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
-                            new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
-                        ],
-                        [new ResoniteMeshSubmesh(0, $"{cityObject.PackageName}_material", [0, 1, 2])]),
+                    new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                    new TriangleMeshGeometry(
+                        new ImportedMesh(
+                            [
+                                new MeshVertex(new Float3(0.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 0.0)),
+                                new MeshVertex(new Float3(1.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(1.0, 0.0)),
+                                new MeshVertex(new Float3(0.0, 0.0, 1.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 1.0)),
+                            ],
+                            [new MeshSubmesh(0, $"{cityObject.PackageName}_material", [0, 1, 2])])),
                     [],
                     SourceObjectKey: cityObject.SourceIdentity,
                     SourceUnitKey: cityObject.SourceUnitIdentity,

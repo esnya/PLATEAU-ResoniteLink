@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using GeographicLib;
 
@@ -12,7 +13,7 @@ internal sealed class LocalCityGmlGeometryProjector(
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
-    public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
+    public IEnumerable<ImportedCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -23,15 +24,16 @@ internal sealed class LocalCityGmlGeometryProjector(
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
         return LocalCityGmlObjectProjection.ProjectCityObjects(
-            sourceFile.ToLegacy(),
-            referenceSystem.ToLegacy(),
-            globalOriginPoint.ToLegacy(),
-            globalCartesian,
-            demTerrainTextureOverlays,
-            requestedMeshAreas,
-            terrainHeightSampler: null,
-            request,
-            materialResolver,
-            predicate is null ? null : cityObject => predicate(BootstrapParsedCityObject.FromLegacy(cityObject)));
+                sourceFile.ToLegacy(),
+                referenceSystem.ToLegacy(),
+                globalOriginPoint.ToLegacy(),
+                globalCartesian,
+                demTerrainTextureOverlays,
+                requestedMeshAreas,
+                terrainHeightSampler: null,
+                request,
+                materialResolver,
+                predicate is null ? null : cityObject => predicate(BootstrapParsedCityObject.FromLegacy(cityObject)))
+            .Select(SceneImportContractMapper.ToContract);
     }
 }

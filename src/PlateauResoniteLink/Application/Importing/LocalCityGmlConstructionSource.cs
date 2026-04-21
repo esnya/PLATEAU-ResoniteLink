@@ -103,7 +103,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
 
             foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
-                foreach (ResoniteConstructionCityObject cityObject in geometryProjector.ProjectCityObjects(
+                foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
                              new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                              resolvedReferenceSystem,
                              globalOriginPoint,
@@ -112,7 +112,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                              requestedMeshAreas,
                              request))
                 {
-                    yield return SceneImportContractMapper.ToContract(cityObject);
+                    yield return cityObject;
                 }
             }
         }
@@ -263,7 +263,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 sourceFile.SourceFile,
                 parsedCityObject);
 
-            foreach (ResoniteConstructionCityObject cityObject in geometryProjector.ProjectCityObjects(
+            foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
                          new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
                          resolvedReferenceSystem,
                          globalOriginPoint,
@@ -274,7 +274,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yieldedCount++;
-                yield return SceneImportContractMapper.ToContract(cityObject);
+                yield return cityObject;
             }
         }
 

@@ -403,7 +403,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             maxObservedConcurrency = 0;
         }
 
-        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
+        public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -427,14 +427,14 @@ public sealed class LocalCityGmlConstructionSourceTests
             {
                 Thread.Sleep(20);
                 BootstrapParsedCityObject parsedCityObject = Assert.Single(sourceFile.CityObjects);
-                yield return new ResoniteConstructionCityObject(
-                    SlotKey: parsedCityObject.SlotKey,
+                yield return new ImportedCityObject(
+                    ObjectKey: parsedCityObject.SlotKey,
                     DisplayName: parsedCityObject.DisplayName,
                     PackageName: parsedCityObject.PackageName,
                     ActualMeshCode: parsedCityObject.ActualMeshCode,
                     LodLevel: parsedCityObject.LodLevel,
-                    Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-                    Mesh: new ResoniteImportedMesh([], []),
+                    Transform: new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                    Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                     Materials: [],
                     SourceObjectKey: parsedCityObject.SourceIdentity,
                     SourceUnitKey: parsedCityObject.SourceUnitIdentity,
@@ -469,7 +469,7 @@ public sealed class LocalCityGmlConstructionSourceTests
         public ConcurrentDictionary<string, int> OverlayCountsByPackage { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, TerrainTextureOverlay?> LastOverlayByPackage { get; } = new(StringComparer.Ordinal);
 
-        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
+        public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
@@ -494,14 +494,14 @@ public sealed class LocalCityGmlConstructionSourceTests
             OverlayCountsByPackage[parsedCityObject.PackageName] = demTerrainTextureOverlays.Count;
             LastOverlayByPackage[parsedCityObject.PackageName] =
                 demTerrainTextureOverlays.Count > 0 ? demTerrainTextureOverlays[0] : null;
-            yield return new ResoniteConstructionCityObject(
-                SlotKey: parsedCityObject.SlotKey,
+            yield return new ImportedCityObject(
+                ObjectKey: parsedCityObject.SlotKey,
                 DisplayName: parsedCityObject.DisplayName,
                 PackageName: parsedCityObject.PackageName,
                 ActualMeshCode: parsedCityObject.ActualMeshCode,
                 LodLevel: parsedCityObject.LodLevel,
-                Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-                Mesh: new ResoniteImportedMesh([], []),
+                Transform: new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                 Materials: [],
                 SourceObjectKey: parsedCityObject.SourceIdentity,
                 SourceUnitKey: parsedCityObject.SourceUnitIdentity,

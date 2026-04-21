@@ -60,7 +60,7 @@ public sealed class LocalCityGmlConstructionComposerTests
 
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector
     {
-        public IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
+        public IEnumerable<ImportedCityObject> ProjectCityObjects(
             CachedSourceFileDescriptor sourceFile,
             CoordinateReferenceSystem referenceSystem,
             GeodeticPoint globalOriginPoint,
