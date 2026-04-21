@@ -68,7 +68,9 @@ public sealed record HeightMapGridGeometry(
     Float2 Size,
     double MinHeight,
     double MaxHeight,
-    IReadOnlyList<double> HeightSamples)
+    IReadOnlyList<double> HeightSamples,
+    Float2? UvScale = null,
+    Float2? UvOffset = null)
     : ConstructionGeometry;
 
 public sealed record ImportedMesh(

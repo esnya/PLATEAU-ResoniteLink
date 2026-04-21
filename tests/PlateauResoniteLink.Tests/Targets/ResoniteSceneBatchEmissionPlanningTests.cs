@@ -72,6 +72,52 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     [Fact]
+    public void CreatePlannedBatchEmission_CarriesHeightMapGridUvMembers()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot("asset-lod-slot", "Asset LOD"),
+            new CreatedSlot("lod-slot", "LOD"),
+            "HeightMap Object",
+            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(1.0, 2.0, 3.0),
+            null);
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedHeightMapGridGeometryAsset(
+                new GeometryIdentity("geom"),
+                "HeightMap Object",
+                "HeightMap Object_heightmap",
+                new PlateauResoniteLink.Domain.Importing.ResoniteHeightMapGridGeometry(
+                    Width: 2,
+                    Height: 3,
+                    Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
+                    MinHeight: 0.0,
+                    MaxHeight: 6.0,
+                    HeightSamples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
+                new Uri("resdb:///texture/height"),
+                new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(0.4, 0.25),
+                new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(0.2, 0.125)),
+            [],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                []),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                true));
+
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission gridMesh = Assert.Single(
+            batchPlan.ComponentEmissions,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+        Field_float2 uvScale = Assert.IsType<Field_float2>(gridMesh.Members["UVScale"]);
+        Field_float2 uvOffset = Assert.IsType<Field_float2>(gridMesh.Members["UVOffset"]);
+
+        Assert.Equal(0.4f, uvScale.Value.x, 6);
+        Assert.Equal(0.25f, uvScale.Value.y, 6);
+        Assert.Equal(0.2f, uvOffset.Value.x, 6);
+        Assert.Equal(0.125f, uvOffset.Value.y, 6);
+    }
+
+    [Fact]
     public void CreatePlannedBatchEmission_UsesReusableTargetsAndPlansDedicatedMaterialComponents()
     {
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(

@@ -3362,6 +3362,13 @@ public static partial class LocalCityGmlObjectProjection
             return false;
         }
 
+        TextureUvRect? heightMapOccupiedUvRect = TryCreateDemHeightMapOccupiedUvRect(
+            cityObject,
+            cityObjectOrigin,
+            cityObjectCartesian,
+            demTerrainTextureOverlay,
+            materialResolver);
+
         ResoniteFloat3 adjustedSlotPosition = slotPosition with
         {
             // Elements.Assets.Grid centers vertices in-plane, so split DEM chunks need their own bbox-center offset here.
@@ -3386,7 +3393,9 @@ public static partial class LocalCityGmlObjectProjection
                 Size: new ResoniteFloat2(extentX, extentZ),
                 MinHeight: minHeight,
                 MaxHeight: maxHeight,
-                HeightSamples: localHeights),
+                HeightSamples: localHeights,
+                UvScale: heightMapOccupiedUvRect?.Scale,
+                UvOffset: heightMapOccupiedUvRect?.Offset),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
@@ -3401,7 +3410,6 @@ public static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
-        GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
             .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
@@ -3409,31 +3417,24 @@ public static partial class LocalCityGmlObjectProjection
 
         return resolvedSurfaces
             .GroupBy(
-                resolvedSurface =>
-                {
-                    (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
-                        DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(cityObject, resolvedSurface, demTerrainTextureOverlay, demObjectBounds);
-                    return CreateBindingMaterialKey(
-                        resolvedSurface.Material,
-                        resolvedSurface.DepthOffset,
-                        textureScale ?? resolvedSurface.Material.TextureScale,
-                        resolvedSurface.Surface.BaseColor,
-                        textureOffset);
-                },
+                resolvedSurface => CreateBindingMaterialKey(
+                    resolvedSurface.Material,
+                    resolvedSurface.DepthOffset,
+                    resolvedSurface.Material.TextureScale,
+                    resolvedSurface.Surface.BaseColor,
+                    null),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
-                    DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(cityObject, representativeSurface, demTerrainTextureOverlay, demObjectBounds);
                 return new ResoniteMaterialBinding(
                     MaterialKey: CreateBindingMaterialKey(
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
-                        textureScale ?? representativeSurface.Material.TextureScale,
+                        representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
-                        textureOffset),
+                        null),
                     BaseColor: representativeSurface.Surface.BaseColor,
                     MaterialType: representativeSurface.Material.MaterialType,
                     TexturePayload: representativeSurface.Material.TexturePayload,
@@ -3441,14 +3442,43 @@ public static partial class LocalCityGmlObjectProjection
                     Projection: representativeSurface.Material.Projection,
                     DepthOffset: representativeSurface.DepthOffset,
                     SubmeshIndices: [materialIndex],
-                    TextureScale: textureScale ?? representativeSurface.Material.TextureScale,
+                    TextureScale: representativeSurface.Material.TextureScale,
                     Family: representativeSurface.Material.Family,
-                    TextureOffset: textureOffset,
+                    TextureOffset: null,
                     AssetScope: representativeSurface.Material.AssetScope,
                     TerrainOverlay: representativeSurface.Material.TerrainOverlay,
                     BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
             })
             .ToArray();
+    }
+
+    private static TextureUvRect? TryCreateDemHeightMapOccupiedUvRect(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        IDefaultMaterialResolver materialResolver)
+    {
+        if (demTerrainTextureOverlay is null)
+        {
+            return null;
+        }
+
+        GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
+        ResolvedSurfaceMaterial? representativeSurface = cityObject.Surfaces
+            .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver))
+            .FirstOrDefault(static resolvedSurface => resolvedSurface.Surface.UsesGeneratedDemTexture);
+        if (representativeSurface is null)
+        {
+            return null;
+        }
+
+        TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateHeightMapOccupiedUvRect(
+            cityObject,
+            representativeSurface,
+            demTerrainTextureOverlay,
+            demObjectBounds);
+        return occupiedUvRect is { IsIdentity: true } ? null : occupiedUvRect;
     }
 
     private static GeographicRectangle? TryGetDemObjectGeographicBounds(

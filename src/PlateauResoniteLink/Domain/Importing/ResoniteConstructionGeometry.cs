@@ -14,5 +14,7 @@ public sealed record ResoniteHeightMapGridGeometry(
     ResoniteFloat2 Size,
     double MinHeight,
     double MaxHeight,
-    IReadOnlyList<double> HeightSamples)
+    IReadOnlyList<double> HeightSamples,
+    ResoniteFloat2? UvScale = null,
+    ResoniteFloat2? UvOffset = null)
     : ResoniteConstructionGeometry;

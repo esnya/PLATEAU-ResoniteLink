@@ -73,37 +73,62 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
                     ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)));
                 double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
+                Dictionary<string, Member> gridMeshMembers = new(StringComparer.Ordinal)
+                {
+                    ["Points"] = new Field_int2
+                    {
+                        Value = new int2
+                        {
+                            x = heightMap.Geometry.Width,
+                            y = heightMap.Geometry.Height,
+                        },
+                    },
+                    ["Size"] = new Field_float2
+                    {
+                        Value = new float2
+                        {
+                            x = (float)heightMap.Geometry.Size.X,
+                            y = (float)heightMap.Geometry.Size.Y,
+                        },
+                    },
+                    ["DisplacementMagnitude"] = new Field_float
+                    {
+                        Value = (float)displacementMagnitude,
+                    },
+                    ["DisplacementTexture"] = new Reference
+                    {
+                        TargetID = heightTextureComponentId.Value,
+                    },
+                };
+                if (heightMap.UvScale is not null)
+                {
+                    gridMeshMembers["UVScale"] = new Field_float2
+                    {
+                        Value = new float2
+                        {
+                            x = (float)heightMap.UvScale.X,
+                            y = (float)heightMap.UvScale.Y,
+                        },
+                    };
+                }
+
+                if (heightMap.UvOffset is not null)
+                {
+                    gridMeshMembers["UVOffset"] = new Field_float2
+                    {
+                        Value = new float2
+                        {
+                            x = (float)heightMap.UvOffset.X,
+                            y = (float)heightMap.UvOffset.Y,
+                        },
+                    };
+                }
+
                 componentEmissions.Add(new PlannedBatchComponentEmission(
                     geometryComponentId,
                     meshAssetSlotId.Value,
                     "[FrooxEngine]FrooxEngine.GridMesh",
-                    new Dictionary<string, Member>(StringComparer.Ordinal)
-                    {
-                        ["Points"] = new Field_int2
-                        {
-                            Value = new int2
-                            {
-                                x = heightMap.Geometry.Width,
-                                y = heightMap.Geometry.Height,
-                            },
-                        },
-                        ["Size"] = new Field_float2
-                        {
-                            Value = new float2
-                            {
-                                x = (float)heightMap.Geometry.Size.X,
-                                y = (float)heightMap.Geometry.Size.Y,
-                            },
-                        },
-                        ["DisplacementMagnitude"] = new Field_float
-                        {
-                            Value = (float)displacementMagnitude,
-                        },
-                        ["DisplacementTexture"] = new Reference
-                        {
-                            TargetID = heightTextureComponentId.Value,
-                        },
-                    }));
+                    gridMeshMembers));
                 break;
             default:
                 throw new InvalidOperationException(

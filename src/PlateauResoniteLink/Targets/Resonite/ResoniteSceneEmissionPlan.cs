@@ -26,7 +26,9 @@ internal sealed record PlannedHeightMapGridGeometryAsset(
     string MeshAssetSlotName,
     string HeightMapAssetSlotName,
     ResoniteHeightMapGridGeometry Geometry,
-    Uri HeightTextureUri)
+    Uri HeightTextureUri,
+    ResoniteFloat2? UvScale = null,
+    ResoniteFloat2? UvOffset = null)
     : PlannedGeometryAsset(Identity, MeshAssetSlotName);
 
 internal sealed record PlannedTextureAsset(

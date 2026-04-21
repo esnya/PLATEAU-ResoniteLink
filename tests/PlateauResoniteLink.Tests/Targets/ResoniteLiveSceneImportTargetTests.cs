@@ -292,6 +292,92 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncAppliesTerrainOverlayUvTransformToGridMeshInsteadOfMaterial()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    "terrain-overlay/generated-heightmap"),
+                new ResoniteFloat2(0.5, 0.25),
+                new ResoniteFloat2(0.125, 0.375)));
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ],
+            terrainTextureOverlays: [overlay]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "heightmap-overlay-terrain",
+            DisplayName: "HeightMap Overlay Terrain",
+            PackageName: "dem",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: 2,
+                Height: 2,
+                Size: new ResoniteFloat2(10.0, 10.0),
+                MinHeight: 0.0,
+                MaxHeight: 3.0,
+                HeightSamples: [0.0, 1.0, 2.0, 3.0],
+                UvScale: new ResoniteFloat2(0.8, 0.5),
+                UvOffset: new ResoniteFloat2(0.1, 0.2)),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "heightmap-overlay-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TerrainOverlay: overlay),
+            ],
+            SourceObjectKey: "heightmap-overlay-source");
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
+            metadata,
+            [cityObject],
+            client,
+            terrainTextureGenerator);
+
+        Component gridMesh = Assert.Single(
+            client.ComponentsById.Values,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+        Field_float2 uvScale = Assert.IsType<Field_float2>(gridMesh.Members["UVScale"]);
+        Field_float2 uvOffset = Assert.IsType<Field_float2>(gridMesh.Members["UVOffset"]);
+        Component materialComponent = Assert.Single(
+            client.ComponentsById.Values,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal));
+
+        Assert.Equal(0.4f, uvScale.Value.x, 6);
+        Assert.Equal(0.125f, uvScale.Value.y, 6);
+        Assert.Equal(0.175f, uvOffset.Value.x, 6);
+        Assert.Equal(0.425f, uvOffset.Value.y, 6);
+        Assert.DoesNotContain("TextureScale", materialComponent.Members.Keys);
+        Assert.DoesNotContain("TextureOffset", materialComponent.Members.Keys);
+    }
+
+    [Fact]
     public async Task BuildAsyncDisablesColliderForNoCollisionCityObjects()
     {
         using TemporaryDirectory datasetDirectory = new();

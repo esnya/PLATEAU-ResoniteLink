@@ -220,11 +220,27 @@ internal static class DemTerrainOverlayAssignment
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
+        TextureUvRect? occupiedUvRect = TryCreateHeightMapOccupiedUvRect(
+            cityObject,
+            materializedSurface,
+            demTerrainTextureOverlay,
+            cityObjectGeographicBounds);
+        return occupiedUvRect is null
+            ? (null, null)
+            : (occupiedUvRect.Value.Scale, occupiedUvRect.Value.Offset);
+    }
+
+    public static TextureUvRect? TryCreateHeightMapOccupiedUvRect(
+        LocalCityGmlObjectProjection.ParsedCityObject cityObject,
+        LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        GeographicRectangle? cityObjectGeographicBounds = null)
+    {
         if (demTerrainTextureOverlay is null
             || !string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
             || !materializedSurface.Surface.UsesGeneratedDemTexture)
         {
-            return (null, null);
+            return null;
         }
 
         GeographicRectangle overlayBounds = demTerrainTextureOverlay.GeographicBounds;
@@ -234,7 +250,7 @@ internal static class DemTerrainOverlayAssignment
         if (objectBounds.MaxLongitude <= objectBounds.MinLongitude
             || objectBounds.MaxLatitude <= objectBounds.MinLatitude)
         {
-            return (null, null);
+            return null;
         }
 
         double overlayWest = WebMercatorTileMath.LongitudeToNormalizedX(overlayBounds.MinLongitude);
@@ -245,7 +261,7 @@ internal static class DemTerrainOverlayAssignment
         double overlayHeight = overlaySouth - overlayNorth;
         if (overlayWidth <= 1e-12 || overlayHeight <= 1e-12)
         {
-            return (null, null);
+            return null;
         }
 
         double objectWest = WebMercatorTileMath.LongitudeToNormalizedX(objectBounds.MinLongitude);
@@ -258,9 +274,11 @@ internal static class DemTerrainOverlayAssignment
         double vMin = Math.Clamp((overlaySouth - objectSouth) / overlayHeight, 0.0, 1.0);
         double vMax = Math.Clamp((overlaySouth - objectNorth) / overlayHeight, 0.0, 1.0);
 
-        return (
-            new ResoniteFloat2(Math.Max(uMax - uMin, 1e-6), Math.Max(vMax - vMin, 1e-6)),
-            new ResoniteFloat2(uMin, vMin));
+        return new TextureUvRect(
+            uMin,
+            vMin,
+            Math.Max(uMax - uMin, 1e-6),
+            Math.Max(vMax - vMin, 1e-6));
     }
 
     private static bool TryPruneBoundarySliverSplit(

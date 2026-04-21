@@ -236,6 +236,44 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public async Task DemHeightMapModeCarriesGeneratedTextureUvTransformOnGeometryInsteadOfMaterial()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemChunkFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                DemTerrainMode: DemTerrainMode.HeightMap,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject demCityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.PackageName == "dem"
+                && cityObject.Geometry is HeightMapGridGeometry
+                && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
+        HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
+        MaterialBinding material = Assert.Single(demCityObject.Materials);
+
+        Assert.NotNull(geometry.UvScale);
+        Assert.NotNull(geometry.UvOffset);
+        Assert.InRange(geometry.UvOffset!.X, 0.07, 0.11);
+        Assert.InRange(geometry.UvOffset.Y, 0.09, 0.11);
+        Assert.InRange(geometry.UvOffset.X + geometry.UvScale!.X, 0.91, 0.93);
+        Assert.InRange(geometry.UvOffset.Y + geometry.UvScale.Y, 0.91, 0.93);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+    }
+
+    [Fact]
     public async Task DemExactMeshRequestFiltersSplitParentMeshPiecesAfterOverlaySplit()
     {
         using TemporaryDirectory datasetRoot = new();

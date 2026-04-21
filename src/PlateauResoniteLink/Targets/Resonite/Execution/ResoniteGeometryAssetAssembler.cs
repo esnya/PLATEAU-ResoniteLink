@@ -27,6 +27,8 @@ internal interface IResoniteGeometryAssetAssembler
         string displayName,
         ResoniteHeightMapGridGeometry geometry,
         ResoniteRawHdrTextureImport heightTextureImport,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset,
         Action<string>? progressReporter,
         CancellationToken cancellationToken);
 }
@@ -56,6 +58,8 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         string displayName,
         ResoniteHeightMapGridGeometry geometry,
         ResoniteRawHdrTextureImport heightTextureImport,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
@@ -67,7 +71,9 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             meshAssetSlotName,
             heightMapAssetSlotName,
             geometry,
-            textureUri);
+            textureUri,
+            uvScale,
+            uvOffset);
     }
 
     internal static Dictionary<string, Member> CreateHeightMapTextureMembers(Uri assetUri)
@@ -99,4 +105,6 @@ internal sealed record PreparedHeightMapGridAssetBatch(
     string MeshAssetSlotName,
     string HeightMapAssetSlotName,
     ResoniteHeightMapGridGeometry Geometry,
-    Uri HeightTextureUri) : PreparedGeometryAssetBatch(MeshAssetSlotName);
+    Uri HeightTextureUri,
+    ResoniteFloat2? UvScale,
+    ResoniteFloat2? UvOffset) : PreparedGeometryAssetBatch(MeshAssetSlotName);
