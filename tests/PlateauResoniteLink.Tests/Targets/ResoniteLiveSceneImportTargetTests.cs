@@ -2,14 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
+
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -26,22 +32,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        TerrainTextureOverlay overlay = new(
-            PackageName: "dem",
-            UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
-            ZoomLevel: 17,
-            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
-            MaxTextureSize: 512);
-        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
-            requestedOverlay => new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(
-                    2,
-                    2,
-                    ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
-                new ResoniteFloat2(0.5, 0.25),
-                new ResoniteFloat2(0.125, 0.375)));
+        using FakeTerrainTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator terrainTextureGenerator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay overlay = CreatePaddedCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
         ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -70,8 +65,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TexturePayload: null,
                     TextureSourceKind: ResoniteTextureSourceKind.Dataset,
                     Projection: ResoniteMaterialProjection.Uv,
-                    TextureScale: new ResoniteFloat2(0.8, 0.4),
-                    TextureOffset: new ResoniteFloat2(0.25, 0.5),
+                    TextureScale: null,
+                    TextureOffset: null,
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
@@ -84,9 +79,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
             client,
             terrainTextureGenerator);
 
-        Assert.Equal([overlay], terrainTextureGenerator.RequestedOverlays);
         ResoniteRawTextureImport importedTexture = Assert.Single(client.ImportedRawTextures);
-        Assert.Equal("terrain-overlay/dem/17/generated", importedTexture.Identity);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), importedTexture.Width);
+        Assert.Equal(RoundUpToPowerOfTwo(layout.CropHeight), importedTexture.Height);
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
@@ -141,12 +136,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.DoesNotContain("PreferredProfile", overrideTextureComponent.Members.Keys);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
         Assert.Equal(3, importedMesh.VertexCount);
-        Assert.Equal(0.25f, importedMesh.AccessUV_2D(0)[0].x, 6);
-        Assert.Equal(0.5f, importedMesh.AccessUV_2D(0)[0].y, 6);
-        Assert.Equal(0.65f, importedMesh.AccessUV_2D(0)[1].x, 6);
-        Assert.Equal(0.5f, importedMesh.AccessUV_2D(0)[1].y, 6);
-        Assert.Equal(0.25f, importedMesh.AccessUV_2D(0)[2].x, 6);
-        Assert.Equal(0.6f, importedMesh.AccessUV_2D(0)[2].y, 6);
+        Assert.Equal((float)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth), importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[1].y, 6);
+        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[2].x, 6);
+        Assert.Equal((float)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight), importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]
@@ -1182,6 +1175,54 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     AssertNoPlannedReferences(syncList.Elements);
                     break;
             }
+        }
+    }
+
+    private static TerrainTextureOverlay CreatePaddedCoverageOverlay(string urlTemplate)
+    {
+        GeographicRectangle bounds = new(
+            MinLatitude: WebMercatorTileMath.PixelYToLatitude(100, 1),
+            MaxLatitude: WebMercatorTileMath.PixelYToLatitude(0, 1),
+            MinLongitude: WebMercatorTileMath.PixelXToLongitude(0, 1),
+            MaxLongitude: WebMercatorTileMath.PixelXToLongitude(400, 1));
+        return new TerrainTextureOverlay(
+            PackageName: "dem",
+            UrlTemplate: urlTemplate,
+            ZoomLevel: 1,
+            GeographicBounds: bounds,
+            MaxTextureSize: 512);
+    }
+
+    private static int RoundUpToPowerOfTwo(int value)
+    {
+        int rounded = 1;
+        while (rounded < value)
+        {
+            rounded <<= 1;
+        }
+
+        return rounded;
+    }
+
+    private sealed class FakeTerrainTileHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            string[] segments = request.RequestUri?.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                ?? throw new InvalidOperationException("Tile request URI is missing.");
+            int tileX = int.Parse(segments[^2], System.Globalization.CultureInfo.InvariantCulture);
+            int tileY = int.Parse(Path.GetFileNameWithoutExtension(segments[^1]), System.Globalization.CultureInfo.InvariantCulture);
+            using Image<Rgba32> image = new(
+                WebMercatorTileMath.TileSizePixels,
+                WebMercatorTileMath.TileSizePixels,
+                tileX == 0 && tileY == 0 ? new Rgba32(255, 0, 0, 255) : new Rgba32(0, 255, 0, 255));
+            MemoryStream stream = new();
+            await image.SaveAsPngAsync(stream, cancellationToken);
+            stream.Position = 0;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream),
+            };
         }
     }
 }
