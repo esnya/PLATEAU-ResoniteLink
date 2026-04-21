@@ -29,11 +29,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
 
-        IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
+        IImportedSceneSource result = await factory.CreateAsync(request, reader.ReadResult, progressReporter);
 
         Assert.Same(expectedSource, result);
-        Assert.Same(request, reader.LastRequest);
-        Assert.Same(progressReporter, reader.LastProgressReporter);
+        Assert.Null(reader.LastRequest);
+        Assert.Null(reader.LastProgressReporter);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Same(progressReporter, composer.LastProgressReporter);
@@ -76,7 +76,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem"],
             ServerUri: null);
 
-        _ = await factory.CreateAsync(request);
+        _ = await factory.CreateAsync(request, reader.ReadResult);
 
         Assert.NotSame(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
@@ -113,7 +113,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        _ = await factory.CreateAsync(request);
+        _ = await factory.CreateAsync(request, reader.ReadResult);
 
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
@@ -161,7 +161,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        _ = await factory.CreateAsync(request);
+        _ = await factory.CreateAsync(request, reader.ReadResult);
 
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
@@ -193,7 +193,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => factory.CreateAsync(request));
+            () => factory.CreateAsync(request, reader.ReadResult));
 
         Assert.Contains(
             exception.Errors,
@@ -398,4 +398,3 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 }
-

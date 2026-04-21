@@ -65,15 +65,17 @@ public sealed class LocalCityGmlObjectProjectionTests
     public async Task ConstructionSourceFactoryComposesExpectedBootstrapMetadata()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
+        LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: fixturePath,
             ServerUri: null);
+        LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(request);
 
         LocalCityGmlConstructionSourceFactory factory = new(
-            CreateDocumentReader(),
+            documentReader,
             new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                 new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
@@ -87,7 +89,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                     new DefaultPlateauDatasetContentSourceFactory(
                         new RemoteArchiveDistributionPolicy(),
                         new ArchiveFileLayoutPolicy()))));
-        IImportedSceneSource source = await factory.CreateAsync(request);
+        IImportedSceneSource source = await factory.CreateAsync(request, readResult);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);
