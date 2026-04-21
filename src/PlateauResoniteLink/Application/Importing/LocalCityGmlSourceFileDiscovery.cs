@@ -19,31 +19,6 @@ internal static class LocalCityGmlSourceFileDiscovery
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     public static LocalCityGmlSourceFileDiscoveryResult Discover(
-        string datasetRoot,
-        string meshCodeRequest,
-        IReadOnlyList<string>? packageNames)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCodeRequest);
-
-        MeshCodeSelectionMatcher matcher = CreateSelectionMatcher(meshCodeRequest);
-        HashSet<string>? requestedPackageNames = packageNames is null
-            ? null
-            : new HashSet<string>(
-                PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames),
-                StringComparer.OrdinalIgnoreCase);
-
-        LocalCityGmlDatasetSourceFileCandidate[] candidates = Directory
-            .EnumerateFiles(datasetRoot, "*.gml", SearchOption.AllDirectories)
-            .Select(path => CreateCandidateSourceFile(datasetRoot, path, requestedPackageNames))
-            .Where(static candidate => candidate is not null)
-            .Select(static candidate => candidate!)
-            .ToArray();
-
-        return CreateSourceFileDiscoveryResult(candidates, matcher);
-    }
-
-    public static LocalCityGmlSourceFileDiscoveryResult Discover(
         IEnumerable<string> relativePaths,
         string meshCodeRequest,
         IReadOnlyList<string>? packageNames)
