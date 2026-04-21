@@ -235,7 +235,7 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
     {
         if (geoKeyDirectory is null || geoKeyDirectory.Length < 8)
         {
-            return null;
+            return TryResolveUserDefinedCoordinateSystemIdentifier(geoAsciiParams);
         }
 
         _ = geoDoubleParams;

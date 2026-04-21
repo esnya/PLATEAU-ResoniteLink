@@ -157,6 +157,24 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
     }
 
     [Fact]
+    public void TryCreateMetadataFallsBackToGeoAsciiWhenGeoKeyDirectoryIsMissing()
+    {
+        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+            pixelWidth: 10,
+            pixelHeight: 10,
+            modelTiePoint: [0.0, 0.0, 0.0, 15522111.49748708, 4269705.744087971, 0.0],
+            pixelScale: [0.49308779137044045, 0.4932342623689913, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: null,
+            geoDoubleParams: null,
+            geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
+    }
+
+    [Fact]
     public async Task GeoTiffTagReaderTryReadAsyncParsesGeoTiffTagsFromFileStream()
     {
         using TemporaryDirectory workDirectory = new();
