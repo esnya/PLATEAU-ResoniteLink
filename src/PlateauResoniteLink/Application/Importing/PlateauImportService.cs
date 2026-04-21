@@ -78,11 +78,18 @@ public sealed class PlateauImportService(
                 PlateauLog.Info(
                     "import",
                     $"Read {discoveredCommonMaterials.Count} shared common materials from source in {commonMaterialStopwatch.Elapsed.TotalSeconds:F3}s."));
-            IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = discoveredCommonMaterials.Count == 0
-                ? null
-                : discoveredCommonMaterials;
-
             ImportedSceneMetadata metadata = source.Metadata;
+            IReadOnlyList<ResoniteMaterialBinding> commonMaterials = discoveredCommonMaterials.Count == 0
+                ? CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames)
+                : discoveredCommonMaterials;
+            if (discoveredCommonMaterials.Count == 0)
+            {
+                ReportProgress(
+                    PlateauLog.Info(
+                        "import",
+                        $"No source-enumerated common materials were found; setup will use {commonMaterials.Count} package-catalog common materials."));
+            }
+
             SceneImportExecutionPlan executionPlan = SceneImportExecutionPlan.Create(
                 normalizedRequest,
                 resolvedRequest,

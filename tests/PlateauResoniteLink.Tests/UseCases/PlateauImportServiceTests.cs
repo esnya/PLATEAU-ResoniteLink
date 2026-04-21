@@ -193,6 +193,48 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_UsesPackageCatalogCommonMaterialsWhenSourceEnumerationIsEmpty()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
+        LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        RecordingSceneBuilder sceneBuilder = new();
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        RecordingDocumentReader documentReader = new(readResult);
+        StubConstructionSource source = new(
+            CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
+            commonMaterials: []);
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            documentReader,
+            constructionSourceFactory,
+            new ArchiveFileLayoutPolicy());
+
+        _ = await service.ExecuteAsync(request, workRoot.Path);
+
+        Assert.NotNull(sceneBuilder.BeginRequest);
+        Assert.Equal(
+            CommonMaterialCatalog.CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
+            sceneBuilder.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_ThrowsOperationalFailureWhenTargetFailsEveryCityObject()
     {
         using TemporaryDirectory rawSourceRoot = new();

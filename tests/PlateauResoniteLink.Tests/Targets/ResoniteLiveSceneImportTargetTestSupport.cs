@@ -30,7 +30,12 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             enableMeshBake);
 
         using TemporaryDirectory workDirectory = new();
-        _ = await ExecuteSceneAsync(builder, metadata, workDirectory.Path, cityObjects);
+        _ = await ExecuteSceneAsync(
+            builder,
+            metadata,
+            workDirectory.Path,
+            cityObjects,
+            commonMaterials: CollectExecutionPlanCommonMaterials(metadata, cityObjects));
     }
 
     public static ResoniteImportedMesh CreateTriangleMesh(
@@ -111,13 +116,23 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         using TemporaryDirectory firstWorkDirectory = new();
         await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
         {
-            _ = await ExecuteSceneAsync(builder, metadata, firstWorkDirectory.Path, firstRunCityObjects);
+            _ = await ExecuteSceneAsync(
+                builder,
+                metadata,
+                firstWorkDirectory.Path,
+                firstRunCityObjects,
+                commonMaterials: CollectExecutionPlanCommonMaterials(metadata, firstRunCityObjects));
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
         await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
         {
-            _ = await ExecuteSceneAsync(builder, metadata, secondWorkDirectory.Path, secondRunCityObjects);
+            _ = await ExecuteSceneAsync(
+                builder,
+                metadata,
+                secondWorkDirectory.Path,
+                secondRunCityObjects,
+                commonMaterials: CollectExecutionPlanCommonMaterials(metadata, secondRunCityObjects));
         }
     }
 
@@ -126,10 +141,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ResoniteConstructionMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
+        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null,
         CancellationToken cancellationToken = default)
     {
         return builder.ExecuteAsync(
-            CreateExecutionPlan(metadata, workDirectory),
+            CreateExecutionPlan(
+                metadata,
+                workDirectory,
+                commonMaterials: commonMaterials ?? CollectExecutionPlanCommonMaterials(metadata, cityObjects)),
             CreateImportedCityObjectsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
@@ -137,7 +156,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     public static SceneImportExecutionPlan CreateExecutionPlan(
         ResoniteConstructionMetadata metadata,
         string workDirectory,
-        PlateauImportRequest? normalizedRequest = null)
+        PlateauImportRequest? normalizedRequest = null,
+        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null)
     {
         string? resolvedSourcePath = normalizedRequest?.Source is RemoteDatasetLocation
             ? null
@@ -146,14 +166,16 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             SceneImportContractMapper.ToContract(metadata),
             workDirectory,
             normalizedRequest ?? metadata.Request,
-            resolvedSourcePath);
+            resolvedSourcePath,
+            commonMaterials);
     }
 
     public static SceneImportExecutionPlan CreateExecutionPlan(
         ImportedSceneMetadata metadata,
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
-        string? resolvedSourcePath = null)
+        string? resolvedSourcePath = null,
+        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null)
     {
         PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
         PlateauImportRequest resolvedRequest = CreateResolvedRequest(
@@ -168,7 +190,63 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             resolvedRequest,
             effectiveMetadata,
             resolvedRequest.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
-            workDirectory);
+            workDirectory,
+            commonMaterials ?? CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames));
+    }
+
+    private static IReadOnlyList<ResoniteMaterialBinding> CollectExecutionPlanCommonMaterials(
+        ResoniteConstructionMetadata metadata,
+        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    {
+        Dictionary<string, ResoniteMaterialBinding> materialsByKey = new(StringComparer.Ordinal);
+
+        foreach (ResoniteMaterialBinding material in CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames))
+        {
+            AddNormalizedCommonMaterial(materialsByKey, material);
+        }
+
+        foreach (ResoniteConstructionCityObject cityObject in cityObjects)
+        {
+            IReadOnlyList<ResoniteMaterialBinding> candidateMaterials;
+            try
+            {
+                candidateMaterials = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject).Materials;
+            }
+            catch (ArgumentException)
+            {
+                candidateMaterials = cityObject.Materials;
+            }
+
+            foreach (ResoniteMaterialBinding material in candidateMaterials)
+            {
+                AddNormalizedCommonMaterial(materialsByKey, material);
+            }
+        }
+
+        return materialsByKey.Values
+            .OrderBy(static material => material.MaterialKey, StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static void AddNormalizedCommonMaterial(
+        IDictionary<string, ResoniteMaterialBinding> materialsByKey,
+        ResoniteMaterialBinding material)
+    {
+        ResoniteMaterialBinding normalizedCommonMaterial =
+            ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
+        if (normalizedCommonMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
+        {
+            materialsByKey.TryAdd(normalizedCommonMaterial.MaterialKey, normalizedCommonMaterial);
+            return;
+        }
+
+        if (ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+                material,
+                out ResoniteMaterialBinding normalizedSharedMaterial,
+                out _))
+        {
+            materialsByKey.TryAdd(normalizedSharedMaterial.MaterialKey, normalizedSharedMaterial);
+        }
     }
 
     private static PlateauImportRequest CreateResolvedRequest(

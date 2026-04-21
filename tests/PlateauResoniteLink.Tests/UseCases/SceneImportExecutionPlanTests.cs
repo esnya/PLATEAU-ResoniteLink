@@ -29,7 +29,7 @@ public sealed class SceneImportExecutionPlanTests
         SceneImportExecutionPlan plan = new(
             normalizedRequest,
             resolvedRequest,
-            new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot));
+            new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
 
         Assert.Same(normalizedRequest, plan.NormalizedRequest);
         Assert.Same(resolvedRequest, plan.ResolvedRequest);
@@ -53,7 +53,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work")));
+                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 mismatchedRequest,
-                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work")));
+                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class SceneImportExecutionPlanTests
         SceneImportExecutionPlan plan = new(
             normalizedRequest,
             resolvedRequest,
-            new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot));
+            new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
 
         Assert.Equal(
             RemoteDatasetResourceLayout.GetRemoteResourcePath(workRoot, remoteDemTextureUri, "source-ortho"),
@@ -124,7 +124,7 @@ public sealed class SceneImportExecutionPlanTests
             () => new SceneImportExecutionPlan(
                 normalizedRequest,
                 resolvedRequest,
-                new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot)));
+                new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, [])));
     }
 
     private static ImportedSceneMetadata CreateMetadata(PlateauImportRequest request)

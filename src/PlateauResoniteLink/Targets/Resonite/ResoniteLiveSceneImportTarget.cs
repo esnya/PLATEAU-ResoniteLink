@@ -101,7 +101,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             state = await CreateRunStateAsync(
                 CreateBootstrapInfo(request),
                 request.WorkRoot,
-                request.CommonMaterials ?? CommonMaterialCatalog.CreateForPackages(request.Metadata.SourceDataset.PackageNames),
+                request.CommonMaterials,
                 plan.NormalizedRequest,
                 SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
                 cancellationToken);
@@ -1120,6 +1120,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity = CreatePreparedTextureDataByIdentity(preparedCityObject);
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
+        await EnsureSharedCommonMaterialsPreparedAsync(
+            state,
+            routedClient,
+            cityObject,
+            preparedTerrainTextureDataByOverlay,
+            buildStepCancellation.Token);
         Stopwatch materialStopwatch = Stopwatch.StartNew();
         Stopwatch geometryStopwatch = new();
         Task<PlannedSceneMaterialPlan> materialPlanningTask = PlanSceneMaterialPlanAsync(
@@ -1446,27 +1452,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 await familyWarmupTask.WaitAsync(ct);
             }
 
-            CreatedMaterialAsset existingMaterialAsset;
-            if (runState.Materials.BootstrapKnownMaterialKeys.Contains(materialKey))
+            if (!runState.Materials.CommonMaterialCreationTasks.TryGetCompleted(materialKey, out CreatedMaterialAsset existingMaterialAsset))
             {
-                if (!runState.Materials.CommonMaterialCreationTasks.TryGetCompleted(materialKey, out existingMaterialAsset))
-                {
-                    throw new InvalidOperationException(
-                        $"Bootstrap did not resolve shared/common material '{materialKey}' before runtime emission.");
-                }
-            }
-            else
-            {
-                existingMaterialAsset = await runState.Materials.CommonMaterialCreationTasks.GetOrCreateAsync(
-                    materialKey,
-                    () => new LazySharedMaterialTaskFactory(
-                        runState,
-                        client,
-                        materialPlanning,
-                        normalizedSharedMaterial,
-                        familySlotName,
-                        ResoniteMaterialPlanning.CreateComponentAsync).CreateLazySharedMaterialTask(materialKey),
-                    ct);
+                throw new InvalidOperationException(
+                    $"Bootstrap did not resolve shared/common material '{materialKey}' before runtime emission.");
             }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
@@ -1506,61 +1495,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         }
     }
 
-    private readonly record struct LazySharedMaterialTaskFactory(
-        LiveSendRunState RunState,
-        IResoniteLinkClient Client,
-        IResoniteMaterialPlanning MaterialPlanning,
-        ResoniteMaterialBinding Material,
-        string FamilySlotName,
-        Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> CreateComponentAsync)
-    {
-        public Task<CreatedMaterialAsset> CreateLazySharedMaterialTask(string materialKey)
-        {
-            return CreateAsync(materialKey);
-        }
-
-        private async Task<CreatedMaterialAsset> CreateAsync(string materialKey)
-        {
-            CreatedSlot familySlot = await ResoniteMaterialPlanning.TryGetExistingSharedChildSlotAsync(
-                Client,
-                RunState.Context.CommonAssetsRootSlot.SlotId,
-                FamilySlotName,
-                RunState.Runtime.ProcessingCancellationToken)
-                ?? await RunState.Placement.GetOrCreateSharedChildSlotAsync(
-                    Client,
-                    RunState.Context.CommonAssetsRootSlot.SlotId,
-                    FamilySlotName,
-                    RunState.Runtime.ProcessingCancellationToken);
-            PlannedDedicatedMaterialAsset plannedMaterial = await MaterialPlanning.PlanCommonMaterialAssetAsync(
-                Client,
-                Material,
-                RunState.Runtime.ProcessingCancellationToken);
-            string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(Material, useCommonMaterialAssets: true);
-            IReadOnlyList<string> materialSlotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(Material);
-            string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(Material);
-            string? existingMaterialComponentId = await ResoniteMaterialPlanning.TryGetExistingCommonMaterialComponentIdAsync(
-                Client,
-                familySlot.SlotId,
-                materialSlotLookupNames,
-                materialComponentType,
-                RunState.Runtime.ProcessingCancellationToken);
-            if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
-            {
-                return new CreatedMaterialAsset(existingMaterialComponentId, null);
-            }
-
-            CreatedMaterialAsset createdMaterial = await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
-                Client,
-                plannedMaterial,
-                familySlot.SlotId,
-                materialSlotName,
-                RunState.Placement.GetOrCreateSharedChildSlotAsync,
-                CreateComponentAsync,
-                RunState.Runtime.ProcessingCancellationToken);
-            return createdMaterial;
-        }
-    }
-
     private static bool IsDemPackage(string packageName)
     {
         return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
@@ -1575,6 +1509,184 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 pair.Key,
                 pair.Value))
             .ToArray();
+    }
+
+    private async Task EnsureSharedCommonMaterialsPreparedAsync(
+        LiveSendRunState state,
+        IResoniteLinkClient client,
+        ResoniteConstructionCityObject cityObject,
+        IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay,
+        CancellationToken cancellationToken)
+    {
+        foreach (ResoniteMaterialBinding material in cityObject.Materials)
+        {
+            ResoniteMaterialBinding resolvedMaterial = ResoniteMaterialPlanning.ResolveTerrainTextureCanvasMaterial(
+                material,
+                preparedTerrainTextureDataByOverlay);
+            if (!ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+                    resolvedMaterial,
+                    out ResoniteMaterialBinding normalizedSharedMaterial,
+                    out string familySlotName))
+            {
+                continue;
+            }
+
+            string materialKey = normalizedSharedMaterial.MaterialKey;
+            if (state.Materials.CommonMaterialCreationTasks.TryGetCompleted(materialKey, out _))
+            {
+                continue;
+            }
+
+            if (state.Materials.BootstrapKnownMaterialKeys.Contains(materialKey))
+            {
+                continue;
+            }
+
+            Task familyWarmupTask = state.Materials.CommonMaterialFamilyWarmupTasks.GetOrAdd(
+                familySlotName,
+                _ => WarmCommonMaterialFamilySlotAsync(state, client, familySlotName, cancellationToken));
+            await familyWarmupTask.WaitAsync(cancellationToken);
+
+            _ = await state.Materials.CommonMaterialCreationTasks.GetOrCreateAsync(
+                materialKey,
+                () => EnsureSharedCommonMaterialPreparedCoreAsync(
+                    state,
+                    client,
+                    normalizedSharedMaterial,
+                    familySlotName,
+                    cancellationToken),
+                cancellationToken);
+        }
+    }
+
+    private static async Task WarmCommonMaterialFamilySlotAsync(
+        LiveSendRunState state,
+        IResoniteLinkClient client,
+        string familySlotName,
+        CancellationToken cancellationToken)
+    {
+        _ = await ResolveCommonMaterialFamilySlotAsync(state, client, familySlotName, cancellationToken);
+    }
+
+    private async Task<CreatedMaterialAsset> EnsureSharedCommonMaterialPreparedCoreAsync(
+        LiveSendRunState state,
+        IResoniteLinkClient client,
+        ResoniteMaterialBinding normalizedSharedMaterial,
+        string familySlotName,
+        CancellationToken cancellationToken)
+    {
+        CreatedSlot familySlot = await ResolveCommonMaterialFamilySlotAsync(
+            state,
+            client,
+            familySlotName,
+            cancellationToken);
+        string materialComponentType = ResoniteMaterialComponentPolicy.GetComponentType(normalizedSharedMaterial);
+        string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(
+            normalizedSharedMaterial,
+            useCommonMaterialAssets: true);
+        IReadOnlyList<string> lookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(
+            normalizedSharedMaterial);
+        (CreatedSlot? ReusableSlot, string? ExistingComponentId) existingMaterial = await TryFindReusableCommonMaterialSlotAsync(
+            client,
+            familySlot,
+            lookupNames,
+            materialComponentType,
+            cancellationToken);
+        if (!string.IsNullOrWhiteSpace(existingMaterial.ExistingComponentId))
+        {
+            return new CreatedMaterialAsset(existingMaterial.ExistingComponentId, null);
+        }
+
+        PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanCommonMaterialAssetAsync(
+            client,
+            normalizedSharedMaterial,
+            cancellationToken);
+        Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> getOrCreateMaterialSlotAsync =
+            existingMaterial.ReusableSlot is null
+                ? state.Placement.GetOrCreateSharedChildSlotAsync
+                : (_, _, _, _) => Task.FromResult(existingMaterial.ReusableSlot.Value);
+
+        return await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
+            client,
+            plannedMaterial,
+            familySlot.SlotId,
+            materialSlotName,
+            getOrCreateMaterialSlotAsync,
+            ResoniteMaterialPlanning.CreateComponentAsync,
+            cancellationToken);
+    }
+
+    private static async Task<CreatedSlot> ResolveCommonMaterialFamilySlotAsync(
+        LiveSendRunState state,
+        IResoniteLinkClient client,
+        string familySlotName,
+        CancellationToken cancellationToken)
+    {
+        Slot? commonRootSnapshot = await client.GetSlotAsync(
+            state.Context.CommonAssetsRootSlot.SlotId,
+            1,
+            cancellationToken);
+        if (commonRootSnapshot is not null)
+        {
+            ResoniteSceneChildLookupResult lookup = new ResoniteSceneSlotSnapshot(commonRootSnapshot)
+                .GetUniqueChildLookupResult(familySlotName, state.Context.CommonAssetsRootSlot.SlotId);
+            if (lookup.State == ResoniteSceneChildLookupState.FoundWithId && lookup.Slot is not null)
+            {
+                return new CreatedSlot(
+                    lookup.Slot.ID ?? throw new InvalidOperationException("Common material family slot did not expose an ID."),
+                    lookup.Slot.Name?.Value ?? familySlotName);
+            }
+        }
+
+        return await state.Placement.GetOrCreateSharedChildSlotAsync(
+            client,
+            state.Context.CommonAssetsRootSlot.SlotId,
+            familySlotName,
+            cancellationToken);
+    }
+
+    private static async Task<(CreatedSlot? ReusableSlot, string? ExistingComponentId)> TryFindReusableCommonMaterialSlotAsync(
+        IResoniteLinkClient client,
+        CreatedSlot familySlot,
+        IReadOnlyList<string> lookupNames,
+        string materialComponentType,
+        CancellationToken cancellationToken)
+    {
+        if (lookupNames.Count == 0)
+        {
+            return (null, null);
+        }
+
+        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlot.SlotId, 2, cancellationToken);
+        if (familySlotSnapshot is null)
+        {
+            return (null, null);
+        }
+
+        ResoniteSceneSlotSnapshot snapshot = new(familySlotSnapshot);
+        CreatedSlot? reusableSlot = null;
+        foreach (string lookupName in lookupNames)
+        {
+            ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult(lookupName, familySlot.SlotId);
+            if (lookup.State != ResoniteSceneChildLookupState.FoundWithId || lookup.Slot is null)
+            {
+                continue;
+            }
+
+            string slotId = lookup.Slot.ID ?? throw new InvalidOperationException("Reusable common material slot did not expose an ID.");
+            reusableSlot ??= new CreatedSlot(slotId, lookup.Slot.Name?.Value ?? lookupName);
+            string? existingComponentId = lookup.Slot.Components?
+                .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
+                .OrderBy(static component => component.ID, StringComparer.Ordinal)
+                .Select(static component => component.ID)
+                .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+            if (!string.IsNullOrWhiteSpace(existingComponentId))
+            {
+                return (reusableSlot, existingComponentId);
+            }
+        }
+
+        return (reusableSlot, null);
     }
 
     private static HashSet<string> CollectBootstrapKnownCommonMaterialKeys(
