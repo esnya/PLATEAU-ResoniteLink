@@ -9,7 +9,7 @@ public sealed record SceneBootstrapInfo(
     string LocalSourcePath,
     IReadOnlyList<string> PackageNames,
     IReadOnlyList<string> SourceFiles,
-    IReadOnlyList<string> RequestedMeshCodes,
+    IReadOnlyList<string> SelectedMeshCodes,
     LicenseAttributionMetadata DatasetLicense,
     IReadOnlyList<LicenseAttributionMetadata> AdditionalDatasetLicenses)
 {
@@ -27,7 +27,7 @@ public sealed record SceneBootstrapInfo(
                 ?? string.Empty,
             metadata.SourceDataset.PackageNames,
             metadata.SourceDataset.SourceFiles,
-            metadata.SourceDataset.RequestedMeshCodes ?? [],
+            metadata.SourceDataset.SelectedMeshCodes ?? [],
             metadata.Attribution.DatasetLicense,
             CreateAdditionalDatasetLicenses(metadata));
     }

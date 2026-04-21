@@ -43,7 +43,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
         {
             SourceDataset = metadata.SourceDataset with
             {
-                RequestedMeshCodes = [],
+                SelectedMeshCodes = [],
             },
         };
 
@@ -68,7 +68,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
                 PackageNames: ["bldg", "dem"],
                 SourceFiles: sourceFiles,
                 TerrainTextureOverlays: [],
-                RequestedMeshCodes: ["53394525", "53394526"]),
+                SelectedMeshCodes: ["53394525", "53394526"]),
             Attribution: new ResoniteAttribution(
                 new LicenseAttributionMetadata(true, "credit", "name", "url"),
                 []),

@@ -13,9 +13,9 @@ public sealed class MeshCodeBoundsTests
     }
 
     [Fact]
-    public void CreateManyFromRequestedMeshCodes_DeduplicatesAndSkipsInvalidEntries()
+    public void CreateManyFromSelectedMeshCodes_DeduplicatesAndSkipsInvalidEntries()
     {
-        MeshCodeBounds[] bounds = MeshCodeBounds.CreateManyFromRequestedMeshCodes(["53394525", "invalid", "53394525"]);
+        MeshCodeBounds[] bounds = MeshCodeBounds.CreateManyFromSelectedMeshCodes(["53394525", "invalid", "53394525"]);
 
         MeshCodeBounds actual = Assert.Single(bounds);
         MeshCodeBounds expected = MeshCodeBounds.TryParse("53394525")!;

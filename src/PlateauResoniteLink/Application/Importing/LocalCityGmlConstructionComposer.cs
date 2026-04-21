@@ -33,7 +33,7 @@ internal sealed class LocalCityGmlConstructionComposer(
                 PackageNames: documentSet.PackageNames.ToArray(),
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
                 TerrainTextureOverlays: documentSet.TerrainTextureOverlays.ToArray(),
-                RequestedMeshCodes: documentSet.SelectedMeshCodes),
+                SelectedMeshCodes: documentSet.SelectedMeshCodes),
             Attribution: attribution,
             LocalOrigin: new ResoniteLocalOrigin(
                 Latitude: bootstrapContext.GlobalOriginPoint.Latitude,

@@ -85,7 +85,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 descriptor.RequiresMeshAreaFilter))
             .ToArray();
         MeshCodeBounds[] requestedMeshAreas = requestedMeshArea is null
-            ? MeshCodeBounds.CreateManyFromRequestedMeshCodes(discoveryResult.SelectedMeshCodes)
+            ? MeshCodeBounds.CreateManyFromSelectedMeshCodes(discoveryResult.SelectedMeshCodes)
             : [requestedMeshArea];
         MeshCodeBounds? effectiveRequestedMeshArea =
             MeshCodeBounds.TryMerge(requestedMeshAreas);

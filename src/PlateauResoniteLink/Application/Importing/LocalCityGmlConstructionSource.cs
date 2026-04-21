@@ -52,8 +52,8 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.progressReporter = progressReporter;
-        requestedMeshAreas = MeshCodeBounds.CreateManyFromRequestedMeshCodes(
-            Metadata.SourceDataset.RequestedMeshCodes ?? [request.MeshCode]);
+        requestedMeshAreas = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
+            Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
     }
 
     public ImportedSceneMetadata Metadata { get; }
@@ -467,9 +467,9 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 requestedMeshBounds.WestLongitude,
                 requestedMeshBounds.EastLongitude)
             : null;
-        IReadOnlyList<string> requestedMeshCodes =
-            preferRequestedMeshCodeSplit && Metadata.SourceDataset.RequestedMeshCodes is { Count: > 0 }
-                ? Metadata.SourceDataset.RequestedMeshCodes
+        IReadOnlyList<string> selectedMeshCodes =
+            preferRequestedMeshCodeSplit && Metadata.SourceDataset.SelectedMeshCodes is { Count: > 0 }
+                ? Metadata.SourceDataset.SelectedMeshCodes
                 : [];
         if (!HasAnyVertices(parsedSourceFile.CityObjects))
         {
@@ -477,7 +477,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 ? []
                 : LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
                     fallbackBounds,
-                    requestedMeshCodes);
+                    selectedMeshCodes);
         }
 
         DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
@@ -487,7 +487,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             ? []
             : LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
                 demBounds,
-                requestedMeshCodes);
+                selectedMeshCodes);
     }
 
     private static void ValidateCompatibleReferenceSystem(

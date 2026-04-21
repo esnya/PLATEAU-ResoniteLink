@@ -96,7 +96,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 PackageNames: packageNames ?? ["bldg"],
                 SourceFiles: sourceFiles ?? [],
                 TerrainTextureOverlays: terrainTextureOverlays ?? [],
-                RequestedMeshCodes: requestedMeshCodes),
+                SelectedMeshCodes: requestedMeshCodes),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new LicenseAttributionMetadata(
                     RequireCredit: true,

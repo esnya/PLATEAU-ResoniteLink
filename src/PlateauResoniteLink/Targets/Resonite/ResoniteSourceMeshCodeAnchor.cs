@@ -55,7 +55,7 @@ internal static partial class ResoniteSourceMeshCodeAnchor
 
         if (concreteSourceMeshCodes.Length == 0)
         {
-            concreteSourceMeshCodes = setupInfo.RequestedMeshCodes
+            concreteSourceMeshCodes = setupInfo.SelectedMeshCodes
                 .Where(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();

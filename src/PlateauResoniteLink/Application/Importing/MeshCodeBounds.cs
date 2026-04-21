@@ -26,7 +26,7 @@ internal sealed record MeshCodeBounds(
             bounds.EastLongitude);
     }
 
-    public static MeshCodeBounds[] CreateManyFromRequestedMeshCodes(IEnumerable<string> meshCodes)
+    public static MeshCodeBounds[] CreateManyFromSelectedMeshCodes(IEnumerable<string> meshCodes)
     {
         ArgumentNullException.ThrowIfNull(meshCodes);
 
