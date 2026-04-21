@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -139,6 +140,67 @@ public sealed class LocalCityGmlConstructionSourceTests
     }
 
     [Fact]
+    public async Task ReadCityObjectsAsyncResolvesDemFallbackOverlaysOncePerSourceFile()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null,
+            PackageNames: ["dem"]);
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(
+            new TerrainTextureOverlay(
+                PackageName: "dem",
+                GeographicBounds: new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                MaxTextureSize: 1024,
+                Sources:
+                [
+                    new TerrainTextureTileSource("https://tiles.example/fallback/{z}/{x}/{y}.png", 17),
+                ]));
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFilePipeline(
+                        sourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                sourceFile,
+                                [
+                                    CreateParsedCityObject(0, sourceFile, referenceSystem),
+                                    CreateParsedCityObject(1, sourceFile, referenceSystem),
+                                ],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero)),
+                        streamFactory: cancellationToken => StreamParsedCityObjects(sourceFile, referenceSystem, cancellationToken)),
+                ]),
+            new TrackingGeometryProjector(),
+            CommonMaterialEnumerator,
+            demTextureSourcePolicy);
+
+        await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+
+        static async IAsyncEnumerable<BootstrapParsedCityObject> StreamParsedCityObjects(
+            SourceFileDescriptor sourceFile,
+            CoordinateReferenceSystem referenceSystem,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return CreateParsedCityObject(0, sourceFile, referenceSystem);
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return CreateParsedCityObject(1, sourceFile, referenceSystem);
+            await Task.CompletedTask;
+        }
+    }
+
+    [Fact]
     public async Task ReadCommonMaterialsAsyncReusesParsedSourceFileInsteadOfReparsingStreamFactory()
     {
         PlateauImportRequest request = new(
@@ -249,6 +311,46 @@ public sealed class LocalCityGmlConstructionSourceTests
         Assert.Equal("C:\\ortho\\terrain.tif", rasterSource.SourcePath);
     }
 
+    [Fact]
+    public async Task ReadCityObjectsAsyncCancelsWhileResolvingDemFallbackOverlays()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null,
+            PackageNames: ["dem"]);
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new(delayOverlayResolutionUntilCancellation: true);
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFilePipeline(
+                        sourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                sourceFile,
+                                [CreateParsedCityObject(0, sourceFile, referenceSystem)],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero))),
+                ]),
+            new TrackingGeometryProjector(),
+            CommonMaterialEnumerator,
+            demTextureSourcePolicy);
+
+        using CancellationTokenSource cancellationTokenSource = new();
+        cancellationTokenSource.CancelAfter(TimeSpan.FromMilliseconds(100));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await source.ReadCityObjectsAsync(cancellationTokenSource.Token).ToListAsync(cancellationTokenSource.Token));
+        Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
+    }
+
     private static ImportedSceneMetadata CreateMetadata(
         PlateauImportRequest request,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
@@ -306,6 +408,22 @@ public sealed class LocalCityGmlConstructionSourceTests
                 ["57402736"]),
             new LocalCityGmlBootstrapContext(
                 pipelines,
+                new GeodeticPoint(35.0, 139.0, 0.0)));
+    }
+
+    private static LocalCityGmlDocumentReadResult CreateReadResult(
+        IReadOnlyList<SourceFilePipeline> pipelines,
+        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
+    {
+        return new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlDocumentSet(
+                new EmptyDatasetContentSource(),
+                pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
+                pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
+                terrainTextureOverlays ?? [],
+                ["57402736"]),
+            new LocalCityGmlBootstrapContext(
+                pipelines.ToArray(),
                 new GeodeticPoint(35.0, 139.0, 0.0)));
     }
 
@@ -509,11 +627,32 @@ public sealed class LocalCityGmlConstructionSourceTests
         }
     }
 
-    private sealed class StubDemTextureSourcePolicy(params TerrainTextureOverlay[] fallbackOverlays) : IDemTextureSourcePolicy
+    private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
     {
+        private readonly TerrainTextureOverlay[] fallbackOverlays;
+        private readonly bool delayOverlayResolutionUntilCancellation;
+
+        public StubDemTextureSourcePolicy(
+            params TerrainTextureOverlay[] fallbackOverlays)
+            : this(false, fallbackOverlays)
+        {
+        }
+
+        public StubDemTextureSourcePolicy(
+            bool delayOverlayResolutionUntilCancellation,
+            params TerrainTextureOverlay[] fallbackOverlays)
+        {
+            this.fallbackOverlays = fallbackOverlays;
+            this.delayOverlayResolutionUntilCancellation = delayOverlayResolutionUntilCancellation;
+        }
+
         public IReadOnlyList<string>? LastRequestedMeshCodes { get; private set; }
 
         public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
+
+        private int resolveOverlayRegionsCallCount;
+
+        public int ResolveOverlayRegionsCallCount => resolveOverlayRegionsCallCount;
 
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
@@ -531,8 +670,9 @@ public sealed class LocalCityGmlConstructionSourceTests
             CancellationToken cancellationToken = default)
         {
             _ = request;
+            Interlocked.Increment(ref resolveOverlayRegionsCallCount);
             LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
-            return Task.FromResult(new ResolvedDemTextureSources(fallbackOverlays));
+            return ResolveOverlayRegionsCoreAsync(cancellationToken);
         }
 
         public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
@@ -540,6 +680,17 @@ public sealed class LocalCityGmlConstructionSourceTests
         {
             LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
             return fallbackOverlays;
+        }
+
+        private async Task<ResolvedDemTextureSources> ResolveOverlayRegionsCoreAsync(
+            CancellationToken cancellationToken)
+        {
+            if (delayOverlayResolutionUntilCancellation)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+
+            return new ResolvedDemTextureSources(fallbackOverlays);
         }
     }
 
