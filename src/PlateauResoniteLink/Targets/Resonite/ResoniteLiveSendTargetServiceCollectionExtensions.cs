@@ -38,7 +38,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     }
 }
 
-public interface IResoniteLiveSceneImportFactory
+internal interface IResoniteLiveSceneImportFactory
 {
     ResoniteLiveSceneImportTarget CreateTarget(
         ResoniteLiveSceneImportTargetOptions options,

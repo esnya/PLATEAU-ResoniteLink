@@ -15,6 +15,7 @@ using GeographicLib;
 using LibTessDotNet;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 using Geocentric = GeographicLib.Geocentric;
 using LocalCartesian = GeographicLib.LocalCartesian;

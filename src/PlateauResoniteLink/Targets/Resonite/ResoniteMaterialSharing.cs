@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Domain.Importing;
+
+namespace PlateauResoniteLink.Targets.Resonite;
 
 public static class ResoniteMaterialSharing
 {

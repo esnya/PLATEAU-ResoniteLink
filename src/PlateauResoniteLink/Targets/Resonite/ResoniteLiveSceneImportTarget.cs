@@ -163,7 +163,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteMaterialBinding[] internalCommonMaterials = commonMaterials
             .Select(SceneImportContractMapper.ToInternal)
             .ToArray();
-        await ClientSessionInternal.EnsureConnectedAsync(normalizedRequest, cancellationToken);
+        await ClientSessionInternal.EnsureConnectedAsync(
+            new LiveSendConnectionRequest(
+                normalizedRequest.Dataset,
+                normalizedRequest.MeshCode),
+            cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -849,8 +853,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private IResoniteLinkClient GetRoutedClient()
     {
-        return ClientSessionInternal.RoutedClient
-            ?? throw new ObjectDisposedException(nameof(ILiveSendClientSession), "Routed ResoniteLink client is not connected.");
+        return ClientSessionInternal.GetRequiredClient();
     }
 
     private void ReportProgress(string message, PlateauLogLevel? defaultLevel)

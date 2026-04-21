@@ -785,13 +785,19 @@ internal sealed class RecordingTerrainTextureAssetGenerator(
 
 internal sealed class DelegatingClientSession(
     IResoniteLinkClient? routedClient = null,
-    Func<PlateauImportRequest, CancellationToken, Task>? ensureConnectedAsync = null) : ILiveSendClientSession
+    Func<LiveSendConnectionRequest, CancellationToken, Task>? ensureConnectedAsync = null) : ILiveSendClientSession
 {
     private readonly IResoniteLinkClient? defaultRoutedClient = routedClient;
 
-    public IResoniteLinkClient? RoutedClient { get; set; } = routedClient;
+    public IResoniteLinkClient? ConnectedClient { get; set; } = routedClient;
 
     public ResoniteLinkSendDiagnostics Diagnostics { get; } = ResoniteLinkSendDiagnostics.Disabled;
+
+    public IResoniteLinkClient GetRequiredClient()
+    {
+        return ConnectedClient
+            ?? throw new InvalidOperationException("Connected ResoniteLink client is not available.");
+    }
 
     public int EnsureConnectedCallCount { get; private set; }
 
@@ -799,15 +805,15 @@ internal sealed class DelegatingClientSession(
 
     public int ResetClientsCallCount { get; private set; }
 
-    public List<PlateauImportRequest> EnsureConnectedRequests { get; } = [];
+    public List<LiveSendConnectionRequest> EnsureConnectedRequests { get; } = [];
 
     public Task EnsureConnectedAsync(
-        PlateauImportRequest request,
+        LiveSendConnectionRequest request,
         CancellationToken cancellationToken)
     {
         EnsureConnectedCallCount++;
         EnsureConnectedRequests.Add(request);
-        RoutedClient ??= defaultRoutedClient;
+        ConnectedClient ??= defaultRoutedClient;
         return ensureConnectedAsync is null
             ? Task.CompletedTask
             : ensureConnectedAsync(request, cancellationToken);
@@ -817,14 +823,14 @@ internal sealed class DelegatingClientSession(
     {
         cancellationToken.ThrowIfCancellationRequested();
         ResetClientsCallCount++;
-        RoutedClient = null;
+        ConnectedClient = null;
         return ValueTask.CompletedTask;
     }
 
     public void DisposeClients()
     {
         DisposeClientsCallCount++;
-        RoutedClient = null;
+        ConnectedClient = null;
     }
 }
 [CollectionDefinition(BundledCompanionTextureIsolationGroup.Name, DisableParallelization = true)]

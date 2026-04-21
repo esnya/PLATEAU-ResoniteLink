@@ -1,13 +1,14 @@
 using System;
 using System.Linq;
 
-using InternalModel = PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Domain.Importing;
 
-namespace PlateauResoniteLink.Application.Importing;
+namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class SceneImportContractMapper
 {
-    public static ImportedSceneMetadata ToContract(InternalModel.ResoniteConstructionMetadata metadata)
+    public static ImportedSceneMetadata ToContract(ResoniteConstructionMetadata metadata)
     {
         return new ImportedSceneMetadata(
             metadata.SchemaVersion,
@@ -18,11 +19,11 @@ internal static class SceneImportContractMapper
             ToContract(metadata.LocalOrigin));
     }
 
-    public static ImportedCityObject ToContract(InternalModel.ResoniteConstructionCityObject cityObject)
+    public static ImportedCityObject ToContract(ResoniteConstructionCityObject cityObject)
     {
         return cityObject.Geometry switch
         {
-            InternalModel.ResoniteTriangleMeshGeometry triangleMesh => new ImportedCityObject(
+            ResoniteTriangleMeshGeometry triangleMesh => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
                 cityObject.PackageName,
@@ -35,7 +36,7 @@ internal static class SceneImportContractMapper
                 cityObject.SourceObjectKey,
                 cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath),
-            InternalModel.ResoniteHeightMapGridGeometry heightMap => new ImportedCityObject(
+            ResoniteHeightMapGridGeometry heightMap => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
                 cityObject.PackageName,
@@ -60,9 +61,9 @@ internal static class SceneImportContractMapper
         };
     }
 
-    public static InternalModel.ResoniteConstructionMetadata ToInternal(ImportedSceneMetadata metadata)
+    public static ResoniteConstructionMetadata ToInternal(ImportedSceneMetadata metadata)
     {
-        return new InternalModel.ResoniteConstructionMetadata(
+        return new ResoniteConstructionMetadata(
             metadata.SchemaVersion,
             metadata.SceneName,
             metadata.Request,
@@ -71,11 +72,11 @@ internal static class SceneImportContractMapper
             ToInternal(metadata.GeodeticOrigin));
     }
 
-    public static InternalModel.ResoniteConstructionCityObject ToInternal(ImportedCityObject cityObject)
+    public static ResoniteConstructionCityObject ToInternal(ImportedCityObject cityObject)
     {
         return cityObject.Geometry switch
         {
-            TriangleMeshGeometry triangleMesh => new InternalModel.ResoniteConstructionCityObject(
+            TriangleMeshGeometry triangleMesh => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
                 cityObject.PackageName,
@@ -88,14 +89,14 @@ internal static class SceneImportContractMapper
                 cityObject.SourceObjectKey,
                 cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath),
-            HeightMapGridGeometry heightMap => new InternalModel.ResoniteConstructionCityObject(
+            HeightMapGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
                 cityObject.LodLevel,
                 ToInternal(cityObject.Transform),
-                new InternalModel.ResoniteHeightMapGridGeometry(
+                new ResoniteHeightMapGridGeometry(
                     heightMap.Width,
                     heightMap.Height,
                     ToInternal(heightMap.Size),
@@ -113,21 +114,21 @@ internal static class SceneImportContractMapper
         };
     }
 
-    private static Attribution ToContract(InternalModel.ResoniteAttribution attribution)
+    private static Attribution ToContract(ResoniteAttribution attribution)
     {
         return new Attribution(
             ToContract(attribution.DatasetLicense),
             attribution.MaterialLicenses.Select(ToContract).ToArray());
     }
 
-    private static MaterialAttribution ToContract(InternalModel.ResoniteMaterialAttribution attribution)
+    private static MaterialAttribution ToContract(ResoniteMaterialAttribution attribution)
     {
         return new MaterialAttribution(
             attribution.MaterialKey,
             attribution.License is null ? null : ToContract(attribution.License));
     }
 
-    private static LicenseMetadata ToContract(InternalModel.LicenseAttributionMetadata metadata)
+    private static LicenseMetadata ToContract(LicenseAttributionMetadata metadata)
     {
         return new LicenseMetadata(
             metadata.RequireCredit,
@@ -136,34 +137,34 @@ internal static class SceneImportContractMapper
             metadata.LicenseUrl);
     }
 
-    private static GeodeticOrigin ToContract(InternalModel.ResoniteLocalOrigin origin)
+    private static GeodeticOrigin ToContract(ResoniteLocalOrigin origin)
     {
         return new GeodeticOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
-    private static Transform3d ToContract(InternalModel.ResoniteTransform transform)
+    private static Transform3d ToContract(ResoniteTransform transform)
     {
         return new Transform3d(
             ToContract(transform.Position),
             transform.Rotation is null ? null : ToContract(transform.Rotation));
     }
 
-    private static Float2 ToContract(InternalModel.ResoniteFloat2 value) => new(value.X, value.Y);
+    private static Float2 ToContract(ResoniteFloat2 value) => new(value.X, value.Y);
 
-    private static Float3 ToContract(InternalModel.ResoniteFloat3 value) => new(value.X, value.Y, value.Z);
+    private static Float3 ToContract(ResoniteFloat3 value) => new(value.X, value.Y, value.Z);
 
-    private static Quaternion ToContract(InternalModel.ResoniteFloatQ value) => new(value.X, value.Y, value.Z, value.W);
+    private static Quaternion ToContract(ResoniteFloatQ value) => new(value.X, value.Y, value.Z, value.W);
 
-    private static ColorRgba ToContract(InternalModel.ResoniteColor value) => new(value.R, value.G, value.B, value.A);
+    private static ColorRgba ToContract(ResoniteColor value) => new(value.R, value.G, value.B, value.A);
 
-    private static ImportedMesh ToContract(InternalModel.ResoniteImportedMesh mesh)
+    private static ImportedMesh ToContract(ResoniteImportedMesh mesh)
     {
         return new ImportedMesh(
             mesh.Vertices.Select(ToContract).ToArray(),
             mesh.Submeshes.Select(ToContract).ToArray());
     }
 
-    private static MeshVertex ToContract(InternalModel.ResoniteMeshVertex vertex)
+    private static MeshVertex ToContract(ResoniteMeshVertex vertex)
     {
         return new MeshVertex(
             ToContract(vertex.Position),
@@ -172,12 +173,12 @@ internal static class SceneImportContractMapper
             vertex.Color is null ? null : ToContract(vertex.Color));
     }
 
-    private static MeshSubmesh ToContract(InternalModel.ResoniteMeshSubmesh submesh)
+    private static MeshSubmesh ToContract(ResoniteMeshSubmesh submesh)
     {
         return new MeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
     }
 
-    internal static MaterialBinding ToContract(InternalModel.ResoniteMaterialBinding binding)
+    internal static MaterialBinding ToContract(ResoniteMaterialBinding binding)
     {
         return new MaterialBinding(
             binding.MaterialKey,
@@ -191,12 +192,12 @@ internal static class SceneImportContractMapper
             binding.TextureScale is null ? null : ToContract(binding.TextureScale),
             binding.Family,
             binding.TextureOffset is null ? null : ToContract(binding.TextureOffset),
-            binding.AssetScope == InternalModel.ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
+            binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
             binding.TerrainOverlay,
             binding.BundledVariantIndex);
     }
 
-    private static TexturePayload ToContract(InternalModel.ResoniteTexturePayload payload)
+    private static TexturePayload ToContract(ResoniteTexturePayload payload)
     {
         return new TexturePayload(
             payload.Width,
@@ -207,101 +208,101 @@ internal static class SceneImportContractMapper
             (TexturePayloadFormat)payload.Format);
     }
 
-    private static MaterialDepthOffset ToContract(InternalModel.ResoniteMaterialDepthOffset value) => new(value.Factor, value.Units);
+    private static MaterialDepthOffset ToContract(ResoniteMaterialDepthOffset value) => new(value.Factor, value.Units);
 
-    private static InternalModel.ResoniteAttribution ToInternal(Attribution attribution)
+    private static ResoniteAttribution ToInternal(Attribution attribution)
     {
-        return new InternalModel.ResoniteAttribution(
+        return new ResoniteAttribution(
             ToInternal(attribution.DatasetLicense),
             attribution.MaterialLicenses.Select(ToInternal).ToArray());
     }
 
-    private static InternalModel.ResoniteMaterialAttribution ToInternal(MaterialAttribution attribution)
+    private static ResoniteMaterialAttribution ToInternal(MaterialAttribution attribution)
     {
-        return new InternalModel.ResoniteMaterialAttribution(
+        return new ResoniteMaterialAttribution(
             attribution.MaterialKey,
             attribution.License is null ? null : ToInternal(attribution.License));
     }
 
-    private static InternalModel.LicenseAttributionMetadata ToInternal(LicenseMetadata metadata)
+    private static LicenseAttributionMetadata ToInternal(LicenseMetadata metadata)
     {
-        return new InternalModel.LicenseAttributionMetadata(
+        return new LicenseAttributionMetadata(
             metadata.RequireCredit,
             metadata.CreditText,
             metadata.LicenseName,
             metadata.LicenseUrl);
     }
 
-    private static InternalModel.ResoniteLocalOrigin ToInternal(GeodeticOrigin origin)
+    private static ResoniteLocalOrigin ToInternal(GeodeticOrigin origin)
     {
-        return new InternalModel.ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
+        return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
-    private static InternalModel.ResoniteTransform ToInternal(Transform3d transform)
+    private static ResoniteTransform ToInternal(Transform3d transform)
     {
-        return new InternalModel.ResoniteTransform(
+        return new ResoniteTransform(
             ToInternal(transform.Position),
             transform.Rotation is null ? null : ToInternal(transform.Rotation));
     }
 
-    private static InternalModel.ResoniteFloat2 ToInternal(Float2 value) => new(value.X, value.Y);
+    private static ResoniteFloat2 ToInternal(Float2 value) => new(value.X, value.Y);
 
-    private static InternalModel.ResoniteFloat3 ToInternal(Float3 value) => new(value.X, value.Y, value.Z);
+    private static ResoniteFloat3 ToInternal(Float3 value) => new(value.X, value.Y, value.Z);
 
-    private static InternalModel.ResoniteFloatQ ToInternal(Quaternion value) => new(value.X, value.Y, value.Z, value.W);
+    private static ResoniteFloatQ ToInternal(Quaternion value) => new(value.X, value.Y, value.Z, value.W);
 
-    private static InternalModel.ResoniteColor ToInternal(ColorRgba value) => new(value.R, value.G, value.B, value.A);
+    private static ResoniteColor ToInternal(ColorRgba value) => new(value.R, value.G, value.B, value.A);
 
-    private static InternalModel.ResoniteImportedMesh ToInternal(ImportedMesh mesh)
+    private static ResoniteImportedMesh ToInternal(ImportedMesh mesh)
     {
-        return new InternalModel.ResoniteImportedMesh(
+        return new ResoniteImportedMesh(
             mesh.Vertices.Select(ToInternal).ToArray(),
             mesh.Submeshes.Select(ToInternal).ToArray());
     }
 
-    private static InternalModel.ResoniteMeshVertex ToInternal(MeshVertex vertex)
+    private static ResoniteMeshVertex ToInternal(MeshVertex vertex)
     {
-        return new InternalModel.ResoniteMeshVertex(
+        return new ResoniteMeshVertex(
             ToInternal(vertex.Position),
             ToInternal(vertex.Normal),
             ToInternal(vertex.UV0),
             vertex.Color is null ? null : ToInternal(vertex.Color));
     }
 
-    private static InternalModel.ResoniteMeshSubmesh ToInternal(MeshSubmesh submesh)
+    private static ResoniteMeshSubmesh ToInternal(MeshSubmesh submesh)
     {
-        return new InternalModel.ResoniteMeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
+        return new ResoniteMeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
     }
 
-    internal static InternalModel.ResoniteMaterialBinding ToInternal(MaterialBinding binding)
+    internal static ResoniteMaterialBinding ToInternal(MaterialBinding binding)
     {
-        return new InternalModel.ResoniteMaterialBinding(
+        return new ResoniteMaterialBinding(
             binding.MaterialKey,
             ToInternal(binding.BaseColor),
-            (InternalModel.ResoniteMaterialType)binding.MaterialType,
+            (ResoniteMaterialType)binding.MaterialType,
             binding.TexturePayload is null ? null : ToInternal(binding.TexturePayload),
-            (InternalModel.ResoniteTextureSourceKind)binding.TextureSourceKind,
-            (InternalModel.ResoniteMaterialProjection)binding.Projection,
+            (ResoniteTextureSourceKind)binding.TextureSourceKind,
+            (ResoniteMaterialProjection)binding.Projection,
             binding.DepthOffset is null ? null : ToInternal(binding.DepthOffset),
             binding.SubmeshIndices,
             binding.TextureScale is null ? null : ToInternal(binding.TextureScale),
             binding.Family,
             binding.TextureOffset is null ? null : ToInternal(binding.TextureOffset),
-            binding.ReuseScope == MaterialReuseScope.Shared ? InternalModel.ResoniteMaterialAssetScope.Common : InternalModel.ResoniteMaterialAssetScope.PresentationSlotScoped,
+            binding.ReuseScope == MaterialReuseScope.Shared ? ResoniteMaterialAssetScope.Common : ResoniteMaterialAssetScope.PresentationSlotScoped,
             binding.TerrainOverlay,
             binding.BundledVariantIndex);
     }
 
-    private static InternalModel.ResoniteTexturePayload ToInternal(TexturePayload payload)
+    private static ResoniteTexturePayload ToInternal(TexturePayload payload)
     {
-        return new InternalModel.ResoniteTexturePayload(
+        return new ResoniteTexturePayload(
             payload.Width,
             payload.Height,
             payload.ColorProfile,
             payload.BinaryPayload,
             payload.Identity,
-            (InternalModel.ResoniteTexturePayloadFormat)payload.Format);
+            (ResoniteTexturePayloadFormat)payload.Format);
     }
 
-    private static InternalModel.ResoniteMaterialDepthOffset ToInternal(MaterialDepthOffset value) => new(value.Factor, value.Units);
+    private static ResoniteMaterialDepthOffset ToInternal(MaterialDepthOffset value) => new(value.Factor, value.Units);
 }

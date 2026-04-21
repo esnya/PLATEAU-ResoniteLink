@@ -5,8 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposable
@@ -17,6 +15,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
     private readonly Action<string>? reportProgress;
     private readonly SemaphoreSlim initializationGate = new(1, 1);
     private int disposed;
+    private IResoniteLinkClient? routedClient;
 
     public LiveSendClientSession(
         Func<IResoniteLinkClient> createConfiguredClient,
@@ -32,14 +31,19 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         reportProgress = progressReporter;
     }
 
-    public IResoniteLinkClient? RoutedClient { get; private set; }
-
     public ResoniteLinkSendDiagnostics Diagnostics { get; }
 
     private IResoniteLinkClient[]? ConnectedClients { get; set; }
 
+    public IResoniteLinkClient GetRequiredClient()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        return routedClient
+            ?? throw new InvalidOperationException("Routed ResoniteLink client is not connected.");
+    }
+
     public async Task EnsureConnectedAsync(
-        PlateauImportRequest request,
+        LiveSendConnectionRequest request,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -48,7 +52,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
         await initializationGate.WaitAsync(cancellationToken);
         try
         {
-            if (RoutedClient is not null)
+            if (routedClient is not null)
             {
                 reportProgress?.Invoke(
                     PlateauLog.Info("live", "Reusing existing routed ResoniteLink session."));
@@ -82,7 +86,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
                     reportProgress);
 
                 ConnectedClients = newClients;
-                RoutedClient = newRoutedClient;
+                routedClient = newRoutedClient;
 
                 setupSessionStopwatch.Stop();
                 reportProgress?.Invoke(
@@ -99,7 +103,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
                 }
 
                 ConnectedClients = null;
-                RoutedClient = null;
+                routedClient = null;
                 throw;
             }
         }
@@ -149,8 +153,8 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
 
     private void DisposeConnectedClients()
     {
-        RoutedClient?.Dispose();
-        RoutedClient = null;
+        routedClient?.Dispose();
+        routedClient = null;
         if (ConnectedClients is not null)
         {
             foreach (IResoniteLinkClient client in ConnectedClients)
@@ -164,7 +168,7 @@ internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposabl
 
     private async Task ConnectClientAsync(
         IResoniteLinkClient client,
-        PlateauImportRequest request,
+        LiveSendConnectionRequest request,
         int routeIndex,
         CancellationToken cancellationToken)
     {

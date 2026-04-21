@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Application.Importing;
 

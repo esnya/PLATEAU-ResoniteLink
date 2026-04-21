@@ -5,6 +5,7 @@ using System.Linq;
 using GeographicLib;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Application.Importing;
 

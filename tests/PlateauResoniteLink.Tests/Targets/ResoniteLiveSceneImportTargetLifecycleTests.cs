@@ -74,7 +74,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             EmptyImportedCityObjects());
 
         Assert.Equal(2, session.EnsureConnectedCallCount);
-        Assert.Equal([normalizedRequest, normalizedRequest], session.EnsureConnectedRequests);
+        Assert.Equal(
+            [
+                new LiveSendConnectionRequest(normalizedRequest.Dataset, normalizedRequest.MeshCode),
+                new LiveSendConnectionRequest(normalizedRequest.Dataset, normalizedRequest.MeshCode),
+            ],
+            session.EnsureConnectedRequests);
     }
 
     [Fact]
