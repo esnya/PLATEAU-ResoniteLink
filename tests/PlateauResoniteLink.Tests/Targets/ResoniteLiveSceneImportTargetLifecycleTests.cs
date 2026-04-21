@@ -278,6 +278,65 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_FailsWhenSharedCommonMaterialIsNotMarkedForBootstrapSetup()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        await using ResoniteLiveSceneImportTarget builder = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            new ResoniteLiveSceneImportDependencies(
+                session,
+                ResoniteLinkSendDiagnostics.Disabled,
+                new TerrainTextureAssetGenerator(),
+                new MissingCommonMaterialBootstrapInterpreter(),
+                new ResoniteDatasetLicenseWriter(),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
+            SceneImportContractMapper.ToContract(metadata),
+            request.LocalSourcePath!,
+            workDirectory.Path,
+            commonMaterials: []);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => builder.ExecuteAsync(
+                plan,
+                CreateImportedCityObjects(CreateBundledFacadeCityObject("bootstrap-common-missing"))));
+
+        Assert.Contains(
+            "Bootstrap did not resolve shared/common material",
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            routedClient.AddedSlots,
+            static slot => string.Equals(
+                slot.Data.Name?.Value,
+                BundledDefaultMaterialFamilies.Facade,
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_BootstrapsTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
     {
         using TemporaryDirectory datasetDirectory = new();
