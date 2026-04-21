@@ -45,7 +45,7 @@ public static class PlateauImportRequestValidator
         {
             validationErrors.Add("The mesh code value is required.");
         }
-        else if (!MeshCodeInput.TryCreateRegex(normalizedRequest.MeshCode, out meshCodePattern, out string? meshCodeError))
+        else if (!MeshCodeRequestSyntax.TryCreateSelectionRegex(normalizedRequest.MeshCode, out meshCodePattern, out string? meshCodeError))
         {
             validationErrors.Add(meshCodeError!);
         }

@@ -20,13 +20,13 @@ public static class LocalCityGmlSourceFileDiscovery
 
     public static LocalCityGmlSourceFileDiscoveryResult Discover(
         string datasetRoot,
-        string meshCode,
+        string meshCodeRequest,
         IReadOnlyList<string>? packageNames)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(meshCodeRequest);
 
-        MeshCodeRequestMatcher matcher = CreateMatcher(meshCode);
+        MeshCodeSelectionMatcher matcher = CreateSelectionMatcher(meshCodeRequest);
         HashSet<string>? requestedPackageNames = packageNames is null
             ? null
             : new HashSet<string>(
@@ -45,13 +45,13 @@ public static class LocalCityGmlSourceFileDiscovery
 
     public static LocalCityGmlSourceFileDiscoveryResult Discover(
         IEnumerable<string> relativePaths,
-        string meshCode,
+        string meshCodeRequest,
         IReadOnlyList<string>? packageNames)
     {
         ArgumentNullException.ThrowIfNull(relativePaths);
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
+        ArgumentException.ThrowIfNullOrWhiteSpace(meshCodeRequest);
 
-        MeshCodeRequestMatcher matcher = CreateMatcher(meshCode);
+        MeshCodeSelectionMatcher matcher = CreateSelectionMatcher(meshCodeRequest);
         LocalCityGmlDatasetSourceFileCandidate[] candidates = EnumerateCandidates(relativePaths, packageNames).ToArray();
 
         return CreateSourceFileDiscoveryResult(candidates, matcher);
@@ -77,26 +77,26 @@ public static class LocalCityGmlSourceFileDiscovery
             .ToArray();
     }
 
-    private static MeshCodeRequestMatcher CreateMatcher(string meshCode)
+    private static MeshCodeSelectionMatcher CreateSelectionMatcher(string meshCodeRequest)
     {
-        if (PlateauMeshCode.TryGetBounds(meshCode, out _))
+        if (PlateauMeshCode.TryGetBounds(meshCodeRequest, out _))
         {
-            return meshCode.Length >= 8
-                ? MeshCodeRequestMatcher.CreateExact(meshCode, [meshCode, meshCode[..6]])
-                : MeshCodeRequestMatcher.CreateExact(meshCode, [meshCode]);
+            return meshCodeRequest.Length >= 8
+                ? MeshCodeSelectionMatcher.CreateExact(meshCodeRequest, [meshCodeRequest, meshCodeRequest[..6]])
+                : MeshCodeSelectionMatcher.CreateExact(meshCodeRequest, [meshCodeRequest]);
         }
 
-        if (!MeshCodeInput.TryCreateRegex(meshCode, out Regex? regex, out string? error))
+        if (!MeshCodeRequestSyntax.TryCreateSelectionRegex(meshCodeRequest, out Regex? regex, out string? error))
         {
-            throw new ArgumentException(error, nameof(meshCode));
+            throw new ArgumentException(error, nameof(meshCodeRequest));
         }
 
-        return MeshCodeRequestMatcher.CreateRegex(meshCode, regex!);
+        return MeshCodeSelectionMatcher.CreateRegex(meshCodeRequest, regex!);
     }
 
     private static LocalCityGmlSourceFileDiscoveryResult CreateSourceFileDiscoveryResult(
         LocalCityGmlDatasetSourceFileCandidate[] candidates,
-        MeshCodeRequestMatcher matcher)
+        MeshCodeSelectionMatcher matcher)
     {
         string[] requestedMeshCodes = candidates
             .Where(static candidate => candidate.IsRequestedPackage)
@@ -106,7 +106,7 @@ public static class LocalCityGmlSourceFileDiscovery
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
             .ToArray();
-        ResoniteLocalOrigin? requestedCenter = TryResolveRequestedCenter(matcher.Input, requestedMeshCodes);
+        ResoniteLocalOrigin? requestedCenter = TryResolveRequestedCenter(matcher.RequestedValue, requestedMeshCodes);
         HashSet<string> requestedMeshCodeSet = requestedMeshCodes.ToHashSet(StringComparer.Ordinal);
         HashSet<string> parentMeshCodes = requestedMeshCodes
             .Where(static matchedMeshCode => matchedMeshCode.Length == 8)
@@ -181,7 +181,7 @@ public static class LocalCityGmlSourceFileDiscovery
 
     private static LocalCityGmlSourceFileDescriptor? CreateSourceFileDescriptor(
         LocalCityGmlDatasetSourceFileCandidate candidate,
-        MeshCodeRequestMatcher matcher,
+        MeshCodeSelectionMatcher matcher,
         IReadOnlySet<string> requestedMeshCodes,
         IReadOnlySet<string> parentMeshCodes)
     {
@@ -297,37 +297,37 @@ public static class LocalCityGmlSourceFileDiscovery
         }
     }
 
-    private sealed class MeshCodeRequestMatcher
+    private sealed class MeshCodeSelectionMatcher
     {
         private readonly string[] exactCodes;
         private readonly Regex? regex;
 
-        private MeshCodeRequestMatcher(string input, string[] exactCodes, Regex? regex)
+        private MeshCodeSelectionMatcher(string requestedValue, string[] exactCodes, Regex? regex)
         {
-            Input = input;
+            RequestedValue = requestedValue;
             this.exactCodes = exactCodes;
             this.regex = regex;
         }
 
-        public string Input { get; }
+        public string RequestedValue { get; }
 
         public bool IsLiteral => regex is null;
 
-        public static MeshCodeRequestMatcher CreateExact(string input, string[] exactCodes)
+        public static MeshCodeSelectionMatcher CreateExact(string requestedValue, string[] exactCodes)
         {
-            return new MeshCodeRequestMatcher(input, exactCodes, regex: null);
+            return new MeshCodeSelectionMatcher(requestedValue, exactCodes, regex: null);
         }
 
-        public static MeshCodeRequestMatcher CreateRegex(string input, Regex regex)
+        public static MeshCodeSelectionMatcher CreateRegex(string requestedValue, Regex regex)
         {
-            return new MeshCodeRequestMatcher(input, [], regex);
+            return new MeshCodeSelectionMatcher(requestedValue, [], regex);
         }
 
         public IEnumerable<string> GetRequestedMeshCodes(string candidateMeshCode)
         {
             if (IsLiteral)
             {
-                if (candidateMeshCode.Length == Input.Length
+                if (candidateMeshCode.Length == RequestedValue.Length
                     && exactCodes.Contains(candidateMeshCode, StringComparer.Ordinal))
                 {
                     yield return candidateMeshCode;
