@@ -88,6 +88,51 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
+    public void HasOverlayCoverageReturnsTrueForBootstrapParsedCityObjectWhenSplitCoverageExists()
+    {
+        const double boundaryLongitude = 139.0100;
+        BootstrapParsedCityObject cityObject = BootstrapParsedCityObject.FromLegacy(CreateCityObject(
+            CreateGeneratedSurface(
+                "dem-wide-split",
+                [
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0120, 2.0),
+                ])));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, boundaryLongitude),
+            CreateOverlay(boundaryLongitude, 139.0200),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(cityObject, overlays);
+
+        Assert.True(hasCoverage);
+    }
+
+    [Fact]
+    public void HasOverlayCoverageReturnsFalseForBootstrapParsedCityObjectWhenSurfaceMissesOverlayBounds()
+    {
+        BootstrapParsedCityObject cityObject = BootstrapParsedCityObject.FromLegacy(CreateCityObject(
+            CreateGeneratedSurface(
+                "dem-nearest-overlay",
+                [
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0200002, 0.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200002, 1.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200006, 2.0),
+                ])));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, 139.0100),
+            CreateOverlay(139.0100, 139.0200),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(cityObject, overlays);
+
+        Assert.False(hasCoverage);
+    }
+
+    [Fact]
     public void SplitParsedCityObjectClipsSharedDemToRequestedMeshEvenWhenNoOverlaysExist()
     {
         LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(

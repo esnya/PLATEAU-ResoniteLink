@@ -303,23 +303,20 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         ParsedSourceFileResult parsedSourceFile,
         IReadOnlyList<TerrainTextureOverlay> overlays)
     {
-        try
+        foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
         {
-            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+            if (DemTerrainOverlayAssignment.HasOverlayCoverage(
+                    parsedCityObject,
+                    overlays,
+                    requestedMeshAreas))
             {
-                _ = DemTerrainOverlayAssignment.SplitParsedCityObject(
-                        parsedCityObject.ToLegacy(),
-                        overlays,
-                        requestedMeshAreas)
-                    .ToArray();
+                continue;
             }
 
-            return true;
-        }
-        catch (InvalidOperationException)
-        {
             return false;
         }
+
+        return true;
     }
 
     private static bool HasAnyVertices(IEnumerable<BootstrapParsedCityObject> cityObjects)
@@ -459,4 +456,3 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
     }
 }
-
