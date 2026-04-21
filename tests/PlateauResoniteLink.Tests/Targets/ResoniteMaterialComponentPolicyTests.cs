@@ -172,6 +172,38 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
+    public void CreateMembersPreservesUvTransformForSharedTerrainOverlayMaterial()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "shared-heightmap-overlay",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(0.5, 0.25),
+            TextureOffset: new ResoniteFloat2(0.125, 0.75),
+            TerrainOverlay: new TerrainTextureOverlay(
+                PackageName: "dem",
+                UrlTemplate: "https://example.invalid/{z}/{x}/{y}.png",
+                ZoomLevel: 17,
+                GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+                MaxTextureSize: 512),
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+
+        Field_float2 textureScale = Assert.IsType<Field_float2>(members["TextureScale"]);
+        Field_float2 textureOffset = Assert.IsType<Field_float2>(members["TextureOffset"]);
+        Assert.Equal(0.5f, textureScale.Value.x, 6);
+        Assert.Equal(0.25f, textureScale.Value.y, 6);
+        Assert.Equal(0.125f, textureOffset.Value.x, 6);
+        Assert.Equal(0.75f, textureOffset.Value.y, 6);
+    }
+
+    [Fact]
     public void TryGetBundledCompanionTextureSetResolvesSiblingTextures()
     {
         ResoniteMaterialBinding material = new(

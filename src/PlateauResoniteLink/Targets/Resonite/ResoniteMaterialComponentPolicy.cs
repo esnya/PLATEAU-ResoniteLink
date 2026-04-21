@@ -195,7 +195,8 @@ internal static class ResoniteMaterialComponentPolicy
     private static bool ShouldOmitUvTransformMembers(ResoniteMaterialBinding material)
     {
         if (material.AssetScope == ResoniteMaterialAssetScope.Common
-            && string.IsNullOrWhiteSpace(material.Family))
+            && string.IsNullOrWhiteSpace(material.Family)
+            && material.TerrainOverlay is null)
         {
             return true;
         }
