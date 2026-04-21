@@ -100,7 +100,11 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
             CoordinateReferenceSystem resolvedReferenceSystem = ResolveReferenceSystem(parsedSourceFile);
             LocalCartesian? globalCartesian = CreateGlobalCartesian(resolvedReferenceSystem);
-            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile);
+            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = GetDemTerrainTextureOverlaysAsync(
+                    sourceFile,
+                    CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
 
             foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
@@ -314,27 +318,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 [$"CityGML file '{parsedSourceFile.SourceFile.RelativePath}' does not declare a supported coordinate reference system."]));
     }
 
-    private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(ParsedSourceFileResult parsedSourceFile)
-    {
-        if (!string.Equals(parsedSourceFile.SourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-        {
-            return [];
-        }
-
-        TerrainTextureOverlay[] bootstrapOverlays = CreateDemTerrainTextureOverlays(parsedSourceFile.SourceFile.PackageName);
-        if (bootstrapOverlays.Length == 0)
-        {
-            return CreateDemTerrainTextureOverlaysFromParsedSourceFile(parsedSourceFile, preferRequestedMeshCodeSplit: true);
-        }
-
-        if (HasOverlayCoverage(parsedSourceFile, bootstrapOverlays))
-        {
-            return bootstrapOverlays;
-        }
-
-        return CreateDemTerrainTextureOverlaysFromParsedSourceFile(parsedSourceFile, preferRequestedMeshCodeSplit: false);
-    }
-
     private TerrainTextureOverlay[] CreateDemTerrainTextureOverlays(string packageName)
     {
         if (!string.Equals(packageName, "dem", StringComparison.OrdinalIgnoreCase)
@@ -344,28 +327,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         }
 
         return bootstrapTerrainTextureOverlays.ToArray();
-    }
-
-    private TerrainTextureOverlay[] CreateDemTerrainTextureOverlaysFromParsedSourceFile(
-        ParsedSourceFileResult parsedSourceFile,
-        bool preferRequestedMeshCodeSplit)
-    {
-        DemTerrainOverlayRegion[] overlayRegions = ResolveDemTerrainOverlayRegionsFromParsedSourceFile(
-            parsedSourceFile,
-            preferRequestedMeshCodeSplit);
-        if (overlayRegions.Length == 0)
-        {
-            return [];
-        }
-
-        return demTextureSourcePolicy.ResolveAsync(
-                request,
-                overlayRegions,
-                CancellationToken.None)
-            .GetAwaiter()
-            .GetResult()
-            .Overlays
-            .ToArray();
     }
 
     private bool HasOverlayCoverage(
