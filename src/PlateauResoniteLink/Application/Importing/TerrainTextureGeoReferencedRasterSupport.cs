@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -260,7 +261,55 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
 
             if (keyId == GeographicTypeGeoKey || keyId == ProjectedCSTypeGeoKey)
             {
+                if (valueOffset == 32767)
+                {
+                    return TryResolveUserDefinedCoordinateSystemIdentifier(geoAsciiParams);
+                }
+
                 return $"EPSG:{valueOffset}";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? TryResolveUserDefinedCoordinateSystemIdentifier(string? geoAsciiParams)
+    {
+        if (string.IsNullOrWhiteSpace(geoAsciiParams))
+        {
+            return null;
+        }
+
+        foreach (string rawToken in geoAsciiParams.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string token = rawToken.Trim();
+            if (token.Length == 0)
+            {
+                continue;
+            }
+
+            Match epsgMatch = GeoAsciiEpsgRegex.Match(token);
+            if (epsgMatch.Success && int.TryParse(epsgMatch.Groups["code"].Value, out int epsgCode))
+            {
+                return $"EPSG:{epsgCode}";
+            }
+
+            if (token.Equals("WGS 84 / Pseudo-Mercator", StringComparison.OrdinalIgnoreCase)
+                || token.Equals("WGS 84 / Web Mercator", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:3857";
+            }
+
+            if (token.Equals("WGS 84", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:4326";
+            }
+
+            Match japanPlaneMatch = JapanPlaneRectangularRegex.Match(token);
+            if (japanPlaneMatch.Success
+                && TryParseJapanPlaneRectangularZoneOrdinal(japanPlaneMatch.Groups["zone"].Value, out int zone))
+            {
+                return $"EPSG:{6668 + zone}";
             }
         }
 
@@ -384,6 +433,42 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         return zone is >= 1 and <= 19;
     }
 
+    private static bool TryParseJapanPlaneRectangularZoneOrdinal(
+        string token,
+        out int zone)
+    {
+        if (int.TryParse(token, out zone))
+        {
+            return zone is >= 1 and <= 19;
+        }
+
+        zone = token.ToUpperInvariant() switch
+        {
+            "I" => 1,
+            "II" => 2,
+            "III" => 3,
+            "IV" => 4,
+            "V" => 5,
+            "VI" => 6,
+            "VII" => 7,
+            "VIII" => 8,
+            "IX" => 9,
+            "X" => 10,
+            "XI" => 11,
+            "XII" => 12,
+            "XIII" => 13,
+            "XIV" => 14,
+            "XV" => 15,
+            "XVI" => 16,
+            "XVII" => 17,
+            "XVIII" => 18,
+            "XIX" => 19,
+            _ => 0,
+        };
+
+        return zone is >= 1 and <= 19;
+    }
+
     private static double DegreesLatitudeToMeters(double degrees)
     {
         return Math.Abs(degrees) * 111_320.0;
@@ -482,6 +567,14 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         (20.0, 136.0),
         (26.0, 154.0),
     ];
+
+    private static readonly Regex GeoAsciiEpsgRegex = new(
+        @"EPSG[:\s]+(?<code>\d{4,5})",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex JapanPlaneRectangularRegex = new(
+        @"Japan Plane Rectangular CS\s+(?<zone>[IVX]+|\d+)",
+        RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private readonly record struct ModelSpaceRectangle(
         double MinX,
@@ -607,10 +700,16 @@ internal static class GeoTiffTagReader
             return null;
         }
 
-        byte[] bytes;
         try
         {
-            bytes = await File.ReadAllBytesAsync(sourcePath, cancellationToken);
+            await using FileStream stream = new(
+                sourcePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                4096,
+                FileOptions.Asynchronous);
+            return await TryReadAsync(stream, cancellationToken);
         }
         catch (IOException)
         {
@@ -620,8 +719,31 @@ internal static class GeoTiffTagReader
         {
             return null;
         }
+    }
 
-        return TryRead(bytes);
+    private static async Task<GeoTiffTagSnapshot?> TryReadAsync(
+        FileStream stream,
+        CancellationToken cancellationToken)
+    {
+        byte[] classicHeader = new byte[8];
+        if (!await TryReadExactAsync(stream, 0, classicHeader, cancellationToken))
+        {
+            return null;
+        }
+
+        bool littleEndian = classicHeader[0] == (byte)'I' && classicHeader[1] == (byte)'I';
+        if (!littleEndian && !(classicHeader[0] == (byte)'M' && classicHeader[1] == (byte)'M'))
+        {
+            return null;
+        }
+
+        ushort magic = ReadUInt16(classicHeader, 2, littleEndian);
+        return magic switch
+        {
+            ClassicTiffMagic => await TryReadClassicAsync(stream, littleEndian, ReadUInt32(classicHeader, 4, littleEndian), cancellationToken),
+            BigTiffMagic => await TryReadBigTiffAsync(stream, littleEndian, cancellationToken),
+            _ => null,
+        };
     }
 
     internal static GeoTiffTagSnapshot? TryRead(ReadOnlySpan<byte> bytes)
@@ -707,6 +829,95 @@ internal static class GeoTiffTagReader
         return ToSnapshot(values);
     }
 
+    private static async Task<GeoTiffTagSnapshot?> TryReadClassicAsync(
+        FileStream stream,
+        bool littleEndian,
+        uint ifdOffset,
+        CancellationToken cancellationToken)
+    {
+        if (ifdOffset + 2 > stream.Length)
+        {
+            return null;
+        }
+
+        byte[] entryCountBytes = new byte[2];
+        if (!await TryReadExactAsync(stream, ifdOffset, entryCountBytes, cancellationToken))
+        {
+            return null;
+        }
+
+        ushort entryCount = ReadUInt16(entryCountBytes, 0, littleEndian);
+        Dictionary<ushort, object> values = [];
+        byte[] entryBytes = new byte[12];
+        for (int index = 0; index < entryCount; index++)
+        {
+            long entryOffset = checked((long)ifdOffset + 2 + (index * 12L));
+            if (entryOffset + entryBytes.Length > stream.Length)
+            {
+                break;
+            }
+
+            if (!await TryReadExactAsync(stream, entryOffset, entryBytes, cancellationToken))
+            {
+                break;
+            }
+
+            await TryReadClassicEntryAsync(stream, entryBytes, littleEndian, values, cancellationToken);
+        }
+
+        return ToSnapshot(values);
+    }
+
+    private static async Task<GeoTiffTagSnapshot?> TryReadBigTiffAsync(
+        FileStream stream,
+        bool littleEndian,
+        CancellationToken cancellationToken)
+    {
+        byte[] header = new byte[16];
+        if (!await TryReadExactAsync(stream, 0, header, cancellationToken))
+        {
+            return null;
+        }
+
+        if (ReadUInt16(header, 4, littleEndian) != 8 || ReadUInt16(header, 6, littleEndian) != 0)
+        {
+            return null;
+        }
+
+        ulong ifdOffset = ReadUInt64(header, 8, littleEndian);
+        if (ifdOffset + 8 > (ulong)stream.Length)
+        {
+            return null;
+        }
+
+        byte[] entryCountBytes = new byte[8];
+        if (!await TryReadExactAsync(stream, checked((long)ifdOffset), entryCountBytes, cancellationToken))
+        {
+            return null;
+        }
+
+        ulong entryCount = ReadUInt64(entryCountBytes, 0, littleEndian);
+        Dictionary<ushort, object> values = [];
+        byte[] entryBytes = new byte[20];
+        for (ulong index = 0; index < entryCount; index++)
+        {
+            long entryOffset = checked((long)ifdOffset + 8 + checked((long)index * entryBytes.Length));
+            if (entryOffset + entryBytes.Length > stream.Length)
+            {
+                break;
+            }
+
+            if (!await TryReadExactAsync(stream, entryOffset, entryBytes, cancellationToken))
+            {
+                break;
+            }
+
+            await TryReadBigTiffEntryAsync(stream, entryBytes, littleEndian, values, cancellationToken);
+        }
+
+        return ToSnapshot(values);
+    }
+
     private static void TryReadClassicEntry(
         ReadOnlySpan<byte> bytes,
         int entryOffset,
@@ -725,6 +936,39 @@ internal static class GeoTiffTagReader
         values[tag] = value!;
     }
 
+    private static async Task TryReadClassicEntryAsync(
+        FileStream stream,
+        ReadOnlyMemory<byte> entryBytes,
+        bool littleEndian,
+        Dictionary<ushort, object> values,
+        CancellationToken cancellationToken)
+    {
+        ReadOnlySpan<byte> entrySpan = entryBytes.Span;
+        ushort tag = ReadUInt16(entrySpan, 0, littleEndian);
+        if (!IsTrackedTag(tag))
+        {
+            return;
+        }
+
+        ushort type = ReadUInt16(entrySpan, 2, littleEndian);
+        uint count = ReadUInt32(entrySpan, 4, littleEndian);
+        uint valueOrOffset = ReadUInt32(entrySpan, 8, littleEndian);
+        object? value = await TryReadEntryValueAsync(
+            stream,
+            type,
+            count,
+            valueOrOffset,
+            entryBytes.Slice(8, 4),
+            littleEndian,
+            cancellationToken);
+        if (value is null)
+        {
+            return;
+        }
+
+        values[tag] = value;
+    }
+
     private static void TryReadBigTiffEntry(
         ReadOnlySpan<byte> bytes,
         int entryOffset,
@@ -741,6 +985,39 @@ internal static class GeoTiffTagReader
         }
 
         values[tag] = value!;
+    }
+
+    private static async Task TryReadBigTiffEntryAsync(
+        FileStream stream,
+        ReadOnlyMemory<byte> entryBytes,
+        bool littleEndian,
+        Dictionary<ushort, object> values,
+        CancellationToken cancellationToken)
+    {
+        ReadOnlySpan<byte> entrySpan = entryBytes.Span;
+        ushort tag = ReadUInt16(entrySpan, 0, littleEndian);
+        if (!IsTrackedTag(tag))
+        {
+            return;
+        }
+
+        ushort type = ReadUInt16(entrySpan, 2, littleEndian);
+        ulong count = ReadUInt64(entrySpan, 4, littleEndian);
+        ulong valueOrOffset = ReadUInt64(entrySpan, 12, littleEndian);
+        object? value = await TryReadEntryValueAsync(
+            stream,
+            type,
+            count,
+            valueOrOffset,
+            entryBytes.Slice(12, 8),
+            littleEndian,
+            cancellationToken);
+        if (value is null)
+        {
+            return;
+        }
+
+        values[tag] = value;
     }
 
     private static bool TryReadEntryValue(
@@ -784,6 +1061,85 @@ internal static class GeoTiffTagReader
             _ => null,
         };
         return value is not null;
+    }
+
+    private static async Task<object?> TryReadEntryValueAsync(
+        FileStream stream,
+        ushort type,
+        ulong count,
+        ulong valueOrOffset,
+        ReadOnlyMemory<byte> inlineValueBytes,
+        bool littleEndian,
+        CancellationToken cancellationToken)
+    {
+        int typeSize = GetTypeSize(type);
+        if (typeSize == 0 || count == 0 || count > int.MaxValue)
+        {
+            return null;
+        }
+
+        ulong byteLength = checked((ulong)typeSize * count);
+        byte[] rawValueBytes;
+        if (byteLength <= (ulong)inlineValueBytes.Length)
+        {
+            rawValueBytes = inlineValueBytes[..checked((int)byteLength)].ToArray();
+        }
+        else
+        {
+            if (byteLength > int.MaxValue
+                || valueOrOffset > (ulong)stream.Length
+                || valueOrOffset + byteLength > (ulong)stream.Length)
+            {
+                return null;
+            }
+
+            rawValueBytes = new byte[checked((int)byteLength)];
+            if (!await TryReadExactAsync(stream, checked((long)valueOrOffset), rawValueBytes, cancellationToken))
+            {
+                return null;
+            }
+        }
+
+        return type switch
+        {
+            TypeShort => ReadUInt16Array(rawValueBytes, (int)count, littleEndian),
+            TypeLong => ReadUInt32Array(rawValueBytes, (int)count, littleEndian),
+            TypeDouble => ReadDoubleArray(rawValueBytes, (int)count, littleEndian),
+            TypeAscii => Encoding.ASCII.GetString(rawValueBytes).TrimEnd('\0'),
+            _ => null,
+        };
+    }
+
+    private static bool IsTrackedTag(ushort tag)
+    {
+        return tag is PixelScaleTag
+            or ModelTiePointTag
+            or ModelTransformTag
+            or GeoKeyDirectoryTag
+            or GeoDoubleParamsTag
+            or GeoAsciiParamsTag;
+    }
+
+    private static async Task<bool> TryReadExactAsync(
+        FileStream stream,
+        long offset,
+        Memory<byte> buffer,
+        CancellationToken cancellationToken)
+    {
+        stream.Seek(offset, SeekOrigin.Begin);
+        int totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            int read = await stream.ReadAsync(buffer[totalRead..], cancellationToken);
+            if (read == 0)
+            {
+                return false;
+            }
+
+            totalRead += read;
+        }
+
+        return true;
     }
 
     private static GeoTiffTagSnapshot? ToSnapshot(Dictionary<ushort, object> values)

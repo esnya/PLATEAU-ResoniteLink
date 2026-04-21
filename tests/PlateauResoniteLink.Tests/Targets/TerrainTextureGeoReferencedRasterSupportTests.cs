@@ -1,6 +1,7 @@
 using System;
-using System.IO;
 using System.Buffers.Binary;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -129,6 +130,54 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.Equal("EPSG:4326", metadata.CoordinateSystemIdentifier);
         Assert.InRange(metadata.GeographicBounds.MinLatitude, 34.9989, 34.9991);
         Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.0009, 139.0011);
+    }
+
+    [Fact]
+    public void TryCreateMetadataResolvesUserDefinedGeoKeyFromGeoAsciiParams()
+    {
+        ushort[] geoKeyDirectory =
+        [
+            1, 1, 0, 1,
+            3072, 0, 1, 32767,
+        ];
+
+        GeoReferencedRasterMetadata? metadata = TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+            pixelWidth: 10,
+            pixelHeight: 10,
+            modelTiePoint: [0.0, 0.0, 0.0, 15522111.49748708, 4269705.744087971, 0.0],
+            pixelScale: [0.49308779137044045, 0.4932342623689913, 0.0],
+            modelTransform: null,
+            geoKeyDirectory: geoKeyDirectory,
+            geoDoubleParams: null,
+            geoAsciiParams: "WGS 84 / Pseudo-Mercator|WGS 84|");
+
+        Assert.NotNull(metadata);
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:3857", metadata.CoordinateSystemIdentifier);
+    }
+
+    [Fact]
+    public async Task GeoTiffTagReaderTryReadAsyncParsesGeoTiffTagsFromFileStream()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "geotiff-tags.tif");
+        byte[] bytes = CreateClassicLittleEndianGeoTiffBytes(
+            modelTiePoint: [0.0, 0.0, 0.0, 139.0, 35.0, 0.0],
+            pixelScale: [0.0001, 0.0001, 0.0],
+            geoKeyDirectory:
+            [
+                1, 1, 0, 1,
+                2048, 0, 1, 4326,
+            ]);
+        await File.WriteAllBytesAsync(rasterPath, bytes);
+
+        GeoTiffTagSnapshot snapshot = Assert.IsType<GeoTiffTagSnapshot>(
+            await GeoTiffTagReader.TryReadAsync(rasterPath, CancellationToken.None));
+
+        Assert.NotNull(snapshot.GeoKeyDirectory);
+        Assert.Equal((ushort)4326, Assert.Single(snapshot.GeoKeyDirectory.Skip(7)));
+        Assert.NotNull(snapshot.ModelTiePoint);
+        Assert.NotNull(snapshot.PixelScale);
     }
 
     [Fact]

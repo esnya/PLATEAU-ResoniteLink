@@ -272,6 +272,81 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_BootstrapsTerrainOverlaySharedCommonMaterialBeforeRuntimeEmission()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512,
+            PrimarySource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureZoomLevel),
+            FallbackSource: new TerrainTextureTileSource(
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
+                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel),
+            LicenseMode: TerrainTextureLicenseMode.PlateauOrthoOnly);
+        RecordingTerrainTextureAssetGenerator terrainTextureGenerator = new(
+            _ => new GeneratedTerrainTexture(
+                new ResoniteRawTextureImport(
+                    2,
+                    2,
+                    ResoniteTextureColorProfiles.Srgb,
+                    new byte[16],
+                    "terrain-overlay/dem/bootstrap-generic"),
+                new ResoniteFloat2(1.0, 1.0),
+                new ResoniteFloat2(0.0, 0.0),
+                overlay.PrimarySource));
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            routedClient,
+            terrainTextureGenerator,
+            session: session);
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            request.Dataset,
+            request.MeshCode,
+            request.LocalSourcePath!,
+            new ResoniteLocalOrigin(35.0, 139.0, 0.0),
+            packageNames: ["dem"],
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
+            terrainTextureOverlays: [overlay]);
+        MaterialBinding bootstrapTerrainOverlayMaterial = SceneImportContractMapper.ToContract(
+            new ResoniteMaterialBinding(
+                "dem-overlay-bootstrap",
+                new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                ResoniteMaterialType.Standard,
+                null,
+                ResoniteTextureSourceKind.Dataset,
+                ResoniteMaterialProjection.Uv,
+                null,
+                [0],
+                AssetScope: ResoniteMaterialAssetScope.Common,
+                TerrainOverlay: overlay));
+
+        SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
+            ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
+                metadata,
+                workDirectory.Path,
+                commonMaterials: [bootstrapTerrainOverlayMaterial]),
+            CreateImportedCityObjects(
+                CreateDemCityObject("dem-bootstrap-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
+
+        Assert.Equal(1, executionResult.ProcessedCityObjectCount);
+        Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
+            routedClient,
+            "PLATEAU Shared Assets/Common Materials");
+        Assert.Contains(
+            routedClient.SlotPaths.Values,
+            path => string.Equals(
+                path,
+                $"{routedClient.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
+                StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ExecuteAsync_KeepsDatasetLicenseComponentsCreateOnlyAcrossRepeatedRuns()
     {
         using TemporaryDirectory datasetDirectory = new();

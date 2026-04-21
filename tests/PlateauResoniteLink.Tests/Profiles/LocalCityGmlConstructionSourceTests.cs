@@ -344,10 +344,13 @@ public sealed class LocalCityGmlConstructionSourceTests
             demTextureSourcePolicy);
 
         using CancellationTokenSource cancellationTokenSource = new();
-        cancellationTokenSource.CancelAfter(TimeSpan.FromMilliseconds(100));
+        Task readTask = source.ReadCityObjectsAsync(cancellationTokenSource.Token).ToListAsync(cancellationTokenSource.Token).AsTask();
+        await WaitForConditionAsync(
+            () => demTextureSourcePolicy.ResolveOverlayRegionsCallCount == 1,
+            TimeSpan.FromSeconds(5));
+        await cancellationTokenSource.CancelAsync();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            async () => await source.ReadCityObjectsAsync(cancellationTokenSource.Token).ToListAsync(cancellationTokenSource.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => readTask);
         Assert.Equal(1, demTextureSourcePolicy.ResolveOverlayRegionsCallCount);
     }
 
@@ -506,6 +509,22 @@ public sealed class LocalCityGmlConstructionSourceTests
             SourceUnitIdentity: "test-unit",
             SourceIdentity: $"{sourceFile.PackageName}:slot-renderable",
             SharedAcrossMeshCodes: false);
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> predicate, TimeSpan timeout)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (predicate())
+            {
+                return;
+            }
+
+            await Task.Delay(10);
+        }
+
+        Assert.True(predicate(), "Timed out waiting for expected condition.");
     }
 
     private sealed class TrackingGeometryProjector : ICityGmlGeometryProjector

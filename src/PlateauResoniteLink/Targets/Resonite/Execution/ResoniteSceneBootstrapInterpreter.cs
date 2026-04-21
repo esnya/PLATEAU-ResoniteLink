@@ -487,12 +487,19 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         foreach (ResoniteMaterialBinding material in commonMaterials)
         {
             ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(material);
-            if (normalizedMaterial.AssetScope != ResoniteMaterialAssetScope.Common)
+            if (normalizedMaterial.AssetScope == ResoniteMaterialAssetScope.Common)
             {
+                canonicalMaterialsByKey.TryAdd(normalizedMaterial.MaterialKey, normalizedMaterial);
                 continue;
             }
 
-            canonicalMaterialsByKey.TryAdd(normalizedMaterial.MaterialKey, normalizedMaterial);
+            if (ResoniteSceneMaterialConventions.TryNormalizeSharedMaterialBinding(
+                    material,
+                    out ResoniteMaterialBinding normalizedSharedMaterial,
+                    out _))
+            {
+                canonicalMaterialsByKey.TryAdd(normalizedSharedMaterial.MaterialKey, normalizedSharedMaterial);
+            }
         }
 
         return canonicalMaterialsByKey;
