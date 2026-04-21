@@ -12,17 +12,6 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public static class PlateauDatasetContentSourceFactory
 {
-    public static Task<IPlateauDatasetContentSource> CreateAsync(
-        string sourcePath,
-        CancellationToken cancellationToken = default)
-    {
-        return CreateAsync(
-            sourcePath,
-            new RemoteArchiveDistributionPolicy(),
-            new ArchiveFileLayoutPolicy(),
-            cancellationToken);
-    }
-
     public static async Task<IPlateauDatasetContentSource> CreateAsync(
         string sourcePath,
         IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy,

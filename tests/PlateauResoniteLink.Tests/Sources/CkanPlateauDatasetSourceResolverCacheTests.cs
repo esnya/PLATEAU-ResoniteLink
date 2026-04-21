@@ -299,7 +299,10 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
 
         Assert.NotNull(resolvedRequest.LocalSourcePath);
         Assert.True(File.Exists(resolvedRequest.LocalSourcePath));
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(resolvedRequest.LocalSourcePath);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            resolvedRequest.LocalSourcePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         Assert.Contains("udx/bldg/533944/plateau_tokyo23ku_bldg_533944.gml", datasetSource.EnumerateFiles());
         Assert.Empty(Directory.EnumerateFiles(workRoot.Path, "*.tmp", SearchOption.AllDirectories));
     }

@@ -454,7 +454,10 @@ public sealed class CkanPlateauDatasetSourceResolverTests
             Path.GetFileNameWithoutExtension(resolvedRequest.LocalSourcePath),
             StringComparison.Ordinal);
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(resolvedRequest.LocalSourcePath);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            resolvedRequest.LocalSourcePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         Assert.Contains(expectedRelativePath, datasetSource.EnumerateFiles());
         Assert.True(datasetSource.FileExists(expectedRelativePath));
     }
