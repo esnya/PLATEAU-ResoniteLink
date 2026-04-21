@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceCollectionExtensionsTests
 {
     [Fact]
-    public async Task AddPlateauCityGmlImportServicesUsesCustomReaderAndComposerWhenFactoryCreatesSource()
+    public async Task AddPlateauCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReadResult()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -40,10 +40,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             .BuildServiceProvider();
         IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
 
-        IImportedSceneSource source = await factory.CreateAsync(request);
+        IImportedSceneSource source = await factory.CreateAsync(request, expectedReadResult);
 
         Assert.Same(expectedSource, source);
-        Assert.Same(request, reader.LastRequest);
+        Assert.Null(reader.LastRequest);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(expectedReadResult, composer.LastReadResult);
     }
@@ -124,6 +124,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
+            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
@@ -133,14 +134,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
 
     private sealed class CustomDemTextureSourcePolicy : IDemTextureSourcePolicy
     {
-        public Task<ResolvedDemTextureSources> ResolveAsync(
-            PlateauImportRequest request,
-            IReadOnlyList<string> requestedMeshCodes,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,

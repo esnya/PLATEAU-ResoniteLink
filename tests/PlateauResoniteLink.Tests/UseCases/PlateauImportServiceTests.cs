@@ -406,14 +406,6 @@ public sealed class PlateauImportServiceTests
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            Action<string>? progressReporter = null,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<IImportedSceneSource> CreateAsync(
-            PlateauImportRequest request,
             LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)

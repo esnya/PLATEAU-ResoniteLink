@@ -36,7 +36,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
             DemTextureSource: DatasetLocation.Local("C:\\ortho"),
             PackageNames: ["dem"]);
 
-        ResolvedDemTextureSources result = await policy.ResolveAsync(request, ["53394525"]);
+        ResolvedDemTextureSources result = await policy.ResolveAsync(request, CreateOverlayRegions("53394525"));
 
         TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
         Assert.Same(rasterSource, overlay.Sources[0]);
@@ -63,7 +63,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
             PackageNames: ["dem"]);
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => policy.ResolveAsync(request, ["53394525"]));
+            () => policy.ResolveAsync(request, CreateOverlayRegions("53394525")));
 
         Assert.Contains(
             exception.Errors,
@@ -82,7 +82,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
             Source: DatasetLocation.Local("C:\\dataset"),
             PackageNames: ["dem"]);
 
-        ResolvedDemTextureSources result = await policy.ResolveAsync(request, ["53394525"]);
+        ResolvedDemTextureSources result = await policy.ResolveAsync(request, CreateOverlayRegions("53394525"));
 
         TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
         Assert.Collection(
@@ -172,5 +172,10 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
             rasterSourcesByMeshCode.TryGetValue(meshCode, out TerrainTextureGeoReferencedRasterSource? rasterSource);
             return Task.FromResult(rasterSource);
         }
+    }
+
+    private static IReadOnlyList<DemTerrainOverlayRegion> CreateOverlayRegions(params string[] meshCodes)
+    {
+        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(meshCodes);
     }
 }

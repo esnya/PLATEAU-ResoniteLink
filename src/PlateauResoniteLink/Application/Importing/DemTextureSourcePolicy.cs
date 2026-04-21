@@ -12,11 +12,6 @@ internal interface IDemTextureSourcePolicy
 {
     Task<ResolvedDemTextureSources> ResolveAsync(
         PlateauImportRequest request,
-        IReadOnlyList<string> requestedMeshCodes,
-        CancellationToken cancellationToken = default);
-
-    Task<ResolvedDemTextureSources> ResolveAsync(
-        PlateauImportRequest request,
         IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
         CancellationToken cancellationToken = default);
 
@@ -61,20 +56,6 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
     IDemTerrainGeoReferencedRasterCatalogFactory rasterCatalogFactory)
     : IDemTextureSourcePolicy
 {
-    public async Task<ResolvedDemTextureSources> ResolveAsync(
-        PlateauImportRequest request,
-        IReadOnlyList<string> requestedMeshCodes,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(requestedMeshCodes);
-
-        return await ResolveAsync(
-            request,
-            LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedMeshCodes),
-            cancellationToken);
-    }
-
     public async Task<ResolvedDemTextureSources> ResolveAsync(
         PlateauImportRequest request,
         IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
