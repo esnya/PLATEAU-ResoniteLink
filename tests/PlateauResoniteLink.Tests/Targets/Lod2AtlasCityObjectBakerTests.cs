@@ -236,8 +236,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
         Assert.Equal(2, preservedRoofMaterials.Length);
         Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset == new ResoniteFloat2(0.125, 0.25));
-        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset == new ResoniteFloat2(0.25, 0.5));
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 0 && material.TextureOffset is null);
+        Assert.Contains(preservedRoofMaterials, static material => material.BundledVariantIndex == 1 && material.TextureOffset is null);
     }
 
     [Fact]

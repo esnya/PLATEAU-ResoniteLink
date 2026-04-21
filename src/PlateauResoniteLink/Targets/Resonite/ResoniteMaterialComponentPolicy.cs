@@ -35,6 +35,7 @@ internal static class ResoniteMaterialComponentPolicy
     public static Dictionary<string, Member> CreateMembers(ResoniteMaterialBinding material)
     {
         ArgumentNullException.ThrowIfNull(material);
+        ValidateNoNonCommonUvTransform(material);
 
         Dictionary<string, Member> materialMembers = new(StringComparer.Ordinal);
 
@@ -203,6 +204,27 @@ internal static class ResoniteMaterialComponentPolicy
             && material.TextureScale is not null
             && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
                 || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9);
+    }
+
+    private static void ValidateNoNonCommonUvTransform(ResoniteMaterialBinding material)
+    {
+        if (material.MaterialType != ResoniteMaterialType.Standard
+            || material.Projection != ResoniteMaterialProjection.Uv
+            || material.AssetScope == ResoniteMaterialAssetScope.Common)
+        {
+            return;
+        }
+
+        bool hasTextureScale = material.TextureScale is not null;
+        bool hasTextureOffset = material.TextureOffset is not null;
+        if (!hasTextureScale && !hasTextureOffset)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"Non-common UV material '{material.MaterialKey}' reached Resonite material emission with TextureScale/TextureOffset. "
+            + "Bake city-object UV transforms into mesh UVs before emission.");
     }
 
     public static Field_colorX CreateColorMember(ResoniteColor color)

@@ -55,7 +55,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
-    public void CreateMembersOmitsUvTransformForDynamicMaterialsThatBakeIntoMesh()
+    public void CreateMembersRejectsRawNonCommonUvTransformBeforeBake()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "dynamic-overlay",
@@ -70,10 +70,9 @@ public sealed class ResoniteMaterialComponentPolicyTests
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
-
-        Assert.DoesNotContain("TextureScale", members.Keys);
-        Assert.DoesNotContain("TextureOffset", members.Keys);
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => ResoniteMaterialComponentPolicy.CreateMembers(material));
+        Assert.Contains("Bake city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -123,7 +122,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     }
 
     [Fact]
-    public void CreateMembersPreservesUvTransformForUnbakedDirectInputMaterial()
+    public void CreateMembersCreatesUvMaterialWithoutTransformAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "direct-heightmap-style-material",
@@ -138,18 +137,16 @@ public sealed class ResoniteMaterialComponentPolicyTests
             TextureOffset: new ResoniteFloat2(0.125, 0.75),
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+        ResoniteMaterialBinding normalized = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        Field_float2 textureScale = Assert.IsType<Field_float2>(members["TextureScale"]);
-        Field_float2 textureOffset = Assert.IsType<Field_float2>(members["TextureOffset"]);
-        Assert.Equal(1.0f, textureScale.Value.x, 6);
-        Assert.Equal(1.0f, textureScale.Value.y, 6);
-        Assert.Equal(0.125f, textureOffset.Value.x, 6);
-        Assert.Equal(0.75f, textureOffset.Value.y, 6);
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(normalized);
+
+        Assert.DoesNotContain("TextureScale", members.Keys);
+        Assert.DoesNotContain("TextureOffset", members.Keys);
     }
 
     [Fact]
-    public void CreateMembersPreservesOffsetOnlyUvTransformUsingIdentityScale()
+    public void CreateMembersRejectsOffsetOnlyUvTransformBeforeBake()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "offset-only-material",
@@ -169,14 +166,9 @@ public sealed class ResoniteMaterialComponentPolicyTests
                 MaxTextureSize: 512),
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
 
-        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
-
-        Field_float2 textureScale = Assert.IsType<Field_float2>(members["TextureScale"]);
-        Field_float2 textureOffset = Assert.IsType<Field_float2>(members["TextureOffset"]);
-        Assert.Equal(1.0f, textureScale.Value.x, 6);
-        Assert.Equal(1.0f, textureScale.Value.y, 6);
-        Assert.Equal(0.125f, textureOffset.Value.x, 6);
-        Assert.Equal(0.75f, textureOffset.Value.y, 6);
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => ResoniteMaterialComponentPolicy.CreateMembers(material));
+        Assert.Contains("Bake city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

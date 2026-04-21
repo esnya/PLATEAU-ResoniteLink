@@ -37,7 +37,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Fact]
-    public void NormalizeMaterialBinding_PreservesExplicitIdentityScaleForBundledFamilyMaterial()
+    public void NormalizeMaterialBinding_ClearsBundledFamilyUvTransformAfterBake()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: "bundled-identity-override",
@@ -56,12 +56,12 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
 
         ResoniteMaterialBinding normalized = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
 
-        Assert.Equal(new ResoniteFloat2(1.0, 1.0), normalized.TextureScale);
+        Assert.Null(normalized.TextureScale);
         Assert.Null(normalized.TextureOffset);
     }
 
     [Fact]
-    public void Normalize_PreservesBundledIdentityScaleOverrideWhenAnotherMaterialBakes()
+    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform()
     {
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "mixed-material-city-object",
@@ -114,8 +114,11 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             static material => string.Equals(material.MaterialKey, "bundled-identity-override", StringComparison.Ordinal));
 
         Assert.NotSame(cityObject, normalized);
-        Assert.Equal(new ResoniteFloat2(1.0, 1.0), bundledMaterial.TextureScale);
+        Assert.Null(bundledMaterial.TextureScale);
         Assert.Null(bundledMaterial.TextureOffset);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.0), normalized.Mesh.Vertices[3].UV0);
+        Assert.Equal(new ResoniteFloat2(13.0, 0.0), normalized.Mesh.Vertices[4].UV0);
+        Assert.Equal(new ResoniteFloat2(0.0, 13.0), normalized.Mesh.Vertices[5].UV0);
     }
 
     [Fact]

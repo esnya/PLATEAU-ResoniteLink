@@ -13,9 +13,7 @@ public static class ResoniteDynamicMaterialUvNormalizer
         return material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
             && material.AssetScope != ResoniteMaterialAssetScope.Common
-            && !(material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-                && !string.IsNullOrWhiteSpace(material.Family))
-            && HasEffectiveTextureTransform(material);
+            && HasBakeableTextureTransform(material);
     }
 
     public static ResoniteConstructionCityObject Normalize(ResoniteConstructionCityObject cityObject)
@@ -72,14 +70,6 @@ public static class ResoniteDynamicMaterialUvNormalizer
 
         if (!HasEffectiveTextureTransform(material))
         {
-            if (IsBundledFamilyMaterial(material) && material.TextureScale is not null)
-            {
-                return material with
-                {
-                    TextureOffset = null,
-                };
-            }
-
             return material with
             {
                 TextureScale = null,
@@ -103,19 +93,45 @@ public static class ResoniteDynamicMaterialUvNormalizer
         ArgumentNullException.ThrowIfNull(sourceUv);
         ArgumentNullException.ThrowIfNull(material);
 
-        double scaleX = material.TextureScale?.X ?? 1.0;
-        double scaleY = material.TextureScale?.Y ?? 1.0;
-        double offsetX = material.TextureOffset?.X ?? 0.0;
-        double offsetY = material.TextureOffset?.Y ?? 0.0;
+        (ResoniteFloat2 bakeScale, ResoniteFloat2 bakeOffset) = CreateBakeTransform(material);
         return new ResoniteFloat2(
-            (sourceUv.X * scaleX) + offsetX,
-            (sourceUv.Y * scaleY) + offsetY);
+            (sourceUv.X * bakeScale.X) + bakeOffset.X,
+            (sourceUv.Y * bakeScale.Y) + bakeOffset.Y);
+    }
+
+    private static bool HasBakeableTextureTransform(ResoniteMaterialBinding material)
+    {
+        return IsBundledFamilyMaterial(material)
+            ? material.TextureScale is not null || material.TextureOffset is not null
+            : HasEffectiveTextureTransform(material);
     }
 
     private static bool HasEffectiveTextureTransform(ResoniteMaterialBinding material)
     {
         return !IsIdentityTextureScale(material.TextureScale)
             || !IsZeroTextureOffset(material.TextureOffset);
+    }
+
+    private static (ResoniteFloat2 Scale, ResoniteFloat2 Offset) CreateBakeTransform(ResoniteMaterialBinding material)
+    {
+        if (!IsBundledFamilyMaterial(material))
+        {
+            return (
+                material.TextureScale ?? new ResoniteFloat2(1.0, 1.0),
+                material.TextureOffset ?? new ResoniteFloat2(0.0, 0.0));
+        }
+
+        string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
+        ResoniteFloat2 implicitScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(bundledVariantPath);
+        ResoniteFloat2 explicitScale = material.TextureScale ?? implicitScale;
+        ResoniteFloat2 explicitOffset = material.TextureOffset ?? new ResoniteFloat2(0.0, 0.0);
+        return (
+            new ResoniteFloat2(
+                explicitScale.X / implicitScale.X,
+                explicitScale.Y / implicitScale.Y),
+            new ResoniteFloat2(
+                explicitOffset.X / implicitScale.X,
+                explicitOffset.Y / implicitScale.Y));
     }
 
     private static bool IsBundledFamilyMaterial(ResoniteMaterialBinding material)
