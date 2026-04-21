@@ -255,6 +255,16 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             return Task.FromResult(new ResolvedDemTextureSources([]));
         }
 
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            CancellationToken cancellationToken = default)
+        {
+            _ = request;
+            _ = overlayRegions;
+            return Task.FromResult(new ResolvedDemTextureSources([]));
+        }
+
         public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
         {

@@ -15,6 +15,11 @@ internal interface IDemTextureSourcePolicy
         IReadOnlyList<string> requestedMeshCodes,
         CancellationToken cancellationToken = default);
 
+    Task<ResolvedDemTextureSources> ResolveAsync(
+        PlateauImportRequest request,
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+        CancellationToken cancellationToken = default);
+
     IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
         IReadOnlyList<DemTerrainOverlayRegion> overlayRegions);
 }
@@ -64,6 +69,20 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(requestedMeshCodes);
 
+        return await ResolveAsync(
+            request,
+            LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedMeshCodes),
+            cancellationToken);
+    }
+
+    public async Task<ResolvedDemTextureSources> ResolveAsync(
+        PlateauImportRequest request,
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(overlayRegions);
+
         IDemTerrainGeoReferencedRasterCatalog? rasterCatalog = await rasterCatalogFactory.CreateAsync(
             request.DemTextureSource,
             cancellationToken);
@@ -73,10 +92,8 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
                 [LocalCityGmlImportErrorMessages.InvalidDemTextureSource(request.DemTextureSource)]);
         }
 
-        DemTerrainOverlayRegion[] overlayRegions = LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
-            requestedMeshCodes);
-        TerrainTextureOverlay[] overlays = new TerrainTextureOverlay[overlayRegions.Length];
-        for (int index = 0; index < overlayRegions.Length; index++)
+        TerrainTextureOverlay[] overlays = new TerrainTextureOverlay[overlayRegions.Count];
+        for (int index = 0; index < overlayRegions.Count; index++)
         {
             overlays[index] = await CreateOverlayAsync(
                 overlayRegions[index],

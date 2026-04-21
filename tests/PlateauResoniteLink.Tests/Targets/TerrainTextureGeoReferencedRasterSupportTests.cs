@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Buffers.Binary;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -98,6 +99,81 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.44, 139.46);
         Assert.True(metadata.PixelWidthMeters > 0.49);
         Assert.True(metadata.PixelHeightMeters > 0.49);
+    }
+
+    [Fact]
+    public void GeoTiffTagReaderParsesGeoTiffTagsWithoutExifProfile()
+    {
+        byte[] bytes = CreateClassicLittleEndianGeoTiffBytes(
+            modelTiePoint: [0.0, 0.0, 0.0, 139.0, 35.0, 0.0],
+            pixelScale: [0.0001, 0.0001, 0.0],
+            geoKeyDirectory:
+            [
+                1, 1, 0, 1,
+                2048, 0, 1, 4326,
+            ]);
+
+        GeoTiffTagSnapshot snapshot = Assert.IsType<GeoTiffTagSnapshot>(GeoTiffTagReader.TryRead(bytes));
+        GeoReferencedRasterMetadata metadata = Assert.IsType<GeoReferencedRasterMetadata>(
+            TerrainTextureGeoReferencedRasterMetadataReader.TryCreateMetadata(
+                pixelWidth: 10,
+                pixelHeight: 10,
+                modelTiePoint: snapshot.ModelTiePoint,
+                pixelScale: snapshot.PixelScale,
+                modelTransform: snapshot.ModelTransform,
+                geoKeyDirectory: snapshot.GeoKeyDirectory,
+                geoDoubleParams: snapshot.GeoDoubleParams,
+                geoAsciiParams: snapshot.GeoAsciiParams));
+
+        Assert.True(metadata.IsUsable);
+        Assert.Equal("EPSG:4326", metadata.CoordinateSystemIdentifier);
+        Assert.InRange(metadata.GeographicBounds.MinLatitude, 34.9989, 34.9991);
+        Assert.InRange(metadata.GeographicBounds.MaxLongitude, 139.0009, 139.0011);
+    }
+
+    [Fact]
+    public void TryCropUsesMercatorVerticalInterpolationForEpsg3857()
+    {
+        using Image<Rgba32> sourceImage = new(4, 4);
+        for (int x = 0; x < sourceImage.Width; x++)
+        {
+            sourceImage[x, 0] = new Rgba32(255, 0, 0, 255);
+            sourceImage[x, 1] = new Rgba32(0, 255, 0, 255);
+            sourceImage[x, 2] = new Rgba32(0, 0, 255, 255);
+            sourceImage[x, 3] = new Rgba32(255, 255, 0, 255);
+        }
+
+        GeographicRectangle rasterBounds = new(0.0, 80.0, 139.0, 140.0);
+        double mercatorMidLatitude = Math.Atan(Math.Sinh((ToMercatorY(80.0) + ToMercatorY(0.0)) / 2.0)) * (180.0 / Math.PI);
+        using Image<Rgba32> cropped = Assert.IsType<Image<Rgba32>>(TerrainTextureGeoReferencedRasterCropper.TryCrop(
+            sourceImage,
+            new GeoReferencedRasterMetadata(rasterBounds, "EPSG:3857", 1.0, 1.0),
+            new GeographicRectangle(mercatorMidLatitude, 80.0, 139.0, 140.0)));
+
+        Assert.Equal(4, cropped.Width);
+        Assert.True(cropped.Height >= 2);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), cropped[0, 0]);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), cropped[0, 1]);
+    }
+
+    [Fact]
+    public void TryCropReturnsOverlayAlignedCanvasForPartialGeoReferencedRasterCoverage()
+    {
+        using Image<Rgba32> sourceImage = new(2, 2, new Rgba32(255, 0, 0, 255));
+        using Image<Rgba32> cropped = Assert.IsType<Image<Rgba32>>(TerrainTextureGeoReferencedRasterCropper.TryCrop(
+            sourceImage,
+            new GeoReferencedRasterMetadata(
+                new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                "EPSG:4326",
+                1.0,
+                1.0),
+            new GeographicRectangle(35.0, 35.01, 139.0, 139.02)));
+
+        Assert.Equal(4, cropped.Width);
+        Assert.Equal(2, cropped.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), cropped[0, 0]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), cropped[1, 0]);
+        Assert.Equal(new Rgba32(0, 0, 0, 0), cropped[3, 0]);
     }
 
     [Fact]
@@ -354,5 +430,72 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
                 _ => new Rgba32(255, 0, 255, 255),
             };
         }
+    }
+
+    private static byte[] CreateClassicLittleEndianGeoTiffBytes(
+        double[] modelTiePoint,
+        double[] pixelScale,
+        ushort[] geoKeyDirectory)
+    {
+        const ushort modelTiePointTag = 33922;
+        const ushort pixelScaleTag = 33550;
+        const ushort geoKeyDirectoryTag = 34735;
+        const ushort typeShort = 3;
+        const ushort typeDouble = 12;
+        const int headerSize = 8;
+        const int entryCount = 3;
+        const int entrySize = 12;
+        int ifdSize = 2 + (entryCount * entrySize) + 4;
+        int pixelScaleOffset = headerSize + ifdSize;
+        int tiePointOffset = pixelScaleOffset + (pixelScale.Length * sizeof(double));
+        int geoKeyOffset = tiePointOffset + (modelTiePoint.Length * sizeof(double));
+        byte[] bytes = new byte[geoKeyOffset + (geoKeyDirectory.Length * sizeof(ushort))];
+
+        bytes[0] = (byte)'I';
+        bytes[1] = (byte)'I';
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2, 2), 42);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4, 4), 8);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8, 2), entryCount);
+
+        WriteClassicEntry(bytes, 10, pixelScaleTag, typeDouble, (uint)pixelScale.Length, (uint)pixelScaleOffset);
+        WriteClassicEntry(bytes, 22, modelTiePointTag, typeDouble, (uint)modelTiePoint.Length, (uint)tiePointOffset);
+        WriteClassicEntry(bytes, 34, geoKeyDirectoryTag, typeShort, (uint)geoKeyDirectory.Length, (uint)geoKeyOffset);
+
+        for (int index = 0; index < pixelScale.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(
+                bytes.AsSpan(pixelScaleOffset + (index * sizeof(double)), sizeof(double)),
+                unchecked((ulong)BitConverter.DoubleToInt64Bits(pixelScale[index])));
+        }
+
+        for (int index = 0; index < modelTiePoint.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(
+                bytes.AsSpan(tiePointOffset + (index * sizeof(double)), sizeof(double)),
+                unchecked((ulong)BitConverter.DoubleToInt64Bits(modelTiePoint[index])));
+        }
+
+        for (int index = 0; index < geoKeyDirectory.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                bytes.AsSpan(geoKeyOffset + (index * sizeof(ushort)), sizeof(ushort)),
+                geoKeyDirectory[index]);
+        }
+
+        return bytes;
+    }
+
+    private static void WriteClassicEntry(byte[] bytes, int offset, ushort tag, ushort type, uint count, uint valueOrOffset)
+    {
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset, 2), tag);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 2, 2), type);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset + 4, 4), count);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset + 8, 4), valueOrOffset);
+    }
+
+    private static double ToMercatorY(double latitude)
+    {
+        double radians = latitude * (Math.PI / 180.0);
+        return Math.Log(Math.Tan((Math.PI / 4.0) + (radians / 2.0)));
     }
 }

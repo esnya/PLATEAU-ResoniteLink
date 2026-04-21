@@ -141,6 +141,14 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             throw new NotSupportedException();
         }
 
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions)
         {

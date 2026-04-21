@@ -83,7 +83,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         TerrainTextureOverlay overlay = Assert.Single(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
         Assert.Same(resolvedOverlays[0], overlay);
         Assert.Same(request, demTextureSourcePolicy.LastRequest);
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastRequestedMeshCodes);
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
@@ -115,7 +115,55 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request);
 
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastRequestedMeshCodes);
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+    }
+
+    [Fact]
+    public async Task CreateAsyncDerivesDemOverlayRegionsFromParsedDemGeometry()
+    {
+        CoordinateReferenceSystem referenceSystem =
+            CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor demSourceFile = new(
+            "udx/dem/53394525/terrain.gml",
+            "dem",
+            "53394525",
+            RequiresMeshAreaFilter: false);
+        SourceFilePipeline demPipeline = new(
+            demSourceFile,
+            () => Task.FromResult(
+                new ParsedSourceFileResult(
+                    demSourceFile,
+                    [CreateParsedDemCityObject(referenceSystem)],
+                    referenceSystem,
+                    [],
+                    TimeSpan.Zero)));
+        RecordingDocumentReader reader = new(
+            new LocalCityGmlDocumentReadResult(
+                new LocalCityGmlDocumentSet(
+                    new EmptyDatasetContentSource(),
+                    [
+                        "udx/dem/53394525/terrain.gml",
+                        "udx/bldg/53394526/building.gml",
+                    ],
+                    ["dem", "bldg"],
+                    [],
+                    ["53394525", "53394526"]),
+                new LocalCityGmlBootstrapContext(
+                    [demPipeline],
+                    new GeodeticPoint(35.0, 139.0, 0.0))));
+        RecordingComposer composer = new(new StubConstructionSource());
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525|53394526",
+            Source: DatasetLocation.Local("/tmp/plateau"),
+            PackageNames: ["dem", "bldg"],
+            DemTextureSource: DatasetLocation.Local("C:\\ortho"));
+
+        _ = await factory.CreateAsync(request);
+
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
@@ -249,6 +297,46 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 
+    private static BootstrapParsedCityObject CreateParsedDemCityObject(CoordinateReferenceSystem referenceSystem)
+    {
+        _ = PlateauMeshCode.TryGetBounds(
+            "53394525",
+            out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds);
+        double centerLatitude = (bounds.SouthLatitude + bounds.NorthLatitude) * 0.5;
+        double centerLongitude = (bounds.WestLongitude + bounds.EastLongitude) * 0.5;
+
+        return new BootstrapParsedCityObject(
+            SlotKey: "dem-slot-000",
+            DisplayName: "dem-slot-000",
+            PackageName: "dem",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Surfaces:
+            [
+                new BootstrapParsedSurface(
+                    PolygonId: "dem-surface-000",
+                    Semantic: BootstrapParsedSurfaceSemantic.Ground,
+                    ExteriorRing: new BootstrapParsedRing(
+                        "dem-ring-000",
+                        [
+                            new GeodeticPoint(bounds.SouthLatitude, bounds.WestLongitude, 0.0),
+                            new GeodeticPoint(bounds.SouthLatitude, centerLongitude, 0.0),
+                            new GeodeticPoint(centerLatitude, centerLongitude, 0.0),
+                            new GeodeticPoint(centerLatitude, bounds.WestLongitude, 0.0),
+                        ],
+                        UVs: null),
+                    InteriorRings: [],
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: true),
+            ],
+            ReferenceSystem: referenceSystem,
+            SourceFileRelativePath: "udx/dem/53394525/terrain.gml",
+            SourceUnitIdentity: "test-unit",
+            SourceIdentity: "dem:slot-000",
+            SharedAcrossMeshCodes: false);
+    }
+
     private sealed class EmptyDatasetContentSource : IPlateauDatasetContentSource
     {
         public EmptyDatasetContentSource(string sourcePath = "/tmp/plateau")
@@ -292,6 +380,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public IReadOnlyList<string>? LastRequestedMeshCodes { get; private set; }
 
+        public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
+
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<string> requestedMeshCodes,
@@ -299,6 +389,21 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         {
             LastRequest = request;
             LastRequestedMeshCodes = requestedMeshCodes.ToArray();
+            if (exception is not null)
+            {
+                throw exception;
+            }
+
+            return Task.FromResult(new ResolvedDemTextureSources(overlays));
+        }
+
+        public Task<ResolvedDemTextureSources> ResolveAsync(
+            PlateauImportRequest request,
+            IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
             if (exception is not null)
             {
                 throw exception;

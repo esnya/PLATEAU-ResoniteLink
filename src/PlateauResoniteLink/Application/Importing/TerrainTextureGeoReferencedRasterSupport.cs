@@ -1,6 +1,9 @@
 using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -41,17 +44,20 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         }
 
         ExifProfile? exifProfile = imageInfo.Metadata.ExifProfile;
-        if (exifProfile is null)
-        {
-            return null;
-        }
+        GeoTiffTagSnapshot? tiffTags = await GeoTiffTagReader.TryReadAsync(sourcePath, cancellationToken);
 
-        double[]? tiePoints = TryGetDoubleArray(exifProfile, ExifTag.ModelTiePoint);
-        double[]? pixelScale = TryGetDoubleArray(exifProfile, ExifTag.PixelScale);
-        double[]? modelTransform = TryGetDoubleArray(exifProfile, ExifTag.ModelTransform);
-        ushort[]? geoKeyDirectory = TryGetUnsignedShortArray(exifProfile, "GeoKeyDirectoryTag");
-        double[]? geoDoubleParams = TryGetNamedDoubleArray(exifProfile, "GeoDoubleParamsTag");
-        string? geoAsciiParams = TryGetNamedString(exifProfile, "GeoAsciiParamsTag");
+        double[]? tiePoints = TryGetDoubleArray(exifProfile, ExifTag.ModelTiePoint)
+            ?? tiffTags?.ModelTiePoint;
+        double[]? pixelScale = TryGetDoubleArray(exifProfile, ExifTag.PixelScale)
+            ?? tiffTags?.PixelScale;
+        double[]? modelTransform = TryGetDoubleArray(exifProfile, ExifTag.ModelTransform)
+            ?? tiffTags?.ModelTransform;
+        ushort[]? geoKeyDirectory = TryGetUnsignedShortArray(exifProfile, "GeoKeyDirectoryTag")
+            ?? tiffTags?.GeoKeyDirectory;
+        double[]? geoDoubleParams = TryGetNamedDoubleArray(exifProfile, "GeoDoubleParamsTag")
+            ?? tiffTags?.GeoDoubleParams;
+        string? geoAsciiParams = TryGetNamedString(exifProfile, "GeoAsciiParamsTag")
+            ?? tiffTags?.GeoAsciiParams;
 
         return TryCreateMetadata(
             imageInfo.Width,
@@ -388,15 +394,25 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         return Math.Abs(degrees) * 111_320.0 * Math.Cos(latitude * (Math.PI / 180.0));
     }
 
-    private static double[]? TryGetDoubleArray(ExifProfile exifProfile, ExifTag<double[]> tag)
+    private static double[]? TryGetDoubleArray(ExifProfile? exifProfile, ExifTag<double[]> tag)
     {
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
         return exifProfile.TryGetValue(tag, out IExifValue<double[]>? exifValue)
             ? exifValue.Value
             : null;
     }
 
-    private static ushort[]? TryGetUnsignedShortArray(ExifProfile exifProfile, string tagName)
+    private static ushort[]? TryGetUnsignedShortArray(ExifProfile? exifProfile, string tagName)
     {
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
         object? value = TryGetNamedValue(exifProfile, tagName);
         return value switch
         {
@@ -406,13 +422,23 @@ internal static class TerrainTextureGeoReferencedRasterMetadataReader
         };
     }
 
-    private static double[]? TryGetNamedDoubleArray(ExifProfile exifProfile, string tagName)
+    private static double[]? TryGetNamedDoubleArray(ExifProfile? exifProfile, string tagName)
     {
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
         return TryGetNamedValue(exifProfile, tagName) as double[];
     }
 
-    private static string? TryGetNamedString(ExifProfile exifProfile, string tagName)
+    private static string? TryGetNamedString(ExifProfile? exifProfile, string tagName)
     {
+        if (exifProfile is null)
+        {
+            return null;
+        }
+
         return TryGetNamedValue(exifProfile, tagName) as string;
     }
 
@@ -496,14 +522,386 @@ internal static class TerrainTextureGeoReferencedRasterCropper
 
         double u0 = (intersection.MinLongitude - rasterBounds.MinLongitude) / (rasterBounds.MaxLongitude - rasterBounds.MinLongitude);
         double u1 = (intersection.MaxLongitude - rasterBounds.MinLongitude) / (rasterBounds.MaxLongitude - rasterBounds.MinLongitude);
-        double v0 = (rasterBounds.MaxLatitude - intersection.MaxLatitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude);
-        double v1 = (rasterBounds.MaxLatitude - intersection.MinLatitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude);
+        double v0 = NormalizeVerticalPosition(metadata, rasterBounds, intersection.MaxLatitude);
+        double v1 = NormalizeVerticalPosition(metadata, rasterBounds, intersection.MinLatitude);
+        double requestedV0 = NormalizeVerticalPosition(metadata, rasterBounds, requestedBounds.MaxLatitude);
+        double requestedV1 = NormalizeVerticalPosition(metadata, rasterBounds, requestedBounds.MinLatitude);
+        double requestedU0 = (requestedBounds.MinLongitude - rasterBounds.MinLongitude) / (rasterBounds.MaxLongitude - rasterBounds.MinLongitude);
+        double requestedU1 = (requestedBounds.MaxLongitude - rasterBounds.MinLongitude) / (rasterBounds.MaxLongitude - rasterBounds.MinLongitude);
 
         int left = Math.Clamp((int)Math.Floor(u0 * sourceImage.Width), 0, sourceImage.Width - 1);
         int top = Math.Clamp((int)Math.Floor(v0 * sourceImage.Height), 0, sourceImage.Height - 1);
         int right = Math.Clamp((int)Math.Ceiling(u1 * sourceImage.Width), left + 1, sourceImage.Width);
         int bottom = Math.Clamp((int)Math.Ceiling(v1 * sourceImage.Height), top + 1, sourceImage.Height);
+        int canvasWidth = Math.Max(
+            right - left,
+            (int)Math.Round(sourceImage.Width * (requestedU1 - requestedU0), MidpointRounding.AwayFromZero));
+        int canvasHeight = Math.Max(
+            bottom - top,
+            (int)Math.Round(sourceImage.Height * (requestedV1 - requestedV0), MidpointRounding.AwayFromZero));
+        int offsetX = Math.Clamp(
+            (int)Math.Round(sourceImage.Width * (u0 - requestedU0), MidpointRounding.AwayFromZero),
+            0,
+            Math.Max(0, canvasWidth - (right - left)));
+        int offsetY = Math.Clamp(
+            (int)Math.Round(sourceImage.Height * (v0 - requestedV0), MidpointRounding.AwayFromZero),
+            0,
+            Math.Max(0, canvasHeight - (bottom - top)));
 
-        return sourceImage.Clone(context => context.Crop(new Rectangle(left, top, right - left, bottom - top)));
+        using Image<Rgba32> cropped = sourceImage.Clone(context => context.Crop(new Rectangle(left, top, right - left, bottom - top)));
+        Image<Rgba32> overlayCanvas = new(canvasWidth, canvasHeight);
+        overlayCanvas.Mutate(context => context.DrawImage(cropped, new SixLabors.ImageSharp.Point(offsetX, offsetY), 1.0f));
+        return overlayCanvas;
+    }
+
+    private static double NormalizeVerticalPosition(
+        GeoReferencedRasterMetadata metadata,
+        GeographicRectangle rasterBounds,
+        double latitude)
+    {
+        if (string.Equals(metadata.CoordinateSystemIdentifier, "EPSG:3857", StringComparison.OrdinalIgnoreCase))
+        {
+            double maxY = ToMercatorY(rasterBounds.MaxLatitude);
+            double minY = ToMercatorY(rasterBounds.MinLatitude);
+            double latitudeY = ToMercatorY(latitude);
+            return (maxY - latitudeY) / (maxY - minY);
+        }
+
+        return (rasterBounds.MaxLatitude - latitude) / (rasterBounds.MaxLatitude - rasterBounds.MinLatitude);
+    }
+
+    private static double ToMercatorY(double latitude)
+    {
+        double radians = latitude * (Math.PI / 180.0);
+        return Math.Log(Math.Tan((Math.PI / 4.0) + (radians / 2.0)));
+    }
+}
+
+internal sealed record GeoTiffTagSnapshot(
+    double[]? ModelTiePoint,
+    double[]? PixelScale,
+    double[]? ModelTransform,
+    ushort[]? GeoKeyDirectory,
+    double[]? GeoDoubleParams,
+    string? GeoAsciiParams);
+
+internal static class GeoTiffTagReader
+{
+    private const ushort ClassicTiffMagic = 42;
+    private const ushort BigTiffMagic = 43;
+    private const ushort TypeAscii = 2;
+    private const ushort TypeShort = 3;
+    private const ushort TypeLong = 4;
+    private const ushort TypeDouble = 12;
+    private const ushort PixelScaleTag = 33550;
+    private const ushort ModelTiePointTag = 33922;
+    private const ushort ModelTransformTag = 34264;
+    private const ushort GeoKeyDirectoryTag = 34735;
+    private const ushort GeoDoubleParamsTag = 34736;
+    private const ushort GeoAsciiParamsTag = 34737;
+
+    public static async Task<GeoTiffTagSnapshot?> TryReadAsync(string sourcePath, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+        {
+            return null;
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = await File.ReadAllBytesAsync(sourcePath, cancellationToken);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        return TryRead(bytes);
+    }
+
+    internal static GeoTiffTagSnapshot? TryRead(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length < 8)
+        {
+            return null;
+        }
+
+        bool littleEndian = bytes[0] == (byte)'I' && bytes[1] == (byte)'I';
+        if (!littleEndian && !(bytes[0] == (byte)'M' && bytes[1] == (byte)'M'))
+        {
+            return null;
+        }
+
+        ushort magic = ReadUInt16(bytes, 2, littleEndian);
+        return magic switch
+        {
+            ClassicTiffMagic => TryReadClassic(bytes, littleEndian),
+            BigTiffMagic => TryReadBigTiff(bytes, littleEndian),
+            _ => null,
+        };
+    }
+
+    private static GeoTiffTagSnapshot? TryReadClassic(ReadOnlySpan<byte> bytes, bool littleEndian)
+    {
+        uint ifdOffset = ReadUInt32(bytes, 4, littleEndian);
+        if (ifdOffset >= bytes.Length || ifdOffset + 2 > bytes.Length)
+        {
+            return null;
+        }
+
+        ushort entryCount = ReadUInt16(bytes, checked((int)ifdOffset), littleEndian);
+        int entriesOffset = checked((int)ifdOffset) + 2;
+        Dictionary<ushort, object> values = [];
+        for (int index = 0; index < entryCount; index++)
+        {
+            int entryOffset = entriesOffset + (index * 12);
+            if (entryOffset + 12 > bytes.Length)
+            {
+                break;
+            }
+
+            TryReadClassicEntry(bytes, entryOffset, littleEndian, values);
+        }
+
+        return ToSnapshot(values);
+    }
+
+    private static GeoTiffTagSnapshot? TryReadBigTiff(ReadOnlySpan<byte> bytes, bool littleEndian)
+    {
+        if (bytes.Length < 16)
+        {
+            return null;
+        }
+
+        ushort offsetSize = ReadUInt16(bytes, 4, littleEndian);
+        if (offsetSize != 8)
+        {
+            return null;
+        }
+
+        ulong ifdOffset = ReadUInt64(bytes, 8, littleEndian);
+        if (ifdOffset >= (ulong)bytes.Length || ifdOffset + 8 > (ulong)bytes.Length)
+        {
+            return null;
+        }
+
+        ulong entryCount = ReadUInt64(bytes, checked((int)ifdOffset), littleEndian);
+        int entriesOffset = checked((int)ifdOffset) + 8;
+        Dictionary<ushort, object> values = [];
+        for (ulong index = 0; index < entryCount; index++)
+        {
+            int entryOffset = checked(entriesOffset + ((int)index * 20));
+            if (entryOffset + 20 > bytes.Length)
+            {
+                break;
+            }
+
+            TryReadBigTiffEntry(bytes, entryOffset, littleEndian, values);
+        }
+
+        return ToSnapshot(values);
+    }
+
+    private static void TryReadClassicEntry(
+        ReadOnlySpan<byte> bytes,
+        int entryOffset,
+        bool littleEndian,
+        Dictionary<ushort, object> values)
+    {
+        ushort tag = ReadUInt16(bytes, entryOffset, littleEndian);
+        ushort type = ReadUInt16(bytes, entryOffset + 2, littleEndian);
+        uint count = ReadUInt32(bytes, entryOffset + 4, littleEndian);
+        uint valueOrOffset = ReadUInt32(bytes, entryOffset + 8, littleEndian);
+        if (!TryReadEntryValue(bytes, type, count, valueOrOffset, bytes.Slice(entryOffset + 8, 4), littleEndian, out object? value))
+        {
+            return;
+        }
+
+        values[tag] = value!;
+    }
+
+    private static void TryReadBigTiffEntry(
+        ReadOnlySpan<byte> bytes,
+        int entryOffset,
+        bool littleEndian,
+        Dictionary<ushort, object> values)
+    {
+        ushort tag = ReadUInt16(bytes, entryOffset, littleEndian);
+        ushort type = ReadUInt16(bytes, entryOffset + 2, littleEndian);
+        ulong count = ReadUInt64(bytes, entryOffset + 4, littleEndian);
+        ulong valueOrOffset = ReadUInt64(bytes, entryOffset + 12, littleEndian);
+        if (!TryReadEntryValue(bytes, type, count, valueOrOffset, bytes.Slice(entryOffset + 12, 8), littleEndian, out object? value))
+        {
+            return;
+        }
+
+        values[tag] = value!;
+    }
+
+    private static bool TryReadEntryValue(
+        ReadOnlySpan<byte> bytes,
+        ushort type,
+        ulong count,
+        ulong valueOrOffset,
+        ReadOnlySpan<byte> inlineValueBytes,
+        bool littleEndian,
+        out object? value)
+    {
+        value = null;
+        int typeSize = GetTypeSize(type);
+        if (typeSize == 0 || count == 0 || count > int.MaxValue)
+        {
+            return false;
+        }
+
+        ulong byteLength = checked((ulong)typeSize * count);
+        ReadOnlySpan<byte> rawValueBytes;
+        if (byteLength <= (ulong)inlineValueBytes.Length)
+        {
+            rawValueBytes = inlineValueBytes[..(int)byteLength];
+        }
+        else
+        {
+            if (valueOrOffset > int.MaxValue || valueOrOffset + byteLength > (ulong)bytes.Length)
+            {
+                return false;
+            }
+
+            rawValueBytes = bytes.Slice((int)valueOrOffset, (int)byteLength);
+        }
+
+        value = type switch
+        {
+            TypeShort => ReadUInt16Array(rawValueBytes, (int)count, littleEndian),
+            TypeLong => ReadUInt32Array(rawValueBytes, (int)count, littleEndian),
+            TypeDouble => ReadDoubleArray(rawValueBytes, (int)count, littleEndian),
+            TypeAscii => Encoding.ASCII.GetString(rawValueBytes).TrimEnd('\0'),
+            _ => null,
+        };
+        return value is not null;
+    }
+
+    private static GeoTiffTagSnapshot? ToSnapshot(Dictionary<ushort, object> values)
+    {
+        values.TryGetValue(ModelTiePointTag, out object? modelTiePoint);
+        values.TryGetValue(PixelScaleTag, out object? pixelScale);
+        values.TryGetValue(ModelTransformTag, out object? modelTransform);
+        values.TryGetValue(GeoKeyDirectoryTag, out object? geoKeyDirectory);
+        values.TryGetValue(GeoDoubleParamsTag, out object? geoDoubleParams);
+        values.TryGetValue(GeoAsciiParamsTag, out object? geoAsciiParams);
+
+        if (modelTiePoint is null
+            && pixelScale is null
+            && modelTransform is null
+            && geoKeyDirectory is null
+            && geoDoubleParams is null
+            && geoAsciiParams is null)
+        {
+            return null;
+        }
+
+        return new GeoTiffTagSnapshot(
+            ConvertToDoubleArray(modelTiePoint),
+            ConvertToDoubleArray(pixelScale),
+            ConvertToDoubleArray(modelTransform),
+            ConvertToUInt16Array(geoKeyDirectory),
+            ConvertToDoubleArray(geoDoubleParams),
+            geoAsciiParams as string);
+    }
+
+    private static double[]? ConvertToDoubleArray(object? value)
+    {
+        return value switch
+        {
+            double[] doubles => doubles,
+            uint[] uints => uints.Select(static item => (double)item).ToArray(),
+            ushort[] ushorts => ushorts.Select(static item => (double)item).ToArray(),
+            _ => null,
+        };
+    }
+
+    private static ushort[]? ConvertToUInt16Array(object? value)
+    {
+        return value switch
+        {
+            ushort[] ushorts => ushorts,
+            uint[] uints => uints.Select(static item => checked((ushort)item)).ToArray(),
+            _ => null,
+        };
+    }
+
+    private static int GetTypeSize(ushort type)
+    {
+        return type switch
+        {
+            TypeAscii => 1,
+            TypeShort => 2,
+            TypeLong => 4,
+            TypeDouble => 8,
+            _ => 0,
+        };
+    }
+
+    private static ushort[] ReadUInt16Array(ReadOnlySpan<byte> bytes, int count, bool littleEndian)
+    {
+        ushort[] values = new ushort[count];
+        for (int index = 0; index < count; index++)
+        {
+            values[index] = ReadUInt16(bytes, index * 2, littleEndian);
+        }
+
+        return values;
+    }
+
+    private static uint[] ReadUInt32Array(ReadOnlySpan<byte> bytes, int count, bool littleEndian)
+    {
+        uint[] values = new uint[count];
+        for (int index = 0; index < count; index++)
+        {
+            values[index] = ReadUInt32(bytes, index * 4, littleEndian);
+        }
+
+        return values;
+    }
+
+    private static double[] ReadDoubleArray(ReadOnlySpan<byte> bytes, int count, bool littleEndian)
+    {
+        double[] values = new double[count];
+        for (int index = 0; index < count; index++)
+        {
+            ulong rawBits = ReadUInt64(bytes, index * 8, littleEndian);
+            values[index] = BitConverter.Int64BitsToDouble(unchecked((long)rawBits));
+        }
+
+        return values;
+    }
+
+    private static ushort ReadUInt16(ReadOnlySpan<byte> bytes, int offset, bool littleEndian)
+    {
+        ReadOnlySpan<byte> slice = bytes.Slice(offset, 2);
+        return littleEndian
+            ? BinaryPrimitives.ReadUInt16LittleEndian(slice)
+            : BinaryPrimitives.ReadUInt16BigEndian(slice);
+    }
+
+    private static uint ReadUInt32(ReadOnlySpan<byte> bytes, int offset, bool littleEndian)
+    {
+        ReadOnlySpan<byte> slice = bytes.Slice(offset, 4);
+        return littleEndian
+            ? BinaryPrimitives.ReadUInt32LittleEndian(slice)
+            : BinaryPrimitives.ReadUInt32BigEndian(slice);
+    }
+
+    private static ulong ReadUInt64(ReadOnlySpan<byte> bytes, int offset, bool littleEndian)
+    {
+        ReadOnlySpan<byte> slice = bytes.Slice(offset, 8);
+        return littleEndian
+            ? BinaryPrimitives.ReadUInt64LittleEndian(slice)
+            : BinaryPrimitives.ReadUInt64BigEndian(slice);
     }
 }

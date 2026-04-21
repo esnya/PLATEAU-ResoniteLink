@@ -93,9 +93,13 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         }
 
         IReadOnlyList<string> requestedDemMeshCodes = ResolveRequestedDemMeshCodes(request, documentSet);
+        IReadOnlyList<DemTerrainOverlayRegion> requestedOverlayRegions = await ResolveRequestedDemOverlayRegionsAsync(
+            readResult,
+            requestedDemMeshCodes,
+            cancellationToken);
         ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
             request,
-            requestedDemMeshCodes,
+            requestedOverlayRegions,
             cancellationToken);
         if (resolvedDemTextureSources.Overlays.Count == 0)
         {
@@ -127,5 +131,31 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         return demDiscovery.SelectedMeshCodes.Count > 0
             ? demDiscovery.SelectedMeshCodes
             : [request.MeshCode];
+    }
+
+    private static async Task<IReadOnlyList<DemTerrainOverlayRegion>> ResolveRequestedDemOverlayRegionsAsync(
+        LocalCityGmlDocumentReadResult readResult,
+        IReadOnlyList<string> requestedDemMeshCodes,
+        CancellationToken cancellationToken)
+    {
+        SourceFilePipeline[] demPipelines = readResult.BootstrapContext.SourceFilePipelines
+            .Where(static pipeline => string.Equals(
+                pipeline.SourceFile.PackageName,
+                "dem",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (demPipelines.Length == 0)
+        {
+            return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes);
+        }
+
+        ParsedSourceFileResult[] parsedDemSourceFiles = await Task.WhenAll(
+            demPipelines.Select(pipeline => pipeline.GetParseTask().WaitAsync(cancellationToken)));
+        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+            parsedDemSourceFiles,
+            fallbackBounds: null);
+        return demBounds is null
+            ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
+            : LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(demBounds, requestedDemMeshCodes);
     }
 }

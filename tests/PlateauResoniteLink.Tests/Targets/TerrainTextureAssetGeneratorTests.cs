@@ -410,6 +410,45 @@ public sealed class TerrainTextureAssetGeneratorTests
         Assert.True(ContainsColor(image, 255, 0, 0));
         Assert.True(ContainsColor(image, 255, 0, 255));
     }
+
+    [Fact]
+    public async Task EnsureTextureAsyncPreservesPartialGeoReferencedRasterPlacementBeforeTileFallback()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "partial-terrain.png");
+        using (Image<Rgba32> rasterImage = new(2, 2, new Rgba32(255, 0, 0, 255)))
+        {
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        GeographicRectangle requestedBounds = new(35.0, 35.01, 139.0, 139.02);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            GeographicBounds: requestedBounds,
+            MaxTextureSize: 16,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(
+                        new GeographicRectangle(35.0, 35.01, 139.0, 139.01),
+                        "EPSG:4326",
+                        1.0,
+                        1.0)),
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        using Image<Rgba32> outputImage = LoadImage(texture.TextureImport);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), outputImage[0, 0]);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), outputImage[1, 0]);
+        Assert.NotEqual(new Rgba32(255, 0, 0, 255), outputImage[3, 0]);
+    }
     [Fact]
     public async Task EnsureTextureAsyncRetriesTransientTileFailureWithinSingleGeneration()
     {
