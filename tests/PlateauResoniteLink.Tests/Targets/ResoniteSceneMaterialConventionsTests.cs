@@ -4,11 +4,52 @@ using System.Collections.Generic;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
+using ResoniteLink;
+
 namespace PlateauResoniteLink.Tests.Targets;
 
 [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ResoniteSceneMaterialConventionsTests
 {
+    [Fact]
+    public void CreateTextureMembers_ForAlbedo_UsesUrlOnly()
+    {
+        Dictionary<string, Member> members = ResoniteSceneMaterialConventions.CreateTextureMembers(
+            new Uri("resdb:///texture/albedo"),
+            ResoniteSceneMaterialConventions.TextureMemberRole.Albedo);
+
+        Field_Uri url = Assert.IsType<Field_Uri>(members["URL"]);
+
+        Assert.Equal("resdb:///texture/albedo", url.Value.ToString());
+        Assert.DoesNotContain("PreferredProfile", members.Keys);
+        Assert.DoesNotContain("WrapModeU", members.Keys);
+        Assert.DoesNotContain("WrapModeV", members.Keys);
+    }
+
+    [Fact]
+    public void CreateTextureMembers_ForMetallic_PrefersLinearProfileWithoutExplicitWrap()
+    {
+        Dictionary<string, Member> members = ResoniteSceneMaterialConventions.CreateTextureMembers(
+            new Uri("resdb:///texture/metallic"),
+            ResoniteSceneMaterialConventions.TextureMemberRole.Metallic);
+
+        Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(members["PreferredProfile"]).Value);
+        Assert.DoesNotContain("WrapModeU", members.Keys);
+        Assert.DoesNotContain("WrapModeV", members.Keys);
+    }
+
+    [Fact]
+    public void CreateTextureMembers_ForTerrainMainTextureOverride_ClampsWithoutPreferredProfile()
+    {
+        Dictionary<string, Member> members = ResoniteSceneMaterialConventions.CreateTextureMembers(
+            new Uri("resdb:///texture/override"),
+            ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride);
+
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(members["WrapModeU"]).Value);
+        Assert.Equal("Clamp", Assert.IsType<Field_Enum>(members["WrapModeV"]).Value);
+        Assert.DoesNotContain("PreferredProfile", members.Keys);
+    }
+
     [Fact]
     public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {

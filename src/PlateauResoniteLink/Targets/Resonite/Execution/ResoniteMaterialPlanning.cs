@@ -185,7 +185,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 client,
                 materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(albedoTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    albedoTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo),
                 cancellationToken);
             materialMembers["AlbedoTexture"] = new Reference
             {
@@ -200,7 +202,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 client,
                 materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(normalTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    normalTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal),
                 cancellationToken);
             materialMembers["NormalMap"] = new Reference
             {
@@ -219,7 +223,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 client,
                 materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(heightTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    heightTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Height),
                 cancellationToken);
             materialMembers["HeightMap"] = new Reference
             {
@@ -238,7 +244,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 client,
                 materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(metallicTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    metallicTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic),
                 cancellationToken);
             materialMembers["MetallicMap"] = new Reference
             {
@@ -257,7 +265,9 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 client,
                 materialContainerSlotId,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                ResoniteSceneMaterialConventions.CreateTextureMembers(emissionTextureUri),
+                ResoniteSceneMaterialConventions.CreateTextureMembers(
+                    emissionTextureUri,
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission),
                 cancellationToken);
             materialMembers["EmissiveMap"] = new Reference
             {
