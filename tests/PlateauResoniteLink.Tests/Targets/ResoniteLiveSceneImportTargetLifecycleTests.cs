@@ -278,7 +278,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_FailsWhenSharedCommonMaterialIsNotMarkedForBootstrapSetup()
+    public async Task ExecuteAsync_PreparesSharedCommonMaterialDuringRuntimeWhenBootstrapSetupDoesNotMarkIt()
     {
         using TemporaryDirectory datasetDirectory = new();
         using TemporaryDirectory workDirectory = new();
@@ -319,21 +319,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             workDirectory.Path,
             commonMaterials: []);
 
-        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => builder.ExecuteAsync(
-                plan,
-                CreateImportedCityObjects(CreateBundledFacadeCityObject("bootstrap-common-missing"))));
+        _ = await builder.ExecuteAsync(
+            plan,
+            CreateImportedCityObjects(CreateVertexColorTriangleCityObject("runtime-common-material")));
 
         Assert.Contains(
-            "Bootstrap did not resolve shared/common material",
-            exception.Message,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            routedClient.AddedSlots,
-            static slot => string.Equals(
-                slot.Data.Name?.Value,
-                BundledDefaultMaterialFamilies.Facade,
-                StringComparison.Ordinal));
+            routedClient.SlotPaths.Values,
+            static path => path.EndsWith("/vertex-color/shared_uv_vertex-color", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -997,6 +989,35 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CollisionEnabled: true,
             SourceObjectKey: objectKey,
             SourceUnitKey: objectKey,
+            SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
+    }
+
+    private static ResoniteConstructionCityObject CreateVertexColorTriangleCityObject(string objectIdentity)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "vertex-color-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.VertexColor,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+            ],
+            CollisionEnabled: true,
+            SourceObjectKey: objectIdentity,
+            SourceUnitKey: objectIdentity,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 

@@ -133,6 +133,21 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
+    public void HasOverlayCoverageReturnsFalseForBootstrapParsedCityObjectWhenSurfaceHasNoVertices()
+    {
+        BootstrapParsedCityObject cityObject = BootstrapParsedCityObject.FromLegacy(CreateCityObject(
+            CreateGeneratedSurface("dem-empty-surface", [])));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, 139.0100),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(cityObject, overlays);
+
+        Assert.False(hasCoverage);
+    }
+
+    [Fact]
     public void SplitParsedCityObjectClipsSharedDemToRequestedMeshEvenWhenNoOverlaysExist()
     {
         LocalCityGmlObjectProjection.ParsedSurface surface = CreateGeneratedSurface(

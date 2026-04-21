@@ -55,6 +55,11 @@ internal static class DemTerrainOverlayAssignment
 
             foreach (BootstrapParsedSurface requestedMeshClippedSurface in requestedMeshClippedSurfaces)
             {
+                if (!requestedMeshClippedSurface.Vertices.Any())
+                {
+                    return false;
+                }
+
                 GeographicRectangle surfaceBounds = GetSurfaceGeographicBounds(requestedMeshClippedSurface);
                 bool hasContainingOverlay = demTerrainTextureOverlays.Any(overlay =>
                     surfaceBounds.MinLatitude >= overlay.GeographicBounds.MinLatitude
