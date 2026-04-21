@@ -1323,16 +1323,18 @@ public static partial class LocalCityGmlObjectProjection
                 new ResoniteMaterialBinding(
                     MaterialKey: materialGroup.Key,
                     BaseColor: representativeSurface.Surface.BaseColor,
-                    MaterialType: representativeSurface.Material.MaterialType,
+                    MaterialType: (ResoniteMaterialType)representativeSurface.Material.MaterialType,
                     TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
-                    Projection: representativeSurface.Material.Projection,
+                    TextureSourceKind: (ResoniteTextureSourceKind)representativeSurface.Material.TextureSourceKind,
+                    Projection: (ResoniteMaterialProjection)representativeSurface.Material.Projection,
                     DepthOffset: representativeSurface.DepthOffset,
                     SubmeshIndices: [materialIndex],
                     TextureScale: representativeSurface.Material.TextureScale,
                     Family: representativeSurface.Material.Family,
                     TextureOffset: null,
-                    AssetScope: representativeSurface.Material.AssetScope,
+                    AssetScope: representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
+                        ? ResoniteMaterialAssetScope.Common
+                        : ResoniteMaterialAssetScope.PresentationSlotScoped,
                     TerrainOverlay: representativeSurface.Material.TerrainOverlay,
                     BundledVariantIndex: representativeSurface.Material.BundledVariantIndex));
         }
@@ -1384,13 +1386,13 @@ public static partial class LocalCityGmlObjectProjection
             return new ResolvedSurfaceMaterial(
                 surface,
                 new ResolvedMaterial(
-                    ResoniteMaterialType.Standard,
+                    MaterialType.Standard,
                     TexturePayload: null,
-                    ResoniteTextureSourceKind.Dataset,
-                    ResoniteMaterialProjection.Uv,
+                    TextureSourceKind.Dataset,
+                    MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+                    ReuseScope: MaterialReuseScope.PerObject,
                     TerrainOverlay: demTerrainTextureOverlay),
                 DepthOffset: null);
         }
@@ -1403,26 +1405,26 @@ public static partial class LocalCityGmlObjectProjection
                 return new ResolvedSurfaceMaterial(
                     surface,
                     new ResolvedMaterial(
-                        ResoniteMaterialType.VertexColor,
+                        MaterialType.VertexColor,
                         TexturePayload: null,
-                        ResoniteTextureSourceKind.Bundled,
-                        ResoniteMaterialProjection.Uv,
+                        TextureSourceKind.Bundled,
+                        MaterialProjection.Uv,
                         Family: null,
                         TextureScale: null,
-                        AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                        ReuseScope: MaterialReuseScope.PerObject),
                     DepthOffset: null);
             }
 
             return new ResolvedSurfaceMaterial(
                 surface with { BaseColor = DefaultVegetationMaterialColor },
                 new ResolvedMaterial(
-                    ResoniteMaterialType.Standard,
+                    MaterialType.Standard,
                     TexturePayload: null,
-                    ResoniteTextureSourceKind.Bundled,
-                    ResoniteMaterialProjection.Uv,
+                    TextureSourceKind.Bundled,
+                    MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    ReuseScope: MaterialReuseScope.PerObject),
                 DepthOffset: null);
         }
 
@@ -1431,13 +1433,13 @@ public static partial class LocalCityGmlObjectProjection
             return new ResolvedSurfaceMaterial(
                 surface,
                 new ResolvedMaterial(
-                    ResoniteMaterialType.VertexColor,
+                    MaterialType.VertexColor,
                     TexturePayload: null,
-                    ResoniteTextureSourceKind.Bundled,
-                    ResoniteMaterialProjection.Uv,
+                    TextureSourceKind.Bundled,
+                    MaterialProjection.Uv,
                     Family: null,
                     TextureScale: null,
-                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+                    ReuseScope: MaterialReuseScope.PerObject),
                 DefaultTerrainAlignedMaterialDepthOffset);
         }
 
@@ -1712,12 +1714,12 @@ public static partial class LocalCityGmlObjectProjection
         List<int> indices)
     {
         List<(ResoniteMeshVertex First, ResoniteMeshVertex Second, ResoniteMeshVertex Third, string SortKey)> triangles = [];
-        bool useVertexColors = material.MaterialType == ResoniteMaterialType.VertexColor;
+        bool useVertexColors = material.MaterialType == MaterialType.VertexColor;
         DemUvProjection? generatedDemUvProjection = surface.UsesGeneratedDemTexture ? demUvProjection : null;
         bool useGeneratedDemUv = generatedDemUvProjection is not null;
         SurfaceUvProjection? generatedSurfaceUvProjection = !useGeneratedDemUv
             && surface.TexturePayload is null
-            && material.Projection == ResoniteMaterialProjection.Uv
+            && material.Projection == MaterialProjection.Uv
                 ? CreateGeneratedSurfaceUvProjection(
                     surface,
                     cityObject.PackageName,
@@ -2377,11 +2379,11 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     private static string CreateMaterialKey(
-        ResoniteMaterialType materialType,
+        MaterialType materialType,
         TerrainTextureOverlay? terrainOverlay,
         ResoniteTexturePayload? texturePayload,
-        ResoniteTextureSourceKind textureSourceKind,
-        ResoniteMaterialProjection projection,
+        TextureSourceKind textureSourceKind,
+        MaterialProjection projection,
         ResoniteMaterialDepthOffset? depthOffset,
         ResoniteFloat2? textureScale,
         string? family,
@@ -2422,7 +2424,7 @@ public static partial class LocalCityGmlObjectProjection
         ResoniteColor color,
         ResoniteFloat2? textureOffset = null)
     {
-        if (material.AssetScope == ResoniteMaterialAssetScope.Common)
+        if (material.ReuseScope == MaterialReuseScope.Shared)
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
@@ -2883,15 +2885,17 @@ public static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor),
                     BaseColor: representativeSurface.Surface.BaseColor,
-                    MaterialType: representativeSurface.Material.MaterialType,
+                    MaterialType: (ResoniteMaterialType)representativeSurface.Material.MaterialType,
                     TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
-                    Projection: representativeSurface.Material.Projection,
+                    TextureSourceKind: (ResoniteTextureSourceKind)representativeSurface.Material.TextureSourceKind,
+                    Projection: (ResoniteMaterialProjection)representativeSurface.Material.Projection,
                     DepthOffset: representativeSurface.DepthOffset,
                     SubmeshIndices: [materialIndex],
                     TextureScale: representativeSurface.Material.TextureScale,
                     Family: representativeSurface.Material.Family,
-                    AssetScope: representativeSurface.Material.AssetScope,
+                    AssetScope: representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
+                        ? ResoniteMaterialAssetScope.Common
+                        : ResoniteMaterialAssetScope.PresentationSlotScoped,
                     TerrainOverlay: representativeSurface.Material.TerrainOverlay,
                     BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
             })
@@ -3272,16 +3276,18 @@ public static partial class LocalCityGmlObjectProjection
                         representativeSurface.Surface.BaseColor,
                         null),
                     BaseColor: representativeSurface.Surface.BaseColor,
-                    MaterialType: representativeSurface.Material.MaterialType,
+                    MaterialType: (ResoniteMaterialType)representativeSurface.Material.MaterialType,
                     TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: representativeSurface.Material.TextureSourceKind,
-                    Projection: representativeSurface.Material.Projection,
+                    TextureSourceKind: (ResoniteTextureSourceKind)representativeSurface.Material.TextureSourceKind,
+                    Projection: (ResoniteMaterialProjection)representativeSurface.Material.Projection,
                     DepthOffset: representativeSurface.DepthOffset,
                     SubmeshIndices: [materialIndex],
                     TextureScale: representativeSurface.Material.TextureScale,
                     Family: representativeSurface.Material.Family,
                     TextureOffset: null,
-                    AssetScope: representativeSurface.Material.AssetScope,
+                    AssetScope: representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
+                        ? ResoniteMaterialAssetScope.Common
+                        : ResoniteMaterialAssetScope.PresentationSlotScoped,
                     TerrainOverlay: representativeSurface.Material.TerrainOverlay,
                     BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
             })
