@@ -386,6 +386,45 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncBakesAlbedoOnlyFamilyMaterialsWithinCityObjectIntoSingleAtlasMaterial()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateAlbedoFamilyLod2Building(
+                "building-family-albedo",
+                CreatePayload("textures/family-red.png", new Rgba32(255, 0, 0, 255), 1, 1),
+                CreatePayload("textures/family-green.png", new Rgba32(0, 255, 0, 255), 1, 1),
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        Assert.Single(cityObject.Materials);
+        Assert.Single(cityObject.Mesh.Submeshes);
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
+        Assert.NotNull(atlasPayload.Width);
+        Assert.NotNull(atlasPayload.Height);
+        Assert.True(atlasPayload.Width > 0);
+        Assert.True(atlasPayload.Height > 0);
+
+        HashSet<Rgba32> atlasColors = [];
+        int pixelCount = atlasPayload.Width.Value * atlasPayload.Height.Value;
+        for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++)
+        {
+            int offset = pixelIndex * 4;
+            atlasColors.Add(new Rgba32(
+                atlasPayload.BinaryPayload[offset],
+                atlasPayload.BinaryPayload[offset + 1],
+                atlasPayload.BinaryPayload[offset + 2],
+                atlasPayload.BinaryPayload[offset + 3]));
+        }
+
+        Assert.Contains(new Rgba32(255, 0, 0, 255), atlasColors);
+        Assert.Contains(new Rgba32(0, 255, 0, 255), atlasColors);
+        Assert.DoesNotContain(new Rgba32(0, 0, 0, 0), atlasColors);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncKeepsDistinctSourceUnitsInSeparateAtlasBatches()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -699,6 +738,59 @@ public sealed class Lod2AtlasCityObjectBakerTests
                     TextureOffset: textureOffset),
             ],
         };
+    }
+
+    private static ResoniteConstructionCityObject CreateAlbedoFamilyLod2Building(
+        string slotKey,
+        ResoniteTexturePayload redFamilyTexture,
+        ResoniteTexturePayload greenFamilyTexture,
+        string sourceUnitKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, $"{slotKey}-family-red", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, $"{slotKey}-family-green", [3, 4, 5]),
+                ]),
+            Materials: [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-family-red",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: redFamilyTexture,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    Family: BundledDefaultMaterialFamilies.Facade),
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-family-green",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: greenFamilyTexture,
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Facade),
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateCommonVariantMixedLod2Building(
