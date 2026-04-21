@@ -377,13 +377,16 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     {
         string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
         BatchPlanEntityId textureId = CreateBatchPlanEntityId($"renderer-texture:{overrideIdentity}");
+        ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding.ClampWrapMode
+            ? ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride
+            : ResoniteSceneMaterialConventions.TextureMemberRole.Albedo;
         componentEmissions.Add(new PlannedBatchComponentEmission(
             textureId,
             assetSlotId,
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             ResoniteSceneMaterialConventions.CreateTextureMembers(
                 binding.MainTexture.AssetUri,
-                ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride)));
+                textureRole)));
 
         BatchPlanEntityId propertyBlockId = CreateBatchPlanEntityId($"renderer-main-texture-property-block:{overrideIdentity}");
         componentEmissions.Add(new PlannedBatchComponentEmission(

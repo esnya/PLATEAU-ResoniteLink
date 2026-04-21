@@ -278,6 +278,46 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal(propertyBlockComponent.Identity.Value, propertyBlockReference.TargetID);
         Assert.Equal(propertyBlockComponent.ContainerId, meshRenderer.ContainerId);
         Assert.Equal(overrideTexture.Identity.Value, Assert.IsType<Reference>(propertyBlockComponent.Members["Texture"]).TargetID);
+        Assert.DoesNotContain("WrapModeU", overrideTexture.Members.Keys);
+        Assert.DoesNotContain("WrapModeV", overrideTexture.Members.Keys);
+        Assert.DoesNotContain("PreferredProfile", overrideTexture.Members.Keys);
+    }
+
+    [Fact]
+    public void CreatePlannedBatchEmission_ClampsTerrainMainTextureOverride()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot("asset-lod-slot", "Asset LOD"),
+            new CreatedSlot("lod-slot", "LOD"),
+            "Triangle Object",
+            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            null);
+        PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), "shared-material-id");
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedTriangleMeshGeometryAsset(
+                new GeometryIdentity("geom"),
+                "Triangle Object",
+                new Uri("resdb:///mesh/triangle")),
+            [reusableMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [
+                    new PlannedMainTextureOverrideRendererMaterialBinding(
+                        reusableMaterial.Identity,
+                        new PlannedTextureAsset(new TextureIdentity("override"), new Uri("resdb:///texture/override")),
+                        ClampWrapMode: true),
+                ]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                false));
+
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission overrideTexture = Assert.Single(
+            batchPlan.ComponentEmissions,
+            component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
+                && string.Equals(component.ContainerId, "plan:mesh-asset-slot", StringComparison.Ordinal));
+
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTexture.Members["WrapModeU"]).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTexture.Members["WrapModeV"]).Value);
         Assert.DoesNotContain("PreferredProfile", overrideTexture.Members.Keys);

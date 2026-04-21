@@ -54,7 +54,8 @@ internal sealed record PlannedDirectRendererMaterialBinding(MaterialIdentity Mat
 
 internal sealed record PlannedMainTextureOverrideRendererMaterialBinding(
     MaterialIdentity MaterialIdentity,
-    PlannedTextureAsset MainTexture)
+    PlannedTextureAsset MainTexture,
+    bool ClampWrapMode = false)
     : PlannedRendererMaterialBinding(MaterialIdentity);
 
 internal sealed record PlannedRenderer(
