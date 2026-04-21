@@ -88,6 +88,8 @@ By default, the CLI prints milestone-level progress and keeps detailed per-file 
 
 When `--work-root` is omitted, the CLI stores dataset-local archives and live temporary files under `local/<dataset>/`. Terrain tile downloads are cached separately under the local app-data cache root by default; override that path with `--terrain-tile-cache-root` or disable cross-run tile caching with `--disable-terrain-tile-cache`.
 
+After a successful import, the CLI prints a datasource summary that includes the CityGML source files used for the run and any DEM texture sources consumed during terrain texture composition.
+
 ## Further Reading
 
 - Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
