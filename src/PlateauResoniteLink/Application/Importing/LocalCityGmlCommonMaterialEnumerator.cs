@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 using GeographicLib;
 
@@ -11,7 +12,7 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
 {
     private readonly IDefaultMaterialResolver materialResolver = materialResolver;
 
-    public IEnumerable<ResoniteMaterialBinding> Enumerate(
+    public IEnumerable<MaterialBinding> Enumerate(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -22,15 +23,16 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
         ISet<string>? emittedMaterialKeys = null)
     {
         return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
-            sourceFile.ToLegacy(),
-            referenceSystem.ToLegacy(),
-            globalOriginPoint.ToLegacy(),
-            globalCartesian,
-            demTerrainTextureOverlays,
-            requestedMeshAreas,
-            terrainHeightSampler: null,
-            request,
-            materialResolver,
-            emittedMaterialKeys);
+                sourceFile.ToLegacy(),
+                referenceSystem.ToLegacy(),
+                globalOriginPoint.ToLegacy(),
+                globalCartesian,
+                demTerrainTextureOverlays,
+                requestedMeshAreas,
+                terrainHeightSampler: null,
+                request,
+                materialResolver,
+                emittedMaterialKeys)
+            .Select(SceneImportContractMapper.ToContract);
     }
 }

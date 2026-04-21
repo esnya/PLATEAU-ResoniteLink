@@ -36,7 +36,7 @@ public sealed record SceneImportExecutionPlan
         ImportedSceneMetadata metadata,
         string resolvedSourcePath,
         string workRoot,
-        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null)
+        IReadOnlyList<MaterialBinding>? commonMaterials = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentException.ThrowIfNullOrWhiteSpace(resolvedSourcePath);

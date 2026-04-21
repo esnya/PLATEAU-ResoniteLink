@@ -251,7 +251,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         ResoniteConstructionMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
-        IReadOnlyList<ResoniteMaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(["bldg"]);
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,

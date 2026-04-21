@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal interface ICityGmlCommonMaterialEnumerator
 {
-    IEnumerable<ResoniteMaterialBinding> Enumerate(
+    IEnumerable<MaterialBinding> Enumerate(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,

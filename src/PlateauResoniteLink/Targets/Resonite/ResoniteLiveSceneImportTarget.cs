@@ -138,7 +138,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     private async Task<LiveSendRunState> CreateRunStateAsync(
         SceneBootstrapInfo bootstrapInfo,
         string workRoot,
-        IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
+        IReadOnlyList<MaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
         ResoniteLocalOrigin requestLocalOrigin,
         CancellationToken cancellationToken)
@@ -161,6 +161,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
+        ResoniteMaterialBinding[] internalCommonMaterials = commonMaterials
+            .Select(SceneImportContractMapper.ToInternal)
+            .ToArray();
         await ClientSessionInternal.EnsureConnectedAsync(normalizedRequest, cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
@@ -172,7 +175,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         LiveSendProgressSink progress = new();
         CommonMaterialAssetCache materials = new()
         {
-            BootstrapKnownMaterialKeys = CollectBootstrapKnownCommonMaterialKeys(commonMaterials),
+            BootstrapKnownMaterialKeys = CollectBootstrapKnownCommonMaterialKeys(internalCommonMaterials),
         };
         ReportProgress(
             PlateauLog.Info(
@@ -189,7 +192,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteSceneBootstrapState bootstrapState = await sceneBootstrapInterpreter.BootstrapAsync(
             routedClient,
             runPlan.BootstrapInfo,
-            commonMaterials,
+            internalCommonMaterials,
             cancellationToken);
         bootstrapStopwatch.Stop();
         ResoniteSharedSlotIndex placement = new(

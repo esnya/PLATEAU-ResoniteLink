@@ -8,9 +8,9 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public static class CommonMaterialCatalog
 {
-    private static readonly ResoniteColor CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
+    private static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
-    public static IReadOnlyList<ResoniteMaterialBinding> CreateForPackages(
+    public static IReadOnlyList<MaterialBinding> CreateForPackages(
         IReadOnlyList<string> packageNames)
     {
         ArgumentNullException.ThrowIfNull(packageNames);
@@ -49,51 +49,53 @@ public static class CommonMaterialCatalog
             }
         }
 
-        List<ResoniteMaterialBinding> materials = [];
+        List<MaterialBinding> materials = [];
         foreach (string family in families)
         {
             for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.GetVariants(family).Count; variantIndex++)
             {
-                materials.Add(CreateBinding(family, variantIndex, ResoniteMaterialProjection.Uv));
-                materials.Add(CreateBinding(family, variantIndex, ResoniteMaterialProjection.Triplanar));
+                materials.Add(CreateBinding(family, variantIndex, MaterialProjection.Uv));
+                materials.Add(CreateBinding(family, variantIndex, MaterialProjection.Triplanar));
             }
         }
 
-        materials.Add(ResoniteMaterialSharing.CreateSharedAlbedoCommonMaterial());
-        materials.Add(ResoniteMaterialSharing.CreateSharedVertexColorCommonMaterial());
+        materials.Add(SceneImportContractMapper.ToContract(ResoniteMaterialSharing.CreateSharedAlbedoCommonMaterial()));
+        materials.Add(SceneImportContractMapper.ToContract(ResoniteMaterialSharing.CreateSharedVertexColorCommonMaterial()));
 
         return materials;
     }
 
-    private static ResoniteMaterialBinding CreateBinding(
+    private static MaterialBinding CreateBinding(
         string family,
         int variantIndex,
-        ResoniteMaterialProjection projection)
+        MaterialProjection projection)
     {
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
-        return new ResoniteMaterialBinding(
+        return new MaterialBinding(
             MaterialKey: CreateMaterialKey(family, variantIndex, projection),
             BaseColor: CanonicalBaseColor,
-            MaterialType: ResoniteMaterialType.Standard,
+            MaterialType: MaterialType.Standard,
             TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            TextureSourceKind: TextureSourceKind.Bundled,
             Projection: projection,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath),
+            TextureScale: ToContract(BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath)),
             Family: family,
             TextureOffset: null,
-            AssetScope: ResoniteMaterialAssetScope.Common,
+            ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: variantIndex);
     }
 
     private static string CreateMaterialKey(
         string family,
         int variantIndex,
-        ResoniteMaterialProjection projection)
+        MaterialProjection projection)
     {
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"common|{family}|variant:{variantIndex}|{projection}");
     }
+
+    private static Float2 ToContract(ResoniteFloat2 value) => new(value.X, value.Y);
 }

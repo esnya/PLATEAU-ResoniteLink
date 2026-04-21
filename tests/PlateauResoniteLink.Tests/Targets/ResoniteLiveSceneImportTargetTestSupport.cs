@@ -141,7 +141,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ResoniteConstructionMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
-        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null,
+        IReadOnlyList<MaterialBinding>? commonMaterials = null,
         CancellationToken cancellationToken = default)
     {
         return builder.ExecuteAsync(
@@ -157,7 +157,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ResoniteConstructionMetadata metadata,
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
-        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null)
+        IReadOnlyList<MaterialBinding>? commonMaterials = null)
     {
         string? resolvedSourcePath = normalizedRequest?.Source is RemoteDatasetLocation
             ? null
@@ -175,7 +175,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
         string? resolvedSourcePath = null,
-        IReadOnlyList<ResoniteMaterialBinding>? commonMaterials = null)
+        IReadOnlyList<MaterialBinding>? commonMaterials = null)
     {
         PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
         PlateauImportRequest resolvedRequest = CreateResolvedRequest(
@@ -194,15 +194,15 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             commonMaterials ?? CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames));
     }
 
-    private static IReadOnlyList<ResoniteMaterialBinding> CollectExecutionPlanCommonMaterials(
+    private static IReadOnlyList<MaterialBinding> CollectExecutionPlanCommonMaterials(
         ResoniteConstructionMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
     {
         Dictionary<string, ResoniteMaterialBinding> materialsByKey = new(StringComparer.Ordinal);
 
-        foreach (ResoniteMaterialBinding material in CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames))
+        foreach (MaterialBinding material in CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames))
         {
-            AddNormalizedCommonMaterial(materialsByKey, material);
+            AddNormalizedCommonMaterial(materialsByKey, SceneImportContractMapper.ToInternal(material));
         }
 
         foreach (ResoniteConstructionCityObject cityObject in cityObjects)
@@ -225,6 +225,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
         return materialsByKey.Values
             .OrderBy(static material => material.MaterialKey, StringComparer.Ordinal)
+            .Select(SceneImportContractMapper.ToContract)
             .ToArray();
     }
 

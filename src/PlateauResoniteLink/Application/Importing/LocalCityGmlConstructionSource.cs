@@ -75,7 +75,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(
                     parsedSourceFile.SourceFile,
                     parsedCityObject);
-                foreach (ResoniteMaterialBinding material in commonMaterialEnumerator.Enumerate(
+                foreach (MaterialBinding material in commonMaterialEnumerator.Enumerate(
                              new CachedSourceFileDescriptor(parsedSourceFile.SourceFile, [parsedCityObject]),
                              resolvedReferenceSystem,
                              globalOriginPoint,
@@ -86,7 +86,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                              emittedMaterialKeys))
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    yield return SceneImportContractMapper.ToContract(material);
+                    yield return material;
                 }
             }
         }

@@ -11,7 +11,7 @@ public sealed class CommonMaterialCatalogTests
     [Fact]
     public void CreateForPackages_IncludesSharedAlbedoAndVertexColorCommonMaterials()
     {
-        IReadOnlyList<ResoniteMaterialBinding> materials = CommonMaterialCatalog.CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> materials = CommonMaterialCatalog.CreateForPackages(["bldg"]);
 
         Assert.Contains(
             materials,
