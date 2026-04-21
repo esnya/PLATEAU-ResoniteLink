@@ -1805,6 +1805,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         }
 
         ResoniteSceneSlotSnapshot familySlotView = new(familySlotSnapshot);
+        CreatedSlot? reusableSlotWithoutComponent = null;
         foreach (string materialSlotName in lookupNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
         {
             ResoniteSceneChildLookupResult materialLookup = familySlotView.GetUniqueChildLookupResult(materialSlotName, familySlot.SlotId);
@@ -1821,10 +1822,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             CreatedSlot reusableSlot = new(
                 materialLookup.SlotId!,
                 materialLookup.Slot.Name?.Value ?? materialSlotName);
-            return (reusableSlot, existingComponentId);
+            if (!string.IsNullOrWhiteSpace(existingComponentId))
+            {
+                return (reusableSlot, existingComponentId);
+            }
+
+            reusableSlotWithoutComponent ??= reusableSlot;
         }
 
-        return (null, null);
+        return (reusableSlotWithoutComponent, null);
     }
 
     private static bool IsDemPackage(string packageName)
