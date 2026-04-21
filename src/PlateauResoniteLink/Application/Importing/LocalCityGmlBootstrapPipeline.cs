@@ -37,23 +37,6 @@ internal static class LocalCityGmlBootstrapPipeline
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await ReadDocumentSetCoreInternalAsync(
-            request,
-            datasetContentSourceFactory,
-            progressReporter,
-            appearanceStoreFactory,
-            lodSelector,
-            cancellationToken);
-    }
-
-    private static async Task<LocalCityGmlDocumentReadResult> ReadDocumentSetCoreInternalAsync(
-        PlateauImportRequest request,
-        IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
-        Action<string>? progressReporter,
-        ICityGmlAppearanceStoreFactory appearanceStoreFactory,
-        ICityGmlLodSelector lodSelector,
-        CancellationToken cancellationToken)
-    {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(datasetContentSourceFactory);
         ArgumentNullException.ThrowIfNull(appearanceStoreFactory);

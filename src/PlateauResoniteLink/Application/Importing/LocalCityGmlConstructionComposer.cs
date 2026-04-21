@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -14,6 +13,8 @@ internal sealed class LocalCityGmlConstructionComposer(
     private readonly ICityGmlGeometryProjector geometryProjector = geometryProjector;
     private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator = commonMaterialEnumerator;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy = demTextureSourcePolicy;
+    private const string PlateauLicenseName = "PLATEAU Open Data Terms";
+    private const string PlateauLicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/";
 
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
@@ -24,7 +25,6 @@ internal sealed class LocalCityGmlConstructionComposer(
         ArgumentNullException.ThrowIfNull(readResult);
         LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
         LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
-        ResoniteAttribution attribution = PlateauResoniteAttributionFactory.Create(request);
 
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -35,23 +35,7 @@ internal sealed class LocalCityGmlConstructionComposer(
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
                 TerrainTextureOverlays: documentSet.TerrainTextureOverlays.ToArray(),
                 SelectedMeshCodes: documentSet.SelectedMeshCodes),
-            Attribution: new Attribution(
-                DatasetLicense: new LicenseMetadata(
-                    attribution.DatasetLicense.RequireCredit,
-                    attribution.DatasetLicense.CreditText,
-                    attribution.DatasetLicense.LicenseName,
-                    attribution.DatasetLicense.LicenseUrl),
-                MaterialLicenses: attribution.MaterialLicenses
-                    .Select(static license => new MaterialAttribution(
-                        license.MaterialKey,
-                        license.License is null
-                            ? null
-                            : new LicenseMetadata(
-                                license.License.RequireCredit,
-                                license.License.CreditText,
-                                license.License.LicenseName,
-                                license.License.LicenseUrl)))
-                    .ToArray()),
+            Attribution: CreateAttribution(request),
             GeodeticOrigin: new GeodeticOrigin(
                 Latitude: bootstrapContext.GlobalOriginPoint.Latitude,
                 Longitude: bootstrapContext.GlobalOriginPoint.Longitude,
@@ -65,5 +49,16 @@ internal sealed class LocalCityGmlConstructionComposer(
             commonMaterialEnumerator,
             demTextureSourcePolicy,
             progressReporter);
+    }
+
+    private static Attribution CreateAttribution(PlateauImportRequest request)
+    {
+        return new Attribution(
+            DatasetLicense: new LicenseMetadata(
+                RequireCredit: true,
+                CreditText: $"Contains PLATEAU dataset content for {request.Dataset}. Follow the original PLATEAU dataset terms and provide source attribution when redistributing derived content.",
+                LicenseName: PlateauLicenseName,
+                LicenseUrl: PlateauLicenseUrl),
+            MaterialLicenses: []);
     }
 }
