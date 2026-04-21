@@ -139,6 +139,68 @@ public sealed class LocalCityGmlConstructionSourceTests
     }
 
     [Fact]
+    public async Task ReadCommonMaterialsAsyncReusesParsedSourceFileInsteadOfReparsingStreamFactory()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            SourceKind: DatasetSourceKind.Local,
+            LocalSourcePath: "/tmp/source.zip",
+            ServerUri: null);
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor sourceFile = new("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false);
+        BootstrapParsedCityObject parsedCityObject = CreateRenderableParsedCityObject(sourceFile, referenceSystem);
+        int parseTaskInvocationCount = 0;
+        int streamFactoryInvocationCount = 0;
+        SourceFilePipeline pipeline = new(
+            sourceFile,
+            parseTaskFactory: () =>
+            {
+                Interlocked.Increment(ref parseTaskInvocationCount);
+                return Task.FromResult(
+                    new ParsedSourceFileResult(
+                        sourceFile,
+                        [parsedCityObject],
+                        referenceSystem,
+                        [],
+                        TimeSpan.Zero));
+            },
+            streamFactory: cancellationToken => CountedParsedCityObjectStream(cancellationToken));
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request),
+            request,
+            new LocalCityGmlDocumentReadResult(
+                new LocalCityGmlDocumentSet(
+                    new EmptyDatasetContentSource(),
+                    [sourceFile.RelativePath],
+                    [sourceFile.PackageName],
+                    [],
+                    ["57402736"]),
+                new LocalCityGmlBootstrapContext(
+                    [pipeline],
+                    new GeodeticPoint(35.0, 139.0, 0.0))),
+            new TrackingGeometryProjector(),
+            CommonMaterialEnumerator,
+            new StubDemTextureSourcePolicy());
+
+        await source.ReadCommonMaterialsAsync().ToListAsync();
+        await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.Equal(1, parseTaskInvocationCount);
+        Assert.Equal(1, streamFactoryInvocationCount);
+        return;
+
+        async IAsyncEnumerable<BootstrapParsedCityObject> CountedParsedCityObjectStream(
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref streamFactoryInvocationCount);
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return parsedCityObject;
+            await Task.CompletedTask;
+        }
+    }
+
+    [Fact]
     public async Task ReadCityObjectsAsyncPreservesExplicitRasterWhenFallbackOverlayCoverageIsRebuilt()
     {
         PlateauImportRequest request = new(
@@ -285,6 +347,46 @@ public sealed class LocalCityGmlConstructionSourceTests
             SourceFileRelativePath: sourceFile.RelativePath,
             SourceUnitIdentity: "test-unit",
             SourceIdentity: $"{sourceFile.PackageName}:slot-{index:000}",
+            SharedAcrossMeshCodes: false);
+    }
+
+    private static BootstrapParsedCityObject CreateRenderableParsedCityObject(
+        SourceFileDescriptor sourceFile,
+        CoordinateReferenceSystem referenceSystem)
+    {
+        return new BootstrapParsedCityObject(
+            SlotKey: "slot-renderable",
+            DisplayName: "slot-renderable",
+            PackageName: sourceFile.PackageName,
+            ActualMeshCode: sourceFile.MatchedMeshCode,
+            LodLevel: 1,
+            Surfaces:
+            [
+                new BootstrapParsedSurface(
+                    PolygonId: "surface-renderable",
+                    Semantic: BootstrapParsedSurfaceSemantic.Wall,
+                    ExteriorRing: new BootstrapParsedRing(
+                        "ring-renderable",
+                        [
+                            new GeodeticPoint(35.01, 139.01, 0.0),
+                            new GeodeticPoint(35.01, 139.02, 0.0),
+                            new GeodeticPoint(35.02, 139.02, 0.0),
+                        ],
+                        UVs:
+                        [
+                            new ResoniteFloat2(0.0, 0.0),
+                            new ResoniteFloat2(1.0, 0.0),
+                            new ResoniteFloat2(0.0, 1.0),
+                        ]),
+                    InteriorRings: [],
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    TexturePayload: null,
+                    UsesGeneratedDemTexture: false),
+            ],
+            ReferenceSystem: referenceSystem,
+            SourceFileRelativePath: sourceFile.RelativePath,
+            SourceUnitIdentity: "test-unit",
+            SourceIdentity: $"{sourceFile.PackageName}:slot-renderable",
             SharedAcrossMeshCodes: false);
     }
 

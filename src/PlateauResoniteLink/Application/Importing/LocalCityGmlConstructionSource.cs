@@ -65,19 +65,21 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
 
         foreach (SourceFilePipeline sourceFile in sourceFiles)
         {
-            CoordinateReferenceSystem? resolvedReferenceSystem = null;
-            LocalCartesian? globalCartesian = null;
+            ParsedSourceFileResult parsedSourceFile = await sourceFile.GetParseTask().WaitAsync(cancellationToken);
+            CoordinateReferenceSystem resolvedReferenceSystem = ResolveReferenceSystem(parsedSourceFile);
+            LocalCartesian? globalCartesian = CreateGlobalCartesian(resolvedReferenceSystem);
 
-            await foreach (BootstrapParsedCityObject parsedCityObject in sourceFile.StreamParsedCityObjectsAsync(cancellationToken))
+            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = CreateDemTerrainTextureOverlays(
-                    sourceFile.SourceFile,
+                    parsedSourceFile.SourceFile,
                     parsedCityObject);
                 foreach (ResoniteMaterialBinding material in commonMaterialEnumerator.Enumerate(
-                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
-                             resolvedReferenceSystem ??= ResolveReferenceSystem(parsedCityObject.ReferenceSystem),
+                             new CachedSourceFileDescriptor(parsedSourceFile.SourceFile, [parsedCityObject]),
+                             resolvedReferenceSystem,
                              globalOriginPoint,
-                             globalCartesian ??= CreateGlobalCartesian(resolvedReferenceSystem),
+                             globalCartesian,
                              demTerrainTextureOverlays,
                              requestedMeshAreas,
                              request,
