@@ -30,9 +30,44 @@ internal static class ResoniteBatchOperations
         BatchTemporaryMessageId MessageId,
         string Description);
 
+    public static PendingBatchSlot CreatePendingSlot(
+        string prefix,
+        string slotName,
+        string batchScopeToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(slotName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(batchScopeToken);
+
+        return new PendingBatchSlot(
+            new BatchTemporarySlotId($"{prefix}_{batchScopeToken}"),
+            new BatchTemporaryMessageId($"{prefix}_message_{batchScopeToken}"),
+            slotName);
+    }
+
+    public static PendingBatchComponent CreatePendingComponent(
+        string prefix,
+        string componentType,
+        string batchScopeToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(prefix);
+        ArgumentException.ThrowIfNullOrWhiteSpace(componentType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(batchScopeToken);
+
+        return new PendingBatchComponent(
+            new BatchTemporaryComponentId($"{prefix}_{batchScopeToken}"),
+            new BatchTemporaryMessageId($"{prefix}_message_{batchScopeToken}"),
+            componentType);
+    }
+
+    public static string CreateBatchScopeToken(int byteCount = 4)
+    {
+        return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(byteCount));
+    }
+
     internal sealed class BatchOperationAccumulator
     {
-        private readonly string batchScopeToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
+        private readonly string batchScopeToken = CreateBatchScopeToken(byteCount: 8);
         private int nextEntityId;
         private int nextMessageId;
 
