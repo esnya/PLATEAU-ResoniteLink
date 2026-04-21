@@ -200,8 +200,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
                 []),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
-        public IEnumerable<ImportedCityObject> ReadCityObjects() => [];
-
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -217,3 +215,5 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 }
+
+

@@ -440,11 +440,6 @@ public sealed class PlateauImportServiceTests
             await Task.CompletedTask;
         }
 
-        public IEnumerable<ImportedCityObject> ReadCityObjects()
-        {
-            return cityObjects;
-        }
-
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -502,3 +497,4 @@ public sealed class PlateauImportServiceTests
         }
     }
 }
+

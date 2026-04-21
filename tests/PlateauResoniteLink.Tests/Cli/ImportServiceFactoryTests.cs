@@ -193,11 +193,6 @@ public sealed class ImportServiceFactoryTests
             return AsyncEnumerable.Empty<MaterialBinding>();
         }
 
-        public IEnumerable<ImportedCityObject> ReadCityObjects()
-        {
-            return [];
-        }
-
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -261,3 +256,4 @@ public sealed class ImportServiceFactoryTests
         }
     }
 }
+

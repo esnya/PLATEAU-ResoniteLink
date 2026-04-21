@@ -284,11 +284,6 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             yield break;
         }
 
-        public IEnumerable<ImportedCityObject> ReadCityObjects()
-        {
-            return [];
-        }
-
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -403,3 +398,4 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 }
+
