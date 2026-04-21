@@ -80,6 +80,38 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     }
 
     [Fact]
+    public async Task CreateAsyncFiltersPolicyMeshCodesToDemRequestedFiles()
+    {
+        RecordingDocumentReader reader = new(
+            new LocalCityGmlDocumentReadResult(
+                new LocalCityGmlDocumentSet(
+                    new EmptyDatasetContentSource(),
+                    [
+                        "udx/dem/53394525/terrain.gml",
+                        "udx/bldg/53394526/building.gml",
+                    ],
+                    ["dem", "bldg"],
+                    [],
+                    ["53394525", "53394526"]),
+                new LocalCityGmlBootstrapContext(
+                    [],
+                    new GeodeticPoint(35.0, 139.0, 0.0))));
+        RecordingComposer composer = new(new StubConstructionSource());
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525|53394526",
+            Source: PlateauImportSource.Local("/tmp/plateau"),
+            PackageNames: ["dem", "bldg"],
+            DemTextureSource: PlateauImportSource.Local("C:\\ortho"));
+
+        _ = await factory.CreateAsync(request);
+
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastRequestedMeshCodes);
+    }
+
+    [Fact]
     public async Task CreateAsyncPropagatesDemTextureSourceValidationFromPolicy()
     {
         RecordingDocumentReader reader = new(

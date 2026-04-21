@@ -86,11 +86,10 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             return readResult;
         }
 
+        IReadOnlyList<string> requestedDemMeshCodes = ResolveRequestedDemMeshCodes(request, documentSet);
         ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
             request,
-            documentSet.RequestedMeshCodes.Count > 0
-                ? documentSet.RequestedMeshCodes
-                : [request.MeshCode],
+            requestedDemMeshCodes,
             cancellationToken);
         if (resolvedDemTextureSources.Overlays.Count == 0)
         {
@@ -109,5 +108,18 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         return new LocalCityGmlDocumentReadResult(
             resolvedDocumentSet,
             resolvedBootstrapContext);
+    }
+
+    private static IReadOnlyList<string> ResolveRequestedDemMeshCodes(
+        PlateauImportRequest request,
+        LocalCityGmlDocumentSet documentSet)
+    {
+        LocalCityGmlSourceFileDiscoveryResult demDiscovery = LocalCityGmlSourceFileDiscovery.Discover(
+            documentSet.RelativeSourceFiles,
+            request.MeshCode,
+            ["dem"]);
+        return demDiscovery.RequestedMeshCodes.Count > 0
+            ? demDiscovery.RequestedMeshCodes
+            : [request.MeshCode];
     }
 }
