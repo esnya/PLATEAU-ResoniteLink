@@ -26,7 +26,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             variantSelectionKey);
     }
 
-    public static ResolvedMaterial ResolveMaterialCore(
+    internal static ResolvedMaterial ResolveMaterialCore(
         string packageName,
         ResoniteTexturePayload? texturePayload,
         bool preferUvProjection,

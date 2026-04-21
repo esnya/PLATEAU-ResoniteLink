@@ -3,7 +3,7 @@ using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed record ResolvedMaterial(
+internal sealed record ResolvedMaterial(
     ResoniteMaterialType MaterialType,
     ResoniteTexturePayload? TexturePayload,
     ResoniteTextureSourceKind TextureSourceKind,
