@@ -36,7 +36,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
         GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
         Assert.Equal(139.0000, bounds.MinLongitude, 6);
-        Assert.Equal(boundaryLongitude + 0.0000005, bounds.MaxLongitude, 9);
+        Assert.Equal(boundaryLongitude, bounds.MaxLongitude, 6);
     }
 
     [Fact]

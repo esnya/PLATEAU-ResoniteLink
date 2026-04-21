@@ -124,7 +124,6 @@ internal static class DemTerrainOverlayAssignment
                 }
 
                 if (TryPruneBoundarySliverSplit(
-                        requestedMeshClippedSurface,
                         clippedSurfaces,
                         out IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces))
                 {
@@ -282,7 +281,6 @@ internal static class DemTerrainOverlayAssignment
     }
 
     private static bool TryPruneBoundarySliverSplit(
-        LocalCityGmlObjectProjection.ParsedSurface originalSurface,
         IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clippedSurfaces,
         out IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> prunedSurfaces)
     {
@@ -343,10 +341,7 @@ internal static class DemTerrainOverlayAssignment
 
         if (keptSurfaces.Count == 1)
         {
-            prunedSurfaces =
-            [
-                (originalSurface, keptSurfaces[0].Overlay),
-            ];
+            prunedSurfaces = [keptSurfaces[0]];
             return true;
         }
 

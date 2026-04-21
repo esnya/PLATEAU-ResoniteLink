@@ -129,6 +129,53 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
             Math.Sign(ComputeSignedArea(clippedSurface.ExteriorRing.Vertices)));
     }
 
+    [Fact]
+    public void ClipGeneratedSurfaceToOverlaysRespectsOverlayBoundaryForCentimeterBoundaryOverlap()
+    {
+        const double boundaryLongitude = 139.0100;
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
+            PolygonId: "dem-boundary-overlap",
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
+                "ring-overlap",
+                [
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 10.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 20.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, boundaryLongitude + 0.0000005, 30.0),
+                ],
+                UVs: null),
+            InteriorRings: [],
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        TerrainTextureOverlay[] overlays =
+        [
+            new(
+                PackageName: "dem",
+                UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+                ZoomLevel: 18,
+                GeographicBounds: new GeographicRectangle(35.0000, 35.0100, 139.0000, boundaryLongitude),
+                MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize),
+            new(
+                PackageName: "dem",
+                UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+                ZoomLevel: 18,
+                GeographicBounds: new GeographicRectangle(35.0000, 35.0100, boundaryLongitude, 139.0200),
+                MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize),
+        ];
+
+        IReadOnlyList<(LocalCityGmlObjectProjection.ParsedSurface Surface, TerrainTextureOverlay Overlay)> clipped =
+            DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, overlays);
+
+        Assert.Equal(2, clipped.Count);
+        GeographicRectangle firstBounds = GetSurfaceBounds(clipped[0].Surface);
+        GeographicRectangle secondBounds = GetSurfaceBounds(clipped[1].Surface);
+        Assert.InRange(firstBounds.MaxLongitude, boundaryLongitude - 1e-9, boundaryLongitude + 1e-9);
+        Assert.InRange(secondBounds.MinLongitude, boundaryLongitude - 1e-9, boundaryLongitude + 1e-9);
+        Assert.InRange(firstBounds.MinLongitude, 139.0000 - 1e-9, 139.0000 + 1e-9);
+        Assert.InRange(secondBounds.MaxLongitude, boundaryLongitude, 139.0200);
+    }
+
     private static double ComputeSignedArea(LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
         double signedArea = 0.0;
@@ -165,5 +212,14 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         }
 
         return Math.Abs(signedArea) * 0.5;
+    }
+
+    private static GeographicRectangle GetSurfaceBounds(LocalCityGmlObjectProjection.ParsedSurface surface)
+    {
+        return new GeographicRectangle(
+            MinLatitude: surface.ExteriorRing.Vertices.Min(static point => point.Latitude),
+            MaxLatitude: surface.ExteriorRing.Vertices.Max(static point => point.Latitude),
+            MinLongitude: surface.ExteriorRing.Vertices.Min(static point => point.Longitude),
+            MaxLongitude: surface.ExteriorRing.Vertices.Max(static point => point.Longitude));
     }
 }
