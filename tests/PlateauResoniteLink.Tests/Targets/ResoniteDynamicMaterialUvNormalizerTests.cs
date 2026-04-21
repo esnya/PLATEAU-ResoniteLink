@@ -177,9 +177,34 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Equal(new ResoniteFloat2(0.0, 0.0), triplanarMaterial.TextureOffset);
     }
 
+    [Fact]
+    public void Normalize_BakesTerrainOverlayTextureTransformIntoMeshUv()
+    {
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 17,
+            GeographicBounds: new GeographicRectangle(35.68, 35.69, 139.69, 139.70),
+            MaxTextureSize: 512);
+        ResoniteConstructionCityObject cityObject = CreateTriangleCityObject(
+            new ResoniteFloat2(0.5, 0.25),
+            new ResoniteFloat2(0.125, 0.75),
+            overlay);
+
+        ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+
+        ResoniteMaterialBinding material = Assert.Single(normalized.Materials);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(new ResoniteFloat2(0.125, 0.75), normalized.Mesh.Vertices[0].UV0);
+        Assert.Equal(new ResoniteFloat2(0.625, 0.75), normalized.Mesh.Vertices[1].UV0);
+        Assert.Equal(new ResoniteFloat2(0.125, 1.0), normalized.Mesh.Vertices[2].UV0);
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleCityObject(
         ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset)
+        ResoniteFloat2? textureOffset,
+        TerrainTextureOverlay? terrainOverlay = null)
     {
         return new ResoniteConstructionCityObject(
             SlotKey: "dynamic-uv-city-object",
@@ -199,7 +224,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                 ]),
             Materials:
             [
-                CreateDynamicUvMaterial(textureScale, textureOffset),
+                CreateDynamicUvMaterial(textureScale, textureOffset, terrainOverlay),
             ],
             SourceObjectKey: "unit-a:dynamic-uv-city-object",
             SourceUnitKey: "unit-a",
@@ -208,7 +233,8 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
 
     private static ResoniteMaterialBinding CreateDynamicUvMaterial(
         ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset)
+        ResoniteFloat2? textureOffset,
+        TerrainTextureOverlay? terrainOverlay = null)
     {
         return new ResoniteMaterialBinding(
             MaterialKey: "dynamic-uv-material",
@@ -221,6 +247,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             SubmeshIndices: [0],
             TextureScale: textureScale,
             TextureOffset: textureOffset,
-            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+            AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
+            TerrainOverlay: terrainOverlay);
     }
 }

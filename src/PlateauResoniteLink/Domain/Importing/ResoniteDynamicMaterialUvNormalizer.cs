@@ -12,7 +12,6 @@ public static class ResoniteDynamicMaterialUvNormalizer
 
         return material.MaterialType == ResoniteMaterialType.Standard
             && material.Projection == ResoniteMaterialProjection.Uv
-            && material.TerrainOverlay is null
             && material.AssetScope != ResoniteMaterialAssetScope.Common
             && !(material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
                 && !string.IsNullOrWhiteSpace(material.Family))

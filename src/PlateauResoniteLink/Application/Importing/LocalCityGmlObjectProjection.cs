@@ -1445,17 +1445,11 @@ public static partial class LocalCityGmlObjectProjection
 
         IGrouping<string, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
             .GroupBy(
-                resolvedSurface =>
-                {
-                    (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
-                        TryCreateDemMeshTextureTransform(cityObject, resolvedSurface, demTerrainTextureOverlay, demObjectBounds);
-                    return CreateBindingMaterialKey(
-                        resolvedSurface.Material,
-                        resolvedSurface.DepthOffset,
-                        textureScale ?? resolvedSurface.Material.TextureScale,
-                        resolvedSurface.Surface.BaseColor,
-                        textureOffset);
-                },
+                resolvedSurface => CreateBindingMaterialKey(
+                    resolvedSurface.Material,
+                    resolvedSurface.DepthOffset,
+                    resolvedSurface.Material.TextureScale,
+                    resolvedSurface.Surface.BaseColor),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -1488,8 +1482,6 @@ public static partial class LocalCityGmlObjectProjection
             }
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
-            (ResoniteFloat2? textureScale, ResoniteFloat2? textureOffset) =
-                TryCreateDemMeshTextureTransform(cityObject, representativeSurface, demTerrainTextureOverlay, demObjectBounds);
             submeshes.Add(new ResoniteMeshSubmesh(materialIndex, materialGroup.Key, indices));
             materials.Add(
                 new ResoniteMaterialBinding(
@@ -1501,9 +1493,9 @@ public static partial class LocalCityGmlObjectProjection
                     Projection: representativeSurface.Material.Projection,
                     DepthOffset: representativeSurface.DepthOffset,
                     SubmeshIndices: [materialIndex],
-                    TextureScale: textureScale ?? representativeSurface.Material.TextureScale,
+                    TextureScale: representativeSurface.Material.TextureScale,
                     Family: representativeSurface.Material.Family,
-                    TextureOffset: textureOffset,
+                    TextureOffset: null,
                     AssetScope: representativeSurface.Material.AssetScope,
                     TerrainOverlay: representativeSurface.Material.TerrainOverlay,
                     BundledVariantIndex: representativeSurface.Material.BundledVariantIndex));
@@ -2175,24 +2167,6 @@ public static partial class LocalCityGmlObjectProjection
         }
 
         return TryCreateDemUvProjection(GetCityObjectGeographicBounds(cityObject), cityObject, demTerrainTextureOverlay);
-    }
-
-    private static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateDemMeshTextureTransform(
-        ParsedCityObject cityObject,
-        ResolvedSurfaceMaterial materializedSurface,
-        TerrainTextureOverlay? demTerrainTextureOverlay,
-        GeographicRectangle? cityObjectGeographicBounds = null)
-    {
-        if (!string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase))
-        {
-            return (null, null);
-        }
-
-        return DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(
-            cityObject,
-            materializedSurface,
-            demTerrainTextureOverlay,
-            cityObjectGeographicBounds);
     }
 
     private static SurfaceUvProjection? CreateGeneratedSurfaceUvProjection(

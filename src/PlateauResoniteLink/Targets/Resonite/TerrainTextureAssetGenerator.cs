@@ -274,14 +274,16 @@ internal sealed class TerrainTextureAssetGenerator(
         }
 
         using Image<Rgba32> canvasImage = new(canvasWidth, canvasHeight, DefaultDemGroundFillColor);
+        int drawOffsetX = 0;
+        int drawOffsetY = canvasHeight - image.Height;
         canvasImage.Mutate(context => context.DrawImage(
             image,
-            new Point(0, canvasHeight - image.Height),
+            new Point(drawOffsetX, drawOffsetY),
             1.0f));
         generatedTexture = new GeneratedTerrainTexture(
             CreateRawTextureImport(canvasImage, identity),
             new ResoniteFloat2((double)image.Width / canvasWidth, (double)image.Height / canvasHeight),
-            new ResoniteFloat2(0.0, 0.0),
+            new ResoniteFloat2((double)drawOffsetX / canvasWidth, (double)drawOffsetY / canvasHeight),
             usedSource,
             usedSources.Distinct().ToArray());
         return true;

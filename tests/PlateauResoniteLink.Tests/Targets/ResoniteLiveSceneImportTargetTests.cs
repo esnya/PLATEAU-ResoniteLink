@@ -139,6 +139,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTextureComponent.Members["WrapModeU"]).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTextureComponent.Members["WrapModeV"]).Value);
         Assert.DoesNotContain("PreferredProfile", overrideTextureComponent.Members.Keys);
+        ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
+        Assert.Equal(3, importedMesh.VertexCount);
+        Assert.Equal(0.25f, importedMesh.AccessUV_2D(0)[0].x, 6);
+        Assert.Equal(0.5f, importedMesh.AccessUV_2D(0)[0].y, 6);
+        Assert.Equal(0.65f, importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(0.5f, importedMesh.AccessUV_2D(0)[1].y, 6);
+        Assert.Equal(0.25f, importedMesh.AccessUV_2D(0)[2].x, 6);
+        Assert.Equal(0.6f, importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]
@@ -176,7 +184,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         string legacyMaterialComponentId = await SeedCommonMaterialComponentAsync(
             client,
             familySlotName: "generic",
-            materialSlotName: "shared_uv_generic_scale_1x1_offset_0.125x0.375",
+            materialSlotName: "shared_uv_generic",
             componentType: "[FrooxEngine]FrooxEngine.PBS_Metallic");
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "dem-overlay-legacy-object",
