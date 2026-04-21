@@ -23,12 +23,12 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public static partial class LocalCityGmlObjectProjection
 {
-    public const string DefaultDemTerrainTexturePath = "dem/plateau-ortho";
-    public const string DefaultDemTerrainTextureUrlTemplate = "https://api.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png";
-    public const string DefaultDemTerrainTextureFallbackUrlTemplate = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg";
-    public const int DefaultDemTerrainTextureZoomLevel = 19;
-    public const int DefaultDemTerrainTextureFallbackZoomLevel = 18;
-    public const int DefaultDemTerrainTextureMaxSize = 8192;
+    public const string DefaultDemTerrainTexturePath = DemTerrainTextureDefaults.PlateauOrthoPath;
+    public const string DefaultDemTerrainTextureUrlTemplate = DemTerrainTextureDefaults.PlateauOrthoUrlTemplate;
+    public const string DefaultDemTerrainTextureFallbackUrlTemplate = DemTerrainTextureDefaults.GsiFallbackUrlTemplate;
+    public const int DefaultDemTerrainTextureZoomLevel = DemTerrainTextureDefaults.PlateauOrthoZoomLevel;
+    public const int DefaultDemTerrainTextureFallbackZoomLevel = DemTerrainTextureDefaults.FallbackZoomLevel;
+    public const int DefaultDemTerrainTextureMaxSize = DemTerrainTextureDefaults.MaxTextureSize;
     public const double DefaultGeneratedRoadMarkingWidthMeters = 0.15;
     public const double DefaultGeneratedRoadMarkingSegmentLengthMeters = 5.0;
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
@@ -156,17 +156,7 @@ public static partial class LocalCityGmlObjectProjection
         return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
                 DemTerrainBounds.FromLegacy(demBounds),
                 requestedMeshCodes)
-            .Select(static region => new TerrainTextureOverlay(
-                PackageName: "dem",
-                GeographicBounds: region.GeographicBounds,
-                MaxTextureSize: DefaultDemTerrainTextureMaxSize,
-                Sources:
-                [
-                    new TerrainTextureTileSource(DefaultDemTerrainTextureUrlTemplate, DefaultDemTerrainTextureZoomLevel),
-                    new TerrainTextureTileSource(DefaultDemTerrainTextureUrlTemplate, DefaultDemTerrainTextureFallbackZoomLevel),
-                    new TerrainTextureTileSource(DefaultDemTerrainTextureFallbackUrlTemplate, DefaultDemTerrainTextureFallbackZoomLevel),
-                ],
-                LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback))
+            .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
             .ToArray();
     }
 

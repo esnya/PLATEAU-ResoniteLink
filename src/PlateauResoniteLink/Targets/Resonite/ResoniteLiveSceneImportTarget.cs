@@ -1087,12 +1087,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private static bool IsGsiFallbackSource(TerrainTextureSource source)
     {
-        return source is TerrainTextureTileSource tileSource
-            && string.Equals(
-                tileSource.UrlTemplate,
-                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                StringComparison.Ordinal)
-            && tileSource.ZoomLevel == LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel;
+        return DemTerrainTextureDefaults.IsGsiFallbackSource(source);
     }
 
     private static string DescribeTerrainTextureSource(TerrainTextureSource source)
