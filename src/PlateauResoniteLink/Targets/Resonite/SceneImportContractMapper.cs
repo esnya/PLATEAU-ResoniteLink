@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class SceneImportContractMapper
 {
-    public static ImportedSceneMetadata ToContract(ResoniteConstructionMetadata metadata)
+    internal static ImportedSceneMetadata ToContract(ResoniteConstructionMetadata metadata)
     {
         return new ImportedSceneMetadata(
             metadata.SchemaVersion,
@@ -19,7 +19,7 @@ internal static class SceneImportContractMapper
             ToContract(metadata.LocalOrigin));
     }
 
-    public static ImportedCityObject ToContract(ResoniteConstructionCityObject cityObject)
+    internal static ImportedCityObject ToContract(ResoniteConstructionCityObject cityObject)
     {
         return cityObject.Geometry switch
         {
@@ -61,7 +61,7 @@ internal static class SceneImportContractMapper
         };
     }
 
-    public static ResoniteConstructionMetadata ToInternal(ImportedSceneMetadata metadata)
+    internal static ResoniteConstructionMetadata ToInternal(ImportedSceneMetadata metadata)
     {
         return new ResoniteConstructionMetadata(
             metadata.SchemaVersion,
@@ -72,7 +72,7 @@ internal static class SceneImportContractMapper
             ToInternal(metadata.GeodeticOrigin));
     }
 
-    public static ResoniteConstructionCityObject ToInternal(ImportedCityObject cityObject)
+    internal static ResoniteConstructionCityObject ToInternal(ImportedCityObject cityObject)
     {
         return cityObject.Geometry switch
         {
