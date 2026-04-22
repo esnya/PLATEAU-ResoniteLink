@@ -318,7 +318,7 @@ public sealed class PlateauImportServiceTests
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
-    private sealed class RecordingSceneBuilder : ISceneImportTarget
+    private sealed class RecordingSceneBuilder : ISceneImportSink
     {
         public int ExecuteCallCount { get; private set; }
 

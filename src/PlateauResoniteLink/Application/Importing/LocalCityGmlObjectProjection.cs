@@ -14,7 +14,6 @@ using GeographicLib;
 using LibTessDotNet;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 
 using Geocentric = GeographicLib.Geocentric;
 using LocalCartesian = GeographicLib.LocalCartesian;
@@ -34,7 +33,7 @@ public static partial class LocalCityGmlObjectProjection
     public const double DefaultTerrainAlignedTransportationSegmentLengthMeters = 5.0;
     public const double MinTerrainAlignedTransportationSegmentLengthMeters = 2.0;
     public const double TerrainAlignedTransportationSegmentLengthByWidthRatio = 0.8;
-    public static readonly ResoniteMaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
+    public static readonly MaterialDepthOffset DefaultTerrainAlignedMaterialDepthOffset = new(-10.0, -10.0);
 
     private static readonly ResoniteFloatQ GridMeshTerrainRotation = new(
         X: Math.Sqrt(0.5),
@@ -1258,8 +1257,8 @@ public static partial class LocalCityGmlObjectProjection
             globalOriginPoint,
             globalCartesian);
 
-        List<ResoniteMeshVertex> vertices = [];
-        List<ResoniteMeshSubmesh> submeshes = [];
+        List<MeshVertex> vertices = [];
+        List<MeshSubmesh> submeshes = [];
         List<MaterialBinding> materials = [];
         GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
         DemUvProjection? demUvProjection = TryCreateDemUvProjection(demObjectBounds, cityObject, demTerrainTextureOverlay);
@@ -1308,7 +1307,7 @@ public static partial class LocalCityGmlObjectProjection
             }
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
-            submeshes.Add(new ResoniteMeshSubmesh(materialIndex, materialGroup.Key, indices));
+            submeshes.Add(new MeshSubmesh(materialIndex, materialGroup.Key, indices));
             materials.Add(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex));
         }
 
@@ -1319,9 +1318,7 @@ public static partial class LocalCityGmlObjectProjection
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
             Transform: new Transform3d(ToContractFloat3(slotPosition)),
-            Mesh: new ImportedMesh(
-                vertices.Select(ToContractMeshVertex).ToArray(),
-                submeshes.Select(ToContractMeshSubmesh).ToArray()),
+            Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
@@ -1429,7 +1426,7 @@ public static partial class LocalCityGmlObjectProjection
             preferUvProjection,
             preferUvProjection && IsBuildingPackage(cityObject.PackageName) ? BundledDefaultMaterialFamilies.Facade : null,
             $"{cityObject.SlotKey}:{(preferUvProjection ? "uv" : "triplanar")}");
-        ResoniteMaterialDepthOffset? depthOffset = cityObject.TerrainAligned
+        MaterialDepthOffset? depthOffset = cityObject.TerrainAligned
             ? DefaultTerrainAlignedMaterialDepthOffset
             : null;
         return new ResolvedSurfaceMaterial(surface, resolvedMaterial, depthOffset);
@@ -1685,10 +1682,10 @@ public static partial class LocalCityGmlObjectProjection
         LocalCartesian? globalCartesian,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         DemUvProjection? demUvProjection,
-        List<ResoniteMeshVertex> vertices,
+        List<MeshVertex> vertices,
         List<int> indices)
     {
-        List<(ResoniteMeshVertex First, ResoniteMeshVertex Second, ResoniteMeshVertex Third, string SortKey)> triangles = [];
+        List<(MeshVertex First, MeshVertex Second, MeshVertex Third, string SortKey)> triangles = [];
         bool useVertexColors = material.MaterialType == MaterialType.VertexColor;
         DemUvProjection? generatedDemUvProjection = surface.UsesGeneratedDemTexture ? demUvProjection : null;
         bool useGeneratedDemUv = generatedDemUvProjection is not null;
@@ -1800,16 +1797,16 @@ public static partial class LocalCityGmlObjectProjection
                 }
             }
 
-            (ResoniteMeshVertex first, ResoniteMeshVertex second, ResoniteMeshVertex third, string sortKey) =
+            (MeshVertex first, MeshVertex second, MeshVertex third, string sortKey) =
                 CreateCanonicalSurfaceTriangle(
-                    new ResoniteMeshVertex(position0, resoniteNormal, uv0, color0),
-                    new ResoniteMeshVertex(position1, resoniteNormal, uv1, color1),
-                    new ResoniteMeshVertex(position2, resoniteNormal, uv2, color2));
+                    CreateMeshVertex(position0, resoniteNormal, uv0, color0),
+                    CreateMeshVertex(position1, resoniteNormal, uv1, color1),
+                    CreateMeshVertex(position2, resoniteNormal, uv2, color2));
             triangles.Add((first, second, third, sortKey));
         }
 
         triangles.Sort(static (left, right) => StringComparer.Ordinal.Compare(left.SortKey, right.SortKey));
-        foreach ((ResoniteMeshVertex first, ResoniteMeshVertex second, ResoniteMeshVertex third, _) in triangles)
+        foreach ((MeshVertex first, MeshVertex second, MeshVertex third, _) in triangles)
         {
             int baseIndex = vertices.Count;
             vertices.Add(first);
@@ -1822,15 +1819,15 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     private static (
-        ResoniteMeshVertex First,
-        ResoniteMeshVertex Second,
-        ResoniteMeshVertex Third,
+        MeshVertex First,
+        MeshVertex Second,
+        MeshVertex Third,
         string SortKey) CreateCanonicalSurfaceTriangle(
-        ResoniteMeshVertex first,
-        ResoniteMeshVertex second,
-        ResoniteMeshVertex third)
+        MeshVertex first,
+        MeshVertex second,
+        MeshVertex third)
     {
-        (ResoniteMeshVertex First, ResoniteMeshVertex Second, ResoniteMeshVertex Third) best = (first, second, third);
+        (MeshVertex First, MeshVertex Second, MeshVertex Third) best = (first, second, third);
         string bestKey = CreateTriangleSortKey(first, second, third);
 
         string rotatedLeftKey = CreateTriangleSortKey(second, third, first);
@@ -1851,24 +1848,37 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     private static string CreateTriangleSortKey(
-        ResoniteMeshVertex first,
-        ResoniteMeshVertex second,
-        ResoniteMeshVertex third)
+        MeshVertex first,
+        MeshVertex second,
+        MeshVertex third)
     {
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{CreateVertexSortKey(first)}|{CreateVertexSortKey(second)}|{CreateVertexSortKey(third)}");
     }
 
-    private static string CreateVertexSortKey(ResoniteMeshVertex vertex)
+    private static string CreateVertexSortKey(MeshVertex vertex)
     {
-        ResoniteColor? color = vertex.Color;
+        ColorRgba? color = vertex.Color;
         return string.Create(
             CultureInfo.InvariantCulture,
             $"{vertex.Position.X:R},{vertex.Position.Y:R},{vertex.Position.Z:R}|"
             + $"{vertex.Normal.X:R},{vertex.Normal.Y:R},{vertex.Normal.Z:R}|"
             + $"{vertex.UV0.X:R},{vertex.UV0.Y:R}|"
             + $"{color?.R ?? double.NaN:R},{color?.G ?? double.NaN:R},{color?.B ?? double.NaN:R},{color?.A ?? double.NaN:R}");
+    }
+
+    private static MeshVertex CreateMeshVertex(
+        ResoniteFloat3 position,
+        ResoniteFloat3 normal,
+        ResoniteFloat2 uv,
+        ResoniteColor? color)
+    {
+        return new MeshVertex(
+            ToContractFloat3(position),
+            ToContractFloat3(normal),
+            ToContractFloat2(uv),
+            color is null ? null : ToContractColor(color));
     }
 
     private static List<TessellatedRing> CreateSurfaceTessellatedRings(
@@ -2359,7 +2369,7 @@ public static partial class LocalCityGmlObjectProjection
         ResoniteTexturePayload? texturePayload,
         TextureSourceKind textureSourceKind,
         MaterialProjection projection,
-        ResoniteMaterialDepthOffset? depthOffset,
+        MaterialDepthOffset? depthOffset,
         ResoniteFloat2? textureScale,
         string? family,
         ResoniteColor color,
@@ -2394,7 +2404,7 @@ public static partial class LocalCityGmlObjectProjection
 
     private static string CreateBindingMaterialKey(
         ResolvedMaterial material,
-        ResoniteMaterialDepthOffset? depthOffset,
+        MaterialDepthOffset? depthOffset,
         ResoniteFloat2? textureScale,
         ResoniteColor color,
         ResoniteFloat2? textureOffset = null)
@@ -3266,7 +3276,7 @@ public static partial class LocalCityGmlObjectProjection
             Projection: representativeSurface.Material.Projection,
             DepthOffset: representativeSurface.DepthOffset is null
                 ? null
-                : ToContractDepthOffset(representativeSurface.DepthOffset),
+                : representativeSurface.DepthOffset,
             SubmeshIndices: [materialIndex],
             TextureScale: representativeSurface.Material.TextureScale is null
                 ? null
@@ -3286,18 +3296,6 @@ public static partial class LocalCityGmlObjectProjection
 
     private static ColorRgba ToContractColor(ResoniteColor value) => new(value.R, value.G, value.B, value.A);
 
-    private static MeshVertex ToContractMeshVertex(ResoniteMeshVertex vertex)
-    {
-        return new MeshVertex(
-            ToContractFloat3(vertex.Position),
-            ToContractFloat3(vertex.Normal),
-            ToContractFloat2(vertex.UV0),
-            vertex.Color is null ? null : ToContractColor(vertex.Color));
-    }
-
-    private static MeshSubmesh ToContractMeshSubmesh(ResoniteMeshSubmesh submesh) =>
-        new(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
-
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
     {
         return new TexturePayload(
@@ -3308,9 +3306,6 @@ public static partial class LocalCityGmlObjectProjection
             payload.Identity,
             (TexturePayloadFormat)payload.Format);
     }
-
-    private static MaterialDepthOffset ToContractDepthOffset(ResoniteMaterialDepthOffset value) =>
-        new(value.Factor, value.Units);
 
     private static TextureUvRect? TryCreateDemHeightMapOccupiedUvRect(
         ParsedCityObject cityObject,
@@ -3956,7 +3951,7 @@ public static partial class LocalCityGmlObjectProjection
     internal sealed record ResolvedSurfaceMaterial(
         ParsedSurface Surface,
         ResolvedMaterial Material,
-        ResoniteMaterialDepthOffset? DepthOffset);
+        MaterialDepthOffset? DepthOffset);
 
     private sealed record TessellatedVertex(
         ResoniteFloat3 Position,

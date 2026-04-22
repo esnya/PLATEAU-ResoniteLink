@@ -65,14 +65,14 @@ internal static class ResoniteBatchOperations
         return Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(byteCount));
     }
 
-    internal sealed class BatchOperationAccumulator
+    internal sealed class BatchActionBuilder
     {
         private readonly string batchScopeToken = CreateBatchScopeToken(byteCount: 8);
         private int nextEntityId;
         private int nextMessageId;
 
-        public List<DataModelOperation> Operations { get; } = [];
-        public List<PendingBatchOperation> PendingOperations { get; } = [];
+        public List<DataModelOperation> Actions { get; } = [];
+        public List<PendingBatchOperation> PendingActions { get; } = [];
 
         public PendingBatchSlot AddSlot(
             string parentId,
@@ -97,8 +97,8 @@ internal static class ResoniteBatchOperations
             ResoniteFloat3? position,
             ResoniteFloatQ? rotation)
         {
-            Operations.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
-            PendingOperations.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
+            Actions.Add(CreateAddSlotOperation(parentId, slotName, position, rotation, localId, messageId));
+            PendingActions.Add(new PendingBatchOperation(messageId, $"slot '{slotName}'"));
             return new PendingBatchSlot(localId, messageId, slotName);
         }
 
@@ -122,8 +122,8 @@ internal static class ResoniteBatchOperations
             string componentType,
             IReadOnlyDictionary<string, Member> members)
         {
-            Operations.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
-            PendingOperations.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
+            Actions.Add(CreateAddComponentOperation(containerSlotId, componentType, members, localId, messageId));
+            PendingActions.Add(new PendingBatchOperation(messageId, $"component '{componentType}'"));
             return new PendingBatchComponent(localId, messageId, componentType);
         }
 

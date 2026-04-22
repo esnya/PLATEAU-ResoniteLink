@@ -14,7 +14,7 @@ Shipped:
 - import 前に、ローカルの dataset directory またはローカル ZIP/7z archive を組み込みの `search` / `stats` command で inspection できる。
 - `--resonitelink-connections` は shipped な live-send option として扱い、既定の live-send pool size は 4 とする。
 - `ParameterizedTexture` appearance を保持しつつ、mesh / material 順序を決定的に保ち、source texture がない場合は bundled default material に fallback する。
-- source bootstrap の完了後は、dataset / mesh-code branch を段階的に構築し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
+- source bootstrap の完了後は、dataset / mesh-code branch を段階的に import し、full live send 完了前から Resonite 側に取り込み結果を出し始める。
 - DEM terrain imagery tile は既定で local cache に永続化し、再実行時に PLATEAU Ortho や fallback の GSI tile を再利用できるようにする。
 
 Intentionally regressed:
@@ -46,7 +46,7 @@ contributor workflow、環境 bootstrap、検証フローの ownership は [CONT
 
 ```bash
 dotnet run --project src/PlateauResoniteLink.Cli -- \
-  build \
+  import \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372778 \
   --citygml-source /path/to/plateau \
@@ -57,7 +57,7 @@ remote archive import 例:
 
 ```bash
 dotnet run --project src/PlateauResoniteLink.Cli -- \
-  build \
+  import \
   --dataset plateau-20202-matsumoto-shi-2020 \
   --mesh-code 54372788 \
   --citygml-source https://example.invalid/plateau-20202-matsumoto-shi-2020_citygml.zip \

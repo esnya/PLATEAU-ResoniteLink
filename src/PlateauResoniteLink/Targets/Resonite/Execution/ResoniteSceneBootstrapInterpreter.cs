@@ -83,7 +83,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         DatasetLicenseDefinition[] datasetLicenses = CreateDatasetLicensePlan(setupInfo);
         HashSet<string> matchedExistingLicenseKeys = MatchExistingLicenseKeys(datasetRootSnapshot, datasetLicenses);
 
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteBatchOperations.PendingBatchSlot? pendingAssets = null;
         ResoniteBatchOperations.PendingBatchSlot? pendingSharedAssets = null;
         ResoniteBatchOperations.PendingBatchSlot? pendingSharedCommon = null;
@@ -173,9 +173,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 batchBuilder,
                 cancellationToken);
 
-        if (batchBuilder.Operations.Count > 0)
+        if (batchBuilder.Actions.Count > 0)
         {
-            BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+            BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
             CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
             if (pendingAssets is not null)
             {
@@ -237,7 +237,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         string batchScopeToken = ResoniteBatchOperations.CreateBatchScopeToken();
         ResoniteBatchOperations.PendingBatchSlot pendingDatasetRootSlot = ResoniteBatchOperations.CreatePendingSlot("bootstrap_dataset_root", datasetRootName, batchScopeToken);
         ResoniteBatchOperations.PendingBatchSlot pendingDatasetAssetsRootSlot = ResoniteBatchOperations.CreatePendingSlot("bootstrap_assets_root", "Assets", batchScopeToken);
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         _ = batchBuilder.AddSlot(
             pendingDatasetRootSlot.LocalId,
             pendingDatasetRootSlot.MessageId,
@@ -306,7 +306,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 batchBuilder,
                 cancellationToken);
 
-        BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+        BatchResponse response = await setupClient.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
 
         CanonicalBatchEntityMap entityMap = CanonicalBatchEntityMap.Create(response);
         CreatedSlot datasetRootSlot = entityMap.ResolveSlot(pendingDatasetRootSlot);
@@ -408,7 +408,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         Slot? commonSlot,
         string commonParentId,
         string batchScopeToken,
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder,
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
         CancellationToken cancellationToken)
     {
         Dictionary<string, CreatedMaterialAsset> commonMaterialAssetsByKey = new(StringComparer.Ordinal);
@@ -564,7 +564,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         string materialContainerId,
         PlannedDedicatedMaterialAsset plannedMaterial,
         string batchScopeToken,
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder,
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder,
         int materialIndex)
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;

@@ -357,12 +357,12 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         ArgumentException.ThrowIfNullOrWhiteSpace(componentType);
         ArgumentNullException.ThrowIfNull(members);
 
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
             containerSlotId,
             componentType,
             members);
-        BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+        BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveComponent(pendingComponent);
     }
 

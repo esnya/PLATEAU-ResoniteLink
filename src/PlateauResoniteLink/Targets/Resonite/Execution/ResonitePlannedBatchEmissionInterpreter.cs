@@ -41,7 +41,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         Action<string>? reportProgress,
         CancellationToken cancellationToken)
     {
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         Dictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
         Dictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
 
@@ -79,9 +79,9 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
             pendingComponentsByPlanId[componentEmission.Identity.Value] = pendingComponent;
         }
 
-        int operationCount = batchBuilder.Operations.Count;
+        int operationCount = batchBuilder.Actions.Count;
         Stopwatch batchStopwatch = Stopwatch.StartNew();
-        BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+        BatchResponse batchResponse = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         batchStopwatch.Stop();
         reportProgress?.Invoke(
             PlateauLog.Debug(
@@ -90,7 +90,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 + $"(operations={operationCount}, est_payload_bytes={EstimateBatchPayloadBytes(operationCount)})."));
 
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
-        canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingOperations);
+        canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingActions);
         foreach (BatchPlanEntityId slotResolutionTarget in batchEmission.SlotResolutionTargets)
         {
             _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget.Value]);

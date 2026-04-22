@@ -21,7 +21,7 @@ internal static class CliTestData
     {
         return
         [
-            "build",
+            "import",
             "--dataset",
             "tokyo23ku",
             "--mesh-code",

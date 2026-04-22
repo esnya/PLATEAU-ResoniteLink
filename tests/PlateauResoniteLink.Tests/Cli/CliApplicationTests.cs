@@ -21,7 +21,7 @@ public sealed class CliApplicationTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateImportService(ISceneImportTarget sceneBuilder)
+    private static PlateauImportService CreateImportService(ISceneImportSink sceneBuilder)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
@@ -65,7 +65,7 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
-    public async Task RunAsyncWritesLiveCompletionForValidBuildCommand()
+    public async Task RunAsyncWritesLiveCompletionForValidImportCommand()
     {
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
@@ -81,7 +81,7 @@ public sealed class CliApplicationTests
 
         int exitCode = await application.RunAsync(
             [
-                "build",
+                "import",
                 "--dataset",
                 "tokyo23ku",
                 "--mesh-code",
@@ -143,7 +143,7 @@ public sealed class CliApplicationTests
             BuildLiveArgs(fixturePath));
 
         Assert.Equal(0, exitCode);
-        BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions.Request.PackageNames);
         Assert.Equal(PlateauImportMemoryProfile.Large, capturedOptions.MemoryProfile);
         Assert.Equal(string.Empty, standardError.ToString());
@@ -171,7 +171,7 @@ public sealed class CliApplicationTests
             ]);
 
         Assert.Equal(0, exitCode);
-        BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
         Assert.False(capturedOptions.EnableMeshBake);
     }
 
@@ -229,7 +229,7 @@ public sealed class CliApplicationTests
         return CliTestData.BuildLocalBuildArgs(fixturePath);
     }
 
-    private sealed class StubSceneBuilder : ISceneImportTarget
+    private sealed class StubSceneBuilder : ISceneImportSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 
@@ -262,12 +262,12 @@ public sealed class CliApplicationTests
         }
     }
 
-    private sealed class StubImportServiceFactory(Func<BuildCommandOptions, PlateauImportService> createImportService)
+    private sealed class StubImportServiceFactory(Func<ImportCommandOptions, PlateauImportService> createImportService)
         : IImportServiceFactory
     {
-        public List<BuildCommandOptions> CapturedOptions { get; } = [];
+        public List<ImportCommandOptions> CapturedOptions { get; } = [];
 
-        public PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter)
+        public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
         {
             CapturedOptions.Add(options);
             return createImportService(options);

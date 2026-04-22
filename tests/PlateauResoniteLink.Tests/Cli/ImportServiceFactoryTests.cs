@@ -17,7 +17,7 @@ public sealed class ImportServiceFactoryTests
     public async Task CreateBuildsRunScopedServicesAndPassesTargetOptionsThrough()
     {
         StubPlateauDatasetSourceResolverFactory datasetResolverFactory = new();
-        StubSceneImportTargetFactory sceneImportTargetFactory = new();
+        StubSceneImportSinkFactory sceneImportTargetFactory = new();
         StubCityGmlDocumentReader documentReader = new();
         StubConstructionSourceFactory constructionSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
@@ -28,8 +28,8 @@ public sealed class ImportServiceFactoryTests
             constructionSourceFactory,
             archiveFileLayoutPolicy);
 
-        BuildCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
-        BuildCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);
+        ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
+        ImportCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);
 
         PlateauImportService firstService = factory.Create(firstOptions, progressReporter: null);
         PlateauImportService secondService = factory.Create(secondOptions, progressReporter: null);
@@ -49,7 +49,7 @@ public sealed class ImportServiceFactoryTests
         Assert.Equal(2, constructionSourceFactory.CreateWithDocumentSetCallCount);
     }
 
-    private static BuildCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
+    private static ImportCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -58,7 +58,7 @@ public sealed class ImportServiceFactoryTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
             ServerUri: null);
 
-        return new BuildCommandOptions(
+        return new ImportCommandOptions(
             request,
             "local",
             new Uri("ws://localhost:12345/"),
@@ -94,21 +94,21 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubSceneImportTargetFactory : ISceneImportTargetFactory
+    private sealed class StubSceneImportSinkFactory : ISceneImportSinkFactory
     {
-        public List<BuildCommandOptions> CapturedOptions { get; } = [];
-        public List<StubSceneImportTarget> CreatedTargets { get; } = [];
+        public List<ImportCommandOptions> CapturedOptions { get; } = [];
+        public List<StubSceneImportSink> CreatedTargets { get; } = [];
 
-        public ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter)
+        public ISceneImportSink Create(ImportCommandOptions options, Action<string>? progressReporter)
         {
             CapturedOptions.Add(options);
-            StubSceneImportTarget target = new();
+            StubSceneImportSink target = new();
             CreatedTargets.Add(target);
             return target;
         }
     }
 
-    private sealed class StubSceneImportTarget : ISceneImportTarget
+    private sealed class StubSceneImportSink : ISceneImportSink
     {
         public int DisposeCallCount { get; private set; }
 
@@ -256,4 +256,3 @@ public sealed class ImportServiceFactoryTests
         }
     }
 }
-

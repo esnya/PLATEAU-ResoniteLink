@@ -29,13 +29,13 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        ResoniteBatchOperations.BatchOperationAccumulator batchBuilder = new();
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
             parentId,
             slotName,
             position,
             rotation);
-        BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Operations, cancellationToken);
+        BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);
         return CanonicalBatchEntityMap.Create(response).ResolveSlot(pendingSlot);
     }
 }

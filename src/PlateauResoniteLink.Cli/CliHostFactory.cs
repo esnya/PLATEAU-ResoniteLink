@@ -48,7 +48,7 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
-        services.AddSingleton<ISceneImportTargetFactory, DefaultSceneImportTargetFactory>();
+        services.AddSingleton<ISceneImportSinkFactory, DefaultSceneImportSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
@@ -61,7 +61,7 @@ internal static class CliServiceCollectionExtensions
 
 internal interface IImportServiceFactory
 {
-    PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter);
+    PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
 internal interface IPlateauDatasetSourceResolverFactory
@@ -69,14 +69,14 @@ internal interface IPlateauDatasetSourceResolverFactory
     IPlateauDatasetSourceResolver Create();
 }
 
-internal interface ISceneImportTargetFactory
+internal interface ISceneImportSinkFactory
 {
-    ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter);
+    ISceneImportSink Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
 internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
-    ISceneImportTargetFactory sceneImportTargetFactory,
+    ISceneImportSinkFactory sceneImportSinkFactory,
     ICityGmlDocumentReader documentReader,
     IImportedSceneSourceFactory constructionSourceFactory,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
@@ -85,12 +85,12 @@ internal sealed class DefaultImportServiceFactory(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
-    public PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter)
+    public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         return new PlateauImportService(
-            sceneImportTargetFactory.Create(options, progressReporter),
+            sceneImportSinkFactory.Create(options, progressReporter),
             datasetSourceResolverFactory.Create(),
             documentReader,
             constructionSourceFactory,
@@ -114,12 +114,12 @@ internal sealed class DefaultPlateauDatasetSourceResolverFactory(
     }
 }
 
-internal sealed class DefaultSceneImportTargetFactory(
+internal sealed class DefaultSceneImportSinkFactory(
     IHttpClientFactory httpClientFactory,
     IServiceScopeFactory serviceScopeFactory)
-    : ISceneImportTargetFactory
+    : ISceneImportSinkFactory
 {
-    public ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter)
+    public ISceneImportSink Create(ImportCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -140,7 +140,7 @@ internal sealed class DefaultSceneImportTargetFactory(
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 targetOptions,
                 httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName));
-            return new ScopedSceneImportTarget(scope, target);
+            return new ScopedSceneImportSink(scope, target);
         }
         catch
         {
@@ -150,9 +150,9 @@ internal sealed class DefaultSceneImportTargetFactory(
     }
 }
 
-internal sealed class ScopedSceneImportTarget(
+internal sealed class ScopedSceneImportSink(
     AsyncServiceScope scope,
-    ISceneImportTarget inner) : ISceneImportTarget
+    ISceneImportSink inner) : ISceneImportSink
 {
     public Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,

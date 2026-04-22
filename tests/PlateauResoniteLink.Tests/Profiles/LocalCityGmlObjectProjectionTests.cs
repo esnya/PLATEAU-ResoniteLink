@@ -21,7 +21,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(ISceneImportTarget sceneBuilder)
+    private static PlateauImportService CreateService(ISceneImportSink sceneBuilder)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
@@ -973,7 +973,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             SourceUnitKey: slotKey,
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
-    private sealed class StubSceneBuilder : ISceneImportTarget
+    private sealed class StubSceneBuilder : ISceneImportSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 

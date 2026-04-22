@@ -19,7 +19,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
+public sealed class ResoniteLiveSceneImportTarget : ISceneImportSink
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;

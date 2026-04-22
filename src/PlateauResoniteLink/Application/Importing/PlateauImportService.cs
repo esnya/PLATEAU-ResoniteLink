@@ -12,15 +12,15 @@ using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed class PlateauImportService(
-    ISceneImportTarget sceneBuilder,
+    ISceneImportSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
     ICityGmlDocumentReader documentReader,
     IImportedSceneSourceFactory constructionSourceFactory,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
-    private readonly ISceneImportTarget sceneBuilder =
-        sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
+    private readonly ISceneImportSink sceneSink =
+        sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
     private readonly ICityGmlDocumentReader documentReader =
@@ -100,7 +100,7 @@ public sealed class PlateauImportService(
 
             int sourceCityObjectCount = 1;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-            SceneImportExecutionResult executionResult = await sceneBuilder.ExecuteAsync(
+            SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
                 ReadImportedCityObjectsAsync(
                     cityObjectEnumerator.Current,
@@ -132,7 +132,7 @@ public sealed class PlateauImportService(
         }
         finally
         {
-            await sceneBuilder.DisposeAsync();
+            await sceneSink.DisposeAsync();
         }
     }
 
