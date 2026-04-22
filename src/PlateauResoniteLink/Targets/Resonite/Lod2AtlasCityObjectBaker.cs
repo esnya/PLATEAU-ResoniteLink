@@ -330,6 +330,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return CreateSolidColorTile(material.BaseColor);
         }
 
+        if (TryCreateUniformDatasetTextureTile(material, out MaterialAtlasTile? uniformTile))
+        {
+            return uniformTile!;
+        }
+
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
             ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
@@ -357,6 +362,54 @@ internal sealed class Lod2AtlasCityObjectBaker(
             $"solid:{color.R:0.###},{color.G:0.###},{color.B:0.###},{color.A:0.###}",
             image.Clone(),
             ToPixel(color));
+    }
+
+    private static bool TryCreateUniformDatasetTextureTile(
+        ResoniteMaterialBinding material,
+        out MaterialAtlasTile? tile)
+    {
+        tile = null;
+        if (material.TexturePayload is not
+            {
+                Format: ResoniteTexturePayloadFormat.RawRgba32,
+                Width: not null,
+                Height: not null,
+            } payload)
+        {
+            return false;
+        }
+
+        if (!TryGetUniformPixel(payload, out Rgba32 uniformPixel))
+        {
+            return false;
+        }
+
+        tile = CreateSolidColorTile(ToColor(MultiplyPixel(uniformPixel, ToPixel(material.BaseColor))));
+        return true;
+    }
+
+    private static bool TryGetUniformPixel(ResoniteTexturePayload payload, out Rgba32 pixel)
+    {
+        byte[] bytes = payload.BinaryPayload;
+        if (bytes.Length < 4 || (bytes.Length % 4) != 0)
+        {
+            pixel = default;
+            return false;
+        }
+
+        pixel = new Rgba32(bytes[0], bytes[1], bytes[2], bytes[3]);
+        for (int offset = 4; offset < bytes.Length; offset += 4)
+        {
+            if (bytes[offset] != pixel.R
+                || bytes[offset + 1] != pixel.G
+                || bytes[offset + 2] != pixel.B
+                || bytes[offset + 3] != pixel.A)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool CanBufferCityObjectMaterials(
@@ -1083,6 +1136,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
             (byte)Math.Round(Math.Clamp(color.G, 0.0, 1.0) * 255.0),
             (byte)Math.Round(Math.Clamp(color.B, 0.0, 1.0) * 255.0),
             (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
+    }
+
+    private static ResoniteColor ToColor(Rgba32 pixel)
+    {
+        return new ResoniteColor(
+            pixel.R / 255.0,
+            pixel.G / 255.0,
+            pixel.B / 255.0,
+            pixel.A / 255.0);
     }
 
     private static SourceUnitBatchKey CreateSourceUnitKey(
