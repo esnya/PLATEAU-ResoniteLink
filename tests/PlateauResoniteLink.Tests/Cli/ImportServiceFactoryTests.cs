@@ -145,7 +145,7 @@ public sealed class ImportServiceFactoryTests
                 "3.0",
                 $"PLATEAU {request.Dataset} {request.MeshCode}",
                 request,
-                new PlateauSourceDataset(["bldg"], [], [], []),
+                new PlateauSourceDataset(["bldg"], [], []),
                 new Attribution(
                     new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                     []),

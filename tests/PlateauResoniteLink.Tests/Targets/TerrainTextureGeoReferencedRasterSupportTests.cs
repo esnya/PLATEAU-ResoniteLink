@@ -321,10 +321,10 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.Equal(8192, texture.TextureImport.Width);
         Assert.Equal(4096, texture.TextureImport.Height);
         Assert.Equal(
-            new ResoniteFloat2(
+            new ScalarPair(
                 (double)layout.CropWidth / texture.TextureImport.Width,
                 (double)layout.CropHeight / texture.TextureImport.Height),
-            texture.OccupiedUvRect.Scale);
+            texture.OccupiedUvRect.ScaleValue);
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
             texture.TextureImport.RawRgba32Bytes,
             texture.TextureImport.Width,

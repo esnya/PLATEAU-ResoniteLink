@@ -295,7 +295,7 @@ public sealed class PlateauImportServiceTests
             SchemaVersion: "3.0",
             SceneName: "stub",
             Request: request,
-            SourceDataset: new PlateauSourceDataset(packageNames, sourceFiles, [], ["53394525"]),
+            SourceDataset: new PlateauSourceDataset(packageNames, sourceFiles, ["53394525"]),
             Attribution: new Attribution(
                 new LicenseMetadata(false, "credit", "license", "https://example.invalid/license"),
                 []),

@@ -18,25 +18,11 @@ internal readonly record struct TextureUvRect(
 
     public ScalarPair OffsetValue => new(MinU, MinV);
 
-    public ResoniteFloat2 Scale => new(ScaleValue.X, ScaleValue.Y);
-
-    public ResoniteFloat2 Offset => new(OffsetValue.X, OffsetValue.Y);
-
     public bool IsIdentity =>
         Math.Abs(MinU) < 1e-9
         && Math.Abs(MinV) < 1e-9
         && Math.Abs(Width - 1.0) < 1e-9
         && Math.Abs(Height - 1.0) < 1e-9;
-
-    public static TextureUvRect FromScaleOffset(
-        ResoniteFloat2 scale,
-        ResoniteFloat2 offset)
-    {
-        ArgumentNullException.ThrowIfNull(scale);
-        ArgumentNullException.ThrowIfNull(offset);
-
-        return FromScaleOffsetValue(scale, offset);
-    }
 
     public static TextureUvRect FromScaleOffsetValue(
         ScalarPair scale,
@@ -82,15 +68,6 @@ internal readonly record struct TextureUvRect(
             sourceRect.NormalizeV(sourceUv.Y));
     }
 
-    public static ResoniteFloat2 Remap(
-        ResoniteFloat2 sourceUv,
-        TextureUvRect sourceRect,
-        TextureUvRect targetRect)
-    {
-        ScalarPair remapped = RemapValue(sourceUv, sourceRect, targetRect);
-        return new ResoniteFloat2(remapped.X, remapped.Y);
-    }
-
     public static (ScalarPair? TextureScale, ScalarPair? TextureOffset) ComposeMaterialTransformValue(
         TextureUvRect targetRect,
         ScalarPair? textureScale,
@@ -108,28 +85,11 @@ internal readonly record struct TextureUvRect(
             IsZeroOffset(effectiveOffset) ? null : effectiveOffset);
     }
 
-    public static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) ComposeMaterialTransform(
-        TextureUvRect targetRect,
-        ResoniteFloat2? textureScale,
-        ResoniteFloat2? textureOffset)
-    {
-        (ScalarPair? scale, ScalarPair? offset) = ComposeMaterialTransformValue(targetRect, textureScale, textureOffset);
-        return (
-            scale is null ? null : new ResoniteFloat2(scale.X, scale.Y),
-            offset is null ? null : new ResoniteFloat2(offset.X, offset.Y));
-    }
-
     public ScalarPair DenormalizeValue(double normalizedU, double normalizedV)
     {
         return new ScalarPair(
             MinU + (Math.Clamp(normalizedU, 0.0, 1.0) * Width),
             MinV + (Math.Clamp(normalizedV, 0.0, 1.0) * Height));
-    }
-
-    public ResoniteFloat2 Denormalize(double normalizedU, double normalizedV)
-    {
-        ScalarPair denormalized = DenormalizeValue(normalizedU, normalizedV);
-        return new ResoniteFloat2(denormalized.X, denormalized.Y);
     }
 
     public double NormalizeU(double value)

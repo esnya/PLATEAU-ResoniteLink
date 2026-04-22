@@ -1407,7 +1407,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             {
                 ResoniteMeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
                 ResoniteFloat2 adjustedUv = generatedTextureBySubmeshIndex.TryGetValue(submesh.Index, out GeneratedTerrainTexture? generatedTexture)
-                    ? TextureUvRect.Remap(sourceVertex.UV0, TextureUvRect.Identity, generatedTexture.OccupiedUvRect)
+                    ? CreateResoniteFloat2(TextureUvRect.RemapValue(sourceVertex.UV0, TextureUvRect.Identity, generatedTexture.OccupiedUvRect))
                     : sourceVertex.UV0;
                 adjustedVertices.Add(sourceVertex with { UV0 = adjustedUv });
                 adjustedIndices.Add(adjustedVertices.Count - 1);
@@ -1436,6 +1436,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         };
     }
 
+    private static ResoniteFloat2 CreateResoniteFloat2(ScalarPair value) => new(value.X, value.Y);
+
     private static ResoniteFloat2? ResolveHeightMapGridUvScale(
         ResoniteConstructionCityObject cityObject,
         ResoniteHeightMapGridGeometry geometry,
@@ -1445,7 +1447,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cityObject,
             geometry,
             preparedTerrainTextureDataByOverlay);
-        return terrainTextureRect?.Scale;
+        return terrainTextureRect is null
+            ? null
+            : new ResoniteFloat2(terrainTextureRect.Value.ScaleValue.X, terrainTextureRect.Value.ScaleValue.Y);
     }
 
     private static ResoniteFloat2? ResolveHeightMapGridUvOffset(
@@ -1457,7 +1461,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             cityObject,
             geometry,
             preparedTerrainTextureDataByOverlay);
-        return terrainTextureRect?.Offset;
+        return terrainTextureRect is null
+            ? null
+            : new ResoniteFloat2(terrainTextureRect.Value.OffsetValue.X, terrainTextureRect.Value.OffsetValue.Y);
     }
 
     private static TextureUvRect? ResolveHeightMapTerrainTextureRect(
@@ -1466,9 +1472,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
         TextureUvRect objectRect = geometry.UvScale is not null || geometry.UvOffset is not null
-            ? TextureUvRect.FromScaleOffset(
-                geometry.UvScale ?? new ResoniteFloat2(1.0, 1.0),
-                geometry.UvOffset ?? new ResoniteFloat2(0.0, 0.0))
+            ? TextureUvRect.FromScaleOffsetValue(
+                geometry.UvScale ?? new ScalarPair(1.0, 1.0),
+                geometry.UvOffset ?? new ScalarPair(0.0, 0.0))
             : TextureUvRect.Identity;
 
         TerrainTextureOverlay? overlay = cityObject.Materials

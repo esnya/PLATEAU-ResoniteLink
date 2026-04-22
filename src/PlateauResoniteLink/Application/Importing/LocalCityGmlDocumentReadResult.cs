@@ -20,11 +20,6 @@ internal sealed class LocalCityGmlDocumentReadResult
 
     internal LocalCityGmlBootstrapContext BootstrapContext { get; }
 
-    internal LocalCityGmlDocumentReadResult WithDocumentSet(LocalCityGmlDocumentSet documentSet)
-    {
-        return new LocalCityGmlDocumentReadResult(documentSet, BootstrapContext);
-    }
-
     internal async Task<IReadOnlyList<DemTerrainOverlayRegion>> ResolveRequestedDemOverlayRegionsAsync(
         IReadOnlyList<string> requestedDemMeshCodes,
         CancellationToken cancellationToken)

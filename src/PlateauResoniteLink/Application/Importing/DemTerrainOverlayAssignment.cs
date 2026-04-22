@@ -328,8 +328,8 @@ internal static class DemTerrainOverlayAssignment
         return occupiedUvRect is null
             ? (null, null)
             : (
-                new Float2(occupiedUvRect.Value.Scale.X, occupiedUvRect.Value.Scale.Y),
-                new Float2(occupiedUvRect.Value.Offset.X, occupiedUvRect.Value.Offset.Y));
+                new Float2(occupiedUvRect.Value.ScaleValue.X, occupiedUvRect.Value.ScaleValue.Y),
+                new Float2(occupiedUvRect.Value.OffsetValue.X, occupiedUvRect.Value.OffsetValue.Y));
     }
 
     public static TextureUvRect? TryCreateHeightMapOccupiedUvRect(

@@ -133,7 +133,7 @@ public sealed class SceneImportExecutionPlanTests
             SchemaVersion: "3.0",
             SceneName: "stub",
             Request: request,
-            SourceDataset: new PlateauSourceDataset(["bldg"], [], [], ["53394525"]),
+            SourceDataset: new PlateauSourceDataset(["bldg"], [], ["53394525"]),
             Attribution: new Attribution(
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid/license"),
                 []),

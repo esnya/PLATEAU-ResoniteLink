@@ -701,7 +701,8 @@ internal sealed class Lod2AtlasCityObjectBaker(
             atlasRect.Height,
             (int)Math.Round(atlasWidth),
             (int)Math.Round(atlasHeight));
-        return TextureUvRect.Remap(sourceUv, uvBounds, atlasUvRect);
+        ScalarPair remapped = TextureUvRect.RemapValue(sourceUv, uvBounds, atlasUvRect);
+        return new ResoniteFloat2(remapped.X, remapped.Y);
     }
 
     private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
@@ -1203,7 +1204,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             for (int x = 0; x < targetWidth; x++)
             {
                 double normalizedU = (x + 0.5) / targetWidth;
-                ResoniteFloat2 sourceUv = uvBounds.Denormalize(normalizedU, normalizedV);
+                ScalarPair sourceUv = uvBounds.DenormalizeValue(normalizedU, normalizedV);
                 bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceUv.X, sourceUv.Y);
             }
         }

@@ -29,15 +29,4 @@ internal sealed class LocalCityGmlDocumentSet
     public IReadOnlyList<TerrainTextureOverlay> TerrainTextureOverlays { get; }
 
     public IReadOnlyList<string> SelectedMeshCodes { get; }
-
-    internal LocalCityGmlDocumentSet WithTerrainTextureOverlays(
-        IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays)
-    {
-        return new LocalCityGmlDocumentSet(
-            DatasetSource,
-            RelativeSourceFiles,
-            PackageNames,
-            terrainTextureOverlays,
-            SelectedMeshCodes);
-    }
 }

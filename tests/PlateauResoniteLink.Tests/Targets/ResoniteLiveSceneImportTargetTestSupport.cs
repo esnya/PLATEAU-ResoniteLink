@@ -100,7 +100,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: packageNames ?? ["bldg"],
                 SourceFiles: sourceFiles ?? [],
-                TerrainTextureOverlays: terrainTextureOverlays ?? [],
                 SelectedMeshCodes: requestedMeshCodes),
             Attribution: new ResoniteAttribution(
                 DatasetLicense: new LicenseAttributionMetadata(

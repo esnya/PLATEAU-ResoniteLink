@@ -7,7 +7,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class ArchiveFileLayoutPolicy : IArchiveFileLayoutPolicy
+internal sealed class ArchiveFileLayoutPolicy : IArchiveFileLayoutPolicy
 {
     public bool IsSupportedArchivePath(string path)
     {

@@ -5,9 +5,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static class PlateauImportServiceCollectionExtensions
+internal static class PlateauImportServiceCollectionExtensions
 {
-    public static IServiceCollection AddPlateauCityGmlImportServices(this IServiceCollection services)
+    internal static IServiceCollection AddLocalCityGmlImportServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 

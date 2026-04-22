@@ -291,7 +291,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             SchemaVersion: "3.0",
             SceneName: "test-world",
             Request: request,
-            SourceDataset: new PlateauSourceDataset([], [], terrainTextureOverlays ?? [], []),
+            SourceDataset: new PlateauSourceDataset([], [], []),
             Attribution: new Attribution(
                 new LicenseMetadata(
                     RequireCredit: true,

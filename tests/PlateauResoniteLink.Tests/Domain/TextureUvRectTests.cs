@@ -11,8 +11,6 @@ public sealed class TextureUvRectTests
 
         Assert.Equal(new ScalarPair(0.5, 0.75), rect.ScaleValue);
         Assert.Equal(new ScalarPair(0.125, 0.25), rect.OffsetValue);
-        Assert.Equal(new ResoniteFloat2(0.5, 0.75), rect.Scale);
-        Assert.Equal(new ResoniteFloat2(0.125, 0.25), rect.Offset);
     }
 
     [Fact]

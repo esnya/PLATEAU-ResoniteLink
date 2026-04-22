@@ -31,7 +31,6 @@ internal sealed class LocalCityGmlConstructionComposer(
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: documentSet.PackageNames.ToArray(),
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
-                TerrainTextureOverlays: documentSet.TerrainTextureOverlays.ToArray(),
                 SelectedMeshCodes: documentSet.SelectedMeshCodes),
             Attribution: CreateAttribution(request),
             GeodeticOrigin: new GeodeticOrigin(

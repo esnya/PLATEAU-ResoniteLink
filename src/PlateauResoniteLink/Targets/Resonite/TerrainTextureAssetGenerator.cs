@@ -38,7 +38,7 @@ internal sealed record GeneratedTerrainTexture(
         IReadOnlyList<TerrainTextureSource>? usedSources = null)
         : this(
             textureImport,
-            TextureUvRect.FromScaleOffset(canvasScale, canvasOffset),
+            TextureUvRect.FromScaleOffsetValue(canvasScale, canvasOffset),
             usedSource,
             usedSources)
     {

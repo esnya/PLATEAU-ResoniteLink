@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceCollectionExtensionsTests
 {
     [Fact]
-    public async Task AddPlateauCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
+    public async Task AddLocalCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -36,7 +36,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
             .AddSingleton<IImportedSceneSourceComposer>(composer)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
         IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
 
@@ -49,48 +49,48 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomDatasetContentSourceFactory()
+    public void AddLocalCityGmlImportServicesPreservesCustomDatasetContentSourceFactory()
     {
         CustomPlateauDatasetContentSourceFactory factory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IPlateauDatasetContentSourceFactory>(factory)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(factory, provider.GetRequiredService<IPlateauDatasetContentSourceFactory>());
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomDocumentReader()
+    public void AddLocalCityGmlImportServicesPreservesCustomDocumentReader()
     {
         CustomCityGmlDocumentReader reader = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(reader, provider.GetRequiredService<ICityGmlDocumentReader>());
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomConstructionSourceFactory()
+    public void AddLocalCityGmlImportServicesPreservesCustomConstructionSourceFactory()
     {
         CustomConstructionSourceFactory factory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IImportedSceneSourceFactory>(factory)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(factory, provider.GetRequiredService<IImportedSceneSourceFactory>());
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomDemTextureSourcePolicy()
+    public void AddLocalCityGmlImportServicesPreservesCustomDemTextureSourcePolicy()
     {
         CustomDemTextureSourcePolicy policy = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IDemTextureSourcePolicy>(policy)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
@@ -196,7 +196,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             "3.0",
             "stub",
             new PlateauImportRequest("stub", "53394525", DatasetLocation.Local("/tmp")),
-            new PlateauSourceDataset([], [], [], []),
+            new PlateauSourceDataset([], [], []),
             new Attribution(
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                 []),

@@ -356,15 +356,15 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
             return material;
         }
 
-        (ResoniteFloat2? effectiveTextureScale, ResoniteFloat2? effectiveTextureOffset)
-            = TextureUvRect.ComposeMaterialTransform(
+        (ScalarPair? effectiveTextureScale, ScalarPair? effectiveTextureOffset)
+            = TextureUvRect.ComposeMaterialTransformValue(
                 generatedTerrainTexture.OccupiedUvRect,
                 material.TextureScale,
                 material.TextureOffset);
         return material with
         {
-            TextureScale = effectiveTextureScale,
-            TextureOffset = effectiveTextureOffset,
+            TextureScale = effectiveTextureScale is null ? null : new ResoniteFloat2(effectiveTextureScale.X, effectiveTextureScale.Y),
+            TextureOffset = effectiveTextureOffset is null ? null : new ResoniteFloat2(effectiveTextureOffset.X, effectiveTextureOffset.Y),
         };
     }
 

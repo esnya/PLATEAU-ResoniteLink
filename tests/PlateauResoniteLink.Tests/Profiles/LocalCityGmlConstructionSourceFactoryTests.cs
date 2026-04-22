@@ -276,7 +276,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/tmp/plateau",
                 ServerUri: null),
-            SourceDataset: new PlateauSourceDataset([], [], [], []),
+            SourceDataset: new PlateauSourceDataset([], [], []),
             Attribution: new Attribution(
                 new LicenseMetadata(
                     RequireCredit: true,

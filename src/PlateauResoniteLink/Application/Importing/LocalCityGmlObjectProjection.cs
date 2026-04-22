@@ -3188,10 +3188,10 @@ public static partial class LocalCityGmlObjectProjection
             demTerrainTextureOverlay,
             materialResolver);
         Float2? heightMapUvScale = heightMapOccupiedUvRect.HasValue
-            ? ToContractFloat2(heightMapOccupiedUvRect.Value.Scale)
+            ? ToContractFloat2(heightMapOccupiedUvRect.Value.ScaleValue)
             : null;
         Float2? heightMapUvOffset = heightMapOccupiedUvRect.HasValue
-            ? ToContractFloat2(heightMapOccupiedUvRect.Value.Offset)
+            ? ToContractFloat2(heightMapOccupiedUvRect.Value.OffsetValue)
             : null;
 
         ResoniteFloat3 adjustedSlotPosition = slotPosition with
@@ -3295,6 +3295,8 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
+
+    private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);
 
     private static ResoniteFloat2 ToInternalFloat2(Float2 value) => new(value.X, value.Y);
 

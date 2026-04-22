@@ -42,7 +42,7 @@ internal static class CliServiceCollectionExtensions
         services.AddHttpClient(CliHostFactory.PlateauDatasetResolverHttpClientName);
         services.AddHttpClient(CliHostFactory.TerrainTextureAssetsHttpClientName);
 
-        services.AddPlateauCityGmlImportServices();
+        services.AddLocalCityGmlImportServices();
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
