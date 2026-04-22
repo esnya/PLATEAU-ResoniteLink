@@ -84,18 +84,18 @@ internal static class LocalCityGmlBootstrapPipeline
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-        ResoniteLocalOrigin? resolvedLocalOrigin =
-            LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
-        if (resolvedLocalOrigin is null)
+        GeodeticCoordinate? resolvedGeodeticCenter =
+            LocalCityGmlObjectProjection.ResolveGeodeticCenter(effectiveRequestedMeshArea);
+        if (resolvedGeodeticCenter is null)
         {
             throw new PlateauImportValidationException(
                 [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
         LocalCityGmlObjectProjection.GeodeticPoint globalOriginPoint = new(
-            resolvedLocalOrigin.Latitude,
-            resolvedLocalOrigin.Longitude,
-            0.0);
+            resolvedGeodeticCenter.Latitude,
+            resolvedGeodeticCenter.Longitude,
+            resolvedGeodeticCenter.Altitude);
 
         totalStopwatch.Stop();
         progressReporter?.Invoke(

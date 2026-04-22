@@ -6,19 +6,17 @@ using System.Threading;
 
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
 {
-    private static readonly ResoniteColor DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
+    private static readonly ColorRgba DefaultMaterialColor = new(1.0, 1.0, 1.0, 1.0);
     private static readonly XNamespace App = "http://www.opengis.net/citygml/appearance/2.0";
 
     private readonly Dictionary<string, CityGmlMaterialAttributes> materialAttributesByPolygonId = new(StringComparer.Ordinal);
     private readonly IPlateauDatasetContentSource datasetSource;
     private readonly string sourceFileRelativePath;
-    private readonly Dictionary<string, ResoniteTexturePayload> texturePayloadsByResolvedPath = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TexturePayload> texturePayloadsByResolvedPath = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CityGmlParameterizedTexture> parameterizedTexturesByPolygonId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CityGmlGeoreferencedTexture> georeferencedTexturesByPolygonId = new(StringComparer.Ordinal);
 
@@ -72,10 +70,10 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         ArgumentException.ThrowIfNullOrWhiteSpace(polygonId);
 
         CityGmlMaterialAttributes? materialAttributes = materialAttributesByPolygonId.GetValueOrDefault(polygonId);
-        ResoniteColor baseColor = materialAttributes?.DiffuseColor ?? DefaultMaterialColor;
+        ColorRgba baseColor = materialAttributes?.DiffuseColor ?? DefaultMaterialColor;
 
         CityGmlParameterizedTexture? parameterizedTexture = parameterizedTexturesByPolygonId.GetValueOrDefault(polygonId);
-        ResoniteTexturePayload? texturePayload = null;
+        TexturePayload? texturePayload = null;
         if (parameterizedTexture is not null)
         {
             texturePayload = LoadTexturePayload(parameterizedTexture.ResolvedTexturePath);
@@ -102,7 +100,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         string? mimeType = textureElement.Element(App + "mimeType")?.Value.Trim();
         string? textureType = textureElement.Element(App + "textureType")?.Value.Trim();
         string? wrapMode = textureElement.Element(App + "wrapMode")?.Value.Trim();
-        ResoniteColor? borderColor = TryParseColor(textureElement.Element(App + "borderColor")?.Value);
+        ColorRgba? borderColor = TryParseColor(textureElement.Element(App + "borderColor")?.Value);
 
         foreach (XElement targetElement in textureElement.Elements(App + "target"))
         {
@@ -112,7 +110,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                 continue;
             }
 
-            Dictionary<string, IReadOnlyList<ResoniteFloat2>> ringCoordinates = new(StringComparer.Ordinal);
+            Dictionary<string, IReadOnlyList<Float2>> ringCoordinates = new(StringComparer.Ordinal);
             foreach (XElement textureCoordinatesElement in targetElement.Descendants(App + "textureCoordinates"))
             {
                 string? ringId = StripReferencePrefix(textureCoordinatesElement.Attribute("ring")?.Value);
@@ -121,7 +119,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                     continue;
                 }
 
-                List<ResoniteFloat2> coordinates = LocalCityGmlObjectProjection.ParseTextureCoordinates(textureCoordinatesElement.Value);
+                List<Float2> coordinates = LocalCityGmlObjectProjection.ParseTextureCoordinates(textureCoordinatesElement.Value);
                 if (coordinates.Count > 0)
                 {
                     ringCoordinates[ringId] = coordinates;
@@ -165,7 +163,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         string? mimeType = textureElement.Element(App + "mimeType")?.Value.Trim();
         string? textureType = textureElement.Element(App + "textureType")?.Value.Trim();
         string? wrapMode = textureElement.Element(App + "wrapMode")?.Value.Trim();
-        ResoniteColor? borderColor = TryParseColor(textureElement.Element(App + "borderColor")?.Value);
+        ColorRgba? borderColor = TryParseColor(textureElement.Element(App + "borderColor")?.Value);
         string? referencePoint = textureElement.Element(App + "referencePoint")?.Value.Trim();
         string? orientation = textureElement.Element(App + "orientation")?.Value.Trim();
 
@@ -186,9 +184,9 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         }
     }
 
-    private ResoniteTexturePayload? LoadTexturePayload(string resolvedTexturePath)
+    private TexturePayload? LoadTexturePayload(string resolvedTexturePath)
     {
-        if (!texturePayloadsByResolvedPath.TryGetValue(resolvedTexturePath, out ResoniteTexturePayload? texturePayload))
+        if (!texturePayloadsByResolvedPath.TryGetValue(resolvedTexturePath, out TexturePayload? texturePayload))
         {
             using Stream stream = datasetSource.OpenReadAsync(resolvedTexturePath, CancellationToken.None)
                 .AsTask()
@@ -196,13 +194,13 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
                 .GetResult();
             using MemoryStream encodedPayloadStream = new();
             stream.CopyTo(encodedPayloadStream);
-            texturePayload = new ResoniteTexturePayload(
+            texturePayload = new TexturePayload(
                 Width: null,
                 Height: null,
                 "sRGB",
                 encodedPayloadStream.ToArray(),
                 $"dataset:{resolvedTexturePath}",
-                ResoniteTexturePayloadFormat.EncodedImage);
+                TexturePayloadFormat.EncodedImage);
             texturePayloadsByResolvedPath[resolvedTexturePath] = texturePayload;
         }
 
@@ -262,7 +260,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
         return values.Length == 0 ? null : values[0];
     }
 
-    private static ResoniteColor ParseColor(string? value, ResoniteColor fallback)
+    private static ColorRgba ParseColor(string? value, ColorRgba fallback)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -280,14 +278,14 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             return fallback;
         }
 
-        return new ResoniteColor(
+        return new ColorRgba(
             R: values[0],
             G: values[1],
             B: values[2],
             A: values.Length >= 4 ? values[3] : 1.0);
     }
 
-    private static ResoniteColor? TryParseColor(string? value)
+    private static ColorRgba? TryParseColor(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -305,7 +303,7 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             return null;
         }
 
-        return new ResoniteColor(
+        return new ColorRgba(
             R: values[0],
             G: values[1],
             B: values[2],

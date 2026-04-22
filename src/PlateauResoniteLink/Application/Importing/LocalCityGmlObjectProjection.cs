@@ -410,14 +410,14 @@ public static partial class LocalCityGmlObjectProjection
                 writer.Write(vertex.Altitude);
             }
 
-            IReadOnlyList<ResoniteFloat2>? uvs = ring.UVs;
+            IReadOnlyList<Float2>? uvs = ring.UVs;
             writer.Write(uvs?.Count ?? -1);
             if (uvs is null)
             {
                 return;
             }
 
-            foreach (ResoniteFloat2 uv in uvs)
+            foreach (Float2 uv in uvs)
             {
                 writer.Write(uv.X);
                 writer.Write(uv.Y);
@@ -652,13 +652,13 @@ public static partial class LocalCityGmlObjectProjection
         string suffix,
         params SurfaceSliceSample[] samples)
     {
-        ResoniteFloat2[]? uvs = null;
+        Float2[]? uvs = null;
         if (samples.All(static sample => sample.UV is not null))
         {
-            List<ResoniteFloat2> uvList = new(samples.Length);
+            List<Float2> uvList = new(samples.Length);
             for (int index = 0; index < samples.Length; index++)
             {
-                if (samples[index].UV is ResoniteFloat2 uv)
+                if (samples[index].UV is Float2 uv)
                 {
                     uvList.Add(uv);
                 }
@@ -734,7 +734,7 @@ public static partial class LocalCityGmlObjectProjection
 
         int edgeEndIndex = (edgeStartIndex + 1) % ring.Vertices.Length;
         ResoniteFloat3 position = Lerp(positions[edgeStartIndex], positions[edgeEndIndex], ratio);
-        ResoniteFloat2? uv = ring.UVs is not null && ring.UVs.Count == ring.Vertices.Length
+        Float2? uv = ring.UVs is not null && ring.UVs.Count == ring.Vertices.Length
             ? Lerp(ring.UVs[edgeStartIndex], ring.UVs[edgeEndIndex], ratio)
             : null;
         intersections.Add(new SurfaceSliceSample(point, uv, DotHorizontal(position, lateralAxis)));
@@ -1125,13 +1125,13 @@ public static partial class LocalCityGmlObjectProjection
             Semantic: ParseSurfaceSemantic(polygonElement),
             ExteriorRing: exteriorParsedRing,
             InteriorRings: interiorRings,
-            BaseColor: appearance.BaseColor,
+            BaseColor: ToInternalColor(appearance.BaseColor),
             TexturePayload: appearance.TexturePayload);
     }
 
     private static ParsedRing? ParseRing(
         XElement? ringElement,
-        IReadOnlyDictionary<string, IReadOnlyList<ResoniteFloat2>>? ringUvsByRingId,
+        IReadOnlyDictionary<string, IReadOnlyList<Float2>>? ringUvsByRingId,
         string? fallbackRingId)
     {
         if (ringElement is null)
@@ -1148,9 +1148,9 @@ public static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        IReadOnlyList<ResoniteFloat2>? uvs = null;
+        IReadOnlyList<Float2>? uvs = null;
         if (ringUvsByRingId is not null
-            && ringUvsByRingId.TryGetValue(ringId, out IReadOnlyList<ResoniteFloat2>? ringUvs)
+            && ringUvsByRingId.TryGetValue(ringId, out IReadOnlyList<Float2>? ringUvs)
             && ringUvs.Count == vertices.Length)
         {
             uvs = ringUvs;
@@ -1929,7 +1929,7 @@ public static partial class LocalCityGmlObjectProjection
             .Select((point, index) => new TessellatedVertex(
                 CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian),
                 ring.UVs is not null && index < ring.UVs.Count
-                    ? ring.UVs[index]
+                    ? ToInternalFloat2(ring.UVs[index])
                     : generatedDemUvProjection is not null
                         ? CreateGeneratedDemUv(point, generatedDemUvProjection.Value)
                         : generatedSurfaceUvProjection is not null
@@ -2366,14 +2366,14 @@ public static partial class LocalCityGmlObjectProjection
     private static string CreateMaterialKey(
         MaterialType materialType,
         TerrainTextureOverlay? terrainOverlay,
-        ResoniteTexturePayload? texturePayload,
+        TexturePayload? texturePayload,
         TextureSourceKind textureSourceKind,
         MaterialProjection projection,
         MaterialDepthOffset? depthOffset,
-        ResoniteFloat2? textureScale,
+        Float2? textureScale,
         string? family,
         ResoniteColor color,
-        ResoniteFloat2? textureOffset = null)
+        Float2? textureOffset = null)
     {
         string colorKey = string.Create(
             CultureInfo.InvariantCulture,
@@ -2405,9 +2405,9 @@ public static partial class LocalCityGmlObjectProjection
     private static string CreateBindingMaterialKey(
         ResolvedMaterial material,
         MaterialDepthOffset? depthOffset,
-        ResoniteFloat2? textureScale,
+        Float2? textureScale,
         ResoniteColor color,
-        ResoniteFloat2? textureOffset = null)
+        Float2? textureOffset = null)
     {
         if (material.ReuseScope == MaterialReuseScope.Shared)
         {
@@ -2554,13 +2554,13 @@ public static partial class LocalCityGmlObjectProjection
             .ToArray();
     }
 
-    internal static List<ResoniteFloat2> ParseTextureCoordinates(string value)
+    internal static List<Float2> ParseTextureCoordinates(string value)
     {
         double[] ordinates = ParseDoubles(value);
-        List<ResoniteFloat2> coordinates = [];
+        List<Float2> coordinates = [];
         for (int index = 0; index + 1 < ordinates.Length; index += 2)
         {
-            coordinates.Add(new ResoniteFloat2(ordinates[index], ordinates[index + 1]));
+            coordinates.Add(new Float2(ordinates[index], ordinates[index + 1]));
         }
 
         if (coordinates.Count > 1 && AreSameUV(coordinates[0], coordinates[^1]))
@@ -2599,14 +2599,20 @@ public static partial class LocalCityGmlObjectProjection
             source.Z + ((target.Z - source.Z) * ratio));
     }
 
-    private static ResoniteFloat2 Lerp(ResoniteFloat2 source, ResoniteFloat2 target, double ratio)
+    private static Float2 Lerp(Float2 source, Float2 target, double ratio)
     {
-        return new ResoniteFloat2(
+        return new Float2(
             source.X + ((target.X - source.X) * ratio),
             source.Y + ((target.Y - source.Y) * ratio));
     }
 
     private static bool AreSameUV(ResoniteFloat2 left, ResoniteFloat2 right)
+    {
+        return Math.Abs(left.X - right.X) < 1e-8
+            && Math.Abs(left.Y - right.Y) < 1e-8;
+    }
+
+    private static bool AreSameUV(Float2 left, Float2 right)
     {
         return Math.Abs(left.X - right.X) < 1e-8
             && Math.Abs(left.Y - right.Y) < 1e-8;
@@ -3271,7 +3277,7 @@ public static partial class LocalCityGmlObjectProjection
             MaterialType: representativeSurface.Material.MaterialType,
             TexturePayload: representativeSurface.Material.TexturePayload is null
                 ? null
-                : ToContractTexturePayload(representativeSurface.Material.TexturePayload),
+                : representativeSurface.Material.TexturePayload,
             TextureSourceKind: representativeSurface.Material.TextureSourceKind,
             Projection: representativeSurface.Material.Projection,
             DepthOffset: representativeSurface.DepthOffset is null
@@ -3280,7 +3286,7 @@ public static partial class LocalCityGmlObjectProjection
             SubmeshIndices: [materialIndex],
             TextureScale: representativeSurface.Material.TextureScale is null
                 ? null
-                : ToContractFloat2(representativeSurface.Material.TextureScale),
+                : representativeSurface.Material.TextureScale,
             Family: representativeSurface.Material.Family,
             TextureOffset: null,
             ReuseScope: representativeSurface.Material.ReuseScope,
@@ -3290,22 +3296,15 @@ public static partial class LocalCityGmlObjectProjection
 
     private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
 
+    private static ResoniteFloat2 ToInternalFloat2(Float2 value) => new(value.X, value.Y);
+
+    private static ResoniteColor ToInternalColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
+
     private static Float3 ToContractFloat3(ResoniteFloat3 value) => new(value.X, value.Y, value.Z);
 
     private static Quaternion ToContractQuaternion(ResoniteFloatQ value) => new(value.X, value.Y, value.Z, value.W);
 
     private static ColorRgba ToContractColor(ResoniteColor value) => new(value.R, value.G, value.B, value.A);
-
-    private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
-    {
-        return new TexturePayload(
-            payload.Width,
-            payload.Height,
-            payload.ColorProfile,
-            payload.BinaryPayload,
-            payload.Identity,
-            (TexturePayloadFormat)payload.Format);
-    }
 
     private static TextureUvRect? TryCreateDemHeightMapOccupiedUvRect(
         ParsedCityObject cityObject,
@@ -3799,7 +3798,7 @@ public static partial class LocalCityGmlObjectProjection
     internal sealed record ParsedRing(
         string RingId,
         GeodeticPoint[] Vertices,
-        IReadOnlyList<ResoniteFloat2>? UVs);
+        IReadOnlyList<Float2>? UVs);
 
     private sealed record HeightMapTriangle(
         ResoniteFloat3 A,
@@ -3923,8 +3922,8 @@ public static partial class LocalCityGmlObjectProjection
         GeodeticPoint[] Side1,
         ResoniteFloat3[] Side0Positions,
         ResoniteFloat3[] Side1Positions,
-        ResoniteFloat2[]? Side0Uvs,
-        ResoniteFloat2[]? Side1Uvs,
+        Float2[]? Side0Uvs,
+        Float2[]? Side1Uvs,
         double Length,
         double Width,
         double Side0EdgeLength,
@@ -3932,7 +3931,7 @@ public static partial class LocalCityGmlObjectProjection
 
     private readonly record struct SurfaceSliceSample(
         GeodeticPoint Point,
-        ResoniteFloat2? UV,
+        Float2? UV,
         double LateralPosition);
 
     internal sealed record ParsedSurface(
@@ -3941,7 +3940,7 @@ public static partial class LocalCityGmlObjectProjection
         ParsedRing ExteriorRing,
         ParsedRing[] InteriorRings,
         ResoniteColor BaseColor,
-        ResoniteTexturePayload? TexturePayload,
+        TexturePayload? TexturePayload,
         bool UsesGeneratedDemTexture = false)
     {
         public IEnumerable<GeodeticPoint> Vertices =>

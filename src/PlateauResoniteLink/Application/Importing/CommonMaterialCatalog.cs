@@ -80,7 +80,7 @@ public static class CommonMaterialCatalog
             Projection: projection,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: ToContract(BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath)),
+            TextureScale: ToContract(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath)),
             Family: family,
             TextureOffset: null,
             ReuseScope: MaterialReuseScope.Shared,
@@ -162,7 +162,7 @@ public static class CommonMaterialCatalog
             $"{depthOffset.Factor:0.######}x{depthOffset.Units:0.######}"))}";
     }
 
-    private static Float2 ToContract(ResoniteFloat2 value) => new(value.X, value.Y);
+    private static Float2 ToContract(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
 
     private static string CreateFloat2Token(Float2? value)
     {

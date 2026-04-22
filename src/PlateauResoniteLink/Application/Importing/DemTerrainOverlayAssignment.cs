@@ -314,7 +314,7 @@ internal static class DemTerrainOverlayAssignment
             .ToArray();
     }
 
-    public static (ResoniteFloat2? TextureScale, ResoniteFloat2? TextureOffset) TryCreateHeightMapTextureTransform(
+    public static (Float2? TextureScale, Float2? TextureOffset) TryCreateHeightMapTextureTransform(
         LocalCityGmlObjectProjection.ParsedCityObject cityObject,
         LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
@@ -327,7 +327,9 @@ internal static class DemTerrainOverlayAssignment
             cityObjectGeographicBounds);
         return occupiedUvRect is null
             ? (null, null)
-            : (occupiedUvRect.Value.Scale, occupiedUvRect.Value.Offset);
+            : (
+                new Float2(occupiedUvRect.Value.Scale.X, occupiedUvRect.Value.Scale.Y),
+                new Float2(occupiedUvRect.Value.Offset.X, occupiedUvRect.Value.Offset.Y));
     }
 
     public static TextureUvRect? TryCreateHeightMapOccupiedUvRect(

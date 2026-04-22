@@ -55,9 +55,9 @@ internal sealed record MeshCodeBounds(
             areaArray.Max(static meshArea => meshArea.EastLongitude));
     }
 
-    public ResoniteLocalOrigin GetCenter()
+    public GeodeticCoordinate GetGeodeticCenter()
     {
-        return new ResoniteLocalOrigin(
+        return new GeodeticCoordinate(
             Latitude: (SouthLatitude + NorthLatitude) / 2.0,
             Longitude: (WestLongitude + EastLongitude) / 2.0,
             Altitude: 0.0);

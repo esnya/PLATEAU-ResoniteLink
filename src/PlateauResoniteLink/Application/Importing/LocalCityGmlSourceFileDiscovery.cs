@@ -81,7 +81,7 @@ internal static class LocalCityGmlSourceFileDiscovery
             .Distinct(StringComparer.Ordinal)
             .OrderBy(static meshCode => meshCode, StringComparer.Ordinal)
             .ToArray();
-        ResoniteLocalOrigin? requestedCenter = TryResolveRequestedCenter(matcher.RequestedValue, selectedMeshCodes);
+        GeodeticCoordinate? requestedCenter = TryResolveRequestedCenter(matcher.RequestedValue, selectedMeshCodes);
         HashSet<string> requestedMeshCodeSet = selectedMeshCodes.ToHashSet(StringComparer.Ordinal);
         HashSet<string> parentMeshCodes = selectedMeshCodes
             .Where(static matchedMeshCode => matchedMeshCode.Length == 8)
@@ -205,11 +205,11 @@ internal static class LocalCityGmlSourceFileDiscovery
             .ToArray();
     }
 
-    private static ResoniteLocalOrigin? TryResolveRequestedCenter(
+    private static GeodeticCoordinate? TryResolveRequestedCenter(
         string inputMeshCode,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        if (PlateauMeshCode.TryGetCenter(inputMeshCode, out ResoniteLocalOrigin literalCenter))
+        if (PlateauMeshCode.TryGetGeodeticCenter(inputMeshCode, out GeodeticCoordinate literalCenter))
         {
             return literalCenter;
         }
@@ -235,7 +235,7 @@ internal static class LocalCityGmlSourceFileDiscovery
         double westLongitude = bounds.Min(static bound => bound.WestLongitude);
         double eastLongitude = bounds.Max(static bound => bound.EastLongitude);
 
-        return new ResoniteLocalOrigin(
+        return new GeodeticCoordinate(
             Latitude: (southLatitude + northLatitude) / 2.0,
             Longitude: (westLongitude + eastLongitude) / 2.0,
             Altitude: 0.0);
@@ -243,10 +243,10 @@ internal static class LocalCityGmlSourceFileDiscovery
 
     private static double GetMeshCodeCenterDistanceSquared(
         LocalCityGmlSourceFileDescriptor descriptor,
-        ResoniteLocalOrigin? requestedCenter)
+        GeodeticCoordinate? requestedCenter)
     {
         if (requestedCenter is null
-            || !PlateauMeshCode.TryGetCenter(descriptor.MatchedMeshCode, out ResoniteLocalOrigin meshCenter))
+            || !PlateauMeshCode.TryGetGeodeticCenter(descriptor.MatchedMeshCode, out GeodeticCoordinate meshCenter))
         {
             return double.PositiveInfinity;
         }

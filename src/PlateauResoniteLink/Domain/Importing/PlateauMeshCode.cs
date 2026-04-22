@@ -5,7 +5,7 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public static class PlateauMeshCode
 {
-    public static bool TryGetCenter(string meshCode, out ResoniteLocalOrigin center)
+    public static bool TryGetGeodeticCenter(string meshCode, out GeodeticCoordinate center)
     {
         center = default!;
 
@@ -14,10 +14,26 @@ public static class PlateauMeshCode
             return false;
         }
 
-        center = new ResoniteLocalOrigin(
+        center = new GeodeticCoordinate(
             Latitude: (bounds.SouthLatitude + bounds.NorthLatitude) / 2.0,
             Longitude: (bounds.WestLongitude + bounds.EastLongitude) / 2.0,
             Altitude: 0.0);
+        return true;
+    }
+
+    public static bool TryGetCenter(string meshCode, out ResoniteLocalOrigin center)
+    {
+        center = default!;
+
+        if (!TryGetGeodeticCenter(meshCode, out GeodeticCoordinate geodeticCenter))
+        {
+            return false;
+        }
+
+        center = new ResoniteLocalOrigin(
+            geodeticCenter.Latitude,
+            geodeticCenter.Longitude,
+            geodeticCenter.Altitude);
         return true;
     }
 

@@ -330,7 +330,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                         ],
                         UVs: null),
                     InteriorRings: [],
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,
                     UsesGeneratedDemTexture: true),
             ],

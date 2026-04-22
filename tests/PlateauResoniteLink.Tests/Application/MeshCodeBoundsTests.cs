@@ -43,11 +43,11 @@ public sealed class MeshCodeBoundsTests
     }
 
     [Fact]
-    public void GetCenter_ReturnsOriginAtMidpointWithZeroAltitude()
+    public void GetGeodeticCenter_ReturnsOriginAtMidpointWithZeroAltitude()
     {
         MeshCodeBounds bounds = MeshCodeBounds.TryParse("53394525")!;
 
-        ResoniteLocalOrigin center = bounds.GetCenter();
+        GeodeticCoordinate center = bounds.GetGeodeticCenter();
 
         Assert.Equal((bounds.SouthLatitude + bounds.NorthLatitude) / 2.0, center.Latitude, 12);
         Assert.Equal((bounds.WestLongitude + bounds.EastLongitude) / 2.0, center.Longitude, 12);

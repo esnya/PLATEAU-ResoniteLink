@@ -451,7 +451,7 @@ public sealed class LocalCityGmlConstructionSourceTests
                         ],
                         UVs: null),
                     InteriorRings: [],
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,
                     UsesGeneratedDemTexture: true),
             ]
@@ -495,12 +495,12 @@ public sealed class LocalCityGmlConstructionSourceTests
                         ],
                         UVs:
                         [
-                            new ResoniteFloat2(0.0, 0.0),
-                            new ResoniteFloat2(1.0, 0.0),
-                            new ResoniteFloat2(0.0, 1.0),
+                            new Float2(0.0, 0.0),
+                            new Float2(1.0, 0.0),
+                            new Float2(0.0, 1.0),
                         ]),
                     InteriorRings: [],
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,
                     UsesGeneratedDemTexture: false),
             ],

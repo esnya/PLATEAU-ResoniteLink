@@ -15,10 +15,10 @@ namespace PlateauResoniteLink.Application.Importing;
 
 public static partial class LocalCityGmlObjectProjection
 {
-    internal static ResoniteLocalOrigin? ResolveLocalOrigin(
+    internal static GeodeticCoordinate? ResolveGeodeticCenter(
         MeshCodeBounds? requestedMeshArea)
     {
-        return requestedMeshArea?.GetCenter();
+        return requestedMeshArea?.GetGeodeticCenter();
     }
 
     internal static Task<global::PlateauResoniteLink.Application.Importing.SourceFilePipeline[]> CreateSourceFilePipelinesCoreAsync(

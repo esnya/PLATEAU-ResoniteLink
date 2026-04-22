@@ -294,7 +294,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             BootstrapParsedSurfaceSemantic.Ground,
             exteriorRing,
             [],
-            new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
 
         return new BootstrapParsedCityObject(

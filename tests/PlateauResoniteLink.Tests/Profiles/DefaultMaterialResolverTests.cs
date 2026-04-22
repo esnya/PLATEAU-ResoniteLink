@@ -1,6 +1,5 @@
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class DefaultMaterialResolverTests
@@ -10,7 +9,7 @@ public sealed class DefaultMaterialResolverTests
     [Fact]
     public void ResolveMaterialUsesDatasetTextureWhenPresent()
     {
-        ResoniteTexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
+        TexturePayload payload = new(4, 4, "srgb", new byte[4 * 4 * 4], "udx/bldg/53394525/appearance/roof.png");
 
         ResolvedMaterial material = resolver.ResolveMaterial(
             packageName: "bldg",
@@ -82,7 +81,7 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
         Assert.NotNull(material.TextureScale);
         Assert.Equal(
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariants(BundledDefaultMaterialFamilies.CityFurniture)[0]),
+            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariants(BundledDefaultMaterialFamilies.CityFurniture)[0])),
             material.TextureScale);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
     }
@@ -122,8 +121,10 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(first.BundledVariantIndex, second.BundledVariantIndex);
         Assert.Equal(first.TextureScale, second.TextureScale);
         Assert.Equal(
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(
-                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value)),
+            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeter(
+                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value))),
             first.TextureScale);
     }
+
+    private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
 }

@@ -12,7 +12,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 {
     public ResolvedMaterial ResolveMaterial(
         string packageName,
-        ResoniteTexturePayload? texturePayload,
+        TexturePayload? texturePayload,
         bool preferUvProjection,
         string? familyOverride,
         string variantSelectionKey)
@@ -27,7 +27,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
 
     internal static ResolvedMaterial ResolveMaterialCore(
         string packageName,
-        ResoniteTexturePayload? texturePayload,
+        TexturePayload? texturePayload,
         bool preferUvProjection,
         string? familyOverride,
         string variantSelectionKey)
@@ -65,7 +65,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             TextureSourceKind.Bundled,
             preferUvProjection ? MaterialProjection.Uv : MaterialProjection.Triplanar,
             family,
-            BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex)),
+            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex))),
             MaterialReuseScope.Shared,
             BundledVariantIndex: bundledVariantIndex);
     }
@@ -120,4 +120,6 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         int hashCode = BitConverter.ToInt32(hashBytes, 0) & int.MaxValue;
         return hashCode % variants.Count;
     }
+
+    private static Float2 ToContractFloat2(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
 }

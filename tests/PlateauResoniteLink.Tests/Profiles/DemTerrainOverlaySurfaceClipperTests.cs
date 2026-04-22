@@ -176,6 +176,50 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
         Assert.InRange(secondBounds.MaxLongitude, boundaryLongitude, 139.0200);
     }
 
+    [Fact]
+    public void ClipGeneratedSurfaceToOverlaysInterpolatesNeutralUvs()
+    {
+        LocalCityGmlObjectProjection.ParsedSurface surface = new(
+            PolygonId: "dem-surface-uv",
+            Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing(
+                "ring-uv",
+                [
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 10.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 20.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200, 30.0),
+                ],
+                UVs:
+                [
+                    new Float2(0.0, 0.0),
+                    new Float2(0.0, 1.0),
+                    new Float2(1.0, 1.0),
+                ]),
+            InteriorRings: [],
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null,
+            UsesGeneratedDemTexture: true);
+        TerrainTextureOverlay overlay = new(
+            PackageName: "dem",
+            UrlTemplate: "https://tiles.example/{z}/{x}/{y}.png",
+            ZoomLevel: 18,
+            GeographicBounds: new GeographicRectangle(
+                MinLatitude: 35.0000,
+                MaxLatitude: 35.0100,
+                MinLongitude: 139.0040,
+                MaxLongitude: 139.0120),
+            MaxTextureSize: LocalCityGmlObjectProjection.DefaultDemTerrainTextureMaxSize);
+
+        (LocalCityGmlObjectProjection.ParsedSurface clippedSurface, _) = Assert.Single(
+            DemTerrainOverlaySurfaceClipper.ClipGeneratedSurfaceToOverlays(surface, [overlay]));
+
+        Float2[] uvs = Assert.IsAssignableFrom<IReadOnlyList<Float2>>(clippedSurface.ExteriorRing.UVs).ToArray();
+        Assert.Equal(clippedSurface.ExteriorRing.Vertices.Length, uvs.Length);
+        Assert.Contains(uvs, static uv => Math.Abs(uv.X - 0.2) < 1e-6 && Math.Abs(uv.Y - 0.2) < 1e-6);
+        Assert.Contains(uvs, static uv => Math.Abs(uv.X - 0.6) < 1e-6 && Math.Abs(uv.Y - 1.0) < 1e-6);
+        Assert.Contains(uvs, static uv => Math.Abs(uv.X - 0.6) < 1e-6 && Math.Abs(uv.Y - 0.6) < 1e-6);
+    }
+
     private static double ComputeSignedArea(LocalCityGmlObjectProjection.GeodeticPoint[] vertices)
     {
         double signedArea = 0.0;
