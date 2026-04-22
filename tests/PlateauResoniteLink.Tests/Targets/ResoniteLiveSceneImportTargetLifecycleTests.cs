@@ -779,7 +779,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             PackageNames: ["dem"],
             ServerUri: null);
-        LocalCityGmlDocumentReadResult readResult = await new LocalCityGmlDocumentReader(
+        LocalCityGmlBootstrapSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector())
@@ -1086,3 +1086,4 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         }
     }
 }
+

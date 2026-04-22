@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed record BootstrapParsedRing(
@@ -57,7 +55,7 @@ internal sealed record BootstrapParsedSurface(
             (LocalCityGmlObjectProjection.ParsedSurfaceSemantic)Semantic,
             ExteriorRing.ToLegacy(),
             InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
-            new ResoniteColor(BaseColor.R, BaseColor.G, BaseColor.B, BaseColor.A),
+            BaseColor,
             TexturePayload,
             UsesGeneratedDemTexture);
     }

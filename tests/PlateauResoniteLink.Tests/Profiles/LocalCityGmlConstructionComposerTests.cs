@@ -36,7 +36,7 @@ public sealed class LocalCityGmlConstructionComposerTests
             ["bldg", "dem"],
             [overlay],
             ["53394525"]);
-        LocalCityGmlDocumentReadResult readResult = new(
+        LocalCityGmlBootstrapSnapshot readResult = new(
             documentSet,
             new LocalCityGmlBootstrapContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
@@ -144,3 +144,4 @@ public sealed class LocalCityGmlConstructionComposerTests
         }
     }
 }
+

@@ -23,7 +23,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector());
 
-        LocalCityGmlDocumentReadResult readResult = await reader.ReadAsync(
+        LocalCityGmlBootstrapSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -53,7 +53,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector());
 
-        LocalCityGmlDocumentReadResult readResult = await reader.ReadAsync(
+        LocalCityGmlBootstrapSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -120,3 +120,4 @@ public sealed class LocalCityGmlDocumentReaderTests
         }
     }
 }
+

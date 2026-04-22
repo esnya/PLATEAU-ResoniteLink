@@ -201,7 +201,7 @@ public sealed class DemTerrainOverlayAssignmentTests
             Semantic: LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
             ExteriorRing: new LocalCityGmlObjectProjection.ParsedRing($"{polygonId}-ring", vertices, UVs: null),
             InteriorRings: [],
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
     }
@@ -224,3 +224,4 @@ public sealed class DemTerrainOverlayAssignmentTests
             MaxLongitude: surface.ExteriorRing.Vertices.Max(static point => point.Longitude));
     }
 }
+
