@@ -30,107 +30,14 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<BatchPlanSlotLocator> slotResolutionTargets = [];
         List<BatchPlanComponentLocator> componentResolutionTargets = [];
 
-        BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator("mesh-asset-slot");
-        slotEmissions.Add(new PlannedBatchSlotEmission(
-            meshAssetSlotId,
+        (BatchPlanSlotLocator meshAssetSlotId, BatchPlanComponentLocator geometryComponentId) = AddGeometryAssetEmissions(
+            slotEmissions,
+            componentEmissions,
+            slotResolutionTargets,
+            componentResolutionTargets,
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-            emissionPlan.GeometryAsset.MeshAssetSlotName,
-            null,
-            null));
-        slotResolutionTargets.Add(meshAssetSlotId);
-
-        BatchPlanComponentLocator geometryComponentId = CreateBatchPlanComponentLocator("geometry-component");
-        switch (emissionPlan.GeometryAsset)
-        {
-            case PlannedTriangleMeshGeometryAsset triangleMesh:
-                componentEmissions.Add(new PlannedBatchComponentEmission(
-                    geometryComponentId,
-                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
-                    "[FrooxEngine]FrooxEngine.StaticMesh",
-                    new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
-                    {
-                        ["URL"] = PlannedMembers.Literal(new Field_Uri
-                        {
-                            Value = triangleMesh.MeshUri,
-                        }),
-                    }));
-                break;
-            case PlannedHeightMapGridGeometryAsset heightMap:
-                BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator("heightmap-asset-slot");
-                BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator("height-texture-component");
-                slotEmissions.Add(new PlannedBatchSlotEmission(
-                    heightMapAssetSlotId,
-                    PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-                    heightMap.HeightMapAssetSlotName,
-                    null,
-                    null));
-                slotResolutionTargets.Add(heightMapAssetSlotId);
-                componentEmissions.Add(new PlannedBatchComponentEmission(
-                    heightTextureComponentId,
-                    PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlotId),
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)
-                        .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
-                double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
-                Dictionary<string, PlannedMember> gridMeshMembers = new(StringComparer.Ordinal)
-                {
-                    ["Points"] = PlannedMembers.Literal(new Field_int2
-                    {
-                        Value = new int2
-                        {
-                            x = heightMap.Geometry.Width,
-                            y = heightMap.Geometry.Height,
-                        },
-                    }),
-                    ["Size"] = PlannedMembers.Literal(new Field_float2
-                    {
-                        Value = new float2
-                        {
-                            x = (float)heightMap.Geometry.Size.X,
-                            y = (float)heightMap.Geometry.Size.Y,
-                        },
-                    }),
-                    ["DisplacementMagnitude"] = PlannedMembers.Literal(new Field_float
-                    {
-                        Value = (float)displacementMagnitude,
-                    }),
-                    ["DisplacementTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTextureComponentId)),
-                };
-                if (heightMap.UvScale is not null)
-                {
-                    gridMeshMembers["UVScale"] = PlannedMembers.Literal(new Field_float2
-                    {
-                        Value = new float2
-                        {
-                            x = (float)heightMap.UvScale.X,
-                            y = (float)heightMap.UvScale.Y,
-                        },
-                    });
-                }
-
-                if (heightMap.UvOffset is not null)
-                {
-                    gridMeshMembers["UVOffset"] = PlannedMembers.Literal(new Field_float2
-                    {
-                        Value = new float2
-                        {
-                            x = (float)heightMap.UvOffset.X,
-                            y = (float)heightMap.UvOffset.Y,
-                        },
-                    });
-                }
-
-                componentEmissions.Add(new PlannedBatchComponentEmission(
-                    geometryComponentId,
-                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
-                    "[FrooxEngine]FrooxEngine.GridMesh",
-                    gridMeshMembers));
-                break;
-            default:
-                throw new InvalidOperationException(
-                    $"Unsupported planned geometry asset type '{emissionPlan.GeometryAsset.GetType().Name}'.");
-        }
-        componentResolutionTargets.Add(geometryComponentId);
+            emissionPlan.GeometryAsset,
+            scope: string.Empty);
 
         Dictionary<MaterialIdentity, PlannedWorldElementReference> emittedMaterialTargets = new();
         foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
@@ -175,6 +82,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     componentEmissions,
                     meshAssetSlotId,
                     presentationSlotId,
+                    scope: string.Empty,
                     emissionPlan.Renderer.MaterialBindings),
             }));
         componentEmissions.Add(new PlannedBatchComponentEmission(
@@ -193,6 +101,38 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 }),
                 ["Mesh"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(geometryComponentId)),
             }));
+
+        IReadOnlyList<PlannedVisualFallbackEmission> visualFallbacks = emissionPlan.VisualFallbacks ?? [];
+        for (int fallbackIndex = 0; fallbackIndex < visualFallbacks.Count; fallbackIndex++)
+        {
+            PlannedVisualFallbackEmission visualFallback = visualFallbacks[fallbackIndex];
+            string fallbackScope = string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"visual-fallback-{fallbackIndex}");
+            (BatchPlanSlotLocator fallbackAssetSlotId, BatchPlanComponentLocator fallbackGeometryComponentId) = AddGeometryAssetEmissions(
+                slotEmissions,
+                componentEmissions,
+                slotResolutionTargets,
+                componentResolutionTargets,
+                PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
+                visualFallback.GeometryAsset,
+                fallbackScope);
+            componentEmissions.Add(new PlannedBatchComponentEmission(
+                CreateBatchPlanComponentLocator(CreateScopedSuffix(fallbackScope, "mesh-renderer-component")),
+                PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
+                "[FrooxEngine]FrooxEngine.MeshRenderer",
+                new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+                {
+                    ["Mesh"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(fallbackGeometryComponentId)),
+                    ["Materials"] = CreateRendererMaterials(visualFallback.Renderer.MaterialBindings, emittedMaterialTargets),
+                    ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
+                        componentEmissions,
+                        fallbackAssetSlotId,
+                        presentationSlotId,
+                        fallbackScope,
+                        visualFallback.Renderer.MaterialBindings),
+                }));
+        }
 
         return new PlannedBatchEmission(
             slotEmissions,
@@ -334,6 +274,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchComponentEmission> componentEmissions,
         BatchPlanSlotLocator assetSlotId,
         BatchPlanSlotLocator presentationSlotId,
+        string scope,
         IReadOnlyList<PlannedRendererMaterialBinding> materialBindings)
     {
         List<PlannedMember> propertyBlocks = [];
@@ -349,6 +290,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                         componentEmissions,
                         assetSlotId,
                         presentationSlotId,
+                        scope,
                         mainTextureOverrideBinding));
                 continue;
             }
@@ -365,10 +307,12 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchComponentEmission> componentEmissions,
         BatchPlanSlotLocator assetSlotId,
         BatchPlanSlotLocator presentationSlotId,
+        string scope,
         PlannedMainTextureOverrideRendererMaterialBinding binding)
     {
         string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
-        BatchPlanComponentLocator textureId = CreateBatchPlanComponentLocator($"renderer-texture:{overrideIdentity}");
+        BatchPlanComponentLocator textureId = CreateBatchPlanComponentLocator(
+            CreateScopedSuffix(scope, $"renderer-texture:{overrideIdentity}"));
         ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding.ClampWrapMode
             ? ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride
             : ResoniteSceneMaterialConventions.TextureMemberRole.Albedo;
@@ -381,7 +325,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 textureRole)
                 .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
 
-        BatchPlanComponentLocator propertyBlockId = CreateBatchPlanComponentLocator($"renderer-main-texture-property-block:{overrideIdentity}");
+        BatchPlanComponentLocator propertyBlockId = CreateBatchPlanComponentLocator(
+            CreateScopedSuffix(scope, $"renderer-main-texture-property-block:{overrideIdentity}"));
         componentEmissions.Add(new PlannedBatchComponentEmission(
             propertyBlockId,
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
@@ -394,6 +339,120 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         return PlannedMembers.Reference(PlannedWorldElementReference.Planned(propertyBlockId));
     }
 
+    private static (BatchPlanSlotLocator AssetSlotId, BatchPlanComponentLocator GeometryComponentId) AddGeometryAssetEmissions(
+        List<PlannedBatchSlotEmission> slotEmissions,
+        List<PlannedBatchComponentEmission> componentEmissions,
+        List<BatchPlanSlotLocator> slotResolutionTargets,
+        List<BatchPlanComponentLocator> componentResolutionTargets,
+        PlannedSlotTargetReference assetParentTarget,
+        PlannedGeometryAsset geometryAsset,
+        string scope)
+    {
+        BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator(CreateScopedSuffix(scope, "mesh-asset-slot"));
+        slotEmissions.Add(new PlannedBatchSlotEmission(
+            meshAssetSlotId,
+            assetParentTarget,
+            geometryAsset.MeshAssetSlotName,
+            null,
+            null));
+        slotResolutionTargets.Add(meshAssetSlotId);
+
+        BatchPlanComponentLocator geometryComponentId = CreateBatchPlanComponentLocator(CreateScopedSuffix(scope, "geometry-component"));
+        switch (geometryAsset)
+        {
+            case PlannedTriangleMeshGeometryAsset triangleMesh:
+                componentEmissions.Add(new PlannedBatchComponentEmission(
+                    geometryComponentId,
+                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
+                    "[FrooxEngine]FrooxEngine.StaticMesh",
+                    new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+                    {
+                        ["URL"] = PlannedMembers.Literal(new Field_Uri
+                        {
+                            Value = triangleMesh.MeshUri,
+                        }),
+                    }));
+                break;
+            case PlannedHeightMapGridGeometryAsset heightMap:
+                BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator(CreateScopedSuffix(scope, "heightmap-asset-slot"));
+                BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator(CreateScopedSuffix(scope, "height-texture-component"));
+                slotEmissions.Add(new PlannedBatchSlotEmission(
+                    heightMapAssetSlotId,
+                    assetParentTarget,
+                    heightMap.HeightMapAssetSlotName,
+                    null,
+                    null));
+                slotResolutionTargets.Add(heightMapAssetSlotId);
+                componentEmissions.Add(new PlannedBatchComponentEmission(
+                    heightTextureComponentId,
+                    PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlotId),
+                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
+                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)
+                        .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+                double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
+                Dictionary<string, PlannedMember> gridMeshMembers = new(StringComparer.Ordinal)
+                {
+                    ["Points"] = PlannedMembers.Literal(new Field_int2
+                    {
+                        Value = new int2
+                        {
+                            x = heightMap.Geometry.Width,
+                            y = heightMap.Geometry.Height,
+                        },
+                    }),
+                    ["Size"] = PlannedMembers.Literal(new Field_float2
+                    {
+                        Value = new float2
+                        {
+                            x = (float)heightMap.Geometry.Size.X,
+                            y = (float)heightMap.Geometry.Size.Y,
+                        },
+                    }),
+                    ["DisplacementMagnitude"] = PlannedMembers.Literal(new Field_float
+                    {
+                        Value = (float)displacementMagnitude,
+                    }),
+                    ["DisplacementTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTextureComponentId)),
+                };
+                if (heightMap.UvScale is not null)
+                {
+                    gridMeshMembers["UVScale"] = PlannedMembers.Literal(new Field_float2
+                    {
+                        Value = new float2
+                        {
+                            x = (float)heightMap.UvScale.X,
+                            y = (float)heightMap.UvScale.Y,
+                        },
+                    });
+                }
+
+                if (heightMap.UvOffset is not null)
+                {
+                    gridMeshMembers["UVOffset"] = PlannedMembers.Literal(new Field_float2
+                    {
+                        Value = new float2
+                        {
+                            x = (float)heightMap.UvOffset.X,
+                            y = (float)heightMap.UvOffset.Y,
+                        },
+                    });
+                }
+
+                componentEmissions.Add(new PlannedBatchComponentEmission(
+                    geometryComponentId,
+                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
+                    "[FrooxEngine]FrooxEngine.GridMesh",
+                    gridMeshMembers));
+                break;
+            default:
+                throw new InvalidOperationException(
+                    $"Unsupported planned geometry asset type '{geometryAsset.GetType().Name}'.");
+        }
+
+        componentResolutionTargets.Add(geometryComponentId);
+        return (meshAssetSlotId, geometryComponentId);
+    }
+
     private static BatchPlanSlotLocator CreateBatchPlanSlotLocator(string suffix)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
@@ -404,5 +463,13 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
         return new BatchPlanComponentLocator($"plan:{suffix}");
+    }
+
+    private static string CreateScopedSuffix(string scope, string suffix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
+        return string.IsNullOrWhiteSpace(scope)
+            ? suffix
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{scope}-{suffix}");
     }
 }

@@ -62,6 +62,10 @@ internal sealed record PlannedRenderer(
     GeometryIdentity GeometryIdentity,
     IReadOnlyList<PlannedRendererMaterialBinding> MaterialBindings);
 
+internal sealed record PlannedVisualFallbackEmission(
+    PlannedGeometryAsset GeometryAsset,
+    PlannedRenderer Renderer);
+
 internal sealed record PlannedSceneMaterialPlan(
     IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
     IReadOnlyList<PlannedRendererMaterialBinding> RendererMaterialBindings);
@@ -74,7 +78,8 @@ internal sealed record PlannedSceneObjectEmission(
     PlannedGeometryAsset GeometryAsset,
     IReadOnlyList<PlannedMaterialAsset> MaterialAssets,
     PlannedRenderer Renderer,
-    PlannedCollider Collider);
+    PlannedCollider Collider,
+    IReadOnlyList<PlannedVisualFallbackEmission>? VisualFallbacks = null);
 
 internal readonly record struct BatchPlanSlotLocator(string Value);
 

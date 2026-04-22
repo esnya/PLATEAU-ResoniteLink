@@ -266,8 +266,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
         ResoniteRawHdrTextureImport importedTexture = Assert.Single(client.ImportedRawHdrTextures);
+        ImportMeshRawData importedSkirtMesh = Assert.Single(client.ImportedMeshes);
         Assert.Equal(2, importedTexture.Width);
         Assert.Equal(2, importedTexture.Height);
+        Assert.True(importedSkirtMesh.VertexCount > 0);
         float[] pixels = new float[importedTexture.RawRgbaFloatBytes.Length / sizeof(float)];
         Buffer.BlockCopy(importedTexture.RawRgbaFloatBytes, 0, pixels, 0, importedTexture.RawRgbaFloatBytes.Length);
         Assert.Equal(0.0f, pixels[0]);
@@ -285,6 +287,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeV"]).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(displacementTexture.Members["FilterMode"]).Value);
         Assert.False(Assert.IsType<Field_bool>(displacementTexture.Members["MipMaps"]).Value);
+        Assert.Contains(
+            client.ComponentsById.Values,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
         Assert.DoesNotContain(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
