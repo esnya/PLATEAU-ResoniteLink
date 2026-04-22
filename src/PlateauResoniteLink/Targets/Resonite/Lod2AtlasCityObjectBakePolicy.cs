@@ -47,14 +47,15 @@ internal static class Lod2AtlasCityObjectBakePolicies
         EnableGridPassThrough: false,
         PassThroughGridCellSizeMeters: 0);
 
-    internal static readonly Lod2AtlasCityObjectBakePolicy NonBuildingLod2OrLaterGridPassThrough = new(
-        Name: "non-building-grid-pass-through",
+    internal static readonly Lod2AtlasCityObjectBakePolicy FrnTranLod2OrLaterGridPassThrough = new(
+        Name: "frn-tran-grid-pass-through",
         CanBufferCityObject: cityObject =>
             cityObject.Geometry is ResoniteTriangleMeshGeometry
             && cityObject.Transform.Rotation is null
             && cityObject.LodLevel.HasValue
             && cityObject.LodLevel.Value >= 2
-            && !PlateauPackageCatalog.IsBuildingPackage(cityObject.PackageName),
+            && (string.Equals(cityObject.PackageName, "frn", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(cityObject.PackageName, "tran", StringComparison.OrdinalIgnoreCase)),
         RequireAtlasCandidateMaterial: false,
         PreserveVertexColorMaterials: true,
         PreserveTexturelessMaterials: true,
@@ -65,6 +66,6 @@ internal static class Lod2AtlasCityObjectBakePolicies
     internal static readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> DefaultPolicies =
     [
         DefaultBuildingLod2,
-        NonBuildingLod2OrLaterGridPassThrough,
+        FrnTranLod2OrLaterGridPassThrough,
     ];
 }

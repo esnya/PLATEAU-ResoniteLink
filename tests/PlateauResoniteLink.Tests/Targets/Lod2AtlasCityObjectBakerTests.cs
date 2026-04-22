@@ -473,6 +473,62 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task TryBufferAsyncBuffersTranAndFrnLod2CityObjectsForAtlasBake()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject tranCityObject = CreateLod2Building(
+            "tran-atlas",
+            CreatePayload("textures/tran-atlas.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            0,
+            "unit-a") with
+        {
+            PackageName = "tran",
+        };
+        ResoniteConstructionCityObject frnCityObject = CreateLod2Building(
+            "frn-atlas",
+            CreatePayload("textures/frn-atlas.png", new Rgba32(0, 255, 0, 255), 4, 4),
+            2,
+            "unit-a") with
+        {
+            PackageName = "frn",
+        };
+
+        await AssertBufferedAsync(baker, tranCityObject);
+        await AssertBufferedAsync(baker, frnCityObject);
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        Assert.All(
+            baked,
+            static cityObject =>
+            {
+                ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload);
+                Assert.StartsWith("atlas-batch-", atlasPayload.Identity, StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncSkipsOtherNonBuildingLod2CityObjects()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject nonTargetCityObject = CreateLod2Building(
+            "brid-atlas",
+            CreatePayload("textures/brid-atlas.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            0,
+            "unit-a") with
+        {
+            PackageName = "brid",
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(nonTargetCityObject);
+
+        Assert.False(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public async Task TryBufferAsyncSkipsNonTargetCityObjectsWithoutNormalizingDynamicUvTransform()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
