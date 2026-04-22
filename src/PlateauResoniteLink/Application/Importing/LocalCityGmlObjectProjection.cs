@@ -20,7 +20,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static partial class LocalCityGmlObjectProjection
+internal static partial class LocalCityGmlObjectProjection
 {
     public const string DefaultDemTerrainTexturePath = DemTerrainTextureDefaults.PlateauOrthoPath;
     public const string DefaultDemTerrainTextureUrlTemplate = DemTerrainTextureDefaults.PlateauOrthoUrlTemplate;
@@ -2627,6 +2627,31 @@ public static partial class LocalCityGmlObjectProjection
     }
 
     internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
+        global::PlateauResoniteLink.Application.Importing.CachedSourceFileDescriptor sourceFile,
+        global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        TerrainHeightSampler? terrainHeightSampler,
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
+        Func<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null)
+    {
+        return ProjectCityObjects(
+            sourceFile.ToLegacy(),
+            referenceSystem.ToLegacy(),
+            globalOriginPoint.ToLegacy(),
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshAreas,
+            terrainHeightSampler,
+            request,
+            materialResolver,
+            predicate is null ? null : cityObject => predicate(global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject)));
+    }
+
+    internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -3324,7 +3349,7 @@ public static partial class LocalCityGmlObjectProjection
         }
 
         TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateHeightMapOccupiedUvRect(
-            cityObject,
+            global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject),
             representativeSurface,
             demTerrainTextureOverlay,
             demObjectBounds);
@@ -3717,12 +3742,12 @@ public static partial class LocalCityGmlObjectProjection
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds>? requestedMeshAreas = null)
     {
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) entry in DemTerrainOverlayAssignment.SplitParsedCityObject(
-                     parsedCityObject,
+        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) entry in DemTerrainOverlayAssignment.SplitParsedCityObject(
+                     global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(parsedCityObject),
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
-            yield return entry;
+            yield return (entry.CityObject.ToLegacy(), entry.Overlay);
         }
     }
 
