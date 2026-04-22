@@ -390,7 +390,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static bool TryGetUniformPixel(ResoniteTexturePayload payload, out Rgba32 pixel)
     {
-        byte[] bytes = payload.BinaryPayload;
+        byte[] bytes = payload.CopyBinaryPayloadToArray();
         if (bytes.Length < 4 || (bytes.Length % 4) != 0)
         {
             pixel = default;

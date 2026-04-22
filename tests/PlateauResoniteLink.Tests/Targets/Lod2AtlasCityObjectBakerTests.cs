@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -409,14 +410,15 @@ public sealed class Lod2AtlasCityObjectBakerTests
 
         HashSet<Rgba32> atlasColors = [];
         int pixelCount = atlasPayload.Width.Value * atlasPayload.Height.Value;
+        byte[] atlasBytes = ReadAllBytes(atlasPayload.BinaryPayload);
         for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++)
         {
             int offset = pixelIndex * 4;
             atlasColors.Add(new Rgba32(
-                atlasPayload.BinaryPayload[offset],
-                atlasPayload.BinaryPayload[offset + 1],
-                atlasPayload.BinaryPayload[offset + 2],
-                atlasPayload.BinaryPayload[offset + 3]));
+                atlasBytes[offset],
+                atlasBytes[offset + 1],
+                atlasBytes[offset + 2],
+                atlasBytes[offset + 3]));
         }
 
         Assert.Contains(new Rgba32(255, 0, 0, 255), atlasColors);
@@ -673,11 +675,22 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.NotNull(payload.Width);
         int width = payload.Width.Value;
         int offset = ((y * width) + x) * 4;
+        byte[] bytes = ReadAllBytes(payload.BinaryPayload);
         return new Rgba32(
-            payload.BinaryPayload[offset],
-            payload.BinaryPayload[offset + 1],
-            payload.BinaryPayload[offset + 2],
-            payload.BinaryPayload[offset + 3]);
+            bytes[offset],
+            bytes[offset + 1],
+            bytes[offset + 2],
+            bytes[offset + 3]);
+    }
+
+    private static byte[] ReadAllBytes(Stream stream)
+    {
+        using (stream)
+        {
+            using MemoryStream copy = new();
+            stream.CopyTo(copy);
+            return copy.ToArray();
+        }
     }
 
     private static ResoniteConstructionCityObject CreateLod2Building(

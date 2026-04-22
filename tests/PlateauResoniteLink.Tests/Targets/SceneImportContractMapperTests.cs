@@ -1,3 +1,5 @@
+using System.IO;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -34,6 +36,7 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
         Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);
         Assert.Equal(ResoniteTexturePayloadFormat.EncodedImage, mapped.TexturePayload.Format);
+        Assert.Equal([1, 2, 3, 4], ReadAllBytes(mapped.TexturePayload.BinaryPayload));
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
         Assert.Equal(0.25, mapped.TextureScale!.X, 9);
@@ -91,5 +94,37 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(3, geometry.Mesh.Vertices.Count);
         Assert.Equal("shared", Assert.Single(geometry.Mesh.Submeshes).MaterialKey);
         Assert.Equal("shared", Assert.Single(mapped.Materials).MaterialKey);
+    }
+
+    [Fact]
+    public void ToContractMaterialBindingsExposesFreshReadablePayloadStream()
+    {
+        ResoniteMaterialBinding[] bindings =
+        [
+            new(
+                MaterialKey: "shared",
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.Standard,
+                TexturePayload: new ResoniteTexturePayload(1, 1, "sRGB", [9, 8, 7, 6], "dataset:texture"),
+                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]),
+        ];
+
+        MaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToContract(bindings));
+
+        Assert.Equal([9, 8, 7, 6], ReadAllBytes(mapped.TexturePayload!.BinaryPayload));
+        Assert.Equal([9, 8, 7, 6], ReadAllBytes(mapped.TexturePayload.BinaryPayload));
+    }
+
+    private static byte[] ReadAllBytes(Stream stream)
+    {
+        using (stream)
+        {
+            using MemoryStream copy = new();
+            stream.CopyTo(copy);
+            return copy.ToArray();
+        }
     }
 }

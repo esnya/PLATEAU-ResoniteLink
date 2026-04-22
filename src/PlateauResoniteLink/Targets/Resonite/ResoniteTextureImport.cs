@@ -119,13 +119,13 @@ internal static class ResoniteTextureImportFactory
             payload.Width.Value,
             payload.Height.Value,
             payload.ColorProfile,
-            payload.BinaryPayload,
+            payload.CopyBinaryPayloadToArray(),
             payload.Identity);
     }
 
     private static ResoniteRawTextureImport CreateRawFromEncodedPayload(ResoniteTexturePayload payload)
     {
-        using MemoryStream stream = new(payload.BinaryPayload, writable: false);
+        using Stream stream = payload.BinaryPayload;
         using Image<Rgba32> image = Image.Load<Rgba32>(stream);
         return CreateRawFromImageCore(
             image,
