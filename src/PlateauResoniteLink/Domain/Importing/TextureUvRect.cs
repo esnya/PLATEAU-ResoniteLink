@@ -77,7 +77,7 @@ internal readonly record struct TextureUvRect(
     {
         ArgumentNullException.ThrowIfNull(sourceUv);
 
-        return targetRect.Denormalize(
+        return targetRect.DenormalizeValue(
             sourceRect.NormalizeU(sourceUv.X),
             sourceRect.NormalizeV(sourceUv.Y));
     }
