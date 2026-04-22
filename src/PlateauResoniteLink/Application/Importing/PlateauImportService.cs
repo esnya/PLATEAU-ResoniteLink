@@ -12,14 +12,14 @@ using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed class PlateauImportService(
-    ISceneImportSink sceneSink,
+    ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
     ICityGmlDocumentReader documentReader,
     IImportedSceneSourceFactory constructionSourceFactory,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
-    private readonly ISceneImportSink sceneSink =
+    private readonly ISceneSink sceneSink =
         sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));

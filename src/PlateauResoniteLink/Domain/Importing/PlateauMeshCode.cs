@@ -21,22 +21,6 @@ public static class PlateauMeshCode
         return true;
     }
 
-    public static bool TryGetCenter(string meshCode, out ResoniteLocalOrigin center)
-    {
-        center = default!;
-
-        if (!TryGetGeodeticCenter(meshCode, out GeodeticCoordinate geodeticCenter))
-        {
-            return false;
-        }
-
-        center = new ResoniteLocalOrigin(
-            geodeticCenter.Latitude,
-            geodeticCenter.Longitude,
-            geodeticCenter.Altitude);
-        return true;
-    }
-
     public static bool TryGetBounds(
         string meshCode,
         out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) bounds)

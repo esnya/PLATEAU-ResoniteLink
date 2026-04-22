@@ -25,7 +25,7 @@ internal static partial class ResoniteSourceMeshCodeAnchor
         Match[] matches = MeshCodeRegex().Matches(value).Cast<Match>().ToArray();
         foreach (Match match in matches.OrderByDescending(static entry => entry.Value.Length).ThenByDescending(static entry => entry.Index))
         {
-            if (PlateauMeshCode.TryGetCenter(match.Value, out _))
+            if (PlateauMeshCode.TryGetGeodeticCenter(match.Value, out _))
             {
                 meshCode = match.Value;
                 return true;
@@ -56,7 +56,7 @@ internal static partial class ResoniteSourceMeshCodeAnchor
         if (concreteSourceMeshCodes.Length == 0)
         {
             concreteSourceMeshCodes = setupInfo.SelectedMeshCodes
-                .Where(static candidate => PlateauMeshCode.TryGetCenter(candidate, out _))
+                .Where(static candidate => PlateauMeshCode.TryGetGeodeticCenter(candidate, out _))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
         }
@@ -115,7 +115,7 @@ internal static partial class ResoniteSourceMeshCodeAnchor
                     NorthLatitude: Math.Max(left.NorthLatitude, right.NorthLatitude),
                     WestLongitude: Math.Min(left.WestLongitude, right.WestLongitude),
                     EastLongitude: Math.Max(left.EastLongitude, right.EastLongitude)));
-        ResoniteLocalOrigin boundsCenter = new(
+        GeodeticCoordinate boundsCenter = new(
             Latitude: (bounds.SouthLatitude + bounds.NorthLatitude) / 2.0,
             Longitude: (bounds.WestLongitude + bounds.EastLongitude) / 2.0,
             Altitude: 0.0);
@@ -130,10 +130,10 @@ internal static partial class ResoniteSourceMeshCodeAnchor
     }
 
     private static double ComputeDistanceSquared(
-        ResoniteLocalOrigin center,
+        GeodeticCoordinate center,
         string meshCode)
     {
-        if (!PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin meshCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate meshCenter))
         {
             return double.PositiveInfinity;
         }

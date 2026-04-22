@@ -80,7 +80,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
-        ISceneImportSink target = scope.ServiceProvider
+        ISceneSink target = scope.ServiceProvider
             .GetRequiredService<IResoniteLiveSceneImportFactory>()
             .CreateTarget(
                 new ResoniteLiveSceneImportTargetOptions(
@@ -116,7 +116,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
-        ISceneImportSink target = scope.ServiceProvider
+        ISceneSink target = scope.ServiceProvider
             .GetRequiredService<IResoniteLiveSceneImportFactory>()
             .CreateTarget(
                 new ResoniteLiveSceneImportTargetOptions(
@@ -146,7 +146,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
         using HttpClient terrainTextureAssetHttpClient = new();
-        ISceneImportSink target = scope.ServiceProvider
+        ISceneSink target = scope.ServiceProvider
             .GetRequiredService<IResoniteLiveSceneImportFactory>()
             .CreateTarget(
                 new ResoniteLiveSceneImportTargetOptions(

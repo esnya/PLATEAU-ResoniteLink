@@ -1,5 +1,5 @@
 namespace PlateauResoniteLink.Domain.Importing;
 
-public sealed record ScalarPair(
+public record ScalarPair(
     double X,
     double Y);

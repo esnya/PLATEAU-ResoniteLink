@@ -19,7 +19,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-public sealed class ResoniteLiveSceneImportTarget : ISceneImportSink
+public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
@@ -160,9 +160,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportSink
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
-        ResoniteMaterialBinding[] internalCommonMaterials = commonMaterials
-            .Select(SceneImportContractMapper.ToInternal)
-            .ToArray();
+        ResoniteMaterialBinding[] internalCommonMaterials = SceneImportContractMapper.ToInternal(commonMaterials);
         await ClientSessionInternal.EnsureConnectedAsync(
             new LiveSendConnectionRequest(
                 normalizedRequest.Dataset,

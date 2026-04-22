@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
@@ -8,6 +9,18 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class SceneImportContractMapper
 {
+    internal static ImportedCityObject[] ToContract(IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    {
+        ArgumentNullException.ThrowIfNull(cityObjects);
+        return cityObjects.Select(ToContract).ToArray();
+    }
+
+    internal static MaterialBinding[] ToContract(IReadOnlyList<ResoniteMaterialBinding> bindings)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+        return bindings.Select(ToContract).ToArray();
+    }
+
     internal static ImportedSceneMetadata ToContract(ResoniteConstructionMetadata metadata)
     {
         return new ImportedSceneMetadata(
@@ -70,6 +83,18 @@ internal static class SceneImportContractMapper
             metadata.SourceDataset,
             ToInternal(metadata.Attribution),
             ToInternal(metadata.GeodeticOrigin));
+    }
+
+    internal static ResoniteConstructionCityObject[] ToInternal(IReadOnlyList<ImportedCityObject> cityObjects)
+    {
+        ArgumentNullException.ThrowIfNull(cityObjects);
+        return cityObjects.Select(ToInternal).ToArray();
+    }
+
+    internal static ResoniteMaterialBinding[] ToInternal(IReadOnlyList<MaterialBinding> bindings)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+        return bindings.Select(ToInternal).ToArray();
     }
 
     internal static ResoniteConstructionCityObject ToInternal(ImportedCityObject cityObject)
@@ -142,9 +167,9 @@ internal static class SceneImportContractMapper
         return new GeodeticOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
-    private static Transform3d ToContract(ResoniteTransform transform)
+    private static Transform3D ToContract(ResoniteTransform transform)
     {
-        return new Transform3d(
+        return new Transform3D(
             ToContract(transform.Position),
             transform.Rotation is null ? null : ToContract(transform.Rotation));
     }
@@ -238,7 +263,7 @@ internal static class SceneImportContractMapper
         return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
-    private static ResoniteTransform ToInternal(Transform3d transform)
+    private static ResoniteTransform ToInternal(Transform3D transform)
     {
         return new ResoniteTransform(
             ToInternal(transform.Position),

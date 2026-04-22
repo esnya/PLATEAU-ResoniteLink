@@ -21,7 +21,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateService(ISceneImportSink sceneBuilder)
+    private static PlateauImportService CreateService(ISceneSink sceneBuilder)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
@@ -960,7 +960,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             PackageName: "dem",
             ActualMeshCode: "53394525",
             LodLevel: 1,
-            Transform: new Transform3d(position),
+            Transform: new Transform3D(position),
             Geometry: new HeightMapGridGeometry(
                 Width: width,
                 Height: height,
@@ -973,7 +973,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             SourceUnitKey: slotKey,
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
-    private sealed class StubSceneBuilder : ISceneImportSink
+    private sealed class StubSceneBuilder : ISceneSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 

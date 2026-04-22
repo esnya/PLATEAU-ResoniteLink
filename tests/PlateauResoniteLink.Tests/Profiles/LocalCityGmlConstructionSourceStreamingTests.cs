@@ -347,7 +347,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                     cityObject.PackageName,
                     cityObject.ActualMeshCode,
                     cityObject.LodLevel,
-                    new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                    new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     new TriangleMeshGeometry(
                         new ImportedMesh(
                             [

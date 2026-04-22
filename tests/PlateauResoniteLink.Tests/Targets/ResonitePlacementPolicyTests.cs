@@ -80,11 +80,14 @@ public sealed class ResonitePlacementPolicyTests
 
     private static PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
     {
-        if (PlateauResoniteLink.Domain.Importing.PlateauMeshCode.TryGetCenter(
+        if (PlateauResoniteLink.Domain.Importing.PlateauMeshCode.TryGetGeodeticCenter(
             meshCode,
-            out PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin center))
+            out PlateauResoniteLink.Domain.Importing.GeodeticCoordinate center))
         {
-            return center;
+            return new PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin(
+                center.Latitude,
+                center.Longitude,
+                center.Altitude);
         }
 
         throw new InvalidOperationException($"Failed to resolve a mesh-code center for '{meshCode}'.");

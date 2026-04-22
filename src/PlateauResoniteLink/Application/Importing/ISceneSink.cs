@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface ISceneImportSink : IAsyncDisposable
+public interface ISceneSink : IAsyncDisposable
 {
     Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,

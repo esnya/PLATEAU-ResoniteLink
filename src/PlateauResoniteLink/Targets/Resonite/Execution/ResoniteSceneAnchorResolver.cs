@@ -123,8 +123,8 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
-            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter)
+            || !PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter))
         {
             return new ResoniteFloat3(0.0, 0.0, 0.0);
         }
@@ -133,8 +133,8 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
     }
 
     private static ResoniteFloat3 ComputeOriginOffset(
-        ResoniteLocalOrigin referenceCenter,
-        ResoniteLocalOrigin currentCenter)
+        GeodeticCoordinate referenceCenter,
+        GeodeticCoordinate currentCenter)
     {
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,

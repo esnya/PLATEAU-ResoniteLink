@@ -48,7 +48,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
         {
             ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
-                ResolveTargetId(slotEmission.ParentId, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                ResolveTargetId(slotEmission.ParentTarget, pendingSlotsByPlanId, pendingComponentsByPlanId),
                 slotEmission.SlotName,
                 slotEmission.Position,
                 slotEmission.Rotation);
@@ -73,7 +73,7 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
             }
 
             ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
-                ResolveTargetId(componentEmission.ContainerId, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                ResolveTargetId(componentEmission.ContainerTarget, pendingSlotsByPlanId, pendingComponentsByPlanId),
                 componentEmission.ComponentType,
                 translatedMembers);
             pendingComponentsByPlanId[componentEmission.Identity.Value] = pendingComponent;
@@ -108,6 +108,29 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
     }
 
     private static string ResolveTargetId(
+        BatchPlanTargetReference target,
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
+    {
+        if (!target.IsPlannedEntity)
+        {
+            return target.Value;
+        }
+
+        if (pendingSlotsByPlanId.TryGetValue(target.Value, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
+        {
+            return pendingSlot.LocalId.Value;
+        }
+
+        if (pendingComponentsByPlanId.TryGetValue(target.Value, out ResoniteBatchOperations.PendingBatchComponent pendingComponent))
+        {
+            return pendingComponent.LocalId.Value;
+        }
+
+        return target.Value;
+    }
+
+    private static string ResolveTargetId(
         string targetId,
         IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
         IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
@@ -117,17 +140,12 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
             return targetId;
         }
 
-        if (pendingSlotsByPlanId.TryGetValue(targetId, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
-        {
-            return pendingSlot.LocalId.Value;
-        }
-
-        if (pendingComponentsByPlanId.TryGetValue(targetId, out ResoniteBatchOperations.PendingBatchComponent pendingComponent))
-        {
-            return pendingComponent.LocalId.Value;
-        }
-
-        return targetId;
+        return ResolveTargetId(
+            pendingSlotsByPlanId.ContainsKey(targetId) || pendingComponentsByPlanId.ContainsKey(targetId)
+                ? BatchPlanTargetReference.Planned(new BatchPlanEntityId(targetId))
+                : BatchPlanTargetReference.Canonical(targetId),
+            pendingSlotsByPlanId,
+            pendingComponentsByPlanId);
     }
 
     private static Dictionary<string, Member> TranslateMembers(

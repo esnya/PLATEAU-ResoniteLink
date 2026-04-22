@@ -80,16 +80,41 @@ internal sealed record PlannedSceneObjectEmission(
 
 internal readonly record struct BatchPlanEntityId(string Value);
 
+internal readonly record struct BatchPlanTargetReference
+{
+    private BatchPlanTargetReference(string value, bool isPlannedEntity)
+    {
+        Value = value;
+        IsPlannedEntity = isPlannedEntity;
+    }
+
+    public string Value { get; }
+
+    public bool IsPlannedEntity { get; }
+
+    public static BatchPlanTargetReference Canonical(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        return new BatchPlanTargetReference(value, isPlannedEntity: false);
+    }
+
+    public static BatchPlanTargetReference Planned(BatchPlanEntityId value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value.Value);
+        return new BatchPlanTargetReference(value.Value, isPlannedEntity: true);
+    }
+}
+
 internal sealed record PlannedBatchSlotEmission(
     BatchPlanEntityId Identity,
-    string ParentId,
+    BatchPlanTargetReference ParentTarget,
     string SlotName,
     ResoniteFloat3? Position,
     ResoniteFloatQ? Rotation);
 
 internal sealed record PlannedBatchComponentEmission(
     BatchPlanEntityId Identity,
-    string ContainerId,
+    BatchPlanTargetReference ContainerTarget,
     string ComponentType,
     IReadOnlyDictionary<string, Member> Members);
 

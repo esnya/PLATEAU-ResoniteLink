@@ -107,7 +107,7 @@ internal static class ResonitePlacementPolicy
             return meshCode;
         }
 
-        if (PlateauMeshCode.TryGetCenter(actualMeshCode, out _))
+        if (PlateauMeshCode.TryGetGeodeticCenter(actualMeshCode, out _))
         {
             return actualMeshCode;
         }
@@ -129,7 +129,7 @@ internal static class ResonitePlacementPolicy
         ResoniteFloat3? observedRootPosition,
         ResoniteFloat3 cityObjectPosition)
     {
-        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
         {
             return cityObjectPosition;
         }
@@ -147,7 +147,7 @@ internal static class ResonitePlacementPolicy
         string rootMeshCode,
         double? observedRootHeight = null)
     {
-        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
         {
             return new ResoniteFloat3(0.0, observedRootHeight ?? 0.0, 0.0);
         }
@@ -171,8 +171,8 @@ internal static class ResonitePlacementPolicy
 
     public static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
-            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter)
+            || !PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter))
         {
             return new ResoniteFloat3(0.0, 0.0, 0.0);
         }
@@ -180,7 +180,7 @@ internal static class ResonitePlacementPolicy
         return ComputeOriginOffset(referenceCenter, currentCenter);
     }
 
-    public static ResoniteFloat3 ComputeOriginOffset(ResoniteLocalOrigin referenceCenter, ResoniteLocalOrigin currentCenter)
+    public static ResoniteFloat3 ComputeOriginOffset(GeodeticCoordinate referenceCenter, GeodeticCoordinate currentCenter)
     {
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,

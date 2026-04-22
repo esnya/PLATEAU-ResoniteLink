@@ -1317,7 +1317,7 @@ public static partial class LocalCityGmlObjectProjection
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
-            Transform: new Transform3d(ToContractFloat3(slotPosition)),
+            Transform: new Transform3D(ToContractFloat3(slotPosition)),
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
@@ -3209,7 +3209,7 @@ public static partial class LocalCityGmlObjectProjection
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
-            Transform: new Transform3d(
+            Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
             Geometry: new HeightMapGridGeometry(

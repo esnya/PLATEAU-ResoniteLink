@@ -117,18 +117,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 && string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
         Assert.False(sharedMaterial.Members.ContainsKey("AlbedoTexture"));
 
-        Component overrideTextureComponent = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && string.Equals(request.ContainerSlotId, Assert.Single(client.AddedComponents, static component => string.Equals(component.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal)).ContainerSlotId, StringComparison.Ordinal)).Data;
-        Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", overrideTextureComponent.ComponentType);
         string overrideTextureReferenceId = Assert.IsType<Reference>(plannedPropertyBlock.Data.Members["Texture"]).TargetID;
-        _ = Assert.Single(
+        AddComponent overrideTextureOperation = Assert.Single(
             client.Batches
                 .SelectMany(static operations => operations)
                 .OfType<AddComponent>(),
             operation => string.Equals(operation.Data.ID, overrideTextureReferenceId, StringComparison.Ordinal)
                 && string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
+        Component overrideTextureComponent = overrideTextureOperation.Data;
+        Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", overrideTextureComponent.ComponentType);
         Field_Uri textureUrl = Assert.IsType<Field_Uri>(overrideTextureComponent.Members["URL"]);
         Assert.StartsWith("resdb:///texture/", textureUrl.Value.ToString(), StringComparison.Ordinal);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTextureComponent.Members["WrapModeU"]).Value);

@@ -259,8 +259,8 @@ public sealed class ResoniteSceneAnchorResolverTests
         string completionMeshCode,
         ResoniteFloat3 referencePosition)
     {
-        Assert.True(PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter));
-        Assert.True(PlateauMeshCode.TryGetCenter(completionMeshCode, out ResoniteLocalOrigin completionCenter));
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter));
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(completionMeshCode, out GeodeticCoordinate completionCenter));
 
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,

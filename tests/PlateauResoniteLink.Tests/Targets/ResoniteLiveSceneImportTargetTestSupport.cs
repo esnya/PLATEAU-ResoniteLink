@@ -223,10 +223,10 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             }
         }
 
-        return materialsByKey.Values
-            .OrderBy(static material => material.MaterialKey, StringComparer.Ordinal)
-            .Select(SceneImportContractMapper.ToContract)
-            .ToArray();
+        return SceneImportContractMapper.ToContract(
+            materialsByKey.Values
+                .OrderBy(static material => material.MaterialKey, StringComparer.Ordinal)
+                .ToArray());
     }
 
     private static void AddNormalizedCommonMaterial(

@@ -318,7 +318,7 @@ public sealed class PlateauImportServiceTests
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
-    private sealed class RecordingSceneBuilder : ISceneImportSink
+    private sealed class RecordingSceneBuilder : ISceneSink
     {
         public int ExecuteCallCount { get; private set; }
 
@@ -466,7 +466,7 @@ public sealed class PlateauImportServiceTests
                 PackageName: "bldg",
                 ActualMeshCode: "53394525",
                 LodLevel: 1,
-                Transform: new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                 Geometry: new TriangleMeshGeometry(new ImportedMesh(
                     [
                         new MeshVertex(new Float3(0.0, 0.0, 0.0), new Float3(0.0, 1.0, 0.0), new Float2(0.0, 0.0)),

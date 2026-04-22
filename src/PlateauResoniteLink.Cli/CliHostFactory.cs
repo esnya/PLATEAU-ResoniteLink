@@ -48,7 +48,7 @@ internal static class CliServiceCollectionExtensions
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
-        services.AddSingleton<ISceneImportSinkFactory, DefaultSceneImportSinkFactory>();
+        services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
@@ -69,14 +69,14 @@ internal interface IPlateauDatasetSourceResolverFactory
     IPlateauDatasetSourceResolver Create();
 }
 
-internal interface ISceneImportSinkFactory
+internal interface ISceneSinkFactory
 {
-    ISceneImportSink Create(ImportCommandOptions options, Action<string>? progressReporter);
+    ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
 internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
-    ISceneImportSinkFactory sceneImportSinkFactory,
+    ISceneSinkFactory sceneSinkFactory,
     ICityGmlDocumentReader documentReader,
     IImportedSceneSourceFactory constructionSourceFactory,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
@@ -90,7 +90,7 @@ internal sealed class DefaultImportServiceFactory(
         ArgumentNullException.ThrowIfNull(options);
 
         return new PlateauImportService(
-            sceneImportSinkFactory.Create(options, progressReporter),
+            sceneSinkFactory.Create(options, progressReporter),
             datasetSourceResolverFactory.Create(),
             documentReader,
             constructionSourceFactory,
@@ -114,12 +114,12 @@ internal sealed class DefaultPlateauDatasetSourceResolverFactory(
     }
 }
 
-internal sealed class DefaultSceneImportSinkFactory(
+internal sealed class DefaultSceneSinkFactory(
     IHttpClientFactory httpClientFactory,
     IServiceScopeFactory serviceScopeFactory)
-    : ISceneImportSinkFactory
+    : ISceneSinkFactory
 {
-    public ISceneImportSink Create(ImportCommandOptions options, Action<string>? progressReporter)
+    public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -140,7 +140,7 @@ internal sealed class DefaultSceneImportSinkFactory(
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 targetOptions,
                 httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName));
-            return new ScopedSceneImportSink(scope, target);
+            return new ScopedSceneSink(scope, target);
         }
         catch
         {
@@ -150,9 +150,9 @@ internal sealed class DefaultSceneImportSinkFactory(
     }
 }
 
-internal sealed class ScopedSceneImportSink(
+internal sealed class ScopedSceneSink(
     AsyncServiceScope scope,
-    ISceneImportSink inner) : ISceneImportSink
+    ISceneSink inner) : ISceneSink
 {
     public Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,

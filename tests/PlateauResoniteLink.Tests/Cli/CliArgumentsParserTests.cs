@@ -225,8 +225,16 @@ public sealed class CliArgumentsParserTests
             "plateau-resonitelink import --dataset <dataset> --mesh-code <mesh-code> [options]",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "Import options:",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
         Assert.DoesNotContain(
             "plateau-resonitelink build --dataset <dataset> --mesh-code <mesh-code> [options]",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Build options:",
             CliArgumentsParser.HelpText,
             StringComparison.Ordinal);
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);

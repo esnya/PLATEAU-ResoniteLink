@@ -2,7 +2,7 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public sealed record ResoniteFloat2(
     double X,
-    double Y);
+    double Y) : ScalarPair(X, Y);
 
 public sealed record ResoniteFloat3(
     double X,

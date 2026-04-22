@@ -1343,8 +1343,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
-        Assert.True(PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter));
-        Assert.True(PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter));
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter));
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter));
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,
             referenceCenter.Longitude,
@@ -1359,8 +1359,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
     private static ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
     {
-        Assert.True(PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin center));
-        return center;
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate center));
+        return new ResoniteLocalOrigin(center.Latitude, center.Longitude, center.Altitude);
     }
 
     private static string GetRendererMaterialReferenceTarget(

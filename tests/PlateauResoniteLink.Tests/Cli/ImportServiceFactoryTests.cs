@@ -17,7 +17,7 @@ public sealed class ImportServiceFactoryTests
     public async Task CreateBuildsRunScopedServicesAndPassesTargetOptionsThrough()
     {
         StubPlateauDatasetSourceResolverFactory datasetResolverFactory = new();
-        StubSceneImportSinkFactory sceneImportTargetFactory = new();
+        StubSceneSinkFactory sceneImportTargetFactory = new();
         StubCityGmlDocumentReader documentReader = new();
         StubConstructionSourceFactory constructionSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
@@ -94,12 +94,12 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubSceneImportSinkFactory : ISceneImportSinkFactory
+    private sealed class StubSceneSinkFactory : ISceneSinkFactory
     {
         public List<ImportCommandOptions> CapturedOptions { get; } = [];
         public List<StubSceneImportSink> CreatedTargets { get; } = [];
 
-        public ISceneImportSink Create(ImportCommandOptions options, Action<string>? progressReporter)
+        public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
         {
             CapturedOptions.Add(options);
             StubSceneImportSink target = new();
@@ -108,7 +108,7 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubSceneImportSink : ISceneImportSink
+    private sealed class StubSceneImportSink : ISceneSink
     {
         public int DisposeCallCount { get; private set; }
 
@@ -202,7 +202,7 @@ public sealed class ImportServiceFactoryTests
                 "bldg",
                 "53394525",
                 1,
-                new Transform3d(new Float3(0, 0, 0)),
+                new Transform3D(new Float3(0, 0, 0)),
                 new TriangleMeshGeometry(new ImportedMesh(
                     [
                         new MeshVertex(new Float3(0, 0, 0), new Float3(0, 1, 0), new Float2(0, 0)),
