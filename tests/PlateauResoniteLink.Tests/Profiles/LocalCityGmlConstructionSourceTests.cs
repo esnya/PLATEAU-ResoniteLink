@@ -594,23 +594,11 @@ public sealed class LocalCityGmlConstructionSourceTests
             this.delayOverlayResolutionUntilCancellation = delayOverlayResolutionUntilCancellation;
         }
 
-        public IReadOnlyList<string>? LastRequestedMeshCodes { get; private set; }
-
         public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
 
         private int resolveOverlayRegionsCallCount;
 
         public int ResolveOverlayRegionsCallCount => resolveOverlayRegionsCallCount;
-
-        public Task<ResolvedDemTextureSources> ResolveAsync(
-            PlateauImportRequest request,
-            IReadOnlyList<string> requestedMeshCodes,
-            CancellationToken cancellationToken = default)
-        {
-            _ = request;
-            LastRequestedMeshCodes = requestedMeshCodes.ToArray();
-            return Task.FromResult(new ResolvedDemTextureSources(fallbackOverlays));
-        }
 
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -161,6 +163,102 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
     }
 
+    [Theory]
+    [InlineData(PlateauImportMemoryProfile.Small, 512, 513)]
+    [InlineData(PlateauImportMemoryProfile.Large, 4096, 4097)]
+    public async Task BufferedCityObjectBakerFactoryAppliesPerBatchCityObjectLimitsByMemoryProfile(
+        PlateauImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                noFlushCount,
+                index => CreateTriangleBuilding(
+                    $"city-{index}",
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)));
+        Assert.True(
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateTriangleBuilding(
+                    $"city-{index}",
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)) > 0);
+    }
+
+    [Theory]
+    [InlineData(PlateauImportMemoryProfile.Small, 256, 257)]
+    [InlineData(PlateauImportMemoryProfile.Large, 1024, 1025)]
+    public async Task BufferedCityObjectBakerFactoryAppliesBufferedCellLimitsByMemoryProfile(
+        PlateauImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                noFlushCount,
+                index => CreateTriangleBuilding(
+                    $"cell-{index}",
+                    x: 10.0 + (index * 80.0),
+                    z: 10.0,
+                    sourceUnitKey: $"unit-{index}",
+                    sourceFileRelativePath: null)));
+        Assert.True(
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateTriangleBuilding(
+                    $"cell-{index}",
+                    x: 10.0 + (index * 80.0),
+                    z: 10.0,
+                    sourceUnitKey: $"unit-{index}",
+                    sourceFileRelativePath: null)) > 0);
+    }
+
+    [Theory]
+    [InlineData(PlateauImportMemoryProfile.Small, 32, 33, 1024)]
+    [InlineData(PlateauImportMemoryProfile.Large, 63, 64, 1024)]
+    public async Task BufferedCityObjectBakerFactoryAppliesVertexBudgetByMemoryProfile(
+        PlateauImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount,
+        int vertexCount)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                noFlushCount,
+                index => CreateDenseTriangleBuilding(
+                    $"dense-{index}",
+                    vertexCount,
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)));
+        Assert.True(
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateDenseTriangleBuilding(
+                    $"dense-{index}",
+                    vertexCount,
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)) > 0);
+    }
+
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
@@ -231,5 +329,81 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = diagnostics;
             return createSession();
         }
+    }
+
+    private static async Task<int> CountReadyBeforeFlushAsync(
+        PlateauImportMemoryProfile memoryProfile,
+        int cityObjectCount,
+        Func<int, ResoniteConstructionCityObject> createCityObject)
+    {
+        ResoniteBufferedCityObjectBakerFactory factory = new();
+        CompositeCityObjectBaker baker = factory.Create(
+                enableMeshBake: true,
+                new ResoniteTextureImageLoader(),
+                ResoniteImportBudgetProfiles.ForProfile(memoryProfile))
+            ?? throw new InvalidOperationException("Expected mesh bake composite baker.");
+
+        int readyBeforeFlush = 0;
+        for (int index = 0; index < cityObjectCount; index++)
+        {
+            IReadOnlyList<ResoniteConstructionCityObject> ready = await baker.BufferAsync(createCityObject(index));
+            readyBeforeFlush += ready.Count;
+        }
+
+        return readyBeforeFlush;
+    }
+
+    private static ResoniteConstructionCityObject CreateTriangleBuilding(
+        string slotKey,
+        double x,
+        double z,
+        string sourceUnitKey = "unit",
+        string? sourceFileRelativePath = "source.gml")
+    {
+        return CreateDenseTriangleBuilding(slotKey, 3, x, z, sourceUnitKey, sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateDenseTriangleBuilding(
+        string slotKey,
+        int vertexCount,
+        double x,
+        double z,
+        string sourceUnitKey = "unit",
+        string? sourceFileRelativePath = "source.gml")
+    {
+        ResoniteMeshVertex[] vertices = Enumerable.Range(0, vertexCount)
+            .Select(index => new ResoniteMeshVertex(
+                new ResoniteFloat3(index, 0.0, 0.0),
+                new ResoniteFloat3(0.0, 1.0, 0.0),
+                new ResoniteFloat2(0.0, 0.0)))
+            .ToArray();
+
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
+            Mesh: new ResoniteImportedMesh(
+                vertices,
+                [
+                    new ResoniteMeshSubmesh(0, "shared-material", [0, 1, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    "shared-material",
+                    new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    ResoniteMaterialType.Standard,
+                    null,
+                    ResoniteTextureSourceKind.Bundled,
+                    ResoniteMaterialProjection.Uv,
+                    null,
+                    [0]),
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: sourceFileRelativePath);
     }
 }

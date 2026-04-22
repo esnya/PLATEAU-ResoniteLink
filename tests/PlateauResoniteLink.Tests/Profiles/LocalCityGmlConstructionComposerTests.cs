@@ -128,16 +128,6 @@ public sealed class LocalCityGmlConstructionComposerTests
     {
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
-            IReadOnlyList<string> requestedMeshCodes,
-            CancellationToken cancellationToken = default)
-        {
-            _ = request;
-            _ = requestedMeshCodes;
-            return Task.FromResult(new ResolvedDemTextureSources([]));
-        }
-
-        public Task<ResolvedDemTextureSources> ResolveAsync(
-            PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
             CancellationToken cancellationToken = default)
         {

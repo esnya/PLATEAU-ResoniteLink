@@ -33,11 +33,10 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         Assert.Same(expectedSource, result);
         Assert.Equal(request, reader.LastRequest);
+        Assert.Same(progressReporter, reader.LastProgressReporter);
         Assert.Equal(request, composer.LastRequest);
-        Assert.NotNull(reader.LastProgressReporter);
-        Assert.NotNull(composer.LastProgressReporter);
-        Assert.Equal(reader.ReadResult.DocumentSet.RelativeSourceFiles, composer.LastReadResult?.DocumentSet.RelativeSourceFiles);
-        Assert.Equal(reader.ReadResult.DocumentSet.PackageNames, composer.LastReadResult?.DocumentSet.PackageNames);
+        Assert.Same(progressReporter, composer.LastProgressReporter);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Null(demTextureSourcePolicy.LastRequest);
     }
 
@@ -79,7 +78,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request);
 
-        Assert.Equal(reader.ReadResult.DocumentSet.RelativeSourceFiles, composer.LastReadResult?.DocumentSet.RelativeSourceFiles);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
         Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
         Assert.Null(demTextureSourcePolicy.LastRequest);
@@ -117,7 +116,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525", "53394526"], demTextureSourcePolicy.LastOverlayRegionIdentities);
-        Assert.Equal(reader.ReadResult.DocumentSet.RelativeSourceFiles, composer.LastReadResult?.DocumentSet.RelativeSourceFiles);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
     }
 
