@@ -1,10 +1,8 @@
 using System.Collections.Generic;
-using System.Linq;
 
 using GeographicLib;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -24,16 +22,15 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
         ISet<string>? emittedMaterialKeys = null)
     {
         return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
-                sourceFile.ToLegacy(),
-                referenceSystem.ToLegacy(),
-                globalOriginPoint.ToLegacy(),
-                globalCartesian,
-                demTerrainTextureOverlays,
-                requestedMeshAreas,
-                terrainHeightSampler: null,
-                request,
-                materialResolver,
-                emittedMaterialKeys)
-            .Select(SceneImportContractMapper.ToContract);
+            sourceFile.ToLegacy(),
+            referenceSystem.ToLegacy(),
+            globalOriginPoint.ToLegacy(),
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshAreas,
+            terrainHeightSampler: null,
+            request,
+            materialResolver,
+            emittedMaterialKeys);
     }
 }

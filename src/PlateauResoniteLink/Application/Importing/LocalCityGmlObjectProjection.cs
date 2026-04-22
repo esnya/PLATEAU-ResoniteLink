@@ -1309,24 +1309,7 @@ public static partial class LocalCityGmlObjectProjection
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
             submeshes.Add(new ResoniteMeshSubmesh(materialIndex, materialGroup.Key, indices));
-            materials.Add(
-                new ResoniteMaterialBinding(
-                    MaterialKey: materialGroup.Key,
-                    BaseColor: representativeSurface.Surface.BaseColor,
-                    MaterialType: (ResoniteMaterialType)representativeSurface.Material.MaterialType,
-                    TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: (ResoniteTextureSourceKind)representativeSurface.Material.TextureSourceKind,
-                    Projection: (ResoniteMaterialProjection)representativeSurface.Material.Projection,
-                    DepthOffset: representativeSurface.DepthOffset,
-                    SubmeshIndices: [materialIndex],
-                    TextureScale: representativeSurface.Material.TextureScale,
-                    Family: representativeSurface.Material.Family,
-                    TextureOffset: null,
-                    AssetScope: representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
-                        ? ResoniteMaterialAssetScope.Common
-                        : ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    TerrainOverlay: representativeSurface.Material.TerrainOverlay,
-                    BundledVariantIndex: representativeSurface.Material.BundledVariantIndex));
+            materials.Add(SceneImportContractMapper.ToInternal(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex)));
         }
 
         return ResoniteDynamicMaterialUvNormalizer.Normalize(new ResoniteConstructionCityObject(
@@ -2669,7 +2652,7 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterials(
+    internal static IEnumerable<MaterialBinding> EnumerateCommonMaterials(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2687,7 +2670,7 @@ public static partial class LocalCityGmlObjectProjection
 
         foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
         {
-            foreach (ResoniteMaterialBinding material in EnumerateCommonMaterialsForParsedCityObject(
+            foreach (MaterialBinding material in EnumerateCommonMaterialsForParsedCityObject(
                          parsedCityObject,
                          globalOriginPoint,
                          globalCartesian,
@@ -2798,7 +2781,7 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    internal static IEnumerable<ResoniteMaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
+    internal static IEnumerable<MaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
         ParsedCityObject parsedCityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -2824,7 +2807,7 @@ public static partial class LocalCityGmlObjectProjection
                     splitCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
 
-            foreach (ResoniteMaterialBinding material in request.DemTerrainMode == DemTerrainMode.HeightMap
+            foreach (MaterialBinding material in request.DemTerrainMode == DemTerrainMode.HeightMap
                          && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                             ? CreateDemHeightMapMaterials(
                                 splitCityObject.CityObject,
@@ -2844,7 +2827,7 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    private static ResoniteMaterialBinding[] CreateCommonMaterialBindings(
+    private static MaterialBinding[] CreateCommonMaterialBindings(
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -2868,28 +2851,16 @@ public static partial class LocalCityGmlObjectProjection
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                return new ResoniteMaterialBinding(
-                    MaterialKey: CreateBindingMaterialKey(
+                return CreateMaterialBinding(
+                    representativeSurface,
+                    CreateBindingMaterialKey(
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor),
-                    BaseColor: representativeSurface.Surface.BaseColor,
-                    MaterialType: (ResoniteMaterialType)representativeSurface.Material.MaterialType,
-                    TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: (ResoniteTextureSourceKind)representativeSurface.Material.TextureSourceKind,
-                    Projection: (ResoniteMaterialProjection)representativeSurface.Material.Projection,
-                    DepthOffset: representativeSurface.DepthOffset,
-                    SubmeshIndices: [materialIndex],
-                    TextureScale: representativeSurface.Material.TextureScale,
-                    Family: representativeSurface.Material.Family,
-                    AssetScope: representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
-                        ? ResoniteMaterialAssetScope.Common
-                        : ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    TerrainOverlay: representativeSurface.Material.TerrainOverlay,
-                    BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
+                    materialIndex);
             })
-            .Where(static material => material.AssetScope == ResoniteMaterialAssetScope.Common)
+            .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
             .ToArray();
     }
 
@@ -3186,7 +3157,9 @@ public static partial class LocalCityGmlObjectProjection
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
-            materialResolver);
+            materialResolver)
+            .Select(SceneImportContractMapper.ToInternal)
+            .ToArray();
         if (materials.Length == 0)
         {
             return false;
@@ -3233,7 +3206,7 @@ public static partial class LocalCityGmlObjectProjection
         return true;
     }
 
-    private static ResoniteMaterialBinding[] CreateDemHeightMapMaterials(
+    private static MaterialBinding[] CreateDemHeightMapMaterials(
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -3258,31 +3231,64 @@ public static partial class LocalCityGmlObjectProjection
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                return new ResoniteMaterialBinding(
-                    MaterialKey: CreateBindingMaterialKey(
+                return CreateMaterialBinding(
+                    representativeSurface,
+                    CreateBindingMaterialKey(
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
                         null),
-                    BaseColor: representativeSurface.Surface.BaseColor,
-                    MaterialType: (ResoniteMaterialType)representativeSurface.Material.MaterialType,
-                    TexturePayload: representativeSurface.Material.TexturePayload,
-                    TextureSourceKind: (ResoniteTextureSourceKind)representativeSurface.Material.TextureSourceKind,
-                    Projection: (ResoniteMaterialProjection)representativeSurface.Material.Projection,
-                    DepthOffset: representativeSurface.DepthOffset,
-                    SubmeshIndices: [materialIndex],
-                    TextureScale: representativeSurface.Material.TextureScale,
-                    Family: representativeSurface.Material.Family,
-                    TextureOffset: null,
-                    AssetScope: representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
-                        ? ResoniteMaterialAssetScope.Common
-                        : ResoniteMaterialAssetScope.PresentationSlotScoped,
-                    TerrainOverlay: representativeSurface.Material.TerrainOverlay,
-                    BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
+                    materialIndex);
             })
             .ToArray();
     }
+
+    private static MaterialBinding CreateMaterialBinding(
+        ResolvedSurfaceMaterial representativeSurface,
+        string materialKey,
+        int materialIndex)
+    {
+        return new MaterialBinding(
+            MaterialKey: materialKey,
+            BaseColor: ToContractColor(representativeSurface.Surface.BaseColor),
+            MaterialType: representativeSurface.Material.MaterialType,
+            TexturePayload: representativeSurface.Material.TexturePayload is null
+                ? null
+                : ToContractTexturePayload(representativeSurface.Material.TexturePayload),
+            TextureSourceKind: representativeSurface.Material.TextureSourceKind,
+            Projection: representativeSurface.Material.Projection,
+            DepthOffset: representativeSurface.DepthOffset is null
+                ? null
+                : ToContractDepthOffset(representativeSurface.DepthOffset),
+            SubmeshIndices: [materialIndex],
+            TextureScale: representativeSurface.Material.TextureScale is null
+                ? null
+                : ToContractFloat2(representativeSurface.Material.TextureScale),
+            Family: representativeSurface.Material.Family,
+            TextureOffset: null,
+            ReuseScope: representativeSurface.Material.ReuseScope,
+            TerrainOverlay: representativeSurface.Material.TerrainOverlay,
+            BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
+    }
+
+    private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
+
+    private static ColorRgba ToContractColor(ResoniteColor value) => new(value.R, value.G, value.B, value.A);
+
+    private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
+    {
+        return new TexturePayload(
+            payload.Width,
+            payload.Height,
+            payload.ColorProfile,
+            payload.BinaryPayload,
+            payload.Identity,
+            (TexturePayloadFormat)payload.Format);
+    }
+
+    private static MaterialDepthOffset ToContractDepthOffset(ResoniteMaterialDepthOffset value) =>
+        new(value.Factor, value.Units);
 
     private static TextureUvRect? TryCreateDemHeightMapOccupiedUvRect(
         ParsedCityObject cityObject,
