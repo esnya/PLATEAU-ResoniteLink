@@ -18,6 +18,8 @@ namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class ResoniteLiveSceneImportTargetConfigurationTests
 {
+    private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
+
     [Fact]
     public async Task OptionsConstructorEnablesMeshBakeByDefault()
     {
@@ -60,10 +62,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new DelegatingClientSession(),
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -276,10 +278,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new DelegatingClientSession(),
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),

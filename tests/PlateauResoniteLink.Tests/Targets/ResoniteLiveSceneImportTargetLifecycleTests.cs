@@ -20,6 +20,8 @@ namespace PlateauResoniteLink.Tests.Targets;
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 {
+    private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
+
     [Fact]
     public async Task ExecuteAsync_DelegatesNormalizedRequestsToInjectedSession()
     {
@@ -43,10 +45,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -104,10 +106,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -156,10 +158,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 session,
                 diagnostics,
                 new TerrainTextureAssetGenerator(),
-                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(), new ResoniteSceneAnchorResolver()),
+                new ResoniteSceneBootstrapInterpreter(new ResoniteSceneSlotLocator(), new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()), new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -248,7 +250,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new MissingCommonMaterialBootstrapInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
@@ -301,7 +303,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new MissingCommonMaterialBootstrapInterpreter(),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),

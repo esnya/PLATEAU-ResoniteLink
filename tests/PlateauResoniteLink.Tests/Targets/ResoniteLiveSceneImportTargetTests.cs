@@ -177,17 +177,17 @@ public sealed class ResoniteLiveSceneImportTargetTests
             materialSlotName: "shared_uv_generic",
             componentType: "[FrooxEngine]FrooxEngine.PBS_Metallic");
         ResoniteConstructionCityObject cityObject = new(
-            SlotKey: "dem-overlay-legacy-object",
-            DisplayName: "DEM Overlay Legacy Object",
+            SlotKey: "dem-overlay-current-object",
+            DisplayName: "DEM Overlay Current Object",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-legacy-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-current-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dem-overlay-legacy-material",
+                    MaterialKey: "dem-overlay-current-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -197,7 +197,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "dem-overlay-legacy-source");
+            SourceObjectKey: "dem-overlay-current-source");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
@@ -208,7 +208,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
-                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "DEM Overlay Legacy Object", StringComparison.Ordinal))
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "DEM Overlay Current Object", StringComparison.Ordinal))
             .Data;
         string sharedMaterialId = Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
 

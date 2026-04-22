@@ -35,11 +35,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     private const float DefaultBundledHeightScale = 0.002f;
     private readonly BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore;
 
-    public ResoniteMaterialPlanning()
-        : this(new BundledDefaultMaterialAssetStore())
-    {
-    }
-
     public ResoniteMaterialPlanning(BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore)
     {
         this.bundledDefaultMaterialAssetStore =
@@ -314,47 +309,6 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         return childLookup.State == ResoniteSceneChildLookupState.FoundWithId
             ? new CreatedSlot(new ResoniteSlotLocator(childLookup.Slot!.ID!), childSlotName)
             : null;
-    }
-
-    public static async Task<ResoniteComponentLocator?> TryGetExistingCommonMaterialComponentAsync(
-        IResoniteLinkClient client,
-        ResoniteSlotLocator familySlot,
-        IReadOnlyList<string> materialSlotNames,
-        string materialComponentType,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(client);
-        ArgumentException.ThrowIfNullOrWhiteSpace(familySlot.Value);
-        ArgumentNullException.ThrowIfNull(materialSlotNames);
-        if (materialSlotNames.Count == 0 || materialSlotNames.All(string.IsNullOrWhiteSpace))
-        {
-            throw new ArgumentException("At least one material slot lookup name is required.", nameof(materialSlotNames));
-        }
-
-        ArgumentException.ThrowIfNullOrWhiteSpace(materialComponentType);
-
-        Slot? familySlotSnapshotData = await client.GetSlotAsync(new ResoniteTransportSlotLocator(familySlot.Value), 1, cancellationToken);
-        if (familySlotSnapshotData is null)
-        {
-            return null;
-        }
-
-        ResoniteSceneSlotSnapshot familySlotSnapshot = new(familySlotSnapshotData);
-        foreach (string materialSlotName in materialSlotNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
-        {
-            ResoniteSceneChildLookupResult materialLookup = familySlotSnapshot.GetUniqueChildLookupResult(materialSlotName, familySlot.Value);
-            string? existingMaterialComponentId = materialLookup.Slot?.Components?
-                .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
-                .OrderBy(static component => component.ID, StringComparer.Ordinal)
-                .Select(static component => component.ID)
-                .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
-            if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
-            {
-                return new ResoniteComponentLocator(existingMaterialComponentId);
-            }
-        }
-
-        return null;
     }
 
     public static async Task<CreatedComponent> CreateComponentAsync(

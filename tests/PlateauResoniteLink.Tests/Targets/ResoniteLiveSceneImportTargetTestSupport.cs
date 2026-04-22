@@ -20,6 +20,8 @@ namespace PlateauResoniteLink.Tests.Targets;
 
 internal static class ResoniteLiveSceneImportTargetTestSupport
 {
+    private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
+
     public static async Task BuildSceneAsync(
         ResoniteConstructionMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
@@ -394,11 +396,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 terrainTextureAssetGenerator ?? new TerrainTextureAssetGenerator(),
                 new ResoniteSceneBootstrapInterpreter(
                     new ResoniteSceneSlotLocator(),
-                    new ResoniteMaterialPlanning(),
+                    new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                     new ResoniteSceneAnchorResolver()),
                 new ResoniteDatasetLicenseWriter(),
                 new ResoniteGeometryAssetAssembler(),
-                new ResoniteMaterialPlanning(),
+                new ResoniteMaterialPlanning(CreateBundledDefaultMaterialAssetStore()),
                 new ResoniteBatchEmissionPlanner(),
                 new PlannedBatchEmissionInterpreter(),
                 new ResoniteSlotCreator(),
