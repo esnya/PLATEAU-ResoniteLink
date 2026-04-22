@@ -88,6 +88,8 @@ CLI は既定でマイルストーン級の進捗だけを表示し、file ご�
 
 `--work-root` を省略した場合、CLI は dataset ごとの archive と live temporary file を `local/<dataset>/` 配下に置きます。terrain tile download は別に local app-data 配下へ既定 cache され、`--terrain-tile-cache-root` で上書き、`--disable-terrain-tile-cache` で cross-run cache を無効化できます。
 
+import 成功後、CLI は run で使われた CityGML source file と、terrain texture 合成で消費した DEM texture source を含む datasource summary を出力します。
+
 ## 参考資料
 
 - contributor 向け workflow: [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)

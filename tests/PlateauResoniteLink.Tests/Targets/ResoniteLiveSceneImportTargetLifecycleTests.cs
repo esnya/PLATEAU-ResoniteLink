@@ -74,7 +74,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             EmptyImportedCityObjects());
 
         Assert.Equal(2, session.EnsureConnectedCallCount);
-        Assert.Equal([normalizedRequest, normalizedRequest], session.EnsureConnectedRequests);
+        Assert.Equal(
+            [
+                new LiveSendConnectionRequest(normalizedRequest.Dataset, normalizedRequest.MeshCode),
+                new LiveSendConnectionRequest(normalizedRequest.Dataset, normalizedRequest.MeshCode),
+            ],
+            session.EnsureConnectedRequests);
     }
 
     [Fact]
@@ -270,6 +275,57 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             "Bootstrap did not resolve shared/common material",
             exception.Message,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PreparesSharedCommonMaterialDuringRuntimeWhenBootstrapSetupDoesNotMarkIt()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
+        using SceneBuilderRecordingClient routedClient = new();
+        DelegatingClientSession session = new(routedClient);
+        await using ResoniteLiveSceneImportTarget builder = new(
+            new ResoniteLiveSceneImportTargetOptions(
+                new Uri("ws://localhost:12345/"),
+                1,
+                EnableSendMetrics: false,
+                PlateauImportMemoryProfile.Large,
+                EnableMeshBake: true,
+                TerrainTileCacheRoot: null,
+                DisableTerrainTileCache: false,
+                ProgressReporter: null),
+            new ResoniteLiveSceneImportDependencies(
+                session,
+                ResoniteLinkSendDiagnostics.Disabled,
+                new TerrainTextureAssetGenerator(),
+                new MissingCommonMaterialBootstrapInterpreter(),
+                new ResoniteDatasetLicenseWriter(),
+                new ResoniteGeometryAssetAssembler(),
+                new ResoniteMaterialPlanning(),
+                new ResoniteBatchEmissionPlanner(),
+                new PlannedBatchEmissionInterpreter(),
+                new ResoniteSlotCreator(),
+                new ResoniteBufferedCityObjectBakerFactory()));
+        PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
+        ResoniteConstructionMetadata metadata = CreateMetadata(
+            request,
+            ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
+
+        SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
+            request,
+            request,
+            SceneImportContractMapper.ToContract(metadata),
+            request.LocalSourcePath!,
+            workDirectory.Path,
+            commonMaterials: []);
+
+        _ = await builder.ExecuteAsync(
+            plan,
+            CreateImportedCityObjects(CreateVertexColorTriangleCityObject("runtime-common-material")));
+
+        Assert.Contains(
+            routedClient.SlotPaths.Values,
+            static path => path.EndsWith("/vertex-color/shared_uv_vertex-color", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -721,11 +777,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             PackageNames: ["dem"],
             ServerUri: null);
-        LocalCityGmlDocumentReadResult readResult = await LocalCityGmlBootstrapPipeline.ReadAsync(
-            request,
+        LocalCityGmlDocumentReadResult readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
-            new CityGmlLodSelector());
+            new CityGmlLodSelector())
+            .ReadAsync(
+            request,
+            cancellationToken: default);
         ImportedSceneMetadata metadata = new LocalCityGmlConstructionComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
                 new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
@@ -931,6 +989,35 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             CollisionEnabled: true,
             SourceObjectKey: objectKey,
             SourceUnitKey: objectKey,
+            SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
+    }
+
+    private static ResoniteConstructionCityObject CreateVertexColorTriangleCityObject(string objectIdentity)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: $"slot-{objectIdentity}",
+            DisplayName: $"CityObject {objectIdentity}",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("vertex-color-material"),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "vertex-color-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.VertexColor,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
+            ],
+            CollisionEnabled: true,
+            SourceObjectKey: objectIdentity,
+            SourceUnitKey: objectIdentity,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 

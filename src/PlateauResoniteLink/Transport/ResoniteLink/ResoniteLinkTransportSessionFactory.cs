@@ -4,7 +4,7 @@ namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal static class ResoniteLinkTransportSessionFactory
 {
-    public static ILiveSendClientSession Create(
+    internal static ILiveSendClientSession Create(
         Uri endpoint,
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,

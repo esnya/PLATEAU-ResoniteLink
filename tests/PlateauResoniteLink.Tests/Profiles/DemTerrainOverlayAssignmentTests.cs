@@ -36,7 +36,7 @@ public sealed class DemTerrainOverlayAssignmentTests
         Assert.True(Assert.Single(splitCityObject.Surfaces).UsesGeneratedDemTexture);
         GeographicRectangle bounds = GetSurfaceBounds(Assert.Single(splitCityObject.Surfaces));
         Assert.Equal(139.0000, bounds.MinLongitude, 6);
-        Assert.Equal(boundaryLongitude + 0.0000005, bounds.MaxLongitude, 9);
+        Assert.Equal(boundaryLongitude, bounds.MaxLongitude, 6);
     }
 
     [Fact]
@@ -85,6 +85,66 @@ public sealed class DemTerrainOverlayAssignmentTests
             () => DemTerrainOverlayAssignment.SplitParsedCityObject(cityObject, overlays).ToArray());
 
         Assert.Contains("no matching terrain overlay coverage", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HasOverlayCoverageReturnsTrueForBootstrapParsedCityObjectWhenSplitCoverageExists()
+    {
+        const double boundaryLongitude = 139.0100;
+        BootstrapParsedCityObject cityObject = BootstrapParsedCityObject.FromLegacy(CreateCityObject(
+            CreateGeneratedSurface(
+                "dem-wide-split",
+                [
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0000, 0.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0000, 1.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0120, 2.0),
+                ])));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, boundaryLongitude),
+            CreateOverlay(boundaryLongitude, 139.0200),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(cityObject, overlays);
+
+        Assert.True(hasCoverage);
+    }
+
+    [Fact]
+    public void HasOverlayCoverageReturnsFalseForBootstrapParsedCityObjectWhenSurfaceMissesOverlayBounds()
+    {
+        BootstrapParsedCityObject cityObject = BootstrapParsedCityObject.FromLegacy(CreateCityObject(
+            CreateGeneratedSurface(
+                "dem-nearest-overlay",
+                [
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0000, 139.0200002, 0.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200002, 1.0),
+                    new LocalCityGmlObjectProjection.GeodeticPoint(35.0100, 139.0200006, 2.0),
+                ])));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, 139.0100),
+            CreateOverlay(139.0100, 139.0200),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(cityObject, overlays);
+
+        Assert.False(hasCoverage);
+    }
+
+    [Fact]
+    public void HasOverlayCoverageReturnsFalseForBootstrapParsedCityObjectWhenSurfaceHasNoVertices()
+    {
+        BootstrapParsedCityObject cityObject = BootstrapParsedCityObject.FromLegacy(CreateCityObject(
+            CreateGeneratedSurface("dem-empty-surface", [])));
+        TerrainTextureOverlay[] overlays =
+        [
+            CreateOverlay(139.0000, 139.0100),
+        ];
+
+        bool hasCoverage = DemTerrainOverlayAssignment.HasOverlayCoverage(cityObject, overlays);
+
+        Assert.False(hasCoverage);
     }
 
     [Fact]

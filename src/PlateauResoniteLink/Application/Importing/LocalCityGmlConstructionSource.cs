@@ -93,36 +93,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         }
     }
 
-    public IEnumerable<ImportedCityObject> ReadCityObjects()
-    {
-        foreach (SourceFilePipeline sourceFile in sourceFiles)
-        {
-            ParsedSourceFileResult parsedSourceFile = sourceFile.GetParseTask().GetAwaiter().GetResult();
-            CoordinateReferenceSystem resolvedReferenceSystem = ResolveReferenceSystem(parsedSourceFile);
-            LocalCartesian? globalCartesian = CreateGlobalCartesian(resolvedReferenceSystem);
-            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = GetDemTerrainTextureOverlaysAsync(
-                    sourceFile,
-                    CancellationToken.None)
-                .GetAwaiter()
-                .GetResult();
-
-            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
-            {
-                foreach (ImportedCityObject cityObject in geometryProjector.ProjectCityObjects(
-                             new CachedSourceFileDescriptor(sourceFile.SourceFile, [parsedCityObject]),
-                             resolvedReferenceSystem,
-                             globalOriginPoint,
-                             globalCartesian,
-                             demTerrainTextureOverlays,
-                             requestedMeshAreas,
-                             request))
-                {
-                    yield return cityObject;
-                }
-            }
-        }
-    }
-
     public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -333,23 +303,20 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         ParsedSourceFileResult parsedSourceFile,
         IReadOnlyList<TerrainTextureOverlay> overlays)
     {
-        try
+        foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
         {
-            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
+            if (DemTerrainOverlayAssignment.HasOverlayCoverage(
+                    parsedCityObject,
+                    overlays,
+                    requestedMeshAreas))
             {
-                _ = DemTerrainOverlayAssignment.SplitParsedCityObject(
-                        parsedCityObject.ToLegacy(),
-                        overlays,
-                        requestedMeshAreas)
-                    .ToArray();
+                continue;
             }
 
-            return true;
-        }
-        catch (InvalidOperationException)
-        {
             return false;
         }
+
+        return true;
     }
 
     private static bool HasAnyVertices(IEnumerable<BootstrapParsedCityObject> cityObjects)

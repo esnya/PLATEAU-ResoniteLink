@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -32,8 +30,8 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         try
         {
             diagnostics.StartSendWindow(connectionCount: 1);
-            await session.EnsureConnectedAsync(CreateRequest(), CancellationToken.None);
-            IResoniteLinkClient routedClient = Assert.IsAssignableFrom<IResoniteLinkClient>(session.RoutedClient);
+            await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
+            IResoniteLinkClient routedClient = session.GetRequiredClient();
             string slotId = await routedClient.AddSlotAsync(
                 new AddSlot
                 {
@@ -68,14 +66,11 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
         Assert.Equal(1, clientFactory.CreatedClients[0].DisposeCallCount);
     }
 
-    private static PlateauImportRequest CreateRequest()
+    private static LiveSendConnectionRequest CreateConnectionRequest()
     {
-        return new PlateauImportRequest(
+        return new LiveSendConnectionRequest(
             Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: Path.Combine(Path.GetTempPath(), "plateau-live-send-boundary"),
-            ServerUri: null);
+            MeshCode: "53394525");
     }
 
     private sealed class RecordingClientFactory

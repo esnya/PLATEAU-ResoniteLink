@@ -425,20 +425,35 @@ internal sealed class Lod2AtlasCityObjectBaker(
     private static bool IsAtlasBakeCandidate(ResoniteMaterialBinding material)
     {
         if (material.DepthOffset is not null
-            || !string.IsNullOrWhiteSpace(material.Family)
             || material.Projection != ResoniteMaterialProjection.Uv
             || material.AssetScope == ResoniteMaterialAssetScope.Common)
         {
             return false;
         }
 
-        return material.MaterialType == ResoniteMaterialType.Standard
-            && material.TexturePayload is not null
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Dataset;
+        if (material.MaterialType != ResoniteMaterialType.Standard
+            || material.TexturePayload is null
+            || material.TextureSourceKind != ResoniteTextureSourceKind.Dataset)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(material.Family))
+        {
+            return true;
+        }
+
+        return material.TerrainOverlay is null
+            && ResoniteMaterialSharing.CanUseSharedAlbedoOnlyMaterial(material);
     }
 
     private static Lod2AtlasMaterialBakeCategory ClassifyMaterial(ResoniteMaterialBinding material)
     {
+        if (IsAtlasBakeCandidate(material))
+        {
+            return Lod2AtlasMaterialBakeCategory.AtlasCandidate;
+        }
+
         if (material.MaterialType == ResoniteMaterialType.VertexColor)
         {
             return Lod2AtlasMaterialBakeCategory.PreservedVertexColor;
@@ -450,11 +465,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return CanPreserveAsCommonMaterial(material)
                 ? Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial
                 : Lod2AtlasMaterialBakeCategory.PreservedOther;
-        }
-
-        if (IsAtlasBakeCandidate(material))
-        {
-            return Lod2AtlasMaterialBakeCategory.AtlasCandidate;
         }
 
         if (material.TexturePayload is null)

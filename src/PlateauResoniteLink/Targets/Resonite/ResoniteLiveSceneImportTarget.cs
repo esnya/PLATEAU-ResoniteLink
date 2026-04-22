@@ -163,7 +163,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ResoniteMaterialBinding[] internalCommonMaterials = commonMaterials
             .Select(SceneImportContractMapper.ToInternal)
             .ToArray();
-        await ClientSessionInternal.EnsureConnectedAsync(normalizedRequest, cancellationToken);
+        await ClientSessionInternal.EnsureConnectedAsync(
+            new LiveSendConnectionRequest(
+                normalizedRequest.Dataset,
+                normalizedRequest.MeshCode),
+            cancellationToken);
         connectionStopwatch.Stop();
         ReportProgress(
             PlateauLog.Info(
@@ -849,8 +853,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private IResoniteLinkClient GetRoutedClient()
     {
-        return ClientSessionInternal.RoutedClient
-            ?? throw new ObjectDisposedException(nameof(ILiveSendClientSession), "Routed ResoniteLink client is not connected.");
+        return ClientSessionInternal.GetRequiredClient();
     }
 
     private void ReportProgress(string message, PlateauLogLevel? defaultLevel)
@@ -1084,12 +1087,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     private static bool IsGsiFallbackSource(TerrainTextureSource source)
     {
-        return source is TerrainTextureTileSource tileSource
-            && string.Equals(
-                tileSource.UrlTemplate,
-                LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackUrlTemplate,
-                StringComparison.Ordinal)
-            && tileSource.ZoomLevel == LocalCityGmlObjectProjection.DefaultDemTerrainTextureFallbackZoomLevel;
+        return DemTerrainTextureDefaults.IsGsiFallbackSource(source);
     }
 
     private static string DescribeTerrainTextureSource(TerrainTextureSource source)
@@ -1129,7 +1127,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         PreparedCityObject preparedCityObject,
         CancellationToken cancellationToken)
     {
-        IResoniteLinkClient routedClient = GetRoutedClient();
         ResoniteConstructionCityObject cityObject = preparedCityObject.CityObject;
         using ResoniteLinkSendDiagnostics.CityObjectSendScope sendScope = Diagnostics.BeginCityObjectSend(cityObject.PackageName);
         Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
@@ -1140,6 +1137,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             cancellationToken);
         slotHierarchyStopwatch.Stop();
         using CancellationTokenSource buildStepCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        IResoniteLinkClient routedClient = GetRoutedClient();
         Dictionary<string, ResoniteTextureImport> preparedTextureDataByIdentity = CreatePreparedTextureDataByIdentity(preparedCityObject);
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay = CreatePreparedTerrainTextureDataByOverlay(preparedCityObject);
         await EnsureSharedCommonMaterialsPreparedAsync(
@@ -1653,22 +1651,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         }
     }
 
-    private static bool IsDemPackage(string packageName)
-    {
-        return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static ImportDataSourceUsage[] CreateDataSourceUsages(LiveSendRunState state)
-    {
-        return state.DemSourceUseCounts
-            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-            .Select(static pair => new ImportDataSourceUsage(
-                ImportDataSourceCategory.DemTextureSource,
-                pair.Key,
-                pair.Value))
-            .ToArray();
-    }
-
     private async Task EnsureSharedCommonMaterialsPreparedAsync(
         LiveSendRunState state,
         IResoniteLinkClient client,
@@ -1745,15 +1727,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             useCommonMaterialAssets: true);
         IReadOnlyList<string> lookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(
             normalizedSharedMaterial);
-        (CreatedSlot? ReusableSlot, string? ExistingComponentId) existingMaterial = await TryFindReusableCommonMaterialSlotAsync(
+        (CreatedSlot? reusableSlot, string? existingComponentId) = await TryFindReusableCommonMaterialSlotAsync(
             client,
             familySlot,
             lookupNames,
             materialComponentType,
             cancellationToken);
-        if (!string.IsNullOrWhiteSpace(existingMaterial.ExistingComponentId))
+        if (!string.IsNullOrWhiteSpace(existingComponentId))
         {
-            return new CreatedMaterialAsset(existingMaterial.ExistingComponentId, null);
+            return new CreatedMaterialAsset(existingComponentId, null);
         }
 
         PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanCommonMaterialAssetAsync(
@@ -1761,9 +1743,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             normalizedSharedMaterial,
             cancellationToken);
         Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> getOrCreateMaterialSlotAsync =
-            existingMaterial.ReusableSlot is null
+            reusableSlot is null
                 ? state.Placement.GetOrCreateSharedChildSlotAsync
-                : (_, _, _, _) => Task.FromResult(existingMaterial.ReusableSlot.Value);
+                : (_, _, _, _) => Task.FromResult(reusableSlot.Value);
 
         return await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
             client,
@@ -1816,36 +1798,55 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             return (null, null);
         }
 
-        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlot.SlotId, 2, cancellationToken);
+        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlot.SlotId, 1, cancellationToken);
         if (familySlotSnapshot is null)
         {
             return (null, null);
         }
 
-        ResoniteSceneSlotSnapshot snapshot = new(familySlotSnapshot);
-        CreatedSlot? reusableSlot = null;
-        foreach (string lookupName in lookupNames)
+        ResoniteSceneSlotSnapshot familySlotView = new(familySlotSnapshot);
+        CreatedSlot? reusableSlotWithoutComponent = null;
+        foreach (string materialSlotName in lookupNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
         {
-            ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult(lookupName, familySlot.SlotId);
-            if (lookup.State != ResoniteSceneChildLookupState.FoundWithId || lookup.Slot is null)
+            ResoniteSceneChildLookupResult materialLookup = familySlotView.GetUniqueChildLookupResult(materialSlotName, familySlot.SlotId);
+            if (materialLookup.State != ResoniteSceneChildLookupState.FoundWithId || materialLookup.Slot is null)
             {
                 continue;
             }
 
-            string slotId = lookup.Slot.ID ?? throw new InvalidOperationException("Reusable common material slot did not expose an ID.");
-            reusableSlot ??= new CreatedSlot(slotId, lookup.Slot.Name?.Value ?? lookupName);
-            string? existingComponentId = lookup.Slot.Components?
+            string? existingComponentId = materialLookup.Slot.Components?
                 .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
                 .OrderBy(static component => component.ID, StringComparer.Ordinal)
                 .Select(static component => component.ID)
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
+            CreatedSlot reusableSlot = new(
+                materialLookup.SlotId!,
+                materialLookup.Slot.Name?.Value ?? materialSlotName);
             if (!string.IsNullOrWhiteSpace(existingComponentId))
             {
                 return (reusableSlot, existingComponentId);
             }
+
+            reusableSlotWithoutComponent ??= reusableSlot;
         }
 
-        return (reusableSlot, null);
+        return (reusableSlotWithoutComponent, null);
+    }
+
+    private static bool IsDemPackage(string packageName)
+    {
+        return string.Equals(packageName, DemPackageName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static ImportDataSourceUsage[] CreateDataSourceUsages(LiveSendRunState state)
+    {
+        return state.DemSourceUseCounts
+            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
+            .Select(static pair => new ImportDataSourceUsage(
+                ImportDataSourceCategory.DemTextureSource,
+                pair.Key,
+                pair.Value))
+            .ToArray();
     }
 
     private static HashSet<string> CollectBootstrapKnownCommonMaterialKeys(

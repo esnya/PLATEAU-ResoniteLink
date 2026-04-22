@@ -9,7 +9,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static class LocalCityGmlSourceFileDiscovery
+internal static class LocalCityGmlSourceFileDiscovery
 {
     private static readonly Regex MeshCodeTokenRegex = new(
         @"(?<!\d)(\d{8}|\d{6})(?!\d)",
@@ -17,31 +17,6 @@ public static class LocalCityGmlSourceFileDiscovery
     private static readonly Regex MeshCodeSegmentRegex = new(
         @"^(?:\d{8}|\d{6})$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
-    public static LocalCityGmlSourceFileDiscoveryResult Discover(
-        string datasetRoot,
-        string meshCodeRequest,
-        IReadOnlyList<string>? packageNames)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRoot);
-        ArgumentException.ThrowIfNullOrWhiteSpace(meshCodeRequest);
-
-        MeshCodeSelectionMatcher matcher = CreateSelectionMatcher(meshCodeRequest);
-        HashSet<string>? requestedPackageNames = packageNames is null
-            ? null
-            : new HashSet<string>(
-                PlateauPackageCatalog.NormalizeRequestedPackageNames(packageNames),
-                StringComparer.OrdinalIgnoreCase);
-
-        LocalCityGmlDatasetSourceFileCandidate[] candidates = Directory
-            .EnumerateFiles(datasetRoot, "*.gml", SearchOption.AllDirectories)
-            .Select(path => CreateCandidateSourceFile(datasetRoot, path, requestedPackageNames))
-            .Where(static candidate => candidate is not null)
-            .Select(static candidate => candidate!)
-            .ToArray();
-
-        return CreateSourceFileDiscoveryResult(candidates, matcher);
-    }
 
     public static LocalCityGmlSourceFileDiscoveryResult Discover(
         IEnumerable<string> relativePaths,
@@ -393,13 +368,13 @@ internal sealed record LocalCityGmlDatasetSourceFileCandidate(
     string[] FileMeshCodes,
     string[] DirectoryMeshCodes);
 
-public sealed record LocalCityGmlSourceFileDescriptor(
+internal sealed record LocalCityGmlSourceFileDescriptor(
     string AbsolutePath,
     string RelativePath,
     string PackageName,
     string MatchedMeshCode,
     bool RequiresMeshAreaFilter);
 
-public sealed record LocalCityGmlSourceFileDiscoveryResult(
+internal sealed record LocalCityGmlSourceFileDiscoveryResult(
     IReadOnlyList<LocalCityGmlSourceFileDescriptor> SourceFiles,
     IReadOnlyList<string> SelectedMeshCodes);

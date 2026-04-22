@@ -26,7 +26,10 @@ public sealed class CityGmlAppearanceStoreTests
             await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "roof.png"));
         }
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(datasetRoot.Path);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            datasetRoot.Path,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
@@ -91,7 +94,10 @@ public sealed class CityGmlAppearanceStoreTests
             await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "ortho.png"));
         }
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(datasetRoot.Path);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            datasetRoot.Path,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
@@ -138,7 +144,10 @@ public sealed class CityGmlAppearanceStoreTests
             await image.SaveAsPngAsync(Path.Combine(appearanceDirectory, "roof.png"));
         }
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(datasetRoot.Path);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            datasetRoot.Path,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);
@@ -178,7 +187,10 @@ public sealed class CityGmlAppearanceStoreTests
         string packageDirectory = Path.Combine(datasetRoot.Path, "udx", "bldg", "53394525");
         Directory.CreateDirectory(packageDirectory);
 
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(datasetRoot.Path);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            datasetRoot.Path,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
         ICityGmlAppearanceStore store = new CityGmlAppearanceStoreFactory().Create(
             "udx/bldg/53394525/example.gml",
             datasetSource);

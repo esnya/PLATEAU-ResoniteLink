@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -26,12 +24,10 @@ public sealed class LiveSendClientSessionTests
             ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
-        PlateauImportRequest request = CreateRequest();
-
-        await session.EnsureConnectedAsync(request, CancellationToken.None);
+        await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
 
         Assert.Equal(3, clientFactory.CreatedClients.Count);
-        Assert.NotNull(session.RoutedClient);
+        Assert.NotNull(session.GetRequiredClient());
         Assert.All(
             clientFactory.CreatedClients,
             client => Assert.Equal(1, client.ConnectCallCount));
@@ -48,10 +44,8 @@ public sealed class LiveSendClientSessionTests
             ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
-        PlateauImportRequest request = CreateRequest();
-
-        await session.EnsureConnectedAsync(request, CancellationToken.None);
-        IResoniteLinkClient routedClient = Assert.IsAssignableFrom<IResoniteLinkClient>(session.RoutedClient);
+        await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
+        IResoniteLinkClient routedClient = session.GetRequiredClient();
 
         for (int callIndex = 0; callIndex < 6; callIndex++)
         {
@@ -73,10 +67,8 @@ public sealed class LiveSendClientSessionTests
             ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
-        PlateauImportRequest request = CreateRequest();
-
-        await session.EnsureConnectedAsync(request, CancellationToken.None);
-        IResoniteLinkClient routedClient = Assert.IsAssignableFrom<IResoniteLinkClient>(session.RoutedClient);
+        await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
+        IResoniteLinkClient routedClient = session.GetRequiredClient();
 
         for (int callIndex = 0; callIndex < 6; callIndex++)
         {
@@ -118,15 +110,13 @@ public sealed class LiveSendClientSessionTests
             ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
-        PlateauImportRequest request = CreateRequest();
-
         InvalidOperationException thrown = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => session.EnsureConnectedAsync(request, CancellationToken.None));
+            () => session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None));
         Assert.Contains("connect failed", thrown.Message);
 
         Assert.Equal(2, clientFactory.CreatedClients.Count);
         Assert.All(clientFactory.CreatedClients, client => Assert.True(client.Disposed));
-        Assert.Null(session.RoutedClient);
+        Assert.Throws<InvalidOperationException>(session.GetRequiredClient);
     }
 
     [Theory]
@@ -142,10 +132,8 @@ public sealed class LiveSendClientSessionTests
             ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
-        PlateauImportRequest request = CreateRequest();
-
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => session.EnsureConnectedAsync(request, CancellationToken.None));
+            () => session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None));
     }
 
     [Fact]
@@ -159,31 +147,28 @@ public sealed class LiveSendClientSessionTests
             ResoniteLinkSendDiagnostics.Disabled,
             progressReporter: null);
 
-        PlateauImportRequest request = CreateRequest();
+        LiveSendConnectionRequest connectionRequest = CreateConnectionRequest();
 
-        await session.EnsureConnectedAsync(request, CancellationToken.None);
+        await session.EnsureConnectedAsync(connectionRequest, CancellationToken.None);
         RecordingResoniteLinkClient[] firstClients = clientFactory.CreatedClients.ToArray();
 
         await session.ResetClientsAsync(CancellationToken.None);
 
-        Assert.Null(session.RoutedClient);
+        Assert.Throws<InvalidOperationException>(session.GetRequiredClient);
         Assert.All(firstClients, client => Assert.True(client.Disposed));
 
-        await session.EnsureConnectedAsync(request, CancellationToken.None);
+        await session.EnsureConnectedAsync(connectionRequest, CancellationToken.None);
 
         Assert.Equal(4, clientFactory.CreatedClients.Count);
-        Assert.NotNull(session.RoutedClient);
+        Assert.NotNull(session.GetRequiredClient());
         Assert.All(clientFactory.CreatedClients.Skip(2), client => Assert.Equal(1, client.ConnectCallCount));
     }
 
-    private static PlateauImportRequest CreateRequest()
+    private static LiveSendConnectionRequest CreateConnectionRequest()
     {
-        return new PlateauImportRequest(
+        return new LiveSendConnectionRequest(
             Dataset: "tokyo23ku",
-            MeshCode: "53394525",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: Path.Combine(Path.GetTempPath(), "plateau-live-send-boundary"),
-            ServerUri: null);
+            MeshCode: "53394525");
     }
 
     private static AddSlot CreateSlotRequest()

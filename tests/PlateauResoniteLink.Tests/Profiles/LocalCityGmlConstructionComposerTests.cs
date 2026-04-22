@@ -56,6 +56,14 @@ public sealed class LocalCityGmlConstructionComposerTests
         Assert.Equal(35.0, source.Metadata.GeodeticOrigin.Latitude);
         Assert.Equal(139.0, source.Metadata.GeodeticOrigin.Longitude);
         Assert.Equal(12.5, source.Metadata.GeodeticOrigin.Altitude);
+        Assert.Equal(
+            new LicenseMetadata(
+                RequireCredit: true,
+                CreditText: "Contains PLATEAU dataset content for tokyo23ku. Follow the original PLATEAU dataset terms and provide source attribution when redistributing derived content.",
+                LicenseName: "PLATEAU Open Data Terms",
+                LicenseUrl: "https://www.mlit.go.jp/plateau/site-policy/"),
+            source.Metadata.Attribution.DatasetLicense);
+        Assert.Empty(source.Metadata.Attribution.MaterialLicenses);
     }
 
     private sealed class ThrowingGeometryProjector : ICityGmlGeometryProjector

@@ -2,13 +2,13 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed record ResolvedMaterial(
-    ResoniteMaterialType MaterialType,
+internal sealed record ResolvedMaterial(
+    MaterialType MaterialType,
     ResoniteTexturePayload? TexturePayload,
-    ResoniteTextureSourceKind TextureSourceKind,
-    ResoniteMaterialProjection Projection,
+    TextureSourceKind TextureSourceKind,
+    MaterialProjection Projection,
     string? Family,
     ResoniteFloat2? TextureScale,
-    ResoniteMaterialAssetScope AssetScope,
+    MaterialReuseScope ReuseScope,
     TerrainTextureOverlay? TerrainOverlay = null,
     int? BundledVariantIndex = null);

@@ -17,7 +17,7 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceTests
 {
     [Fact]
-    public async Task ExecuteAsync_UsesNormalizedRequestForConnectionAndResolvedRequestForBootstrapAndSourceCreation()
+    public async Task ExecuteAsync_UsesPackageCatalogCommonMaterialsForSetup()
     {
         using TemporaryDirectory workRoot = new();
 
@@ -45,7 +45,7 @@ public sealed class PlateauImportServiceTests
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(resolvedSourcePath);
         LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
-        IReadOnlyList<MaterialBinding> commonMaterials = [
+        IReadOnlyList<MaterialBinding> sourceCommonMaterials = [
             new MaterialBinding(
                 MaterialKey: "shared-mat-a",
                 BaseColor: new ColorRgba(1, 1, 1, 1),
@@ -82,7 +82,7 @@ public sealed class PlateauImportServiceTests
         RecordingDocumentReader documentReader = new(readResult);
         StubConstructionSource source = new(
             CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
-            commonMaterials);
+            sourceCommonMaterials);
         RecordingConstructionSourceFactory constructionSourceFactory = new(source);
 
         PlateauImportService service = new(
@@ -119,11 +119,14 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(readResult.DocumentSet.RelativeSourceFiles, sceneBuilder.BeginRequest.Metadata.SourceDataset.SourceFiles);
         Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
         Assert.NotNull(sceneBuilder.BeginRequest.CommonMaterials);
-        Assert.Equal(2, sceneBuilder.BeginRequest.CommonMaterials.Count);
         Assert.Equal(
-            ["shared-mat-a", "shared-mat-b"],
+            CommonMaterialCatalog.CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
             [.. sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
+        Assert.All(
+            sourceCommonMaterials.Select(static material => material.MaterialKey),
+            materialKey => Assert.DoesNotContain(materialKey, sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey)));
         Assert.Single(sceneBuilder.ProcessedCityObjects);
+        Assert.Equal(0, source.CommonMaterialsReadCallCount);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, documentReader.ReadCallCount);
         Assert.Equal(1, sceneBuilder.ExecuteCallCount);
@@ -232,6 +235,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(
             CommonMaterialCatalog.CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
             sceneBuilder.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
+        Assert.Equal(0, source.CommonMaterialsReadCallCount);
     }
 
     [Fact]
@@ -406,14 +410,6 @@ public sealed class PlateauImportServiceTests
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            Action<string>? progressReporter = null,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<IImportedSceneSource> CreateAsync(
-            PlateauImportRequest request,
             LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -433,12 +429,14 @@ public sealed class PlateauImportServiceTests
     {
         private readonly IReadOnlyList<MaterialBinding> commonMaterials = commonMaterials ?? [];
         private readonly IReadOnlyList<ImportedCityObject> cityObjects = cityObjects ?? [CreateCityObject()];
+        public int CommonMaterialsReadCallCount { get; private set; }
 
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
         public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            CommonMaterialsReadCallCount++;
             foreach (MaterialBinding material in this.commonMaterials)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -446,11 +444,6 @@ public sealed class PlateauImportServiceTests
             }
 
             await Task.CompletedTask;
-        }
-
-        public IEnumerable<ImportedCityObject> ReadCityObjects()
-        {
-            return cityObjects;
         }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(

@@ -28,7 +28,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 "HeightMap Object",
                 "HeightMap Object_heightmap",
-                new PlateauResoniteLink.Domain.Importing.ResoniteHeightMapGridGeometry(
+                new ResoniteHeightMapGridGeometry(
                     Width: 2,
                     Height: 3,
                     Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
@@ -85,7 +85,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new GeometryIdentity("geom"),
                 "HeightMap Object",
                 "HeightMap Object_heightmap",
-                new PlateauResoniteLink.Domain.Importing.ResoniteHeightMapGridGeometry(
+                new ResoniteHeightMapGridGeometry(
                     Width: 2,
                     Height: 3,
                     Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
@@ -128,13 +128,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new MaterialIdentity("dedicated"),
-            new PlateauResoniteLink.Domain.Importing.ResoniteMaterialBinding(
+            new ResoniteMaterialBinding(
                 MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Domain.Importing.ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                MaterialType: PlateauResoniteLink.Domain.Importing.ResoniteMaterialType.Standard,
+                MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
-                TextureSourceKind: PlateauResoniteLink.Domain.Importing.ResoniteTextureSourceKind.Dataset,
-                Projection: PlateauResoniteLink.Domain.Importing.ResoniteMaterialProjection.Uv,
+                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0]),
             [new PlannedTextureAsset(new TextureIdentity("albedo"), new Uri("resdb:///texture/albedo"))],
@@ -196,13 +196,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new MaterialIdentity("dedicated"),
-            new PlateauResoniteLink.Domain.Importing.ResoniteMaterialBinding(
+            new ResoniteMaterialBinding(
                 MaterialKey: "dedicated-material",
                 BaseColor: new PlateauResoniteLink.Domain.Importing.ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                MaterialType: PlateauResoniteLink.Domain.Importing.ResoniteMaterialType.Standard,
+                MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
-                TextureSourceKind: PlateauResoniteLink.Domain.Importing.ResoniteTextureSourceKind.Bundled,
-                Projection: PlateauResoniteLink.Domain.Importing.ResoniteMaterialProjection.Uv,
+                TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                Projection: ResoniteMaterialProjection.Uv,
                 DepthOffset: null,
                 SubmeshIndices: [0]),
             [

@@ -21,7 +21,10 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         using TemporaryDirectory workRoot = new();
         string archivePath = Path.Combine(workRoot.Path, "malicious.zip");
         await File.WriteAllBytesAsync(archivePath, archiveBytes);
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(archivePath);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            archivePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
 
         string outputRoot = Path.Combine(workRoot.Path, "output");
         Directory.CreateDirectory(outputRoot);
@@ -47,7 +50,10 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         using TemporaryDirectory workRoot = new();
         string archivePath = Path.Combine(workRoot.Path, "malicious.zip");
         await File.WriteAllBytesAsync(archivePath, archiveBytes);
-        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(archivePath);
+        IPlateauDatasetContentSource datasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            archivePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
 
         string outputRoot = Path.Combine(workRoot.Path, "output");
         Directory.CreateDirectory(outputRoot);
@@ -75,8 +81,14 @@ public sealed class ArchivePlateauDatasetContentSourceFactoryTests
         await File.WriteAllBytesAsync(firstArchivePath, archiveBytes);
         await File.WriteAllBytesAsync(secondArchivePath, archiveBytes);
 
-        IPlateauDatasetContentSource firstDatasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(firstArchivePath);
-        IPlateauDatasetContentSource secondDatasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(secondArchivePath);
+        IPlateauDatasetContentSource firstDatasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            firstArchivePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
+        IPlateauDatasetContentSource secondDatasetSource = await PlateauDatasetContentSourceFactory.CreateAsync(
+            secondArchivePath,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
 
         string outputRoot = Path.Combine(workRoot.Path, "output");
         string relativePath = "udx/bldg/area/plateau_tokyo23ku_bldg_533944.gml";

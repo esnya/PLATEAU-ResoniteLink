@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 
-namespace PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Domain.Importing;
+
+namespace PlateauResoniteLink.Targets.Resonite;
 
 public sealed record ResoniteMaterialBinding(
     string MaterialKey,

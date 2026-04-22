@@ -4,8 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class CompositeCityObjectBaker(params IResoniteBufferedCityObjectBaker[] bakers)

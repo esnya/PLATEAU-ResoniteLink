@@ -29,11 +29,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
 
-        IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
+        IImportedSceneSource result = await factory.CreateAsync(request, reader.ReadResult, progressReporter);
 
         Assert.Same(expectedSource, result);
-        Assert.Same(request, reader.LastRequest);
-        Assert.Same(progressReporter, reader.LastProgressReporter);
+        Assert.Null(reader.LastRequest);
+        Assert.Null(reader.LastProgressReporter);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Same(progressReporter, composer.LastProgressReporter);
@@ -41,7 +41,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsyncAddsDemOverlaysDuringConstructionWhenBootstrapReadResultIsDiscoveryOnly()
+    public async Task CreateAsyncKeepsBootstrapReadResultDiscoveryOnlyWhenDemOverlaysAreNotPreResolved()
     {
         TerrainTextureOverlay[] resolvedOverlays =
         [
@@ -76,18 +76,17 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem"],
             ServerUri: null);
 
-        _ = await factory.CreateAsync(request);
+        _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.NotSame(reader.ReadResult, composer.LastReadResult);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
-        TerrainTextureOverlay overlay = Assert.Single(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
-        Assert.Same(resolvedOverlays[0], overlay);
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
+        Assert.Null(demTextureSourcePolicy.LastRequest);
+        Assert.Null(demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
-    public async Task CreateAsyncFiltersPolicyMeshCodesToDemRequestedFiles()
+    public async Task CreateAsyncValidatesExplicitDemSourceBeforeCompositionWithoutMutatingReadResult()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -113,14 +112,18 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        _ = await factory.CreateAsync(request);
+        _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["53394525", "53394526"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
+        Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
     }
 
     [Fact]
-    public async Task CreateAsyncDerivesDemOverlayRegionsFromParsedDemGeometry()
+    public async Task CreateAsyncUsesParsedDemCoverageToValidateExplicitDemSource()
     {
+        int parseCount = 0;
         CoordinateReferenceSystem referenceSystem =
             CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor demSourceFile = new(
@@ -130,13 +133,17 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             RequiresMeshAreaFilter: false);
         SourceFilePipeline demPipeline = new(
             demSourceFile,
-            () => Task.FromResult(
-                new ParsedSourceFileResult(
-                    demSourceFile,
-                    [CreateParsedDemCityObject(referenceSystem)],
-                    referenceSystem,
-                    [],
-                    TimeSpan.Zero)));
+            () =>
+            {
+                parseCount++;
+                return Task.FromResult(
+                    new ParsedSourceFileResult(
+                        demSourceFile,
+                        [CreateParsedDemCityObject(referenceSystem)],
+                        referenceSystem,
+                        [],
+                        TimeSpan.Zero));
+            });
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
                 new LocalCityGmlDocumentSet(
@@ -161,13 +168,15 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        _ = await factory.CreateAsync(request);
+        _ = await factory.CreateAsync(request, reader.ReadResult);
 
+        Assert.Equal(1, parseCount);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
-    public async Task CreateAsyncPropagatesDemTextureSourceValidationFromPolicy()
+    public async Task CreateAsyncFailsBeforeCompositionWhenExplicitDemTextureSourceIsInvalid()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -193,12 +202,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => factory.CreateAsync(request));
+            () => factory.CreateAsync(request, reader.ReadResult));
 
-        Assert.Contains(
-            exception.Errors,
-            static error => error.Contains("GeoTIFF", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(["invalid GeoTIFF source"], exception.Errors);
         Assert.Null(composer.LastReadResult);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
@@ -236,7 +245,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
     private sealed class RecordingComposer(IImportedSceneSource source) : IImportedSceneSourceComposer
     {
-        private readonly IImportedSceneSource source = source;
+        internal IImportedSceneSource Source { get; } = source;
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
@@ -252,7 +261,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LastRequest = request;
             LastReadResult = readResult;
             LastProgressReporter = progressReporter;
-            return source;
+            return Source;
         }
     }
 
@@ -282,11 +291,6 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         {
             await Task.CompletedTask;
             yield break;
-        }
-
-        public IEnumerable<ImportedCityObject> ReadCityObjects()
-        {
-            return [];
         }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
@@ -378,24 +382,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public IReadOnlyList<string>? LastRequestedMeshCodes { get; private set; }
-
         public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
-
-        public Task<ResolvedDemTextureSources> ResolveAsync(
-            PlateauImportRequest request,
-            IReadOnlyList<string> requestedMeshCodes,
-            CancellationToken cancellationToken = default)
-        {
-            LastRequest = request;
-            LastRequestedMeshCodes = requestedMeshCodes.ToArray();
-            if (exception is not null)
-            {
-                throw exception;
-            }
-
-            return Task.FromResult(new ResolvedDemTextureSources(overlays));
-        }
 
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,

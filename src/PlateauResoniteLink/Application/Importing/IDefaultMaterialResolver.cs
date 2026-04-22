@@ -2,7 +2,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IDefaultMaterialResolver
+internal interface IDefaultMaterialResolver
 {
     ResolvedMaterial ResolveMaterial(
         string packageName,

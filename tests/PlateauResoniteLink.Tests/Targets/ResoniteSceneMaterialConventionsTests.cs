@@ -172,7 +172,24 @@ public sealed class ResoniteSceneMaterialConventionsTests
     [Fact]
     public void CreateCommonMaterialSlotLookupNames_ForIdentityGenericCommonMaterial_IncludesLegacyScaleOneName()
     {
-        ResoniteMaterialBinding material = ResoniteMaterialSharing.CreateSharedAlbedoCommonMaterial();
+        ResoniteMaterialBinding material = new(
+            MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                textureScale: null,
+                textureOffset: null,
+                depthOffset: null),
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: null,
+            Family: null,
+            TextureOffset: null,
+            BundledVariantIndex: null,
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
@@ -183,7 +200,11 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateCommonMaterialSlotLookupNames_ForIdentityScaleGenericOffsetMaterial_IncludesLegacyScaleOneName()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic|Uv|scale:none|offset:0.25x0.75|depth:2x3",
+            MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                textureScale: null,
+                textureOffset: new ResoniteFloat2(0.25, 0.75),
+                depthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0)),
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -205,7 +226,20 @@ public sealed class ResoniteSceneMaterialConventionsTests
     [Fact]
     public void CreateMaterialSlotName_ForVertexColorCommonMaterial_UsesVertexColorName()
     {
-        ResoniteMaterialBinding material = ResoniteMaterialSharing.CreateSharedVertexColorCommonMaterial();
+        ResoniteMaterialBinding material = new(
+            MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                depthOffset: null),
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.VertexColor,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: null,
+            Family: null,
+            AssetScope: ResoniteMaterialAssetScope.Common);
 
         string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
 

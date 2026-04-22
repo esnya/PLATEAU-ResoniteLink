@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Linq;
 
 using GeographicLib;
 
@@ -23,16 +22,15 @@ internal sealed class LocalCityGmlCommonMaterialEnumerator(
         ISet<string>? emittedMaterialKeys = null)
     {
         return LocalCityGmlObjectProjection.EnumerateCommonMaterials(
-                sourceFile.ToLegacy(),
-                referenceSystem.ToLegacy(),
-                globalOriginPoint.ToLegacy(),
-                globalCartesian,
-                demTerrainTextureOverlays,
-                requestedMeshAreas,
-                terrainHeightSampler: null,
-                request,
-                materialResolver,
-                emittedMaterialKeys)
-            .Select(SceneImportContractMapper.ToContract);
+            sourceFile.ToLegacy(),
+            referenceSystem.ToLegacy(),
+            globalOriginPoint.ToLegacy(),
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshAreas,
+            terrainHeightSampler: null,
+            request,
+            materialResolver,
+            emittedMaterialKeys);
     }
 }

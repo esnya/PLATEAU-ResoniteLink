@@ -162,14 +162,6 @@ public sealed class ImportServiceFactoryTests
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            Action<string>? progressReporter = null,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<IImportedSceneSource> CreateAsync(
-            PlateauImportRequest request,
             LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -199,11 +191,6 @@ public sealed class ImportServiceFactoryTests
         public IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(CancellationToken cancellationToken = default)
         {
             return AsyncEnumerable.Empty<MaterialBinding>();
-        }
-
-        public IEnumerable<ImportedCityObject> ReadCityObjects()
-        {
-            return [];
         }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
@@ -269,3 +256,4 @@ public sealed class ImportServiceFactoryTests
         }
     }
 }
+

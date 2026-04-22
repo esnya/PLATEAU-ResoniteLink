@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 
 using PlateauResoniteLink.Application.Importing;
 
@@ -7,13 +8,20 @@ namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class LocalCityGmlSourceFileDiscoveryTests
 {
+    private static IEnumerable<string> GetRelativeGmlPaths(string datasetRoot)
+    {
+        return Directory.EnumerateFiles(datasetRoot, "*.gml", SearchOption.AllDirectories)
+            .Select(path => Path.GetRelativePath(datasetRoot, path));
+    }
+
     [Fact]
     public void DiscoverOrdersPackagesFromRequestedCenterOutward()
     {
         string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetMixedObjects");
+        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
 
         LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
-            datasetRoot,
+            relativePaths,
             "53394525",
             packageNames: null).SourceFiles.ToArray();
 
@@ -28,9 +36,10 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     public void DiscoverFiltersPackagesAndKeepsParentMeshMatches()
     {
         string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
 
         LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
-            datasetRoot,
+            relativePaths,
             "53394525",
             ["waterbody", "tran", "dem"]).SourceFiles.ToArray();
 
@@ -75,9 +84,10 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
     public void DiscoverRegexSelectionKeepsParentMeshFilesForMatchedDetailedMeshes()
     {
         string datasetRoot = TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages");
+        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot);
 
         LocalCityGmlSourceFileDiscoveryResult discoveryResult = LocalCityGmlSourceFileDiscovery.Discover(
-            datasetRoot,
+            relativePaths,
             "5339452.",
             ["dem", "tran"]);
         LocalCityGmlSourceFileDescriptor[] result = discoveryResult.SourceFiles.ToArray();
@@ -136,9 +146,10 @@ public sealed class LocalCityGmlSourceFileDiscoveryTests
         File.WriteAllText(
             Path.Combine(datasetRoot.Path, "udx", "unknown", "53394525", "plateau_tokyo23ku_unknown_53394525.gml"),
             "<root />");
+        IEnumerable<string> relativePaths = GetRelativeGmlPaths(datasetRoot.Path);
 
         LocalCityGmlSourceFileDescriptor[] result = LocalCityGmlSourceFileDiscovery.Discover(
-            datasetRoot.Path,
+            relativePaths,
             "53394525",
             packageNames: null).SourceFiles.ToArray();
 

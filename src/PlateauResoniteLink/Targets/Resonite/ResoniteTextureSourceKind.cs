@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Domain.Importing;
+namespace PlateauResoniteLink.Targets.Resonite;
 
 public enum ResoniteTextureSourceKind
 {

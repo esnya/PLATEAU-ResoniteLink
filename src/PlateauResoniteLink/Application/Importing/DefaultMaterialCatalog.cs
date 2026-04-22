@@ -25,7 +25,7 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
             variantSelectionKey);
     }
 
-    public static ResolvedMaterial ResolveMaterialCore(
+    internal static ResolvedMaterial ResolveMaterialCore(
         string packageName,
         ResoniteTexturePayload? texturePayload,
         bool preferUvProjection,
@@ -35,38 +35,38 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         if (ShouldUseWireframeMaterial(packageName))
         {
             return new ResolvedMaterial(
-                ResoniteMaterialType.Wireframe,
+                MaterialType.Wireframe,
                 TexturePayload: null,
-                ResoniteTextureSourceKind.Bundled,
-                ResoniteMaterialProjection.Uv,
+                TextureSourceKind.Bundled,
+                MaterialProjection.Uv,
                 Family: null,
                 TextureScale: null,
-                AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+                ReuseScope: MaterialReuseScope.PerObject);
         }
 
         if (texturePayload is not null)
         {
             return new ResolvedMaterial(
-                ResoniteMaterialType.Standard,
+                MaterialType.Standard,
                 texturePayload,
-                ResoniteTextureSourceKind.Dataset,
-                ResoniteMaterialProjection.Uv,
+                TextureSourceKind.Dataset,
+                MaterialProjection.Uv,
                 Family: null,
                 TextureScale: null,
-                AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
+                ReuseScope: MaterialReuseScope.PerObject);
         }
 
         bool useFacadeUvProjection = ShouldUseFacadeUvProjection(packageName, preferUvProjection);
         string family = familyOverride ?? ResolveBundledTextureFamily(packageName, useFacadeUvProjection);
         int bundledVariantIndex = SelectBundledVariantIndex(family, variantSelectionKey);
         return new ResolvedMaterial(
-            ResoniteMaterialType.Standard,
+            MaterialType.Standard,
             TexturePayload: null,
-            ResoniteTextureSourceKind.Bundled,
-            preferUvProjection ? ResoniteMaterialProjection.Uv : ResoniteMaterialProjection.Triplanar,
+            TextureSourceKind.Bundled,
+            preferUvProjection ? MaterialProjection.Uv : MaterialProjection.Triplanar,
             family,
             BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex)),
-            ResoniteMaterialAssetScope.Common,
+            MaterialReuseScope.Shared,
             BundledVariantIndex: bundledVariantIndex);
     }
 
