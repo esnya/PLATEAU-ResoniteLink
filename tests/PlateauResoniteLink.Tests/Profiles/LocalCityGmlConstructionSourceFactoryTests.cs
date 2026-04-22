@@ -121,7 +121,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsyncDoesNotParseDemGeometryToPreResolveOverlays()
+    public async Task CreateAsyncUsesParsedDemCoverageToValidateExplicitDemSource()
     {
         int parseCount = 0;
         CoordinateReferenceSystem referenceSystem =
@@ -170,7 +170,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Equal(0, parseCount);
+        Assert.Equal(1, parseCount);
         Assert.Same(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }

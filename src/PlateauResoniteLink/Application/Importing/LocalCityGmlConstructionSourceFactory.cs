@@ -56,21 +56,9 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             return;
         }
 
-        string[] requestedDemMeshCodes = readResult.BootstrapContext.SourceFilePipelines
-            .Where(static pipeline => string.Equals(
-                pipeline.SourceFile.PackageName,
-                "dem",
-                StringComparison.OrdinalIgnoreCase))
-            .Select(static pipeline => pipeline.SourceFile.MatchedMeshCode)
-            .Where(static meshCode => !string.IsNullOrWhiteSpace(meshCode))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = requestedDemMeshCodes.Length > 0
-            ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
-            : await readResult.ResolveRequestedDemOverlayRegionsAsync(
-                readResult.DocumentSet.SelectedMeshCodes,
-                cancellationToken);
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await readResult.ResolveRequestedDemOverlayRegionsAsync(
+            readResult.DocumentSet.SelectedMeshCodes,
+            cancellationToken);
 
         if (overlayRegions.Count == 0)
         {
