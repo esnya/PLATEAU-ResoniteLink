@@ -86,7 +86,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     }
 
     [Fact]
-    public async Task CreateAsyncDoesNotResolveDemOverlaysDuringComposition()
+    public async Task CreateAsyncValidatesExplicitDemSourceBeforeCompositionWithoutMutatingReadResult()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -114,13 +114,16 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Null(demTextureSourcePolicy.LastRequest);
-        Assert.Null(demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["53394525", "53394526"], demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
+        Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
     }
 
     [Fact]
     public async Task CreateAsyncDoesNotParseDemGeometryToPreResolveOverlays()
     {
+        int parseCount = 0;
         CoordinateReferenceSystem referenceSystem =
             CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor demSourceFile = new(
@@ -130,13 +133,17 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             RequiresMeshAreaFilter: false);
         SourceFilePipeline demPipeline = new(
             demSourceFile,
-            () => Task.FromResult(
-                new ParsedSourceFileResult(
-                    demSourceFile,
-                    [CreateParsedDemCityObject(referenceSystem)],
-                    referenceSystem,
-                    [],
-                    TimeSpan.Zero)));
+            () =>
+            {
+                parseCount++;
+                return Task.FromResult(
+                    new ParsedSourceFileResult(
+                        demSourceFile,
+                        [CreateParsedDemCityObject(referenceSystem)],
+                        referenceSystem,
+                        [],
+                        TimeSpan.Zero));
+            });
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
                 new LocalCityGmlDocumentSet(
@@ -163,12 +170,13 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request, reader.ReadResult);
 
-        Assert.Null(demTextureSourcePolicy.LastRequest);
-        Assert.Null(demTextureSourcePolicy.LastOverlayRegionIdentities);
+        Assert.Equal(0, parseCount);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     [Fact]
-    public async Task CreateAsyncDoesNotTriggerDemTextureSourceValidationDuringComposition()
+    public async Task CreateAsyncFailsBeforeCompositionWhenExplicitDemTextureSourceIsInvalid()
     {
         RecordingDocumentReader reader = new(
             new LocalCityGmlDocumentReadResult(
@@ -193,11 +201,13 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        IImportedSceneSource result = await factory.CreateAsync(request, reader.ReadResult);
+        PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
+            () => factory.CreateAsync(request, reader.ReadResult));
 
-        Assert.Same(composer.Source, result);
-        Assert.Same(reader.ReadResult, composer.LastReadResult);
-        Assert.Null(demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["invalid GeoTIFF source"], exception.Errors);
+        Assert.Null(composer.LastReadResult);
+        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader

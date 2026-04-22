@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -39,6 +41,45 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
+        await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
         return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter));
+    }
+
+    private async Task ValidateDemTextureSourceAsync(
+        PlateauImportRequest request,
+        LocalCityGmlDocumentReadResult readResult,
+        CancellationToken cancellationToken)
+    {
+        if (request.DemTextureSource is null
+            || !readResult.DocumentSet.PackageNames.Contains("dem", StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        string[] requestedDemMeshCodes = readResult.BootstrapContext.SourceFilePipelines
+            .Where(static pipeline => string.Equals(
+                pipeline.SourceFile.PackageName,
+                "dem",
+                StringComparison.OrdinalIgnoreCase))
+            .Select(static pipeline => pipeline.SourceFile.MatchedMeshCode)
+            .Where(static meshCode => !string.IsNullOrWhiteSpace(meshCode))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = requestedDemMeshCodes.Length > 0
+            ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
+            : await readResult.ResolveRequestedDemOverlayRegionsAsync(
+                readResult.DocumentSet.SelectedMeshCodes,
+                cancellationToken);
+
+        if (overlayRegions.Count == 0)
+        {
+            return;
+        }
+
+        _ = await demTextureSourcePolicy.ResolveAsync(
+            request,
+            overlayRegions,
+            cancellationToken);
     }
 }
