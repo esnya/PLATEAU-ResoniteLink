@@ -228,8 +228,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
-    [InlineData(PlateauImportMemoryProfile.Small, 32, 33, 1024)]
-    [InlineData(PlateauImportMemoryProfile.Large, 63, 64, 1024)]
+    [InlineData(PlateauImportMemoryProfile.Small, 97, 98, 1024)]
+    [InlineData(PlateauImportMemoryProfile.Large, 195, 196, 1024)]
     public async Task BufferedCityObjectBakerFactoryAppliesVertexBudgetByMemoryProfile(
         PlateauImportMemoryProfile memoryProfile,
         int noFlushCount,
