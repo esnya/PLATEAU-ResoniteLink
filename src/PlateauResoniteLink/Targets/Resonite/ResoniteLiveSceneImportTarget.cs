@@ -78,7 +78,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
-    internal PlateauImportMemoryProfile MemoryProfile { get; }
+    internal ResoniteImportMemoryProfile MemoryProfile { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -1407,7 +1407,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             {
                 ResoniteMeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
                 ResoniteFloat2 adjustedUv = generatedTextureBySubmeshIndex.TryGetValue(submesh.Index, out GeneratedTerrainTexture? generatedTexture)
-                    ? CreateResoniteFloat2(TextureUvRect.RemapValue(sourceVertex.UV0, TextureUvRect.Identity, generatedTexture.OccupiedUvRect))
+                    ? CreateResoniteFloat2(TextureUvRect.RemapValue(
+                        new ScalarPair(sourceVertex.UV0.X, sourceVertex.UV0.Y),
+                        TextureUvRect.Identity,
+                        generatedTexture.OccupiedUvRect))
                     : sourceVertex.UV0;
                 adjustedVertices.Add(sourceVertex with { UV0 = adjustedUv });
                 adjustedIndices.Add(adjustedVertices.Count - 1);
@@ -1473,8 +1476,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     {
         TextureUvRect objectRect = geometry.UvScale is not null || geometry.UvOffset is not null
             ? TextureUvRect.FromScaleOffsetValue(
-                geometry.UvScale ?? new ScalarPair(1.0, 1.0),
-                geometry.UvOffset ?? new ScalarPair(0.0, 0.0))
+                geometry.UvScale is null ? new ScalarPair(1.0, 1.0) : new ScalarPair(geometry.UvScale.X, geometry.UvScale.Y),
+                geometry.UvOffset is null ? new ScalarPair(0.0, 0.0) : new ScalarPair(geometry.UvOffset.X, geometry.UvOffset.Y))
             : TextureUvRect.Identity;
 
         TerrainTextureOverlay? overlay = cityObject.Materials

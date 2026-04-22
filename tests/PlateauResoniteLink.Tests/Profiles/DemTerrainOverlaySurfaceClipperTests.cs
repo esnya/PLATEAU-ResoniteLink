@@ -24,7 +24,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 ],
                 UVs: null),
             InteriorRings: [],
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(
@@ -64,7 +64,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 ],
                 UVs: null),
             InteriorRings: [],
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay[] overlays =
@@ -107,7 +107,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 ],
                 UVs: null),
             InteriorRings: [],
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(
@@ -145,7 +145,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                 ],
                 UVs: null),
             InteriorRings: [],
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay[] overlays =
@@ -196,7 +196,7 @@ public sealed class DemTerrainOverlaySurfaceClipperTests
                     new Float2(1.0, 1.0),
                 ]),
             InteriorRings: [],
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null,
             UsesGeneratedDemTexture: true);
         TerrainTextureOverlay overlay = new(

@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 using PlateauResoniteLink.Cli;
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Cli;
@@ -33,7 +32,7 @@ public sealed class CliHostFactoryTests
                 new Uri("ws://localhost:12345/"),
                 ConnectionCount: 1,
                 EnableSendMetrics: true,
-                MemoryProfile: PlateauImportMemoryProfile.Large,
+                MemoryProfile: ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -43,3 +42,4 @@ public sealed class CliHostFactoryTests
         Assert.Same(builder.Diagnostics, builder.ClientSession.Diagnostics);
     }
 }
+

@@ -33,7 +33,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     public LocalCityGmlConstructionSource(
         ImportedSceneMetadata metadata,
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
         Action<string>? progressReporter = null)

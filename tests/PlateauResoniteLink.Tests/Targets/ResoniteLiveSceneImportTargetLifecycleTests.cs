@@ -36,7 +36,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -97,7 +97,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -149,7 +149,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -238,7 +238,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -291,7 +291,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -779,7 +779,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             PackageNames: ["dem"],
             ServerUri: null);
-        LocalCityGmlDocumentReadResult readResult = await new LocalCityGmlDocumentReader(
+        LocalCityGmlBootstrapSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector())
@@ -900,6 +900,12 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 #pragma warning restore CS0162
     }
 
+    private static ResoniteFloat2 CreateTilesPerMeter(string texturePath)
+    {
+        ScalarPair value = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath);
+        return new ResoniteFloat2(value.X, value.Y);
+    }
+
     private static ResoniteConstructionCityObject CreateCityObject(string objectKey, string sourceFileRelativePath)
     {
         return new ResoniteConstructionCityObject(
@@ -981,7 +987,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TextureScale: BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath),
+                    TextureScale: CreateTilesPerMeter(texturePath),
                     Family: family,
                     TextureOffset: null,
                     AssetScope: ResoniteMaterialAssetScope.Common,
@@ -1086,3 +1092,5 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         }
     }
 }
+
+

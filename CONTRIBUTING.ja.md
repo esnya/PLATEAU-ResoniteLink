@@ -6,7 +6,7 @@ Pull request は歓迎します。
 
 PR を出す前に、次を確認してください。
 
-- このリポジトリで Coding Agent を使う場合は、[AGENTS.ja.md](AGENTS.ja.md) を読ませてください。
+- このリポジトリで Coding Agent を使う場合は、[AGENTS.md](AGENTS.md) を読ませてください。
 - 明確な理由がない限り、runtime と SDK の前提は .NET 10 のまま保つ。
 - English Markdown を変更した場合は、対応する `.ja.md` も更新する。
 - 挙動が変わる場合は、test を追加または更新する。

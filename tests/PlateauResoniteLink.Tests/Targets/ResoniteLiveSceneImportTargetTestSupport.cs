@@ -91,13 +91,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return new ResoniteConstructionMetadata(
             SchemaVersion: "3.0",
             WorldName: $"PLATEAU {datasetName} {meshCode}",
-            Request: new PlateauImportRequest(
+            Request: new ResoniteImportRequest(
                 Dataset: datasetName,
                 MeshCode: meshCode,
-                SourceKind: DatasetSourceKind.Local,
-                LocalSourcePath: datasetRoot,
-                ServerUri: null),
-            SourceDataset: new PlateauSourceDataset(
+                LocalSourcePath: datasetRoot),
+            SourceDataset: new ResoniteSourceDataset(
                 PackageNames: packageNames ?? ["bldg"],
                 SourceFiles: sourceFiles ?? [],
                 SelectedMeshCodes: requestedMeshCodes),
@@ -384,7 +382,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -864,3 +862,4 @@ public sealed class BundledCompanionTextureIsolationGroup
 {
     public const string Name = "BundledCompanionTextureIsolation";
 }
+

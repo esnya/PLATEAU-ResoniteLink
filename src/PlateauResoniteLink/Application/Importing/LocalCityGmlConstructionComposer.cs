@@ -16,7 +16,7 @@ internal sealed class LocalCityGmlConstructionComposer(
 
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);

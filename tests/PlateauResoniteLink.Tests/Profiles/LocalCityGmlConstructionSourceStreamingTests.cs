@@ -71,7 +71,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, lodLevel: 1)],
             beforeYield: demReleaseSignal.Task);
 
-        LocalCityGmlDocumentReadResult readResult = new(
+        LocalCityGmlBootstrapSnapshot readResult = new(
             new LocalCityGmlDocumentSet(
                 new EmptyDatasetContentSource(),
                 [
@@ -219,7 +219,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
-        LocalCityGmlDocumentReadResult readResult = new(
+        LocalCityGmlBootstrapSnapshot readResult = new(
             new LocalCityGmlDocumentSet(
                 new EmptyDatasetContentSource(),
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
@@ -373,3 +373,4 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         }
     }
 }
+

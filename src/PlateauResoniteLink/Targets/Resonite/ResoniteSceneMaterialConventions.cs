@@ -104,8 +104,9 @@ internal static class ResoniteSceneMaterialConventions
                 ? BundledDefaultMaterialFamilies.Other
                 : material.Family!;
             int canonicalVariantIndex = material.BundledVariantIndex ?? 0;
-            ResoniteFloat2 defaultTextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(
+            ScalarPair defaultTextureScaleValue = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(
                 BundledDefaultMaterialFamilies.GetVariant(canonicalFamily, canonicalVariantIndex));
+            ResoniteFloat2 defaultTextureScale = new(defaultTextureScaleValue.X, defaultTextureScaleValue.Y);
             ResoniteFloat2 canonicalTextureScale = material.TextureScale ?? defaultTextureScale;
             return material with
             {
@@ -463,7 +464,8 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        return BundledDefaultMaterialProfiles.GetTilesPerMeter(bundledVariantPath);
+        ScalarPair defaultScaleValue = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(bundledVariantPath);
+        return new ResoniteFloat2(defaultScaleValue.X, defaultScaleValue.Y);
     }
 
     private static string TryCreateBundledVariantNameToken(ResoniteMaterialBinding material)

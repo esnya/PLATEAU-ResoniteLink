@@ -22,7 +22,7 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         this.lodSelector = lodSelector;
     }
 
-    public async Task<LocalCityGmlDocumentReadResult> ReadAsync(
+    public async Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)

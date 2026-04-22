@@ -26,8 +26,16 @@ internal static class SceneImportContractMapper
         return new ImportedSceneMetadata(
             metadata.SchemaVersion,
             metadata.WorldName,
-            metadata.Request,
-            metadata.SourceDataset,
+            new PlateauImportRequest(
+                metadata.Request.Dataset,
+                metadata.Request.MeshCode,
+                DatasetSourceKind.Local,
+                metadata.Request.LocalSourcePath,
+                ServerUri: null),
+            new PlateauSourceDataset(
+                metadata.SourceDataset.PackageNames,
+                metadata.SourceDataset.SourceFiles,
+                metadata.SourceDataset.SelectedMeshCodes),
             ToContract(metadata.Attribution),
             ToContract(metadata.LocalOrigin));
     }
@@ -79,8 +87,14 @@ internal static class SceneImportContractMapper
         return new ResoniteConstructionMetadata(
             metadata.SchemaVersion,
             metadata.SceneName,
-            metadata.Request,
-            metadata.SourceDataset,
+            new ResoniteImportRequest(
+                metadata.Request.Dataset,
+                metadata.Request.MeshCode,
+                metadata.Request.LocalSourcePath),
+            new ResoniteSourceDataset(
+                metadata.SourceDataset.PackageNames,
+                metadata.SourceDataset.SourceFiles,
+                metadata.SourceDataset.SelectedMeshCodes),
             ToInternal(metadata.Attribution),
             ToInternal(metadata.GeodeticOrigin));
     }

@@ -21,7 +21,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "HeightMap Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedHeightMapGridGeometryAsset(
@@ -31,7 +31,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteHeightMapGridGeometry(
                     Width: 2,
                     Height: 3,
-                    Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
+                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
                     MinHeight: 0.0,
                     MaxHeight: 6.0,
                     HeightSamples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
@@ -81,7 +81,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "HeightMap Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedSceneObjectEmission emissionPlan = new(
             new PlannedHeightMapGridGeometryAsset(
@@ -91,13 +91,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteHeightMapGridGeometry(
                     Width: 2,
                     Height: 3,
-                    Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
+                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
                     MinHeight: 0.0,
                     MaxHeight: 6.0,
                     HeightSamples: [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]),
                 new Uri("resdb:///texture/height"),
-                new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(0.4, 0.25),
-                new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(0.2, 0.125)),
+                new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.4, 0.25),
+                new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(0.2, 0.125)),
             [],
             new PlannedRenderer(
                 new GeometryIdentity("geom"),
@@ -127,13 +127,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new MaterialIdentity("dedicated"),
             new ResoniteMaterialBinding(
                 MaterialKey: "dedicated-material",
-                BaseColor: new PlateauResoniteLink.Domain.Importing.ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
                 TextureSourceKind: ResoniteTextureSourceKind.Dataset,
@@ -195,13 +195,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedDedicatedMaterialAsset dedicatedMaterial = new(
             new MaterialIdentity("dedicated"),
             new ResoniteMaterialBinding(
                 MaterialKey: "dedicated-material",
-                BaseColor: new PlateauResoniteLink.Domain.Importing.ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                BaseColor: new PlateauResoniteLink.Targets.Resonite.ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType: ResoniteMaterialType.Standard,
                 TexturePayload: null,
                 TextureSourceKind: ResoniteTextureSourceKind.Bundled,
@@ -284,7 +284,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), new ResoniteComponentLocator("shared-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
@@ -341,7 +341,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), new ResoniteComponentLocator("shared-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(
@@ -381,7 +381,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "Triangle Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(0.0, 0.0, 0.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(new MaterialIdentity("reusable"), new ResoniteComponentLocator("shared-material-id"));
         PlannedSceneObjectEmission emissionPlan = new(

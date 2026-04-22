@@ -20,7 +20,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
-        LocalCityGmlDocumentReadResult expectedReadResult = new(
+        LocalCityGmlBootstrapSnapshot expectedReadResult = new(
             new LocalCityGmlDocumentSet(
                 new StubDatasetContentSource(request.LocalSourcePath!),
                 [],
@@ -106,11 +106,11 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomCityGmlDocumentReader(LocalCityGmlDocumentReadResult? readResult = null) : ICityGmlDocumentReader
+    private sealed class CustomCityGmlDocumentReader(LocalCityGmlBootstrapSnapshot? readResult = null) : ICityGmlDocumentReader
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
+        public Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -153,11 +153,11 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
+        public LocalCityGmlBootstrapSnapshot? LastReadResult { get; private set; }
 
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
+            LocalCityGmlBootstrapSnapshot readResult,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;
@@ -210,3 +210,4 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 }
+

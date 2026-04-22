@@ -302,7 +302,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
-    private static LocalCityGmlDocumentReadResult CreateReadResult(int sourceFileCount)
+    private static LocalCityGmlBootstrapSnapshot CreateReadResult(int sourceFileCount)
     {
         SourceFileDescriptor[] sourceFiles = Enumerable.Range(0, sourceFileCount)
             .Select(index => new SourceFileDescriptor(
@@ -314,7 +314,7 @@ public sealed class LocalCityGmlConstructionSourceTests
         return CreateReadResult(sourceFiles);
     }
 
-    private static LocalCityGmlDocumentReadResult CreateReadResult(
+    private static LocalCityGmlBootstrapSnapshot CreateReadResult(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
@@ -331,7 +331,7 @@ public sealed class LocalCityGmlConstructionSourceTests
                         TimeSpan.Zero))))
             .ToArray();
 
-        return new LocalCityGmlDocumentReadResult(
+        return new LocalCityGmlBootstrapSnapshot(
             new LocalCityGmlDocumentSet(
                 new EmptyDatasetContentSource(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
@@ -343,11 +343,11 @@ public sealed class LocalCityGmlConstructionSourceTests
                 new GeodeticPoint(35.0, 139.0, 0.0)));
     }
 
-    private static LocalCityGmlDocumentReadResult CreateReadResult(
+    private static LocalCityGmlBootstrapSnapshot CreateReadResult(
         IReadOnlyList<SourceFilePipeline> pipelines,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
-        return new LocalCityGmlDocumentReadResult(
+        return new LocalCityGmlBootstrapSnapshot(
             new LocalCityGmlDocumentSet(
                 new EmptyDatasetContentSource(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
@@ -665,3 +665,4 @@ public sealed class LocalCityGmlConstructionSourceTests
         }
     }
 }
+

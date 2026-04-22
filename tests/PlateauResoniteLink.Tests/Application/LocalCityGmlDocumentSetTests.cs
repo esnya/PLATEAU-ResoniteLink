@@ -29,7 +29,7 @@ public sealed class LocalCityGmlDocumentSetTests
     }
 
     [Fact]
-    public void DocumentReadResultSeparatesBootstrapContextFromPureDocumentSet()
+    public void BootstrapSnapshotSeparatesBootstrapContextFromPureDocumentSet()
     {
         LocalCityGmlDocumentSet documentSet = new(
             new EmptyDatasetContentSource(),
@@ -41,7 +41,7 @@ public sealed class LocalCityGmlDocumentSetTests
         GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
         LocalCityGmlBootstrapContext bootstrapContext = new(sourceFilePipelines, globalOriginPoint);
 
-        LocalCityGmlDocumentReadResult readResult = new(documentSet, bootstrapContext);
+        LocalCityGmlBootstrapSnapshot readResult = new(documentSet, bootstrapContext);
 
         Assert.Same(documentSet, readResult.DocumentSet);
         Assert.Same(bootstrapContext, readResult.BootstrapContext);

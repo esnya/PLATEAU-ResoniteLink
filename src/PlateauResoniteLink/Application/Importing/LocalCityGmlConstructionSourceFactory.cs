@@ -38,7 +38,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(
+        LocalCityGmlBootstrapSnapshot readResult = await documentReader.ReadAsync(
             request,
             progressReporter,
             cancellationToken);
@@ -48,7 +48,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
 
     private async Task ValidateDemTextureSourceAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         CancellationToken cancellationToken)
     {
         if (request.DemTextureSource is null
@@ -57,7 +57,8 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             return;
         }
 
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await readResult.ResolveRequestedDemOverlayRegionsAsync(
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await LocalCityGmlDemOverlayRegionResolver.ResolveAsync(
+            readResult.BootstrapContext,
             readResult.DocumentSet.SelectedMeshCodes,
             cancellationToken);
 

@@ -8,6 +8,6 @@ internal interface IImportedSceneSourceComposer
 {
     IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         Action<string>? progressReporter = null);
 }

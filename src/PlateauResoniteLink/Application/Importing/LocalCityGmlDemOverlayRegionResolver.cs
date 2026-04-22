@@ -6,25 +6,17 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlDocumentReadResult
+internal static class LocalCityGmlDemOverlayRegionResolver
 {
-    internal LocalCityGmlDocumentReadResult(
-        LocalCityGmlDocumentSet documentSet,
-        LocalCityGmlBootstrapContext bootstrapContext)
-    {
-        DocumentSet = documentSet;
-        BootstrapContext = bootstrapContext;
-    }
-
-    public LocalCityGmlDocumentSet DocumentSet { get; }
-
-    internal LocalCityGmlBootstrapContext BootstrapContext { get; }
-
-    internal async Task<IReadOnlyList<DemTerrainOverlayRegion>> ResolveRequestedDemOverlayRegionsAsync(
+    internal static async Task<IReadOnlyList<DemTerrainOverlayRegion>> ResolveAsync(
+        LocalCityGmlBootstrapContext bootstrapContext,
         IReadOnlyList<string> requestedDemMeshCodes,
         CancellationToken cancellationToken)
     {
-        SourceFilePipeline[] demPipelines = BootstrapContext.SourceFilePipelines
+        ArgumentNullException.ThrowIfNull(bootstrapContext);
+        ArgumentNullException.ThrowIfNull(requestedDemMeshCodes);
+
+        SourceFilePipeline[] demPipelines = bootstrapContext.SourceFilePipelines
             .Where(static pipeline => string.Equals(
                 pipeline.SourceFile.PackageName,
                 "dem",
