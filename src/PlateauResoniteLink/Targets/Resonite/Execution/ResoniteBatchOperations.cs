@@ -90,6 +90,19 @@ internal static class ResoniteBatchOperations
         }
 
         public PendingBatchSlot AddSlot(
+            PendingBatchSlot parentSlot,
+            string slotName,
+            ResoniteFloat3? position,
+            ResoniteFloatQ? rotation)
+        {
+            return AddSlot(
+                GetTargetId(parentSlot),
+                slotName,
+                position,
+                rotation);
+        }
+
+        public PendingBatchSlot AddSlot(
             BatchTemporarySlotId localId,
             BatchTemporaryMessageId messageId,
             string parentId,
@@ -111,6 +124,17 @@ internal static class ResoniteBatchOperations
                 AllocateComponentId("local_component"),
                 AllocateMessageId("batch_message"),
                 containerSlotId,
+                componentType,
+                members);
+        }
+
+        public PendingBatchComponent AddComponent(
+            PendingBatchSlot containerSlot,
+            string componentType,
+            IReadOnlyDictionary<string, Member> members)
+        {
+            return AddComponent(
+                GetTargetId(containerSlot),
                 componentType,
                 members);
         }
@@ -150,6 +174,24 @@ internal static class ResoniteBatchOperations
                     System.Globalization.CultureInfo.InvariantCulture,
                     $"{prefix}_{batchScopeToken}_{++nextMessageId}"));
         }
+    }
+
+    public static string GetTargetId(PendingBatchSlot pendingSlot)
+    {
+        return pendingSlot.LocalId.Value;
+    }
+
+    public static string GetTargetId(PendingBatchComponent pendingComponent)
+    {
+        return pendingComponent.LocalId.Value;
+    }
+
+    public static Reference CreateReference(PendingBatchComponent pendingComponent)
+    {
+        return new Reference
+        {
+            TargetID = GetTargetId(pendingComponent),
+        };
     }
 
     public static AddSlot CreateAddSlotOperation(

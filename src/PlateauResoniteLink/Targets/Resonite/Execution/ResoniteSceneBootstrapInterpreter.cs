@@ -103,7 +103,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 "Assets",
                 null,
                 null);
-            assetsParentId = pendingAssets.Value.LocalId.Value;
+            assetsParentId = ResoniteBatchOperations.GetTargetId(pendingAssets.Value);
         }
         else
         {
@@ -121,7 +121,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 SharedAssetsRootName,
                 null,
                 null);
-            sharedAssetsParentId = pendingSharedAssets.Value.LocalId.Value;
+            sharedAssetsParentId = ResoniteBatchOperations.GetTargetId(pendingSharedAssets.Value);
         }
 
         if (sharedCommonMaterialsSlot is null)
@@ -137,7 +137,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         }
 
         string commonParentId = sharedCommonMaterialsSlot?.ID
-            ?? pendingSharedCommon?.LocalId.Value
+            ?? (pendingSharedCommon is { } pendingSharedCommonSlot
+                ? ResoniteBatchOperations.GetTargetId(pendingSharedCommonSlot)
+                : null)
             ?? throw new InvalidOperationException("Bootstrap could not determine the shared Common Materials parent slot.");
 
         SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
@@ -250,7 +252,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         _ = batchBuilder.AddSlot(
             pendingDatasetAssetsRootSlot.LocalId,
             pendingDatasetAssetsRootSlot.MessageId,
-            pendingDatasetRootSlot.LocalId.Value,
+            ResoniteBatchOperations.GetTargetId(pendingDatasetRootSlot),
             "Assets",
             null,
             null);
@@ -267,7 +269,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 SharedAssetsRootName,
                 null,
                 null);
-            sharedAssetsParentId = pendingSharedAssetsRootSlot.Value.LocalId.Value;
+            sharedAssetsParentId = ResoniteBatchOperations.GetTargetId(pendingSharedAssetsRootSlot.Value);
         }
 
         if (existingSharedCommonMaterialsSlot is null)
@@ -291,7 +293,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             _ = batchBuilder.AddComponent(
                 pendingLicense.LocalId,
                 pendingLicense.MessageId,
-                pendingDatasetRootSlot.LocalId.Value,
+                ResoniteBatchOperations.GetTargetId(pendingDatasetRootSlot),
                 LicenseComponentType,
                 datasetLicense.Members);
         }
@@ -302,7 +304,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 commonMaterials,
                 commonSlot: existingSharedCommonMaterialsSlot,
                 commonParentId: existingSharedCommonMaterialsSlot?.ID
-                    ?? pendingSharedCommonMaterialsRootSlot?.LocalId.Value
+                    ?? (pendingSharedCommonMaterialsRootSlot is { } pendingSharedCommonMaterialsRoot
+                        ? ResoniteBatchOperations.GetTargetId(pendingSharedCommonMaterialsRoot)
+                        : null)
                     ?? throw new InvalidOperationException("Bootstrap could not determine the shared Common Materials parent slot."),
                 batchScopeToken,
                 batchBuilder,
@@ -447,7 +451,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                         familySlotName,
                         null,
                         null);
-                    familyParentId = pendingFamilySlot.LocalId.Value;
+                    familyParentId = ResoniteBatchOperations.GetTargetId(pendingFamilySlot);
                 }
                 else
                 {
@@ -518,7 +522,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                     $"bootstrap_common_material_slot_{materialIndex}",
                     materialSlotName,
                     batchScopeToken);
-                materialContainerId = pendingMaterialSlot.Value.LocalId.Value;
+                materialContainerId = ResoniteBatchOperations.GetTargetId(pendingMaterialSlot.Value);
                 _ = batchBuilder.AddSlot(
                     pendingMaterialSlot.Value.LocalId,
                     pendingMaterialSlot.Value.MessageId,
@@ -590,10 +594,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     albedoTextureUri,
                     ResoniteSceneMaterialConventions.TextureMemberRole.Albedo));
-            materialMembers["AlbedoTexture"] = new Reference
-            {
-                TargetID = albedoTexture.LocalId.Value,
-            };
+            materialMembers["AlbedoTexture"] = ResoniteBatchOperations.CreateReference(albedoTexture);
         }
 
         Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
@@ -611,10 +612,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     normalTextureUri,
                     ResoniteSceneMaterialConventions.TextureMemberRole.Normal));
-            materialMembers["NormalMap"] = new Reference
-            {
-                TargetID = normalTexture.LocalId.Value,
-            };
+            materialMembers["NormalMap"] = ResoniteBatchOperations.CreateReference(normalTexture);
             materialMembers["NormalScale"] = new Field_float
             {
                 Value = DefaultNormalScale,
@@ -636,10 +634,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     heightTextureUri,
                     ResoniteSceneMaterialConventions.TextureMemberRole.Height));
-            materialMembers["HeightMap"] = new Reference
-            {
-                TargetID = heightTexture.LocalId.Value,
-            };
+            materialMembers["HeightMap"] = ResoniteBatchOperations.CreateReference(heightTexture);
             materialMembers["HeightScale"] = new Field_float
             {
                 Value = DefaultBundledHeightScale,
@@ -661,14 +656,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     metallicTextureUri,
                     ResoniteSceneMaterialConventions.TextureMemberRole.Metallic));
-            materialMembers["MetallicMap"] = new Reference
-            {
-                TargetID = metallicTexture.LocalId.Value,
-            };
-            materialMembers["OcclusionMap"] = new Reference
-            {
-                TargetID = metallicTexture.LocalId.Value,
-            };
+            materialMembers["MetallicMap"] = ResoniteBatchOperations.CreateReference(metallicTexture);
+            materialMembers["OcclusionMap"] = ResoniteBatchOperations.CreateReference(metallicTexture);
         }
 
         Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
@@ -686,10 +675,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     emissionTextureUri,
                     ResoniteSceneMaterialConventions.TextureMemberRole.Emission));
-            materialMembers["EmissiveMap"] = new Reference
-            {
-                TargetID = emissionTexture.LocalId.Value,
-            };
+            materialMembers["EmissiveMap"] = ResoniteBatchOperations.CreateReference(emissionTexture);
             materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
         }
