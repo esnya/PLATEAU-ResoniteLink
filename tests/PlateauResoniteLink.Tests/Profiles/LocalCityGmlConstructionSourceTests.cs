@@ -242,6 +242,50 @@ public sealed class LocalCityGmlConstructionSourceTests
     }
 
     [Fact]
+    public async Task ReadCityObjectsAsyncPrefersSourceDatasetRasterWhenDemSurfaceHasGeoreferencedTexture()
+    {
+        PlateauImportRequest request = new(
+            Dataset: "plateau-04100-sendai-shi-2024",
+            MeshCode: "57402736",
+            Source: DatasetLocation.Local("/tmp/source.zip"),
+            PackageNames: ["dem"]);
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
+        BootstrapParsedCityObject parsedCityObject = CreateParsedCityObject(0, sourceFile, referenceSystem) with
+        {
+            Surfaces =
+            [
+                CreateParsedCityObject(0, sourceFile, referenceSystem).Surfaces[0] with
+                {
+                    HasGeoreferencedTexture = true,
+                },
+            ],
+        };
+        StubDemTextureSourcePolicy demTextureSourcePolicy = new();
+        LocalCityGmlConstructionSource source = new(
+            CreateMetadata(request),
+            request,
+            CreateReadResult(
+                [
+                    new SourceFilePipeline(
+                        sourceFile,
+                        () => Task.FromResult(
+                            new ParsedSourceFileResult(
+                                sourceFile,
+                                [parsedCityObject],
+                                referenceSystem,
+                                [],
+                                TimeSpan.Zero))),
+                ]),
+            new TrackingGeometryProjector(),
+            demTextureSourcePolicy);
+
+        await source.ReadCityObjectsAsync().ToListAsync();
+
+        Assert.True(demTextureSourcePolicy.LastPreferSourceDatasetGeoReferencedTextures);
+    }
+
+    [Fact]
     public async Task ReadCityObjectsAsyncCancelsWhileResolvingDemFallbackOverlays()
     {
         PlateauImportRequest request = new(
@@ -596,6 +640,8 @@ public sealed class LocalCityGmlConstructionSourceTests
 
         public IReadOnlyList<string>? LastOverlayRegionIdentities { get; private set; }
 
+        public bool LastPreferSourceDatasetGeoReferencedTextures { get; private set; }
+
         private int resolveOverlayRegionsCallCount;
 
         public int ResolveOverlayRegionsCallCount => resolveOverlayRegionsCallCount;
@@ -603,9 +649,11 @@ public sealed class LocalCityGmlConstructionSourceTests
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            bool preferSourceDatasetGeoReferencedTextures = false,
             CancellationToken cancellationToken = default)
         {
             _ = request;
+            LastPreferSourceDatasetGeoReferencedTextures = preferSourceDatasetGeoReferencedTextures;
             Interlocked.Increment(ref resolveOverlayRegionsCallCount);
             LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
             return ResolveOverlayRegionsCoreAsync(cancellationToken);

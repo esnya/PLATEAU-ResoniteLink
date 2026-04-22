@@ -1126,7 +1126,8 @@ public static partial class LocalCityGmlObjectProjection
             ExteriorRing: exteriorParsedRing,
             InteriorRings: interiorRings,
             BaseColor: ToInternalColor(appearance.BaseColor),
-            TexturePayload: appearance.TexturePayload);
+            TexturePayload: appearance.TexturePayload,
+            HasGeoreferencedTexture: appearanceStore.HasGeoreferencedTexture(polygonId));
     }
 
     private static ParsedRing? ParseRing(
@@ -1262,10 +1263,11 @@ public static partial class LocalCityGmlObjectProjection
         List<MaterialBinding> materials = [];
         GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
         DemUvProjection? demUvProjection = TryCreateDemUvProjection(demObjectBounds, cityObject, demTerrainTextureOverlay);
+        ParsedSurface[] renderableSurfaces = FilterRenderableSurfaces(cityObject, cityObjectOrigin, cityObjectCartesian);
 
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. renderableSurfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         IGrouping<string, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
@@ -2852,9 +2854,10 @@ public static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        ParsedSurface[] renderableSurfaces = FilterRenderableSurfaces(cityObject, cityObjectOrigin, cityObjectCartesian);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. renderableSurfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3335,6 +3338,40 @@ public static partial class LocalCityGmlObjectProjection
             demTerrainTextureOverlay,
             demObjectBounds);
         return occupiedUvRect is { IsIdentity: true } ? null : occupiedUvRect;
+    }
+
+    private static ParsedSurface[] FilterRenderableSurfaces(
+        ParsedCityObject cityObject,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(cityObject.PackageName))
+        {
+            return cityObject.Surfaces;
+        }
+
+        return cityObject.Surfaces
+            .Where(surface => !ShouldCullBuriedBuildingBottomSurface(surface, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+    }
+
+    private static bool ShouldCullBuriedBuildingBottomSurface(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (surface.Semantic is not (ParsedSurfaceSemantic.Ground or ParsedSurfaceSemantic.OuterFloor))
+        {
+            return false;
+        }
+
+        ResoniteFloat3[] positions = surface.Vertices
+            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        ResoniteFloat3? normal = ComputePolygonNormal(positions);
+        return normal is not null
+            && Math.Abs(normal.Y) >= 0.98
+            && normal.Y < 0.0;
     }
 
     private static GeographicRectangle? TryGetDemObjectGeographicBounds(
@@ -3943,7 +3980,8 @@ public static partial class LocalCityGmlObjectProjection
         ParsedRing[] InteriorRings,
         ResoniteColor BaseColor,
         TexturePayload? TexturePayload,
-        bool UsesGeneratedDemTexture = false)
+        bool UsesGeneratedDemTexture = false,
+        bool HasGeoreferencedTexture = false)
     {
         public IEnumerable<GeodeticPoint> Vertices =>
             ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));

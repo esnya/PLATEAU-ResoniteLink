@@ -45,7 +45,8 @@ internal sealed record BootstrapParsedSurface(
     BootstrapParsedRing[] InteriorRings,
     ColorRgba BaseColor,
     TexturePayload? TexturePayload,
-    bool UsesGeneratedDemTexture = false)
+    bool UsesGeneratedDemTexture = false,
+    bool HasGeoreferencedTexture = false)
 {
     public IEnumerable<GeodeticPoint> Vertices =>
         ExteriorRing.Vertices.Concat(InteriorRings.SelectMany(static ring => ring.Vertices));
@@ -59,7 +60,8 @@ internal sealed record BootstrapParsedSurface(
             InteriorRings.Select(static ring => ring.ToLegacy()).ToArray(),
             new ResoniteColor(BaseColor.R, BaseColor.G, BaseColor.B, BaseColor.A),
             TexturePayload,
-            UsesGeneratedDemTexture);
+            UsesGeneratedDemTexture,
+            HasGeoreferencedTexture);
     }
 
     internal static BootstrapParsedSurface FromLegacy(LocalCityGmlObjectProjection.ParsedSurface surface)
@@ -71,7 +73,8 @@ internal sealed record BootstrapParsedSurface(
             surface.InteriorRings.Select(BootstrapParsedRing.FromLegacy).ToArray(),
             new ColorRgba(surface.BaseColor.R, surface.BaseColor.G, surface.BaseColor.B, surface.BaseColor.A),
             surface.TexturePayload,
-            surface.UsesGeneratedDemTexture);
+            surface.UsesGeneratedDemTexture,
+            surface.HasGeoreferencedTexture);
     }
 }
 

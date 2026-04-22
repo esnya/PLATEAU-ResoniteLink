@@ -368,8 +368,16 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         ResolvedDemTextureSources resolvedDemTextureSources = await demTextureSourcePolicy.ResolveAsync(
             request,
             overlayRegions,
+            HasStandardsAlignedGeoreferencedDemTextures(parsedSourceFile),
             cancellationToken);
         return resolvedDemTextureSources.Overlays.ToArray();
+    }
+
+    private static bool HasStandardsAlignedGeoreferencedDemTextures(ParsedSourceFileResult parsedSourceFile)
+    {
+        return parsedSourceFile.CityObjects.Any(static cityObject =>
+            string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && cityObject.Surfaces.Any(static surface => surface.HasGeoreferencedTexture));
     }
 
     private DemTerrainOverlayRegion[] ResolveDemTerrainOverlayRegionsFromParsedSourceFile(

@@ -129,10 +129,12 @@ public sealed class LocalCityGmlConstructionComposerTests
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            bool preferSourceDatasetGeoReferencedTextures = false,
             CancellationToken cancellationToken = default)
         {
             _ = request;
             _ = overlayRegions;
+            _ = preferSourceDatasetGeoReferencedTextures;
             return Task.FromResult(new ResolvedDemTextureSources([]));
         }
 

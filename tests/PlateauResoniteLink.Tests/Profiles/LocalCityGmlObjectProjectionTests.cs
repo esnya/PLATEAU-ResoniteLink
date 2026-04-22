@@ -99,6 +99,51 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void BuriedBuildingBottomCullTargetsOnlyDownwardGroundLikeSurfaces()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+
+        LocalCityGmlObjectProjection.GeodeticPoint[] clockwiseVertices =
+        [
+            new(35.0, 139.0, 0.0),
+            new(35.0, 139.0001, 0.0),
+            new(35.0001, 139.0001, 0.0),
+            new(35.0001, 139.0, 0.0),
+        ];
+        LocalCityGmlObjectProjection.GeodeticPoint[] counterClockwiseVertices = clockwiseVertices.Reverse().ToArray();
+
+        LocalCityGmlObjectProjection.ParsedSurface clockwiseGround = CreateParsedSurface(
+            "ground-clockwise",
+            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            clockwiseVertices);
+        LocalCityGmlObjectProjection.ParsedSurface counterClockwiseGround = CreateParsedSurface(
+            "ground-counter-clockwise",
+            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Ground,
+            counterClockwiseVertices);
+
+        bool clockwiseCull = ShouldCullBuriedBuildingBottomSurface(clockwiseGround, origin, cartesian);
+        bool counterClockwiseCull = ShouldCullBuriedBuildingBottomSurface(counterClockwiseGround, origin, cartesian);
+
+        Assert.NotEqual(clockwiseCull, counterClockwiseCull);
+
+        LocalCityGmlObjectProjection.GeodeticPoint[] culledVertices = clockwiseCull
+            ? clockwiseVertices
+            : counterClockwiseVertices;
+        LocalCityGmlObjectProjection.ParsedSurface roofSurface = CreateParsedSurface(
+            "roof",
+            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Roof,
+            culledVertices);
+
+        Assert.False(ShouldCullBuriedBuildingBottomSurface(roofSurface, origin, cartesian));
+    }
+
+    [Fact]
     public async Task SplitParsedCityObjectPreservesNonGeneratedDemSurfacesWhenOverlaysSplit()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -934,6 +979,32 @@ public sealed class LocalCityGmlObjectProjectionTests
             ?? throw new InvalidOperationException("Failed to resolve AlignAdjacentDemHeightMapChunkBoundaries.");
 
         return (ImportedCityObject[])method.Invoke(null, [cityObjects])!;
+    }
+
+    private static bool ShouldCullBuriedBuildingBottomSurface(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        LocalCityGmlObjectProjection.GeodeticPoint origin,
+        GeographicLib.LocalCartesian cartesian)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "ShouldCullBuriedBuildingBottomSurface",
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve ShouldCullBuriedBuildingBottomSurface.");
+        return (bool)method.Invoke(null, [surface, origin, cartesian])!;
+    }
+
+    private static LocalCityGmlObjectProjection.ParsedSurface CreateParsedSurface(
+        string polygonId,
+        LocalCityGmlObjectProjection.ParsedSurfaceSemantic semantic,
+        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices)
+    {
+        return new LocalCityGmlObjectProjection.ParsedSurface(
+            polygonId,
+            semantic,
+            new LocalCityGmlObjectProjection.ParsedRing($"{polygonId}-ring", vertices.ToArray(), null),
+            [],
+            new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null);
     }
 
     private static ImportedCityObject CreateHeightMapCityObject(

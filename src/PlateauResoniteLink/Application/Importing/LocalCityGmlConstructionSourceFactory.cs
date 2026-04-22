@@ -69,6 +69,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         _ = await demTextureSourcePolicy.ResolveAsync(
             request,
             overlayRegions,
+            preferSourceDatasetGeoReferencedTextures: false,
             cancellationToken);
     }
 }

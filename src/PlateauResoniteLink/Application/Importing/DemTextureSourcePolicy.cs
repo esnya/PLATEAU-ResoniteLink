@@ -13,6 +13,7 @@ internal interface IDemTextureSourcePolicy
     Task<ResolvedDemTextureSources> ResolveAsync(
         PlateauImportRequest request,
         IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+        bool preferSourceDatasetGeoReferencedTextures = false,
         CancellationToken cancellationToken = default);
 
     IReadOnlyList<TerrainTextureOverlay> CreateMapTileFallbackOverlays(
@@ -59,13 +60,20 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
     public async Task<ResolvedDemTextureSources> ResolveAsync(
         PlateauImportRequest request,
         IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+        bool preferSourceDatasetGeoReferencedTextures = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(overlayRegions);
 
+        DatasetLocation? rasterCatalogSource = request.DemTextureSource;
+        if (rasterCatalogSource is null && preferSourceDatasetGeoReferencedTextures)
+        {
+            rasterCatalogSource = request.Source;
+        }
+
         IDemTerrainGeoReferencedRasterCatalog? rasterCatalog = await rasterCatalogFactory.CreateAsync(
-            request.DemTextureSource,
+            rasterCatalogSource,
             cancellationToken);
         if (request.DemTextureSource is not null && rasterCatalog is null)
         {

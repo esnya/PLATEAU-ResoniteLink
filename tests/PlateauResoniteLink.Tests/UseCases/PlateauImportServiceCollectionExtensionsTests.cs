@@ -137,8 +137,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            bool preferSourceDatasetGeoReferencedTextures = false,
             CancellationToken cancellationToken = default)
         {
+            _ = preferSourceDatasetGeoReferencedTextures;
             throw new NotSupportedException();
         }
 

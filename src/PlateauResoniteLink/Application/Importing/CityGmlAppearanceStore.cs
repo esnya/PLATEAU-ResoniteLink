@@ -88,6 +88,12 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             GeoreferencedTexture: georeferencedTexturesByPolygonId.GetValueOrDefault(polygonId));
     }
 
+    public bool HasGeoreferencedTexture(string polygonId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(polygonId);
+        return georeferencedTexturesByPolygonId.ContainsKey(polygonId);
+    }
+
     private void ApplyParameterizedTexture(XElement textureElement)
     {
         string? imageUri = textureElement.Element(App + "imageURI")?.Value.Trim();

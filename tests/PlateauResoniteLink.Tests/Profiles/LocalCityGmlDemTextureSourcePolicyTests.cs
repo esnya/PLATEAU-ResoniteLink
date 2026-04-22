@@ -109,6 +109,40 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
     }
 
     [Fact]
+    public async Task ResolveAsyncUsesSourceDatasetRasterWhenDemSurfaceDeclaresGeoreferencedTexture()
+    {
+        GeographicRectangle rasterBounds = new(35.0, 35.01, 139.0, 139.01);
+        TerrainTextureGeoReferencedRasterSource rasterSource = new(
+            "C:\\dataset\\53394525.tif",
+            new GeoReferencedRasterMetadata(
+                rasterBounds,
+                "EPSG:4326",
+                PixelWidthMeters: 0.8,
+                PixelHeightMeters: 0.8));
+        RecordingDemTerrainGeoReferencedRasterCatalogFactory factory = new(
+            new StubDemTerrainGeoReferencedRasterCatalog(
+                new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["53394525"] = rasterSource,
+                }));
+        LocalCityGmlDemTextureSourcePolicy policy = new(factory);
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("C:\\dataset"),
+            PackageNames: ["dem"]);
+
+        ResolvedDemTextureSources result = await policy.ResolveAsync(
+            request,
+            CreateOverlayRegions("53394525"),
+            preferSourceDatasetGeoReferencedTextures: true);
+
+        TerrainTextureOverlay overlay = Assert.Single(result.Overlays);
+        Assert.Equal("C:\\dataset", Assert.IsType<LocalDatasetLocation>(factory.LastSource).LocalSourcePath);
+        Assert.Same(rasterSource, overlay.Sources[0]);
+    }
+
+    [Fact]
     public void CreateMapTileFallbackOverlaysBuildsProviderOrderInsidePolicy()
     {
         LocalCityGmlDemTextureSourcePolicy policy = new(
@@ -153,6 +187,20 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
             DatasetLocation? source,
             CancellationToken cancellationToken)
         {
+            return Task.FromResult(catalog);
+        }
+    }
+
+    private sealed class RecordingDemTerrainGeoReferencedRasterCatalogFactory(IDemTerrainGeoReferencedRasterCatalog? catalog)
+        : IDemTerrainGeoReferencedRasterCatalogFactory
+    {
+        public DatasetLocation? LastSource { get; private set; }
+
+        public Task<IDemTerrainGeoReferencedRasterCatalog?> CreateAsync(
+            DatasetLocation? source,
+            CancellationToken cancellationToken)
+        {
+            LastSource = source;
             return Task.FromResult(catalog);
         }
     }

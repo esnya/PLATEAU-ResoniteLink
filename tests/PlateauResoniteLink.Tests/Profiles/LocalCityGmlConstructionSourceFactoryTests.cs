@@ -385,10 +385,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
+            bool preferSourceDatasetGeoReferencedTextures = false,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
             LastOverlayRegionIdentities = overlayRegions.Select(static region => region.Identity).ToArray();
+            _ = preferSourceDatasetGeoReferencedTextures;
             if (exception is not null)
             {
                 throw exception;

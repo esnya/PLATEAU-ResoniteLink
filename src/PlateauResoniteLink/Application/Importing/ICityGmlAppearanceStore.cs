@@ -9,4 +9,6 @@ internal interface ICityGmlAppearanceStore
     void ApplyAppearanceElement(XElement appearanceElement);
 
     CityGmlResolvedAppearance Resolve(string polygonId);
+
+    bool HasGeoreferencedTexture(string polygonId);
 }

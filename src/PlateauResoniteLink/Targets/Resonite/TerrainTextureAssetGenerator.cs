@@ -475,9 +475,11 @@ internal sealed class TerrainTextureAssetGenerator(
                 }
                 catch (UnknownImageFormatException)
                 {
+                    persistentTileCache.TryDelete(tileSource.UrlTemplate, tileSource.ZoomLevel, tileX, tileY);
                 }
                 catch (InvalidImageContentException)
                 {
+                    persistentTileCache.TryDelete(tileSource.UrlTemplate, tileSource.ZoomLevel, tileX, tileY);
                 }
             }
         }
@@ -657,7 +659,7 @@ internal sealed class PersistentTerrainTileCache
         }
     }
 
-    private string GetCachePath(string urlTemplate, int zoomLevel, int tileX, int tileY)
+    public string GetCachePath(string urlTemplate, int zoomLevel, int tileX, int tileY)
     {
         string templateDigest = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(urlTemplate)))
@@ -668,6 +670,34 @@ internal sealed class PersistentTerrainTileCache
             zoomLevel.ToString(System.Globalization.CultureInfo.InvariantCulture),
             tileX.ToString(System.Globalization.CultureInfo.InvariantCulture),
             $"{tileY.ToString(System.Globalization.CultureInfo.InvariantCulture)}.tile");
+    }
+
+    public string GetMetadataPath(string urlTemplate, int zoomLevel, int tileX, int tileY)
+    {
+        return $"{GetCachePath(urlTemplate, zoomLevel, tileX, tileY)}.meta.json";
+    }
+
+    public void TryDelete(string urlTemplate, int zoomLevel, int tileX, int tileY)
+    {
+        TryDeleteFile(GetCachePath(urlTemplate, zoomLevel, tileX, tileY));
+        TryDeleteFile(GetMetadataPath(urlTemplate, zoomLevel, tileX, tileY));
+    }
+
+    private static void TryDeleteFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static string GetDefaultCacheRoot()
