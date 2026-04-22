@@ -1,5 +1,7 @@
 using System;
 
+using PlateauResoniteLink.Targets.Resonite;
+
 namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal static class ResoniteLinkTransportSessionFactory
@@ -28,5 +30,22 @@ internal static class ResoniteLinkTransportSessionFactory
             connectionCount,
             diagnostics,
             progressReporter);
+    }
+}
+
+internal sealed class ResoniteLinkClientSessionFactory : IResoniteClientSessionFactory
+{
+    public ILiveSendClientSession Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLinkSendDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        return ResoniteLinkTransportSessionFactory.Create(
+            options.Endpoint,
+            options.ConnectionCount,
+            diagnostics,
+            options.ProgressReporter);
     }
 }

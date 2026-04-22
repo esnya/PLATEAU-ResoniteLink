@@ -26,8 +26,10 @@ public sealed class CliApplicationTests
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
             sceneImportSink,
-            new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
-            documentReader,
+            new CkanPlateauDatasetSourceResolver(
+                SharedDatasetSourceResolverHttpClient,
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
             new LocalCityGmlConstructionSourceFactory(
                 documentReader,
                 new LocalCityGmlConstructionComposer(
@@ -43,6 +45,7 @@ public sealed class CliApplicationTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy())))),
+            new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
     }
 

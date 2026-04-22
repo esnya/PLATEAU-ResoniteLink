@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class DefaultPlateauDatasetContentSourceFactory(
+internal sealed class DefaultPlateauDatasetContentSourceFactory(
     IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IPlateauDatasetContentSourceFactory
 {

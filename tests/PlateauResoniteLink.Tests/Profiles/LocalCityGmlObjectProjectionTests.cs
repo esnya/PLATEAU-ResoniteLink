@@ -26,8 +26,10 @@ public sealed class LocalCityGmlObjectProjectionTests
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
             sceneBuilder,
-            new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
-            documentReader,
+            new CkanPlateauDatasetSourceResolver(
+                SharedDatasetSourceResolverHttpClient,
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
             constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
                 documentReader,
                 new LocalCityGmlConstructionComposer(
@@ -43,6 +45,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy())))),
+            commonMaterialCatalog: new CommonMaterialCatalog(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
 
@@ -71,7 +74,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: fixturePath,
             ServerUri: null);
-        LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(request);
 
         LocalCityGmlConstructionSourceFactory factory = new(
             documentReader,
@@ -84,11 +86,11 @@ public sealed class LocalCityGmlObjectProjectionTests
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy())))),
             new LocalCityGmlDemTextureSourcePolicy(
-                new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
-                    new DefaultPlateauDatasetContentSourceFactory(
-                        new RemoteArchiveDistributionPolicy(),
-                        new ArchiveFileLayoutPolicy()))));
-        IImportedSceneSource source = await factory.CreateAsync(request, readResult);
+                    new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
+                        new DefaultPlateauDatasetContentSourceFactory(
+                            new RemoteArchiveDistributionPolicy(),
+                            new ArchiveFileLayoutPolicy()))));
+        IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);

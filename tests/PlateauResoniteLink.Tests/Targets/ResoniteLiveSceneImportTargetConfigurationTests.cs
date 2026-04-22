@@ -104,14 +104,8 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         ILiveSendClientSession? recordedSession = null;
         ServiceProvider provider = new ServiceCollection()
-            .AddScoped<ResoniteClientSessionFactory>(
-                serviceProvider => (ResoniteClientSessionFactory)((options, diagnostics) =>
-                {
-                    _ = serviceProvider;
-                    _ = options;
-                    _ = diagnostics;
-                    return recordedSession = new DelegatingClientSession();
-                }))
+            .AddScoped<IResoniteClientSessionFactory>(
+                _ => new RecordingClientSessionFactory(() => recordedSession = new DelegatingClientSession()))
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -249,6 +243,20 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             _ = terrainTextureOverlay;
             cancellationToken.ThrowIfCancellationRequested();
             throw new NotSupportedException("This test only verifies DI override preservation during target creation.");
+        }
+    }
+
+    private sealed class RecordingClientSessionFactory(
+        Func<ILiveSendClientSession> createSession)
+        : IResoniteClientSessionFactory
+    {
+        public ILiveSendClientSession Create(
+            ResoniteLiveSceneImportTargetOptions options,
+            ResoniteLinkSendDiagnostics diagnostics)
+        {
+            _ = options;
+            _ = diagnostics;
+            return createSession();
         }
     }
 

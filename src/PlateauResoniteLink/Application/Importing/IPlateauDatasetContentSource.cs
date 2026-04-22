@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IPlateauDatasetContentSource
+internal interface IPlateauDatasetContentSource
 {
     string SourcePath { get; }
 
@@ -13,13 +13,7 @@ public interface IPlateauDatasetContentSource
 
     bool FileExists(string relativePath);
 
-    string? ResolveRelativePath(string baseRelativePath, string candidatePath)
-    {
-        return PlateauDatasetContentSourceFactory.ResolveRelativePath(
-            baseRelativePath,
-            candidatePath,
-            new ArchiveFileLayoutPolicy());
-    }
+    string? ResolveRelativePath(string baseRelativePath, string candidatePath);
 
     ValueTask<Stream> OpenReadAsync(
         string relativePath,

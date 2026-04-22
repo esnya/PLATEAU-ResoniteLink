@@ -7,7 +7,11 @@ using System.Threading;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal static class BundledDefaultMaterialAssetStore
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Performance",
+    "CA1822:Mark members as static",
+    Justification = "The asset store intentionally stays instance-based so bundled material resolution can remain a replaceable target-local seam.")]
+internal sealed class BundledDefaultMaterialAssetStore
 {
     private const string ResourceRoot = "PlateauResoniteLink.Assets.DefaultMaterials.";
     private static readonly object SyncRoot = new();
@@ -22,7 +26,7 @@ internal static class BundledDefaultMaterialAssetStore
         "default-materials",
         Assembly.ManifestModule.ModuleVersionId.ToString("N"));
 
-    public static string GetAbsolutePath(string logicalPath)
+    public string GetAbsolutePath(string logicalPath)
     {
         const string logicalPrefix = "default-materials/";
         if (!logicalPath.StartsWith(logicalPrefix, StringComparison.Ordinal))
@@ -62,7 +66,7 @@ internal static class BundledDefaultMaterialAssetStore
         return absolutePath;
     }
 
-    public static bool TryGetAbsolutePath(string logicalPath, out string absolutePath)
+    public bool TryGetAbsolutePath(string logicalPath, out string absolutePath)
     {
         if (!TryGetResourceName(logicalPath, out _))
         {
@@ -74,7 +78,7 @@ internal static class BundledDefaultMaterialAssetStore
         return true;
     }
 
-    internal static IDisposable PushExtractionRootOverride(string extractionRoot)
+    internal IDisposable PushExtractionRootOverride(string extractionRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(extractionRoot);
 

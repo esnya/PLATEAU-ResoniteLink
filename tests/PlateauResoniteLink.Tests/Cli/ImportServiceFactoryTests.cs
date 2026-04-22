@@ -18,14 +18,13 @@ public sealed class ImportServiceFactoryTests
     {
         StubPlateauDatasetSourceResolverFactory datasetResolverFactory = new();
         StubSceneSinkFactory sceneImportTargetFactory = new();
-        StubCityGmlDocumentReader documentReader = new();
         StubConstructionSourceFactory constructionSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
         DefaultImportServiceFactory factory = new(
             datasetResolverFactory,
             sceneImportTargetFactory,
-            documentReader,
             constructionSourceFactory,
+            new CommonMaterialCatalog(),
             archiveFileLayoutPolicy);
 
         ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
@@ -45,8 +44,7 @@ public sealed class ImportServiceFactoryTests
         Assert.Equal("PLATEAU tokyo23ku 53394525", firstResult.Metadata.SceneName);
         Assert.Equal("PLATEAU tokyo23ku 53394526", secondResult.Metadata.SceneName);
         Assert.True(sceneImportTargetFactory.CreatedTargets.All(static target => target.DisposeCallCount == 1));
-        Assert.Equal(2, documentReader.ReadCallCount);
-        Assert.Equal(2, constructionSourceFactory.CreateWithDocumentSetCallCount);
+        Assert.Equal(2, constructionSourceFactory.CreateCallCount);
     }
 
     private static ImportCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
@@ -133,41 +131,16 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubCityGmlDocumentReader : ICityGmlDocumentReader
-    {
-        public int ReadCallCount { get; private set; }
-
-        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
-            PlateauImportRequest request,
-            Action<string>? progressReporter = null,
-            CancellationToken cancellationToken = default)
-        {
-            ReadCallCount++;
-            return Task.FromResult(new LocalCityGmlDocumentReadResult(
-                new LocalCityGmlDocumentSet(
-                    new StubDatasetContentSource(request.LocalSourcePath!),
-                    [],
-                    ["bldg"],
-                    [],
-                    ["53394525"]),
-                new LocalCityGmlBootstrapContext(
-                    [],
-                    new GeodeticPoint(35.0, 139.0, 0.0))));
-        }
-    }
-
     private sealed class StubConstructionSourceFactory : IImportedSceneSourceFactory
     {
-        public int CreateWithDocumentSetCallCount { get; private set; }
+        public int CreateCallCount { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
-            CreateWithDocumentSetCallCount++;
-            _ = readResult;
+            CreateCallCount++;
 
             ImportedSceneMetadata metadata = new(
                 "3.0",
@@ -240,6 +213,11 @@ public sealed class ImportServiceFactoryTests
         public bool FileExists(string relativePath)
         {
             return false;
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
         }
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)

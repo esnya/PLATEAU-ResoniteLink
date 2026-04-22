@@ -11,11 +11,11 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class PlateauImportService(
+internal sealed class PlateauImportService(
     ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
-    ICityGmlDocumentReader documentReader,
     IImportedSceneSourceFactory constructionSourceFactory,
+    CommonMaterialCatalog commonMaterialCatalog,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
@@ -23,11 +23,11 @@ public sealed class PlateauImportService(
         sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
-    private readonly ICityGmlDocumentReader documentReader =
-        documentReader ?? throw new ArgumentNullException(nameof(documentReader));
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IImportedSceneSourceFactory constructionSourceFactory =
         constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
+    private readonly CommonMaterialCatalog commonMaterialCatalog =
+        commonMaterialCatalog ?? throw new ArgumentNullException(nameof(commonMaterialCatalog));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
         archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
 
@@ -49,20 +49,9 @@ public sealed class PlateauImportService(
 
         try
         {
-            Stopwatch setupStopwatch = Stopwatch.StartNew();
-            LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(
-                resolvedRequest,
-                progressReporter,
-                cancellationToken);
-            LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
-            setupStopwatch.Stop();
-            ReportProgress(
-                PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
-
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IImportedSceneSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
-                readResult,
                 progressReporter,
                 cancellationToken);
             sourceStopwatch.Stop();
@@ -70,7 +59,7 @@ public sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
-            IReadOnlyList<MaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);
+            IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
@@ -80,7 +69,7 @@ public sealed class PlateauImportService(
                 normalizedRequest,
                 resolvedRequest,
                 metadata,
-                documentSet.DatasetSource.SourcePath,
+                resolvedRequest.LocalSourcePath!,
                 datasetWorkRoot,
                 commonMaterials);
             ReportProgress(

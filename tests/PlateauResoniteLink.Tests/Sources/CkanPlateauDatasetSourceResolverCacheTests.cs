@@ -17,6 +17,14 @@ namespace PlateauResoniteLink.Tests.Sources;
 [Trait("Category", "Slow")]
 public sealed class CkanPlateauDatasetSourceResolverCacheTests
 {
+    private static CkanPlateauDatasetSourceResolver CreateResolver(HttpClient httpClient)
+    {
+        return new CkanPlateauDatasetSourceResolver(
+            httpClient,
+            new RemoteArchiveDistributionPolicy(),
+            new ArchiveFileLayoutPolicy());
+    }
+
     private static ValidatedPlateauImportRequest CreateValidatedRemoteRequest(
         string dataset,
         string meshCode,
@@ -55,7 +63,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
     {
         using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.OK));
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         using TemporaryDirectory workRoot = new();
 
         ValidatedPlateauImportRequest request = new(
@@ -78,7 +86,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             Content = new ByteArrayContent(zipBytes),
         });
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
         ValidatedPlateauImportRequest resolved = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", @"^533944\d$", "https://example.test/direct.zip"),
@@ -98,7 +106,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             Content = new ByteArrayContent(zipBytes),
         });
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
         ValidatedPlateauImportRequest resolved = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944|533945/branch", "https://example.test/direct.zip"),
@@ -137,7 +145,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         });
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
         ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", "https://example-a.test/533944.zip"),
@@ -180,7 +188,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             };
         });
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
 
         ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
@@ -208,7 +216,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
 
         using StubHttpMessageHandler handler = new(_ => new HttpResponseMessage(HttpStatusCode.NotModified));
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
         ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
@@ -282,7 +290,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         });
 
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         Uri archiveUri = new("https://example.test/533944.zip", UriKind.Absolute);
 
         await Assert.ThrowsAsync<HttpRequestException>(
@@ -358,7 +366,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             return secondResponse;
         });
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         using TemporaryDirectory workRoot = new();
 
         ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
@@ -414,7 +422,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
             return new HttpResponseMessage(HttpStatusCode.NotModified);
         });
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
         using TemporaryDirectory workRoot = new();
 
         ValidatedPlateauImportRequest firstRequest = await resolver.ResolveAsync(
@@ -460,7 +468,7 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
 
         using StubHttpMessageHandler handler = new(_ => throw new HttpRequestException("offline"));
         using HttpClient httpClient = new(handler);
-        CkanPlateauDatasetSourceResolver resolver = new(httpClient);
+        CkanPlateauDatasetSourceResolver resolver = CreateResolver(httpClient);
 
         ValidatedPlateauImportRequest resolvedRequest = await resolver.ResolveAsync(
             CreateValidatedRemoteRequest("tokyo23ku", "533944", archiveUri),
@@ -561,3 +569,4 @@ public sealed class CkanPlateauDatasetSourceResolverCacheTests
         }
     }
 }
+

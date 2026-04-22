@@ -372,6 +372,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
 
         public bool FileExists(string relativePath) => false;
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
+
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException(relativePath);

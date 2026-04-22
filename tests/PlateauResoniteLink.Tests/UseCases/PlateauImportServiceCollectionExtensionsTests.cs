@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceCollectionExtensionsTests
 {
     [Fact]
-    public async Task AddPlateauCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReadResult()
+    public async Task AddPlateauCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -40,10 +40,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             .BuildServiceProvider();
         IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
 
-        IImportedSceneSource source = await factory.CreateAsync(request, expectedReadResult);
+        IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Same(expectedSource, source);
-        Assert.Null(reader.LastRequest);
+        Assert.Same(request, reader.LastRequest);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(expectedReadResult, composer.LastReadResult);
     }
@@ -124,10 +124,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
+            _ = request;
             throw new NotSupportedException();
         }
     }
@@ -174,6 +174,8 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
 
         public bool FileExists(string relativePath) => false;
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
+
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
@@ -215,5 +217,3 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 }
-
-

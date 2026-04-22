@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IPlateauDatasetContentSourceFactory
+internal interface IPlateauDatasetContentSourceFactory
 {
     Task<IPlateauDatasetContentSource> CreateAsync(
         string sourcePath,

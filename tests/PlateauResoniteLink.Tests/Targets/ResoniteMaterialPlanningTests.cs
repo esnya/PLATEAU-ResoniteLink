@@ -27,7 +27,10 @@ public sealed class ResoniteMaterialPlanningTests
             Family: BundledDefaultMaterialFamilies.Facade,
             AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
-        _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
         string metallicPath = textureSet?.MetallicPath
             ?? throw new InvalidOperationException("Expected facade bundled material to provide a metallic companion texture.");
 

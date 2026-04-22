@@ -6,11 +6,15 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static class CommonMaterialCatalog
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+    "Performance",
+    "CA1822:Mark members as static",
+    Justification = "The catalog intentionally stays instance-based so material selection can remain a replaceable service seam.")]
+public sealed class CommonMaterialCatalog
 {
     private static readonly ColorRgba CanonicalBaseColor = new(1.0, 1.0, 1.0, 1.0);
 
-    public static IReadOnlyList<MaterialBinding> CreateForPackages(
+    public IReadOnlyList<MaterialBinding> CreateForPackages(
         IReadOnlyList<string> packageNames)
     {
         ArgumentNullException.ThrowIfNull(packageNames);

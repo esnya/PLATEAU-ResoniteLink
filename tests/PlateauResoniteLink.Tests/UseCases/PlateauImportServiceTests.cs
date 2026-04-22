@@ -79,17 +79,16 @@ public sealed class PlateauImportServiceTests
         ];
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(readResult);
         StubConstructionSource source = new(
             CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
             sourceCommonMaterials);
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneBuilder,
             datasetSourceResolver,
-            documentReader,
             constructionSourceFactory,
+            new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         ImportExecutionResult result = await service.ExecuteAsync(rawRequest, workRoot.Path);
@@ -100,17 +99,11 @@ public sealed class PlateauImportServiceTests
         Assert.Equal("53394525", sceneBuilder.ConnectedRequest.MeshCode);
         Assert.Equal(rawSourceUri, sceneBuilder.ConnectedRequest.ServerUri);
         Assert.Equal(["bldg"], sceneBuilder.ConnectedRequest.PackageNames);
-        Assert.NotNull(documentReader.LastRequest);
-        Assert.Equal("tokyo23ku", documentReader.LastRequest!.Dataset);
-        Assert.Equal("53394525", documentReader.LastRequest.MeshCode);
-        Assert.Equal(resolvedSourcePath, documentReader.LastRequest.LocalSourcePath);
-        Assert.Equal(["bldg"], documentReader.LastRequest.PackageNames);
         Assert.NotNull(constructionSourceFactory.LastRequest);
         Assert.Equal("tokyo23ku", constructionSourceFactory.LastRequest!.Dataset);
         Assert.Equal("53394525", constructionSourceFactory.LastRequest.MeshCode);
         Assert.Equal(resolvedSourcePath, constructionSourceFactory.LastRequest.LocalSourcePath);
         Assert.Equal(["bldg"], constructionSourceFactory.LastRequest.PackageNames);
-        Assert.Same(readResult, constructionSourceFactory.LastReadResult);
         Assert.NotNull(sceneBuilder.BeginRequest);
         Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest!.Metadata.Request.LocalSourcePath);
         Assert.Equal(resolvedSourcePath, sceneBuilder.BeginRequest.ResolvedSourcePath);
@@ -120,7 +113,7 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(readResult.DocumentSet.SelectedMeshCodes, sceneBuilder.BeginRequest.Metadata.SourceDataset.SelectedMeshCodes);
         Assert.NotNull(sceneBuilder.BeginRequest.CommonMaterials);
         Assert.Equal(
-            CommonMaterialCatalog.CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
+            new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
             [.. sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey).OrderBy(materialKey => materialKey)]);
         Assert.All(
             sourceCommonMaterials.Select(static material => material.MaterialKey),
@@ -128,7 +121,6 @@ public sealed class PlateauImportServiceTests
         Assert.Single(sceneBuilder.ProcessedCityObjects);
         Assert.Equal(0, source.CommonMaterialsReadCallCount);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
-        Assert.Equal(1, documentReader.ReadCallCount);
         Assert.Equal(1, sceneBuilder.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneBuilder.DisposeCount);
@@ -169,17 +161,16 @@ public sealed class PlateauImportServiceTests
         LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(readResult);
         StubConstructionSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
             cityObjects: []);
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneBuilder,
             datasetSourceResolver,
-            documentReader,
             constructionSourceFactory,
+            new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
@@ -189,7 +180,6 @@ public sealed class PlateauImportServiceTests
             exception.Errors,
             static error => error.Contains("No triangulated CityGML geometry", StringComparison.Ordinal));
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
-        Assert.Equal(1, documentReader.ReadCallCount);
         Assert.Equal(0, sceneBuilder.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
         Assert.Equal(1, sceneBuilder.DisposeCount);
@@ -216,24 +206,23 @@ public sealed class PlateauImportServiceTests
         LocalCityGmlDocumentReadResult readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(readResult);
         StubConstructionSource source = new(
             CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
             commonMaterials: []);
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneBuilder,
             datasetSourceResolver,
-            documentReader,
             constructionSourceFactory,
+            new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         _ = await service.ExecuteAsync(request, workRoot.Path);
 
         Assert.NotNull(sceneBuilder.BeginRequest);
         Assert.Equal(
-            CommonMaterialCatalog.CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
+            new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
             sceneBuilder.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
         Assert.Equal(0, source.CommonMaterialsReadCallCount);
     }
@@ -265,15 +254,14 @@ public sealed class PlateauImportServiceTests
                 FailedCityObjectCount: cityObjectCount),
         };
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
-        RecordingDocumentReader documentReader = new(readResult);
         StubConstructionSource source = new(CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
-        RecordingConstructionSourceFactory constructionSourceFactory = new(source);
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
             sceneBuilder,
             datasetSourceResolver,
-            documentReader,
             constructionSourceFactory,
+            new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
@@ -383,40 +371,22 @@ public sealed class PlateauImportServiceTests
         }
     }
 
-    private sealed class RecordingDocumentReader(LocalCityGmlDocumentReadResult readResult) : ICityGmlDocumentReader
-    {
-        public int ReadCallCount { get; private set; }
-
-        public PlateauImportRequest? LastRequest { get; private set; }
-
-        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
-            PlateauImportRequest request,
-            Action<string>? progressReporter = null,
-            CancellationToken cancellationToken = default)
-        {
-            ReadCallCount++;
-            LastRequest = request;
-            return Task.FromResult(readResult);
-        }
-    }
-
-    private sealed class RecordingConstructionSourceFactory(IImportedSceneSource source) : IImportedSceneSourceFactory
+    private sealed class RecordingConstructionSourceFactory(
+        IImportedSceneSource source,
+        LocalCityGmlDocumentReadResult readResult) : IImportedSceneSourceFactory
     {
         public int CreateCallCount { get; private set; }
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
-
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
             CreateCallCount++;
             LastRequest = request;
-            LastReadResult = readResult;
+            _ = readResult;
             return Task.FromResult(source);
         }
     }
@@ -488,6 +458,8 @@ public sealed class PlateauImportServiceTests
         public IReadOnlyList<string> EnumerateFiles() => [];
 
         public bool FileExists(string relativePath) => false;
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {

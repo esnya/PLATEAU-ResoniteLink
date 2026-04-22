@@ -4,7 +4,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IImportedSceneSourceComposer
+internal interface IImportedSceneSourceComposer
 {
     IImportedSceneSource Compose(
         PlateauImportRequest request,

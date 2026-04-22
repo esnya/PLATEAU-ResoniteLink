@@ -26,21 +26,22 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
 
     public Task<IImportedSceneSource> CreateAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(readResult);
-        return CreateResolvedCoreAsync(request, readResult, progressReporter, cancellationToken);
+        return CreateResolvedCoreAsync(request, progressReporter, cancellationToken);
     }
 
     private async Task<IImportedSceneSource> CreateResolvedCoreAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
+        LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(
+            request,
+            progressReporter,
+            cancellationToken);
         await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
         return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter));
     }

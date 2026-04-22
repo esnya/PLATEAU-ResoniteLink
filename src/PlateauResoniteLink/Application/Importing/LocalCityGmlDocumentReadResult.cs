@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class LocalCityGmlDocumentReadResult
+internal sealed class LocalCityGmlDocumentReadResult
 {
     internal LocalCityGmlDocumentReadResult(
         LocalCityGmlDocumentSet documentSet,

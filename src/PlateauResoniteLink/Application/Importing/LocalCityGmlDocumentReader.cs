@@ -6,7 +6,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
+internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
     private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
     private readonly ICityGmlAppearanceStoreFactory appearanceStoreFactory;

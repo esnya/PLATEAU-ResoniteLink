@@ -157,6 +157,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
 
         public bool FileExists(string relativePath) => files.Contains(relativePath, StringComparer.OrdinalIgnoreCase);
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
+
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
@@ -190,6 +192,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         public IReadOnlyList<string> EnumerateFiles() => files;
 
         public bool FileExists(string relativePath) => files.Contains(relativePath, StringComparer.OrdinalIgnoreCase);
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
@@ -231,6 +235,8 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         public IReadOnlyList<string> EnumerateFiles() => files;
 
         public bool FileExists(string relativePath) => files.Contains(relativePath, StringComparer.OrdinalIgnoreCase);
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {

@@ -10,7 +10,6 @@ public interface IImportedSceneSourceFactory
 {
     Task<IImportedSceneSource> CreateAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default);
 }

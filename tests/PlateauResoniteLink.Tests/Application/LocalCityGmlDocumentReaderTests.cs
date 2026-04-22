@@ -98,6 +98,11 @@ public sealed class LocalCityGmlDocumentReaderTests
             return files.Contains(relativePath, StringComparer.Ordinal);
         }
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
+        }
+
         public ValueTask<Stream> OpenReadAsync(
             string relativePath,
             CancellationToken cancellationToken = default)

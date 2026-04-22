@@ -191,7 +191,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             effectiveMetadata,
             resolvedRequest.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
             workDirectory,
-            commonMaterials ?? CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames));
+            commonMaterials ?? new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames));
     }
 
     private static IReadOnlyList<MaterialBinding> CollectExecutionPlanCommonMaterials(
@@ -200,7 +200,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     {
         Dictionary<string, ResoniteMaterialBinding> materialsByKey = new(StringComparer.Ordinal);
 
-        foreach (MaterialBinding material in CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames))
+        foreach (MaterialBinding material in new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames))
         {
             AddNormalizedCommonMaterial(materialsByKey, SceneImportContractMapper.ToInternal(material));
         }

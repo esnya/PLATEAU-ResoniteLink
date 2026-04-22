@@ -104,6 +104,11 @@ public sealed class LocalCityGmlConstructionComposerTests
             return false;
         }
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
+        }
+
         public ValueTask<Stream> OpenReadAsync(
             string relativePath,
             CancellationToken cancellationToken = default)
