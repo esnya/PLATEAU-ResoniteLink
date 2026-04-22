@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 using GeographicLib;
 
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Application.Importing;
 
@@ -34,7 +32,6 @@ internal sealed class LocalCityGmlGeometryProjector(
                 terrainHeightSampler: null,
                 request,
                 materialResolver,
-                predicate is null ? null : cityObject => predicate(BootstrapParsedCityObject.FromLegacy(cityObject)))
-            .Select(SceneImportContractMapper.ToContract);
+                predicate is null ? null : cityObject => predicate(BootstrapParsedCityObject.FromLegacy(cityObject)));
     }
 }

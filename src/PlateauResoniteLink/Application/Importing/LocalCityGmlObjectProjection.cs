@@ -1237,7 +1237,7 @@ public static partial class LocalCityGmlObjectProjection
             ?? throw new PlateauImportValidationException(["No CityGML coordinate reference system was resolved."]);
     }
 
-    internal static ResoniteConstructionCityObject ProjectCityObject(
+    internal static ImportedCityObject ProjectCityObject(
         ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -1260,7 +1260,7 @@ public static partial class LocalCityGmlObjectProjection
 
         List<ResoniteMeshVertex> vertices = [];
         List<ResoniteMeshSubmesh> submeshes = [];
-        List<ResoniteMaterialBinding> materials = [];
+        List<MaterialBinding> materials = [];
         GeographicRectangle? demObjectBounds = TryGetDemObjectGeographicBounds(cityObject, demTerrainTextureOverlay);
         DemUvProjection? demUvProjection = TryCreateDemUvProjection(demObjectBounds, cityObject, demTerrainTextureOverlay);
 
@@ -1309,21 +1309,23 @@ public static partial class LocalCityGmlObjectProjection
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
             submeshes.Add(new ResoniteMeshSubmesh(materialIndex, materialGroup.Key, indices));
-            materials.Add(SceneImportContractMapper.ToInternal(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex)));
+            materials.Add(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex));
         }
 
-        return ResoniteDynamicMaterialUvNormalizer.Normalize(new ResoniteConstructionCityObject(
-            SlotKey: cityObject.SlotKey,
+        return new ImportedCityObject(
+            ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
-            Transform: new ResoniteTransform(slotPosition),
-            Mesh: new ResoniteImportedMesh(vertices, submeshes),
+            Transform: new Transform3d(ToContractFloat3(slotPosition)),
+            Mesh: new ImportedMesh(
+                vertices.Select(ToContractMeshVertex).ToArray(),
+                submeshes.Select(ToContractMeshSubmesh).ToArray()),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath));
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
@@ -2614,7 +2616,7 @@ public static partial class LocalCityGmlObjectProjection
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
 
-    internal static IEnumerable<ResoniteConstructionCityObject> ProjectCityObjects(
+    internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
@@ -2637,7 +2639,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            foreach (ResoniteConstructionCityObject cityObject in ProjectParsedCityObject(
+            foreach (ImportedCityObject cityObject in ProjectParsedCityObject(
                          parsedCityObject,
                          globalOriginPoint,
                          globalCartesian,
@@ -2690,7 +2692,7 @@ public static partial class LocalCityGmlObjectProjection
         }
     }
 
-    internal static IEnumerable<ResoniteConstructionCityObject> ProjectParsedCityObject(
+    internal static IEnumerable<ImportedCityObject> ProjectParsedCityObject(
         ParsedCityObject parsedCityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -2701,15 +2703,15 @@ public static partial class LocalCityGmlObjectProjection
         IDefaultMaterialResolver materialResolver)
     {
         ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
-        List<ResoniteConstructionCityObject> projectedCityObjects = [];
-        List<ResoniteConstructionCityObject> generatedRoadMarkings = [];
+        List<ImportedCityObject> projectedCityObjects = [];
+        List<ImportedCityObject> generatedRoadMarkings = [];
 
         foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
                      terrainAlignedCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
-            ResoniteConstructionCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
+            ImportedCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
                 && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 && TryProjectDemHeightMapCityObject(
                     splitCityObject.CityObject,
@@ -2718,7 +2720,7 @@ public static partial class LocalCityGmlObjectProjection
                     splitCityObject.Overlay,
                     request,
                     materialResolver,
-                    out ResoniteConstructionCityObject? heightMapCityObject)
+                    out ImportedCityObject? heightMapCityObject)
                     ? heightMapCityObject!
                     : ProjectCityObject(
                         splitCityObject.CityObject,
@@ -2749,7 +2751,7 @@ public static partial class LocalCityGmlObjectProjection
                 continue;
             }
 
-            ResoniteConstructionCityObject markingObject = ProjectCityObject(
+            ImportedCityObject markingObject = ProjectCityObject(
                 roadMarkingCityObject,
                 globalOriginPoint,
                 globalCartesian,
@@ -2764,18 +2766,18 @@ public static partial class LocalCityGmlObjectProjection
             }
         }
 
-        ResoniteConstructionCityObject[] alignedCityObjects =
+        ImportedCityObject[] alignedCityObjects =
             request.DemTerrainMode == DemTerrainMode.HeightMap
             && string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? AlignAdjacentDemHeightMapChunkBoundaries(projectedCityObjects)
                 : [.. projectedCityObjects];
 
-        foreach (ResoniteConstructionCityObject cityObject in alignedCityObjects)
+        foreach (ImportedCityObject cityObject in alignedCityObjects)
         {
             yield return cityObject;
         }
 
-        foreach (ResoniteConstructionCityObject markingObject in generatedRoadMarkings)
+        foreach (ImportedCityObject markingObject in generatedRoadMarkings)
         {
             yield return markingObject;
         }
@@ -2864,8 +2866,8 @@ public static partial class LocalCityGmlObjectProjection
             .ToArray();
     }
 
-    private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    private static ImportedCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
+        IReadOnlyList<ImportedCityObject> cityObjects)
     {
         HeightMapChunkAlignmentState?[] states = cityObjects
             .Select(static cityObject => HeightMapChunkAlignmentState.TryCreate(cityObject))
@@ -2898,7 +2900,7 @@ public static partial class LocalCityGmlObjectProjection
         foreach (List<BoundaryHeightSampleReference> references in sampleReferencesByKey.Values)
         {
             if (references.Count < 2
-                || references.Select(static reference => reference.State.CityObject.SourceObjectKey ?? reference.State.CityObject.SlotKey).Distinct(StringComparer.Ordinal).Count() < 2)
+                || references.Select(static reference => reference.State.CityObject.SourceObjectKey ?? reference.State.CityObject.ObjectKey).Distinct(StringComparer.Ordinal).Count() < 2)
             {
                 continue;
             }
@@ -2990,8 +2992,8 @@ public static partial class LocalCityGmlObjectProjection
     private sealed class HeightMapChunkAlignmentState
     {
         public HeightMapChunkAlignmentState(
-            ResoniteConstructionCityObject cityObject,
-            ResoniteHeightMapGridGeometry geometry,
+            ImportedCityObject cityObject,
+            HeightMapGridGeometry geometry,
             double[] heightSamples)
         {
             CityObject = cityObject;
@@ -3000,22 +3002,22 @@ public static partial class LocalCityGmlObjectProjection
             BaseHeight = cityObject.Transform.Position.Y - geometry.MaxHeight;
         }
 
-        public ResoniteConstructionCityObject CityObject { get; }
+        public ImportedCityObject CityObject { get; }
 
-        public ResoniteHeightMapGridGeometry Geometry { get; }
+        public HeightMapGridGeometry Geometry { get; }
 
         public double[] HeightSamples { get; }
 
         public double BaseHeight { get; }
 
-        public static HeightMapChunkAlignmentState? TryCreate(ResoniteConstructionCityObject cityObject)
+        public static HeightMapChunkAlignmentState? TryCreate(ImportedCityObject cityObject)
         {
-            return cityObject.Geometry is ResoniteHeightMapGridGeometry geometry
+            return cityObject.Geometry is HeightMapGridGeometry geometry
                 ? new HeightMapChunkAlignmentState(cityObject, geometry, geometry.HeightSamples.ToArray())
                 : null;
         }
 
-        public ResoniteConstructionCityObject ToCityObject()
+        public ImportedCityObject ToCityObject()
         {
             double minHeight = HeightSamples.Min();
             double maxHeight = HeightSamples.Max();
@@ -3055,7 +3057,7 @@ public static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver,
-        out ResoniteConstructionCityObject? heightMapCityObject)
+        out ImportedCityObject? heightMapCityObject)
     {
         heightMapCityObject = null;
 
@@ -3152,14 +3154,12 @@ public static partial class LocalCityGmlObjectProjection
         double minHeight = localHeights.Min();
         double maxHeight = localHeights.Max();
 
-        ResoniteMaterialBinding[] materials = CreateDemHeightMapMaterials(
+        MaterialBinding[] materials = CreateDemHeightMapMaterials(
             cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
             demTerrainTextureOverlay,
-            materialResolver)
-            .Select(SceneImportContractMapper.ToInternal)
-            .ToArray();
+            materialResolver);
         if (materials.Length == 0)
         {
             return false;
@@ -3171,6 +3171,12 @@ public static partial class LocalCityGmlObjectProjection
             cityObjectCartesian,
             demTerrainTextureOverlay,
             materialResolver);
+        Float2? heightMapUvScale = heightMapOccupiedUvRect.HasValue
+            ? ToContractFloat2(heightMapOccupiedUvRect.Value.Scale)
+            : null;
+        Float2? heightMapUvOffset = heightMapOccupiedUvRect.HasValue
+            ? ToContractFloat2(heightMapOccupiedUvRect.Value.Offset)
+            : null;
 
         ResoniteFloat3 adjustedSlotPosition = slotPosition with
         {
@@ -3181,24 +3187,24 @@ public static partial class LocalCityGmlObjectProjection
             Z = slotPosition.Z + centerZ,
         };
 
-        heightMapCityObject = new ResoniteConstructionCityObject(
-            SlotKey: cityObject.SlotKey,
+        heightMapCityObject = new ImportedCityObject(
+            ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
             PackageName: cityObject.PackageName,
             ActualMeshCode: cityObject.ActualMeshCode,
             LodLevel: cityObject.LodLevel,
-            Transform: new ResoniteTransform(
-                adjustedSlotPosition,
-                GridMeshTerrainRotation),
-            Geometry: new ResoniteHeightMapGridGeometry(
+            Transform: new Transform3d(
+                ToContractFloat3(adjustedSlotPosition),
+                ToContractQuaternion(GridMeshTerrainRotation)),
+            Geometry: new HeightMapGridGeometry(
                 Width: width,
                 Height: height,
-                Size: new ResoniteFloat2(extentX, extentZ),
+                Size: new Float2(extentX, extentZ),
                 MinHeight: minHeight,
                 MaxHeight: maxHeight,
                 HeightSamples: localHeights,
-                UvScale: heightMapOccupiedUvRect?.Scale,
-                UvOffset: heightMapOccupiedUvRect?.Offset),
+                UvScale: heightMapUvScale,
+                UvOffset: heightMapUvOffset),
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
@@ -3274,7 +3280,23 @@ public static partial class LocalCityGmlObjectProjection
 
     private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
 
+    private static Float3 ToContractFloat3(ResoniteFloat3 value) => new(value.X, value.Y, value.Z);
+
+    private static Quaternion ToContractQuaternion(ResoniteFloatQ value) => new(value.X, value.Y, value.Z, value.W);
+
     private static ColorRgba ToContractColor(ResoniteColor value) => new(value.R, value.G, value.B, value.A);
+
+    private static MeshVertex ToContractMeshVertex(ResoniteMeshVertex vertex)
+    {
+        return new MeshVertex(
+            ToContractFloat3(vertex.Position),
+            ToContractFloat3(vertex.Normal),
+            ToContractFloat2(vertex.UV0),
+            vertex.Color is null ? null : ToContractColor(vertex.Color));
+    }
+
+    private static MeshSubmesh ToContractMeshSubmesh(ResoniteMeshSubmesh submesh) =>
+        new(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices);
 
     private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
     {
@@ -3444,12 +3466,12 @@ public static partial class LocalCityGmlObjectProjection
         return new ResoniteFloat3(value.X * scalar, value.Y * scalar, value.Z * scalar);
     }
 
-    private static bool HasRenderableGeometry(ResoniteConstructionCityObject cityObject)
+    private static bool HasRenderableGeometry(ImportedCityObject cityObject)
     {
         return cityObject.Geometry switch
         {
-            ResoniteTriangleMeshGeometry triangleMesh => triangleMesh.Mesh.Submeshes.Count > 0,
-            ResoniteHeightMapGridGeometry heightMap => heightMap.Width > 1 && heightMap.Height > 1,
+            TriangleMeshGeometry triangleMesh => triangleMesh.Mesh.Submeshes.Count > 0,
+            HeightMapGridGeometry heightMap => heightMap.Width > 1 && heightMap.Height > 1,
             _ => false,
         };
     }

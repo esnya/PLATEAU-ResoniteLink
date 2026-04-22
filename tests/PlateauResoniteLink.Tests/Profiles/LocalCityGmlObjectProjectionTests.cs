@@ -11,7 +11,6 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
-using PlateauResoniteLink.Targets.Resonite;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -343,9 +342,9 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void AlignAdjacentDemHeightMapChunkBoundariesAveragesSharedSamplesForPartialOverlapWithDifferentResolution()
     {
-        ResoniteConstructionCityObject left = CreateHeightMapCityObject(
+        ImportedCityObject left = CreateHeightMapCityObject(
             "left-dem",
-            new ResoniteFloat3(0.0, 14.0, 0.0),
+            new Float3(0.0, 14.0, 0.0),
             width: 2,
             height: 5,
             sizeX: 2.0,
@@ -357,9 +356,9 @@ public sealed class LocalCityGmlObjectProjectionTests
                 1.0, 13.0,
                 1.0, 14.0,
             ]);
-        ResoniteConstructionCityObject right = CreateHeightMapCityObject(
+        ImportedCityObject right = CreateHeightMapCityObject(
             "right-dem",
-            new ResoniteFloat3(2.0, 22.0, 0.0),
+            new Float3(2.0, 22.0, 0.0),
             width: 2,
             height: 3,
             sizeX: 2.0,
@@ -370,10 +369,10 @@ public sealed class LocalCityGmlObjectProjectionTests
                 22.0, 2.0,
             ]);
 
-        ResoniteConstructionCityObject[] aligned = AlignAdjacentDemHeightMapChunkBoundariesForTest([left, right]);
+        ImportedCityObject[] aligned = AlignAdjacentDemHeightMapChunkBoundariesForTest([left, right]);
 
-        ResoniteHeightMapGridGeometry alignedLeft = Assert.IsType<ResoniteHeightMapGridGeometry>(aligned[0].Geometry);
-        ResoniteHeightMapGridGeometry alignedRight = Assert.IsType<ResoniteHeightMapGridGeometry>(aligned[1].Geometry);
+        HeightMapGridGeometry alignedLeft = Assert.IsType<HeightMapGridGeometry>(aligned[0].Geometry);
+        HeightMapGridGeometry alignedRight = Assert.IsType<HeightMapGridGeometry>(aligned[1].Geometry);
 
         Assert.Equal(10.0, alignedLeft.HeightSamples[1], 6);
         Assert.Equal(15.5, alignedLeft.HeightSamples[3], 6);
@@ -925,8 +924,8 @@ public sealed class LocalCityGmlObjectProjectionTests
         return min + ((max - min) * ratio);
     }
 
-    private static ResoniteConstructionCityObject[] AlignAdjacentDemHeightMapChunkBoundariesForTest(
-        IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
+    private static ImportedCityObject[] AlignAdjacentDemHeightMapChunkBoundariesForTest(
+        IReadOnlyList<ImportedCityObject> cityObjects)
     {
         MethodInfo method = typeof(LocalCityGmlObjectProjection)
             .GetMethod(
@@ -934,38 +933,38 @@ public sealed class LocalCityGmlObjectProjectionTests
                 BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("Failed to resolve AlignAdjacentDemHeightMapChunkBoundaries.");
 
-        return (ResoniteConstructionCityObject[])method.Invoke(null, [cityObjects])!;
+        return (ImportedCityObject[])method.Invoke(null, [cityObjects])!;
     }
 
-    private static ResoniteConstructionCityObject CreateHeightMapCityObject(
+    private static ImportedCityObject CreateHeightMapCityObject(
         string slotKey,
-        ResoniteFloat3 position,
+        Float3 position,
         int width,
         int height,
         double sizeX,
         double sizeZ,
         IReadOnlyList<double> heightSamples)
     {
-        ResoniteMaterialBinding material = new(
+        MaterialBinding material = new(
             MaterialKey: $"{slotKey}-material",
-            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            MaterialType: ResoniteMaterialType.Standard,
+            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            MaterialType: MaterialType.Standard,
             TexturePayload: null,
-            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-            Projection: ResoniteMaterialProjection.Uv,
+            TextureSourceKind: TextureSourceKind.Bundled,
+            Projection: MaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0]);
-        return new ResoniteConstructionCityObject(
-            SlotKey: slotKey,
+        return new ImportedCityObject(
+            ObjectKey: slotKey,
             DisplayName: slotKey,
             PackageName: "dem",
             ActualMeshCode: "53394525",
             LodLevel: 1,
-            Transform: new ResoniteTransform(position),
-            Geometry: new ResoniteHeightMapGridGeometry(
+            Transform: new Transform3d(position),
+            Geometry: new HeightMapGridGeometry(
                 Width: width,
                 Height: height,
-                Size: new ResoniteFloat2(sizeX, sizeZ),
+                Size: new Float2(sizeX, sizeZ),
                 MinHeight: heightSamples.Min(),
                 MaxHeight: heightSamples.Max(),
                 HeightSamples: heightSamples),
