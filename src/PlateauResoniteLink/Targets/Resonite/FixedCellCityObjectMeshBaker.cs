@@ -202,7 +202,30 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         return string.Equals(cityObject.PackageName, "bldg", StringComparison.OrdinalIgnoreCase)
             && cityObject.LodLevel == 1
             && cityObject.Geometry is ResoniteTriangleMeshGeometry
-            && cityObject.Transform.Rotation is null;
+            && cityObject.Transform.Rotation is null
+            && !UsesFallbackRoofStrategy(cityObject);
+    }
+
+    private static bool UsesFallbackRoofStrategy(ResoniteConstructionCityObject cityObject)
+    {
+        bool hasFallbackRoof = cityObject.Materials.Any(static material =>
+            material.TexturePayload is null
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && material.MaterialType == ResoniteMaterialType.Standard
+            && material.AssetScope == ResoniteMaterialAssetScope.Common
+            && string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal));
+
+        if (!hasFallbackRoof)
+        {
+            return false;
+        }
+
+        return cityObject.Materials.Any(static material =>
+            material.TexturePayload is null
+            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
+            && material.MaterialType == ResoniteMaterialType.Standard
+            && material.AssetScope == ResoniteMaterialAssetScope.Common
+            && string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal));
     }
 
     private static CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
