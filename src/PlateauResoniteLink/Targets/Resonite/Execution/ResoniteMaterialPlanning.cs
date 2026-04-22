@@ -169,25 +169,25 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
     public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(
         IResoniteLinkClient client,
         PlannedDedicatedMaterialAsset plannedMaterial,
-        string commonAssetsSlotId,
+        ResoniteSlotLocator commonAssetsSlot,
         string materialSlotName,
-        Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
-        Func<IResoniteLinkClient, string, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
+        Func<IResoniteLinkClient, ResoniteSlotLocator, string, CancellationToken, Task<CreatedSlot>> getOrCreateSharedChildSlotAsync,
+        Func<IResoniteLinkClient, ResoniteSlotLocator, string, IReadOnlyDictionary<string, Member>, CancellationToken, Task<CreatedComponent>> createComponentAsync,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
         ArgumentNullException.ThrowIfNull(plannedMaterial);
-        ArgumentException.ThrowIfNullOrWhiteSpace(commonAssetsSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(commonAssetsSlot.Value);
         ArgumentException.ThrowIfNullOrWhiteSpace(materialSlotName);
         ArgumentNullException.ThrowIfNull(getOrCreateSharedChildSlotAsync);
         ArgumentNullException.ThrowIfNull(createComponentAsync);
 
         CreatedSlot materialSlot = await getOrCreateSharedChildSlotAsync(
             client,
-            commonAssetsSlotId,
+            commonAssetsSlot,
             materialSlotName,
             cancellationToken);
-        string materialContainerSlotId = materialSlot.SlotId;
+        ResoniteSlotLocator materialContainerSlot = materialSlot.Locator;
         Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(plannedMaterial.Material);
 
         Uri? albedoTextureUri = TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
@@ -195,7 +195,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         {
             CreatedComponent albedoTexture = await createComponentAsync(
                 client,
-                materialContainerSlotId,
+                materialContainerSlot,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     albedoTextureUri,
@@ -203,7 +203,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 cancellationToken);
             materialMembers["AlbedoTexture"] = new Reference
             {
-                TargetID = albedoTexture.ComponentId,
+                TargetID = albedoTexture.Locator.Value,
             };
         }
 
@@ -212,7 +212,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         {
             CreatedComponent normalTexture = await createComponentAsync(
                 client,
-                materialContainerSlotId,
+                materialContainerSlot,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     normalTextureUri,
@@ -220,7 +220,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 cancellationToken);
             materialMembers["NormalMap"] = new Reference
             {
-                TargetID = normalTexture.ComponentId,
+                TargetID = normalTexture.Locator.Value,
             };
             materialMembers["NormalScale"] = new Field_float
             {
@@ -233,7 +233,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         {
             CreatedComponent heightTexture = await createComponentAsync(
                 client,
-                materialContainerSlotId,
+                materialContainerSlot,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     heightTextureUri,
@@ -241,7 +241,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 cancellationToken);
             materialMembers["HeightMap"] = new Reference
             {
-                TargetID = heightTexture.ComponentId,
+                TargetID = heightTexture.Locator.Value,
             };
             materialMembers["HeightScale"] = new Field_float
             {
@@ -254,7 +254,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         {
             CreatedComponent metallicTexture = await createComponentAsync(
                 client,
-                materialContainerSlotId,
+                materialContainerSlot,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     metallicTextureUri,
@@ -262,11 +262,11 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 cancellationToken);
             materialMembers["MetallicMap"] = new Reference
             {
-                TargetID = metallicTexture.ComponentId,
+                TargetID = metallicTexture.Locator.Value,
             };
             materialMembers["OcclusionMap"] = new Reference
             {
-                TargetID = metallicTexture.ComponentId,
+                TargetID = metallicTexture.Locator.Value,
             };
         }
 
@@ -275,7 +275,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         {
             CreatedComponent emissionTexture = await createComponentAsync(
                 client,
-                materialContainerSlotId,
+                materialContainerSlot,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     emissionTextureUri,
@@ -283,7 +283,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 cancellationToken);
             materialMembers["EmissiveMap"] = new Reference
             {
-                TargetID = emissionTexture.ComponentId,
+                TargetID = emissionTexture.Locator.Value,
             };
             materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0));
@@ -291,40 +291,40 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
         CreatedComponent materialComponent = await createComponentAsync(
             client,
-            materialContainerSlotId,
+            materialContainerSlot,
             ResoniteMaterialComponentPolicy.GetComponentType(plannedMaterial.Material),
             materialMembers,
             cancellationToken);
-        return new CreatedMaterialAsset(materialComponent.ComponentId, null);
+        return new CreatedMaterialAsset(materialComponent.Locator, null);
     }
 
     public static async Task<CreatedSlot?> TryGetExistingSharedChildSlotAsync(
         IResoniteLinkClient client,
-        string parentSlotId,
+        ResoniteSlotLocator parentSlot,
         string childSlotName,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
-        ArgumentException.ThrowIfNullOrWhiteSpace(parentSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(parentSlot.Value);
         ArgumentException.ThrowIfNullOrWhiteSpace(childSlotName);
 
-        Slot? parentSlotSnapshot = await client.GetSlotAsync(parentSlotId, 1, cancellationToken);
+        Slot? parentSlotSnapshot = await client.GetSlotAsync(new ResoniteTransportSlotLocator(parentSlot.Value), 1, cancellationToken);
         ResoniteSceneChildLookupResult childLookup = new ResoniteSceneSlotSnapshot(parentSlotSnapshot)
-            .GetUniqueChildLookupResult(childSlotName, parentSlotId);
+            .GetUniqueChildLookupResult(childSlotName, parentSlot.Value);
         return childLookup.State == ResoniteSceneChildLookupState.FoundWithId
-            ? new CreatedSlot(childLookup.SlotId!, childSlotName)
+            ? new CreatedSlot(new ResoniteSlotLocator(childLookup.Slot!.ID!), childSlotName)
             : null;
     }
 
-    public static async Task<string?> TryGetExistingCommonMaterialComponentIdAsync(
+    public static async Task<ResoniteComponentLocator?> TryGetExistingCommonMaterialComponentAsync(
         IResoniteLinkClient client,
-        string familySlotId,
+        ResoniteSlotLocator familySlot,
         IReadOnlyList<string> materialSlotNames,
         string materialComponentType,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
-        ArgumentException.ThrowIfNullOrWhiteSpace(familySlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(familySlot.Value);
         ArgumentNullException.ThrowIfNull(materialSlotNames);
         if (materialSlotNames.Count == 0 || materialSlotNames.All(string.IsNullOrWhiteSpace))
         {
@@ -333,16 +333,16 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
         ArgumentException.ThrowIfNullOrWhiteSpace(materialComponentType);
 
-        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlotId, 1, cancellationToken);
-        if (familySlotSnapshot is null)
+        Slot? familySlotSnapshotData = await client.GetSlotAsync(new ResoniteTransportSlotLocator(familySlot.Value), 1, cancellationToken);
+        if (familySlotSnapshotData is null)
         {
             return null;
         }
 
-        ResoniteSceneSlotSnapshot familySlot = new(familySlotSnapshot);
+        ResoniteSceneSlotSnapshot familySlotSnapshot = new(familySlotSnapshotData);
         foreach (string materialSlotName in materialSlotNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
         {
-            ResoniteSceneChildLookupResult materialLookup = familySlot.GetUniqueChildLookupResult(materialSlotName, familySlotId);
+            ResoniteSceneChildLookupResult materialLookup = familySlotSnapshot.GetUniqueChildLookupResult(materialSlotName, familySlot.Value);
             string? existingMaterialComponentId = materialLookup.Slot?.Components?
                 .Where(component => string.Equals(component.ComponentType, materialComponentType, StringComparison.Ordinal))
                 .OrderBy(static component => component.ID, StringComparer.Ordinal)
@@ -350,7 +350,7 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
             if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
             {
-                return existingMaterialComponentId;
+                return new ResoniteComponentLocator(existingMaterialComponentId);
             }
         }
 
@@ -359,19 +359,19 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
 
     public static async Task<CreatedComponent> CreateComponentAsync(
         IResoniteLinkClient client,
-        string containerSlotId,
+        ResoniteSlotLocator containerSlot,
         string componentType,
         IReadOnlyDictionary<string, Member> members,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
-        ArgumentException.ThrowIfNullOrWhiteSpace(containerSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(containerSlot.Value);
         ArgumentException.ThrowIfNullOrWhiteSpace(componentType);
         ArgumentNullException.ThrowIfNull(members);
 
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
-            containerSlotId,
+            containerSlot.Value,
             componentType,
             members);
         BatchResponse response = await client.RunDataModelOperationBatchAsync(batchBuilder.Actions, cancellationToken);

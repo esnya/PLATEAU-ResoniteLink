@@ -1032,7 +1032,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             _ = setupInfo;
             _ = commonMaterials;
 
-            string datasetRootId = await setupClient.AddSlotAsync(
+            string datasetRootId = (await setupClient.AddSlotAsync(
                 new AddSlot
                 {
                     Data = new Slot
@@ -1041,8 +1041,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                         Name = new Field_string { Value = "PLATEAU tokyo23ku" },
                     },
                 },
-                cancellationToken);
-            string assetsRootId = await setupClient.AddSlotAsync(
+                cancellationToken)).Slot.Value;
+            string assetsRootId = (await setupClient.AddSlotAsync(
                 new AddSlot
                 {
                     Data = new Slot
@@ -1051,8 +1051,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                         Name = new Field_string { Value = "Assets" },
                     },
                 },
-                cancellationToken);
-            string commonRootId = await setupClient.AddSlotAsync(
+                cancellationToken)).Slot.Value;
+            string commonRootId = (await setupClient.AddSlotAsync(
                 new AddSlot
                 {
                     Data = new Slot
@@ -1061,8 +1061,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                         Name = new Field_string { Value = "PLATEAU Shared Assets" },
                     },
                 },
-                cancellationToken);
-            string commonMaterialsRootId = await setupClient.AddSlotAsync(
+                cancellationToken)).Slot.Value;
+            string commonMaterialsRootId = (await setupClient.AddSlotAsync(
                 new AddSlot
                 {
                     Data = new Slot
@@ -1071,14 +1071,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                         Name = new Field_string { Value = "Common Materials" },
                     },
                 },
-                cancellationToken);
+                cancellationToken)).Slot.Value;
 
             return new ResoniteSceneBootstrapState(
-                new CreatedSlot(datasetRootId, "PLATEAU tokyo23ku"),
-                new CreatedSlot(assetsRootId, "Assets"),
-                new CreatedSlot(commonMaterialsRootId, "Common Materials"),
+                new CreatedSlot(new ResoniteSlotLocator(datasetRootId), "PLATEAU tokyo23ku"),
+                new CreatedSlot(new ResoniteSlotLocator(assetsRootId), "Assets"),
+                new CreatedSlot(new ResoniteSlotLocator(commonMaterialsRootId), "Common Materials"),
                 DatasetRootExisted: false,
-                new SceneAnchor(datasetRootId, "53394525", new ResoniteFloat3(0.0, 0.0, 0.0), null),
+                new SceneAnchor(new ResoniteSlotLocator(datasetRootId), "53394525", new ResoniteFloat3(0.0, 0.0, 0.0), null),
                 DatasetRootSnapshot: null,
                 CommonMaterialAssetsByKey: new Dictionary<string, CreatedMaterialAsset>(StringComparer.Ordinal),
                 CommonMaterialFamilies: []);

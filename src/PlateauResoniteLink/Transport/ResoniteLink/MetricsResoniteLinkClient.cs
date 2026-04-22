@@ -24,13 +24,13 @@ internal sealed class MetricsResoniteLinkClient(
         await inner.ConnectAsync(endpoint, cancellationToken);
     }
 
-    public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public async Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("add_component");
         return await inner.AddComponentAsync(request, cancellationToken);
     }
 
-    public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public async Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("add_slot");
         return await inner.AddSlotAsync(request, cancellationToken);
@@ -44,16 +44,16 @@ internal sealed class MetricsResoniteLinkClient(
         return await inner.RunDataModelOperationBatchAsync(operations, cancellationToken);
     }
 
-    public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+    public async Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("get_slot");
-        return await inner.GetSlotAsync(slotId, depth, cancellationToken);
+        return await inner.GetSlotAsync(slot, depth, cancellationToken);
     }
 
-    public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+    public async Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("get_component");
-        return await inner.GetComponentAsync(componentId, cancellationToken);
+        return await inner.GetComponentAsync(component, cancellationToken);
     }
 
     public async Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -68,7 +68,7 @@ internal sealed class MetricsResoniteLinkClient(
         return await inner.ImportTextureAsync(textureImport, cancellationToken);
     }
 
-    public async Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+    public async Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
     {
         diagnostics.RecordRpcCall("update_component");
         await inner.UpdateComponentAsync(request, cancellationToken);

@@ -30,9 +30,12 @@ internal sealed class ResoniteDatasetLicenseWriter : IResoniteDatasetLicenseWrit
     {
         ArgumentNullException.ThrowIfNull(client);
 
-        Slot datasetRootSnapshot = await client.GetSlotAsync(datasetRootSlot.SlotId, 1, cancellationToken)
+        Slot datasetRootSnapshot = await client.GetSlotAsync(
+                new ResoniteTransportSlotLocator(datasetRootSlot.Locator.Value),
+                1,
+                cancellationToken)
             ?? throw new InvalidOperationException(
-                $"ResoniteLink did not surface dataset root '{datasetRootSlot.SlotId}' while ensuring the GSI fallback license.");
+                $"ResoniteLink did not surface dataset root '{datasetRootSlot.Locator.Value}' while ensuring the GSI fallback license.");
         if (HasGsiFallbackLicense(datasetRootSnapshot))
         {
             return;
@@ -41,7 +44,7 @@ internal sealed class ResoniteDatasetLicenseWriter : IResoniteDatasetLicenseWrit
         _ = await client.RunDataModelOperationBatchAsync(
             [
                 ResoniteBatchOperations.CreateAddComponentOperation(
-                    datasetRootSlot.SlotId,
+                    datasetRootSlot.Locator.Value,
                     LicenseComponentType,
                     CreateGsiFallbackLicenseMembers()),
             ],

@@ -324,7 +324,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             new ResoniteFloat2(
                 (double)layout.CropWidth / texture.TextureImport.Width,
                 (double)layout.CropHeight / texture.TextureImport.Height),
-            texture.CanvasScale);
+            texture.OccupiedUvRect.Scale);
         using Image<Rgba32> outputImage = Image.LoadPixelData<Rgba32>(
             texture.TextureImport.RawRgba32Bytes,
             texture.TextureImport.Width,

@@ -87,15 +87,7 @@ internal static class ResoniteSceneMaterialConventions
             return EmptyLookupNames;
         }
 
-        string currentSlotName = CreateMaterialSlotName(material, useCommonMaterialAssets: true);
-        string? legacySlotName = TryCreateLegacyCommonMaterialSlotName(material);
-        if (string.IsNullOrWhiteSpace(legacySlotName)
-            || string.Equals(currentSlotName, legacySlotName, StringComparison.Ordinal))
-        {
-            return [currentSlotName];
-        }
-
-        return [currentSlotName, legacySlotName];
+        return [CreateMaterialSlotName(material, useCommonMaterialAssets: true)];
     }
 
     public static ResoniteMaterialBinding NormalizeCommonMaterialBinding(ResoniteMaterialBinding material)
@@ -495,32 +487,6 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         return builder.ToString().Trim('-');
-    }
-
-    private static string? TryCreateLegacyCommonMaterialSlotName(ResoniteMaterialBinding material)
-    {
-        if (!IsGenericSharedCommonMaterialCandidate(material)
-            || material.Projection != ResoniteMaterialProjection.Uv
-            || (material.TextureScale is not null
-                && (Math.Abs(material.TextureScale.X - 1.0) > 1e-9
-                    || Math.Abs(material.TextureScale.Y - 1.0) > 1e-9)))
-        {
-            return null;
-        }
-
-        string offsetToken = IsZeroTextureOffset(material.TextureOffset)
-            ? string.Empty
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"_offset_{material.TextureOffset!.X:0.######}x{material.TextureOffset.Y:0.######}");
-        string depthToken = material.DepthOffset is null
-            ? string.Empty
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"_depth_{material.DepthOffset.Factor:0.######}x{material.DepthOffset.Units:0.######}");
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"shared_uv_generic_scale_1x1{offsetToken}{depthToken}");
     }
 
     private static ResoniteMaterialBinding NormalizeGenericSharedMaterialBinding(ResoniteMaterialBinding material)

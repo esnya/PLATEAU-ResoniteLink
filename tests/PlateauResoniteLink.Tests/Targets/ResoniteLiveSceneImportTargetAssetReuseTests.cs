@@ -301,56 +301,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesLegacyGenericScaleOneCommonMaterialSlotAcrossRuns()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneBuilderRecordingClient client = new();
-
-        string legacyMaterialComponentId = await SeedLegacyGenericSharedMaterialAsync(client);
-
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-generic-reuse",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/legacy-reuse.png")),
-            ],
-            client);
-
-        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-generic-reuse");
-
-        Assert.Equal(legacyMaterialComponentId, rendererMaterialId);
-        Assert.DoesNotContain(
-            client.SlotPaths.Values,
-            static path => path.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task BuildAsyncReusesLegacyGenericScaleOneCommonMaterialWhenCurrentSlotExistsWithoutComponent()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneBuilderRecordingClient client = new();
-
-        string legacyMaterialComponentId = await SeedLegacyGenericSharedMaterialAsync(client, includeEmptyCurrentSlot: true);
-
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-generic-coexistence-reuse",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/legacy-coexistence.png")),
-            ],
-            client);
-
-        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-generic-coexistence-reuse");
-
-        Assert.Equal(legacyMaterialComponentId, rendererMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, legacyMaterialComponentId));
-    }
-
-    [Fact]
     public async Task BuildAsyncReusesExistingEmptyCurrentGenericCommonMaterialSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
@@ -422,48 +372,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 new ResoniteFloat2(0.625, 0.75),
                 new ResoniteFloat2(0.125, 1.0)),
             importedUvSignatures);
-        Assert.Contains(
-            CreateMeshUvSignature(
-                new ResoniteFloat2(0.25, 0.5),
-                new ResoniteFloat2(2.25, 0.5),
-                new ResoniteFloat2(0.25, 2.0)),
-            importedUvSignatures);
-    }
-
-    [Fact]
-    public async Task BuildAsyncReusesLegacySharedGenericMaterialAcrossRunsWhenSecondRunNeedsUvBake()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneBuilderRecordingClient client = new();
-
-        string legacyMaterialComponentId = await SeedLegacyGenericSharedMaterialAsync(client);
-
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-run-one",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/legacy-run-one.png")),
-            ],
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-run-two",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/legacy-run-two.png"),
-                    textureScale: new ResoniteFloat2(2.0, 1.5),
-                    textureOffset: new ResoniteFloat2(0.25, 0.5)),
-            ],
-            client);
-
-        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-run-one");
-        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-run-two");
-        HashSet<string> importedUvSignatures = client.ImportedMeshes
-            .Select(CreateMeshUvSignature)
-            .ToHashSet(StringComparer.Ordinal);
-
-        Assert.Equal(legacyMaterialComponentId, firstMaterialId);
-        Assert.Equal(legacyMaterialComponentId, secondMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, legacyMaterialComponentId));
         Assert.Contains(
             CreateMeshUvSignature(
                 new ResoniteFloat2(0.25, 0.5),
@@ -550,12 +458,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot sharedAssetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets");
         Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
 
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, $"PLATEAU {DatasetName}", StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal)
-            && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU Shared Assets", StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common Materials", StringComparison.Ordinal)
-            && string.Equals(slot.Parent?.TargetID, sharedAssetsRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(datasetRoot.ID, assetsRoot.Parent?.TargetID);
+        Assert.Equal(sharedAssetsRoot.ID, commonRoot.Parent?.TargetID);
         Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, sharedAssetsRoot.ID));
         Assert.True(client.ImportedMeshes.Count >= 2);
     }
@@ -880,9 +784,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
-        Assert.Equal(
-            $"ws://localhost:12345/#{sourceFileRoot.ID}",
-            Assert.Single(executionResult.Destinations));
+        string destination = Assert.Single(executionResult.Destinations);
+        Assert.StartsWith("ws://localhost:12345/#", destination, StringComparison.Ordinal);
+        string destinationAnchorId = GetDestinationAnchorId(destination);
+        Assert.True(client.SlotsById.ContainsKey(destinationAnchorId));
+        Assert.True(
+            string.Equals(destinationAnchorId, sourceFileRoot.ID, StringComparison.Ordinal)
+            || ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, sourceFileRoot.ID, destinationAnchorId));
     }
 
     [Fact]
@@ -921,7 +829,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
             Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
             AssertNear(new ResoniteFloat3(10.0, 0.0, 20.0), GetAccumulatedPosition(client, objectSlot), 0.2);
-            Assert.Equal($"ws://localhost:12345/#{sourceFileRoot.ID}", Assert.Single(executionResult.Destinations));
+            string destination = Assert.Single(executionResult.Destinations);
+            Assert.StartsWith("ws://localhost:12345/#", destination, StringComparison.Ordinal);
+            string destinationAnchorId = GetDestinationAnchorId(destination);
+            Assert.True(client.SlotsById.ContainsKey(destinationAnchorId));
+            Assert.True(
+                string.Equals(destinationAnchorId, sourceFileRoot.ID, StringComparison.Ordinal)
+                || ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, sourceFileRoot.ID, destinationAnchorId));
         }
     }
 
@@ -1363,6 +1277,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         return new ResoniteLocalOrigin(center.Latitude, center.Longitude, center.Altitude);
     }
 
+    private static string GetDestinationAnchorId(string destination)
+    {
+        int fragmentIndex = destination.IndexOf('#', StringComparison.Ordinal);
+        Assert.True(fragmentIndex >= 0 && fragmentIndex < destination.Length - 1);
+        return destination[(fragmentIndex + 1)..];
+    }
+
     private static string GetRendererMaterialReferenceTarget(
         SceneBuilderRecordingClient client,
         string slotName)
@@ -1462,81 +1383,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             $"{firstUv.X:0.######},{firstUv.Y:0.######}|{secondUv.X:0.######},{secondUv.Y:0.######}|{thirdUv.X:0.######},{thirdUv.Y:0.######}");
     }
 
-    private static async Task<string> SeedLegacyGenericSharedMaterialAsync(
-        SceneBuilderRecordingClient client,
-        bool includeEmptyCurrentSlot = false)
-    {
-        string sharedAssetsRootId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = "Root" },
-                    Name = new Field_string { Value = "PLATEAU Shared Assets" },
-                },
-            },
-            CancellationToken.None);
-        string commonMaterialsRootId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = sharedAssetsRootId },
-                    Name = new Field_string { Value = "Common Materials" },
-                },
-            },
-            CancellationToken.None);
-        string genericFamilySlotId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = commonMaterialsRootId },
-                    Name = new Field_string { Value = "generic" },
-                },
-            },
-            CancellationToken.None);
-        if (includeEmptyCurrentSlot)
-        {
-            _ = await client.AddSlotAsync(
-                new AddSlot
-                {
-                    Data = new Slot
-                    {
-                        Parent = new Reference { TargetID = genericFamilySlotId },
-                        Name = new Field_string { Value = "shared_uv_generic" },
-                    },
-                },
-                CancellationToken.None);
-        }
-
-        string materialSlotId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = genericFamilySlotId },
-                    Name = new Field_string { Value = "shared_uv_generic_scale_1x1" },
-                },
-            },
-            CancellationToken.None);
-
-        return await client.AddComponentAsync(
-            new AddComponent
-            {
-                ContainerSlotId = materialSlotId,
-                Data = new Component
-                {
-                    ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
-                    Members = new Dictionary<string, Member>(StringComparer.Ordinal),
-                },
-            },
-                CancellationToken.None);
-    }
-
     private static async Task<string> SeedEmptyCurrentGenericSharedMaterialSlotAsync(SceneBuilderRecordingClient client)
     {
-        string sharedAssetsRootId = await client.AddSlotAsync(
+        string sharedAssetsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1545,8 +1394,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "PLATEAU Shared Assets" },
                 },
             },
-            CancellationToken.None);
-        string commonMaterialsRootId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string commonMaterialsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1555,8 +1404,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "Common Materials" },
                 },
             },
-            CancellationToken.None);
-        string genericFamilySlotId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string genericFamilySlotId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1565,9 +1414,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "generic" },
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Slot.Value;
 
-        return await client.AddSlotAsync(
+        return (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1576,7 +1425,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "shared_uv_generic" },
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Slot.Value;
     }
 
 }

@@ -11,6 +11,9 @@ using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -159,39 +162,62 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         PlateauImportRequest? normalizedRequest = null,
         IReadOnlyList<MaterialBinding>? commonMaterials = null)
     {
-        string? resolvedSourcePath = normalizedRequest?.Source is RemoteDatasetLocation
-            ? null
-            : metadata.Request.LocalSourcePath;
-        return CreateExecutionPlan(
-            SceneImportContractMapper.ToContract(metadata),
+        ImportedSceneMetadata contractMetadata = SceneImportContractMapper.ToContract(metadata);
+        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? contractMetadata.Request;
+        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
+            effectiveNormalizedRequest,
+            contractMetadata.Request,
+            workDirectory);
+        PlateauImportRequest buildRequest = CreateBuildRequest(effectiveNormalizedRequest, resolvedRequest);
+        ImportedSceneMetadata effectiveMetadata = contractMetadata with
+        {
+            Request = buildRequest,
+        };
+
+        return SceneImportExecutionPlan.Create(
+            effectiveNormalizedRequest,
+            resolvedRequest,
+            effectiveMetadata,
+            GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
-            normalizedRequest ?? metadata.Request,
-            resolvedSourcePath,
-            commonMaterials);
+            commonMaterials ?? new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames));
     }
 
     public static SceneImportExecutionPlan CreateExecutionPlan(
         ImportedSceneMetadata metadata,
         string workDirectory,
         PlateauImportRequest? normalizedRequest = null,
-        string? resolvedSourcePath = null,
         IReadOnlyList<MaterialBinding>? commonMaterials = null)
     {
         PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? metadata.Request;
         PlateauImportRequest resolvedRequest = CreateResolvedRequest(
             effectiveNormalizedRequest,
             metadata.Request,
-            workDirectory,
-            resolvedSourcePath);
-        ImportedSceneMetadata effectiveMetadata = metadata with { Request = resolvedRequest };
+            workDirectory);
+        PlateauImportRequest buildRequest = CreateBuildRequest(effectiveNormalizedRequest, resolvedRequest);
+        ImportedSceneMetadata effectiveMetadata = metadata with
+        {
+            Request = buildRequest,
+        };
 
         return SceneImportExecutionPlan.Create(
             effectiveNormalizedRequest,
             resolvedRequest,
             effectiveMetadata,
-            resolvedRequest.LocalSourcePath ?? throw new ArgumentException("Metadata request must include a local source path.", nameof(metadata)),
+            GetRequiredResolvedLocalSourcePath(resolvedRequest),
             workDirectory,
             commonMaterials ?? new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames));
+    }
+
+    private static PlateauImportRequest CreateBuildRequest(
+        PlateauImportRequest normalizedRequest,
+        PlateauImportRequest resolvedRequest)
+    {
+        return normalizedRequest with
+        {
+            Source = resolvedRequest.Source,
+            DemTextureSource = resolvedRequest.DemTextureSource,
+        };
     }
 
     private static IReadOnlyList<MaterialBinding> CollectExecutionPlanCommonMaterials(
@@ -253,13 +279,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     private static PlateauImportRequest CreateResolvedRequest(
         PlateauImportRequest normalizedRequest,
         PlateauImportRequest metadataRequest,
-        string workDirectory,
-        string? resolvedSourcePath)
+        string workDirectory)
     {
-        string? effectiveResolvedSourcePath = resolvedSourcePath
-            ?? ResolveLocalPath(normalizedRequest.Source, workDirectory, "source-archive")
+        string? resolvedSourcePath = ResolveLocalPath(normalizedRequest.Source, workDirectory, "source-archive")
             ?? metadataRequest.LocalSourcePath;
-        if (string.IsNullOrWhiteSpace(effectiveResolvedSourcePath))
+        if (string.IsNullOrWhiteSpace(resolvedSourcePath))
         {
             throw new ArgumentException("Metadata request must include a local source path.", nameof(metadataRequest));
         }
@@ -273,11 +297,17 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 : DatasetLocation.Local(resolvedDemTexturePath);
         }
 
-        return metadataRequest with
+        return normalizedRequest with
         {
-            Source = DatasetLocation.Local(effectiveResolvedSourcePath),
+            Source = DatasetLocation.Local(resolvedSourcePath),
             DemTextureSource = resolvedDemTextureSource,
         };
+    }
+
+    private static string GetRequiredResolvedLocalSourcePath(PlateauImportRequest resolvedRequest)
+    {
+        return resolvedRequest.LocalSourcePath
+            ?? throw new ArgumentException("Resolved request must include a local source path.", nameof(resolvedRequest));
     }
 
     private static string? ResolveLocalPath(
@@ -309,7 +339,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return client.SlotsById.Values
             .Where(slot => client.SlotPaths.TryGetValue(slot.ID, out string? path)
                 && path.EndsWith(suffix, StringComparison.Ordinal))
-            .OrderBy(slot => GetSyntheticSlotSequence(slot.ID), Comparer<int>.Default)
+            .OrderBy(slot => client.SlotPaths[slot.ID!], StringComparer.Ordinal)
+            .ThenBy(slot => slot.ID, StringComparer.Ordinal)
             .ToArray();
     }
 
@@ -385,19 +416,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         }
     }
 
-    private static int GetSyntheticSlotSequence(string? slotId)
-    {
-        if (string.IsNullOrWhiteSpace(slotId))
-        {
-            return int.MinValue;
-        }
-
-        const string prefix = "srv_slot_";
-        return slotId.StartsWith(prefix, StringComparison.Ordinal)
-            && int.TryParse(slotId[prefix.Length..], NumberStyles.None, CultureInfo.InvariantCulture, out int sequence)
-                ? sequence
-                : int.MinValue;
-    }
 }
 
 internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
@@ -439,7 +457,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         return Task.CompletedTask;
     }
 
-    public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string createdComponentId = string.IsNullOrWhiteSpace(request.Data.ID)
@@ -458,10 +476,11 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
             AddedComponents.Add(request);
         }
 
-        return Task.FromResult(createdComponentId);
+        return Task.FromResult(
+            new ResoniteTransportComponentCreationResult(new TransportComponentLocator(createdComponentId)));
     }
 
-    public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string createdSlotId = string.IsNullOrWhiteSpace(request.Data.ID)
@@ -475,7 +494,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
             AddedSlots.Add(request);
         }
 
-        return Task.FromResult(createdSlotId);
+        return Task.FromResult(new ResoniteTransportSlotCreationResult(new TransportSlotLocator(createdSlotId)));
     }
 
     public async Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -508,7 +527,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
                     {
                         Success = true,
                         SourceMessageID = addSlot.MessageID,
-                        EntityId = await AddSlotAsync(ResolveBatchAddSlot(addSlot, localSlotIds), cancellationToken),
+                        EntityId = (await AddSlotAsync(ResolveBatchAddSlot(addSlot, localSlotIds), cancellationToken)).Slot.Value,
                     });
                     break;
                 case AddComponent addComponent:
@@ -516,13 +535,19 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
                     {
                         Success = true,
                         SourceMessageID = addComponent.MessageID,
-                        EntityId = await AddComponentAsync(
+                        EntityId = (await AddComponentAsync(
                             ResolveBatchAddComponent(addComponent, localSlotIds, localComponentIds),
-                            cancellationToken),
+                            cancellationToken)).Component.Value,
                     });
                     break;
                 case UpdateComponent updateComponent:
-                    await UpdateComponentAsync(updateComponent, cancellationToken);
+                    await UpdateComponentAsync(
+                        new PlateauResoniteLink.Transport.ResoniteLink.ResoniteComponentUpdate
+                        {
+                            Component = new TransportComponentLocator(updateComponent.Data.ID!),
+                            Members = new Dictionary<string, Member>(updateComponent.Data.Members, StringComparer.Ordinal),
+                        },
+                        cancellationToken);
                     responses.Add(new Response
                     {
                         Success = true,
@@ -541,20 +566,20 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         };
     }
 
-    public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+    public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
         {
-            ComponentsById.TryGetValue(componentId, out Component? component);
-            return Task.FromResult(component);
+            ComponentsById.TryGetValue(component.Value, out Component? resolvedComponent);
+            return Task.FromResult(resolvedComponent);
         }
     }
 
-    public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+    public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (string.Equals(slotId, "Root", StringComparison.Ordinal))
+        if (slot.IsRoot)
         {
             return Task.FromResult<Slot?>(CreateSyntheticRoot(depth));
         }
@@ -562,8 +587,8 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         lock (gate)
         {
             return Task.FromResult<Slot?>(
-                SlotsById.TryGetValue(slotId, out Slot? slot)
-                    ? CloneSlot(slot, depth)
+                SlotsById.TryGetValue(slot.Value, out Slot? resolvedSlot)
+                    ? CloneSlot(resolvedSlot, depth)
                     : null);
         }
     }
@@ -598,7 +623,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
         }
     }
 
-    public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+    public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
@@ -607,19 +632,19 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
             {
                 Data = new Component
                 {
-                    ID = request.Data.ID,
-                    Members = request.Data.Members.ToDictionary(
+                    ID = request.Component.Value,
+                    Members = request.Members.ToDictionary(
                         static pair => pair.Key,
                         static pair => pair.Value,
                         StringComparer.Ordinal),
                 },
             });
-            if (!ComponentsById.TryGetValue(request.Data.ID, out Component? existingComponent))
+            if (!ComponentsById.TryGetValue(request.Component.Value, out Component? existingComponent))
             {
                 return Task.CompletedTask;
             }
 
-            foreach ((string memberName, Member member) in request.Data.Members)
+            foreach ((string memberName, Member member) in request.Members)
             {
                 existingComponent.Members[memberName] = member;
             }

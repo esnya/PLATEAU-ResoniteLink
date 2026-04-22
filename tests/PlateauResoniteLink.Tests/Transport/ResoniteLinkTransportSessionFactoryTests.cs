@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Transport;
@@ -32,7 +35,7 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             diagnostics.StartSendWindow(connectionCount: 1);
             await session.EnsureConnectedAsync(CreateConnectionRequest(), CancellationToken.None);
             IResoniteLinkClient routedClient = session.GetRequiredClient();
-            string slotId = await routedClient.AddSlotAsync(
+            ResoniteTransportSlotCreationResult slot = await routedClient.AddSlotAsync(
                 new AddSlot
                 {
                     Data = new Slot
@@ -50,7 +53,7 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
                 CancellationToken.None);
             diagnostics.CompleteSendWindow();
 
-            Assert.Equal("slot-1", slotId);
+            Assert.Equal(new TransportSlotLocator("slot-1"), slot.Slot);
             Assert.Single(clientFactory.CreatedClients);
             Assert.Equal(1, clientFactory.CreatedClients[0].ConnectCallCount);
             Assert.Equal(1, clientFactory.CreatedClients[0].AddSlotCallCount);
@@ -104,15 +107,15 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             DisposeCallCount++;
         }
 
-        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             AddSlotCallCount++;
-            return Task.FromResult("slot-1");
+            return Task.FromResult(new ResoniteTransportSlotCreationResult(new TransportSlotLocator("slot-1")));
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -122,12 +125,12 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             throw new NotSupportedException();
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -142,9 +145,14 @@ public sealed class ResoniteLinkTransportSessionFactoryTests
             throw new NotSupportedException();
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
     }
 }
+
+
+
+
+

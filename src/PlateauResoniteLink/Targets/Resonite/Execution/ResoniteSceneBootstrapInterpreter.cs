@@ -46,7 +46,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         string completionMeshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
         string datasetRootName = $"PLATEAU {setupInfo.Dataset}";
-        Slot rootSnapshot = await setupClient.GetSlotAsync("Root", 4, cancellationToken)
+        Slot rootSnapshot = await setupClient.GetSlotAsync(new ResoniteTransportSlotLocator(ResoniteSlotLocator.Root.Value), 4, cancellationToken)
             ?? throw new InvalidOperationException("ResoniteLink did not surface the Root slot during bootstrap.");
         ResoniteSceneSlotSnapshot rootSlotSnapshot = new(rootSnapshot);
         Slot? sharedAssetsSlot = GetReusableChildSlot(rootSlotSnapshot, SharedAssetsRootName, "Root");
@@ -71,12 +71,15 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 cancellationToken);
         }
 
-        Slot datasetRootSnapshot = await setupClient.GetSlotAsync(existingDatasetRoot.Value.SlotId, 3, cancellationToken)
+        Slot datasetRootSnapshot = await setupClient.GetSlotAsync(
+                new ResoniteTransportSlotLocator(existingDatasetRoot.Value.Locator.Value),
+                3,
+                cancellationToken)
             ?? throw new InvalidOperationException(
-                $"ResoniteLink did not surface dataset root '{existingDatasetRoot.Value.SlotId}' after it was discovered.");
+                $"ResoniteLink did not surface dataset root '{existingDatasetRoot.Value.Locator.Value}' after it was discovered.");
 
         ResoniteSceneSlotSnapshot snapshot = new(datasetRootSnapshot);
-        ResoniteSceneChildLookupResult assetsLookup = snapshot.GetUniqueChildLookupResult("Assets", existingDatasetRoot.Value.SlotId);
+        ResoniteSceneChildLookupResult assetsLookup = snapshot.GetUniqueChildLookupResult("Assets", existingDatasetRoot.Value.Locator.Value);
         Slot? assetsSlot = assetsLookup.State == ResoniteSceneChildLookupState.FoundWithId
             ? assetsLookup.Slot
             : null;
@@ -89,14 +92,14 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         ResoniteBatchOperations.PendingBatchSlot? pendingSharedCommon = null;
         string batchScopeToken = ResoniteBatchOperations.CreateBatchScopeToken();
 
-        string assetsParentId = existingDatasetRoot.Value.SlotId;
+        string assetsParentId = existingDatasetRoot.Value.Locator.Value;
         if (assetsSlot is null)
         {
             pendingAssets = ResoniteBatchOperations.CreatePendingSlot("bootstrap_assets_root", "Assets", batchScopeToken);
             _ = batchBuilder.AddSlot(
                 pendingAssets.Value.LocalId,
                 pendingAssets.Value.MessageId,
-                existingDatasetRoot.Value.SlotId,
+                existingDatasetRoot.Value.Locator.Value,
                 "Assets",
                 null,
                 null);
@@ -139,9 +142,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         SceneAnchor sceneAnchor = await sceneAnchorResolver.ResolveAsync(
             setupClient,
-            existingDatasetRoot.Value.SlotId,
+            existingDatasetRoot.Value.Locator,
             completionMeshCode,
-            datasetRootExisted: true,
             cancellationToken);
 
         foreach (DatasetLicenseDefinition license in datasetLicenses)
@@ -158,7 +160,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             _ = batchBuilder.AddComponent(
                 pendingLicense.LocalId,
                 pendingLicense.MessageId,
-                existingDatasetRoot.Value.SlotId,
+                existingDatasetRoot.Value.Locator.Value,
                 LicenseComponentType,
                 license.Members);
         }
@@ -190,7 +192,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
             {
                 commonMaterialAssetsByKey[plannedMaterial.MaterialKey] = new CreatedMaterialAsset(
-                    entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).ComponentId,
+                    entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
                     null);
             }
         }
@@ -202,8 +204,8 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
         return new ResoniteSceneBootstrapState(
             existingDatasetRoot.Value,
-            new CreatedSlot(assetsSlot.ID!, assetsSlot.Name?.Value ?? "Assets"),
-            new CreatedSlot(sharedCommonMaterialsSlot.ID!, sharedCommonMaterialsSlot.Name?.Value ?? SharedCommonMaterialsRootName),
+            new CreatedSlot(new ResoniteSlotLocator(assetsSlot.ID!), assetsSlot.Name?.Value ?? "Assets"),
+            new CreatedSlot(new ResoniteSlotLocator(sharedCommonMaterialsSlot.ID!), sharedCommonMaterialsSlot.Name?.Value ?? SharedCommonMaterialsRootName),
             DatasetRootExisted: true,
             sceneAnchor,
             datasetRootSnapshot,
@@ -313,11 +315,11 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         CreatedSlot datasetAssetsRootSlot = entityMap.ResolveSlot(pendingDatasetAssetsRootSlot);
         CreatedSlot commonAssetsRootSlot = existingSharedCommonMaterialsSlot is null
             ? entityMap.ResolveSlot(pendingSharedCommonMaterialsRootSlot ?? throw new InvalidOperationException("Shared Common Materials slot was not planned."))
-            : new CreatedSlot(existingSharedCommonMaterialsSlot.ID!, existingSharedCommonMaterialsSlot.Name?.Value ?? SharedCommonMaterialsRootName);
+            : new CreatedSlot(new ResoniteSlotLocator(existingSharedCommonMaterialsSlot.ID!), existingSharedCommonMaterialsSlot.Name?.Value ?? SharedCommonMaterialsRootName);
         foreach (PlannedCommonMaterialBatchEntry plannedMaterial in plannedCommonMaterials)
         {
             commonMaterialAssetsByKey[plannedMaterial.MaterialKey] = new CreatedMaterialAsset(
-                entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).ComponentId,
+                entityMap.ResolveComponent(plannedMaterial.PendingMaterialComponent).Locator,
                 null);
         }
 
@@ -326,7 +328,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             datasetAssetsRootSlot,
             commonAssetsRootSlot,
             DatasetRootExisted: false,
-            new SceneAnchor(datasetRootSlot.SlotId, completionMeshCode, anchorPosition, ReferenceSourceFileRootId: null),
+            new SceneAnchor(datasetRootSlot.Locator, completionMeshCode, anchorPosition, ReferenceSourceFileRoot: null),
             DatasetRootSnapshot: null,
             commonMaterialAssetsByKey,
             commonMaterialFamilies);
@@ -497,7 +499,9 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
             if (!string.IsNullOrWhiteSpace(existingMaterialComponentId))
             {
-                commonMaterialAssetsByKey[material.MaterialKey] = new CreatedMaterialAsset(existingMaterialComponentId, null);
+                commonMaterialAssetsByKey[material.MaterialKey] = new CreatedMaterialAsset(
+                    new ResoniteComponentLocator(existingMaterialComponentId),
+                    null);
                 continue;
             }
 
@@ -723,7 +727,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     {
         return new Slot
         {
-            ID = createdSlot.SlotId,
+            ID = createdSlot.Locator.Value,
             Name = new Field_string
             {
                 Value = createdSlot.SlotName,

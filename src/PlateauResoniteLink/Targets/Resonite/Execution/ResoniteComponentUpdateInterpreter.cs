@@ -27,16 +27,13 @@ internal sealed class ResoniteComponentUpdateInterpreter
         ArgumentNullException.ThrowIfNull(members);
 
         return client.UpdateComponentAsync(
-            new UpdateComponent
+            new ResoniteComponentUpdate
             {
-                Data = new Component
-                {
-                    ID = componentId,
-                    Members = members.ToDictionary(
-                        static pair => pair.Key,
-                        static pair => pair.Value,
-                        StringComparer.Ordinal),
-                },
+                Component = new ResoniteTransportComponentLocator(componentId),
+                Members = members.ToDictionary(
+                    static pair => pair.Key,
+                    static pair => pair.Value,
+                    StringComparer.Ordinal),
             },
             cancellationToken);
     }

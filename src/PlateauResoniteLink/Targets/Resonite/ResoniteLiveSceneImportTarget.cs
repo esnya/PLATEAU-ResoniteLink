@@ -211,9 +211,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 + $"(dataset_root={bootstrapState.DatasetRootSlot.SlotName}, assets_root={bootstrapState.DatasetAssetsRootSlot.SlotName}, "
                 + $"common_root={bootstrapState.CommonAssetsRootSlot.SlotName}, "
                 + $"dataset_root_existed={bootstrapState.DatasetRootExisted}, "
-                + $"location_slot='{bootstrapState.SceneAnchor.LocationSlotId}', "
+                + $"location_slot='{bootstrapState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{bootstrapState.SceneAnchor.MeshCode}', "
-                + $"anchor_source_file_root='{bootstrapState.SceneAnchor.ReferenceSourceFileRootId ?? "<pending>"}')."));
+                + $"anchor_source_file_root='{bootstrapState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
         foreach ((string materialKey, CreatedMaterialAsset materialAsset) in bootstrapState.CommonMaterialAssetsByKey)
         {
             materials.CommonMaterialCreationTasks.Remember(materialKey, materialAsset);
@@ -561,7 +561,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 "live",
                 $"Send summary: attempted={state.Progress.AttemptedCityObjectCount} sent={state.Progress.ProcessedCityObjectCount} failed={state.Progress.FailedCityObjectCount}."));
 
-        return [$"{endpoint}#{state.Placement.SceneAnchor?.LocationSlotId ?? context.DatasetRootSlot.SlotId}"];
+        return [$"{endpoint}#{state.Placement.SceneAnchor?.LocationSlot.Value ?? context.DatasetRootSlot.Locator.Value}"];
     }
 
     public async ValueTask DisposeAsync()
@@ -1610,7 +1610,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
-                existingMaterialAsset.MaterialComponentId);
+                existingMaterialAsset.MaterialComponent);
             PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
                 client,
                 sourceMaterial,
@@ -1725,22 +1725,22 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             useCommonMaterialAssets: true);
         IReadOnlyList<string> lookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(
             normalizedSharedMaterial);
-        (CreatedSlot? reusableSlot, string? existingComponentId) = await TryFindReusableCommonMaterialSlotAsync(
+        (CreatedSlot? reusableSlot, ResoniteComponentLocator? existingComponent) = await TryFindReusableCommonMaterialSlotAsync(
             client,
             familySlot,
             lookupNames,
             materialComponentType,
             cancellationToken);
-        if (!string.IsNullOrWhiteSpace(existingComponentId))
+        if (existingComponent is not null)
         {
-            return new CreatedMaterialAsset(existingComponentId, null);
+            return new CreatedMaterialAsset(existingComponent.Value, null);
         }
 
         PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanCommonMaterialAssetAsync(
             client,
             normalizedSharedMaterial,
             cancellationToken);
-        Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> getOrCreateMaterialSlotAsync =
+        Func<IResoniteLinkClient, ResoniteSlotLocator, string, CancellationToken, Task<CreatedSlot>> getOrCreateMaterialSlotAsync =
             reusableSlot is null
                 ? state.Placement.GetOrCreateSharedChildSlotAsync
                 : (_, _, _, _) => Task.FromResult(reusableSlot.Value);
@@ -1748,7 +1748,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
             client,
             plannedMaterial,
-            familySlot.SlotId,
+            familySlot.Locator,
             materialSlotName,
             getOrCreateMaterialSlotAsync,
             ResoniteMaterialPlanning.CreateComponentAsync,
@@ -1762,29 +1762,29 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         CancellationToken cancellationToken)
     {
         Slot? commonRootSnapshot = await client.GetSlotAsync(
-            state.Context.CommonAssetsRootSlot.SlotId,
+            new ResoniteTransportSlotLocator(state.Context.CommonAssetsRootSlot.Locator.Value),
             1,
             cancellationToken);
         if (commonRootSnapshot is not null)
         {
             ResoniteSceneChildLookupResult lookup = new ResoniteSceneSlotSnapshot(commonRootSnapshot)
-                .GetUniqueChildLookupResult(familySlotName, state.Context.CommonAssetsRootSlot.SlotId);
+                .GetUniqueChildLookupResult(familySlotName, state.Context.CommonAssetsRootSlot.Locator.Value);
             if (lookup.State == ResoniteSceneChildLookupState.FoundWithId && lookup.Slot is not null)
             {
                 return new CreatedSlot(
-                    lookup.Slot.ID ?? throw new InvalidOperationException("Common material family slot did not expose an ID."),
+                    new ResoniteSlotLocator(lookup.Slot.ID ?? throw new InvalidOperationException("Common material family slot did not expose an ID.")),
                     lookup.Slot.Name?.Value ?? familySlotName);
             }
         }
 
         return await state.Placement.GetOrCreateSharedChildSlotAsync(
             client,
-            state.Context.CommonAssetsRootSlot.SlotId,
+            state.Context.CommonAssetsRootSlot.Locator,
             familySlotName,
             cancellationToken);
     }
 
-    private static async Task<(CreatedSlot? ReusableSlot, string? ExistingComponentId)> TryFindReusableCommonMaterialSlotAsync(
+    private static async Task<(CreatedSlot? ReusableSlot, ResoniteComponentLocator? ExistingComponent)> TryFindReusableCommonMaterialSlotAsync(
         IResoniteLinkClient client,
         CreatedSlot familySlot,
         IReadOnlyList<string> lookupNames,
@@ -1796,7 +1796,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             return (null, null);
         }
 
-        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlot.SlotId, 1, cancellationToken);
+        Slot? familySlotSnapshot = await client.GetSlotAsync(new ResoniteTransportSlotLocator(familySlot.Locator.Value), 1, cancellationToken);
         if (familySlotSnapshot is null)
         {
             return (null, null);
@@ -1806,7 +1806,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         CreatedSlot? reusableSlotWithoutComponent = null;
         foreach (string materialSlotName in lookupNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
         {
-            ResoniteSceneChildLookupResult materialLookup = familySlotView.GetUniqueChildLookupResult(materialSlotName, familySlot.SlotId);
+            ResoniteSceneChildLookupResult materialLookup = familySlotView.GetUniqueChildLookupResult(materialSlotName, familySlot.Locator.Value);
             if (materialLookup.State != ResoniteSceneChildLookupState.FoundWithId || materialLookup.Slot is null)
             {
                 continue;
@@ -1818,11 +1818,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 .Select(static component => component.ID)
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
             CreatedSlot reusableSlot = new(
-                materialLookup.SlotId!,
+                new ResoniteSlotLocator(materialLookup.Slot.ID!),
                 materialLookup.Slot.Name?.Value ?? materialSlotName);
             if (!string.IsNullOrWhiteSpace(existingComponentId))
             {
-                return (reusableSlot, existingComponentId);
+                return (reusableSlot, new ResoniteComponentLocator(existingComponentId));
             }
 
             reusableSlotWithoutComponent ??= reusableSlot;
@@ -2005,12 +2005,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private static string CreateHeightMapAssetSlotName(ResoniteConstructionCityObject cityObject)
     {
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
-    }
-
-    private static BatchPlanEntityId CreateBatchPlanEntityId(string suffix)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
-        return new BatchPlanEntityId($"plan:{suffix}");
     }
 
     private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)

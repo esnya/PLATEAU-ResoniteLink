@@ -19,8 +19,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
     IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
-    int maxBufferedSourceUnits = 32,
-    int maxBufferedCityObjectsPerSourceUnit = 256,
     ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
@@ -29,8 +27,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
     private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
-    private readonly int maxBufferedSourceUnitsForCompatibility = maxBufferedSourceUnits;
-    private readonly int maxBufferedCityObjectsPerSourceUnitForCompatibility = maxBufferedCityObjectsPerSourceUnit;
     private readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? Lod2AtlasCityObjectBakePolicies.DefaultPolicies;
 
@@ -51,19 +47,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
     }
 
-    public async ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
+    public ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
-        _ = maxBufferedSourceUnitsForCompatibility;
-        _ = maxBufferedCityObjectsPerSourceUnitForCompatibility;
 
         Lod2AtlasCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
         if (policy is null)
         {
-            return new BufferedCityObjectBufferResult(Buffered: false, []);
+            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -78,7 +72,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         bufferedCityObjects.Add(bufferedCityObject);
         BakedInputCityObjectCount++;
-        return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
+        return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
 
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(

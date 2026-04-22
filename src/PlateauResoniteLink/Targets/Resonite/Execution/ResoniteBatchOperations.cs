@@ -324,7 +324,7 @@ internal sealed class CanonicalBatchEntityMap
                 $"Batch response for slot '{pendingSlot.SlotName}' did not include a canonical slot ID.");
         }
 
-        return new CreatedSlot(newEntityId.EntityId, pendingSlot.SlotName);
+        return new CreatedSlot(new ResoniteSlotLocator(newEntityId.EntityId), pendingSlot.SlotName);
     }
 
     public CreatedComponent ResolveComponent(ResoniteBatchOperations.PendingBatchComponent pendingComponent)
@@ -336,7 +336,7 @@ internal sealed class CanonicalBatchEntityMap
                 $"Batch response for component '{pendingComponent.ComponentType}' did not include a canonical component ID.");
         }
 
-        return new CreatedComponent(newEntityId.EntityId, pendingComponent.ComponentType);
+        return new CreatedComponent(new ResoniteComponentLocator(newEntityId.EntityId), pendingComponent.ComponentType);
     }
 
     public void ValidateAll(IReadOnlyList<ResoniteBatchOperations.PendingBatchOperation> pendingOperations)

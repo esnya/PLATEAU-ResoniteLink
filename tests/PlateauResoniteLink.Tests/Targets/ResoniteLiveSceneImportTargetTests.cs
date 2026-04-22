@@ -140,7 +140,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesLegacyTerrainOverlayGenericCommonMaterialSlotWithIdentityScaleOffset()
+    public async Task BuildAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -171,7 +171,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
             ],
             terrainTextureOverlays: [overlay]);
-        string legacyMaterialComponentId = await SeedCommonMaterialComponentAsync(
+        SeededCommonMaterialComponent seededCommonMaterial = await SeedCommonMaterialComponentAsync(
             client,
             familySlotName: "generic",
             materialSlotName: "shared_uv_generic",
@@ -212,10 +212,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
             .Data;
         string sharedMaterialId = Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
 
-        Assert.Equal(legacyMaterialComponentId, sharedMaterialId);
-        Assert.DoesNotContain(
-            client.SlotPaths.Values,
-            static path => path.EndsWith("/generic/shared_uv_generic_offset_0.125x0.375", StringComparison.Ordinal));
+        AddComponent commonMaterialRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
+
+        Assert.Equal(seededCommonMaterial.ComponentId, sharedMaterialId);
+        Assert.Equal(seededCommonMaterial.MaterialSlotId, commonMaterialRequest.ContainerSlotId);
     }
 
     [Fact]
@@ -1185,13 +1188,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.False((slot.Tag?.Value ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
     }
 
-    private static async Task<string> SeedCommonMaterialComponentAsync(
+    private static async Task<SeededCommonMaterialComponent> SeedCommonMaterialComponentAsync(
         SceneBuilderRecordingClient client,
         string familySlotName,
         string materialSlotName,
         string componentType)
     {
-        string sharedAssetsRootId = await client.AddSlotAsync(
+        string sharedAssetsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1200,8 +1203,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = "PLATEAU Shared Assets" },
                 },
             },
-            CancellationToken.None);
-        string commonMaterialsRootId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string commonMaterialsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1210,8 +1213,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = "Common Materials" },
                 },
             },
-            CancellationToken.None);
-        string familySlotId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string familySlotId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1220,8 +1223,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = familySlotName },
                 },
             },
-            CancellationToken.None);
-        string materialSlotId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string materialSlotId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1230,9 +1233,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = materialSlotName },
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Slot.Value;
 
-        return await client.AddComponentAsync(
+        string componentId = (await client.AddComponentAsync(
             new AddComponent
             {
                 ContainerSlotId = materialSlotId,
@@ -1242,8 +1245,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Members = new Dictionary<string, Member>(StringComparer.Ordinal),
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Component.Value;
+
+        return new SeededCommonMaterialComponent(componentId, materialSlotId);
     }
+
+    private sealed record SeededCommonMaterialComponent(
+        string ComponentId,
+        string MaterialSlotId);
 
     private static void AssertNoPlannedReferences(IEnumerable<Member> members)
     {

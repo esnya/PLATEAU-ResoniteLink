@@ -11,6 +11,9 @@ using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
+using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -46,7 +49,7 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         Assert.Equal(ResoniteSceneChildLookupState.FoundWithoutId, lookup.State);
         Assert.NotNull(lookup.Slot);
-        Assert.Null(lookup.SlotId);
+        Assert.Null(lookup.Slot!.ID);
         Assert.Equal("Common", lookup.Slot!.Name!.Value);
     }
 
@@ -80,14 +83,13 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         SceneAnchor anchor = await resolver.ResolveAsync(
             client,
-            datasetRootSlotId,
+            new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
-            datasetRootExisted: false,
             CancellationToken.None);
 
-        Assert.Equal("source-root", anchor.LocationSlotId);
+        Assert.Equal(new ResoniteSlotLocator("source-root"), anchor.LocationSlot);
         Assert.Equal(completionMeshCode, anchor.MeshCode);
-        Assert.Equal("source-root", anchor.ReferenceSourceFileRootId);
+        Assert.Equal(new ResoniteSlotLocator("source-root"), anchor.ReferenceSourceFileRoot);
         Assert.Equal(1.0, anchor.Position.X, 4);
         Assert.Equal(0.0, anchor.Position.Y, 4);
         Assert.Equal(2.0, anchor.Position.Z, 4);
@@ -126,9 +128,8 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         SceneAnchor anchor = await resolver.ResolveAsync(
             client,
-            datasetRootSlotId,
+            new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
-            datasetRootExisted: false,
             CancellationToken.None);
 
         ResoniteFloat3 expectedPosition = ComputeExpectedAnchorPosition(
@@ -138,8 +139,8 @@ public sealed class ResoniteSceneAnchorResolverTests
         Assert.Equal(expectedPosition.X, anchor.Position.X, 4);
         Assert.Equal(expectedPosition.Y, anchor.Position.Y, 4);
         Assert.Equal(expectedPosition.Z, anchor.Position.Z, 4);
-        Assert.Equal("source-root-a", anchor.LocationSlotId);
-        Assert.Equal("source-root-a", anchor.ReferenceSourceFileRootId);
+        Assert.Equal(new ResoniteSlotLocator("source-root-a"), anchor.LocationSlot);
+        Assert.Equal(new ResoniteSlotLocator("source-root-a"), anchor.ReferenceSourceFileRoot);
     }
 
     [Fact]
@@ -172,13 +173,12 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         SceneAnchor anchor = await resolver.ResolveAsync(
             client,
-            datasetRootSlotId,
+            new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
-            datasetRootExisted: true,
             CancellationToken.None);
 
-        Assert.Equal("source-root", anchor.LocationSlotId);
-        Assert.Equal("source-root", anchor.ReferenceSourceFileRootId);
+        Assert.Equal(new ResoniteSlotLocator("source-root"), anchor.LocationSlot);
+        Assert.Equal(new ResoniteSlotLocator("source-root"), anchor.ReferenceSourceFileRoot);
         Assert.Equal(0.0, anchor.Position.X, 4);
         Assert.Equal(0.0, anchor.Position.Y, 4);
         Assert.Equal(0.0, anchor.Position.Z, 4);
@@ -221,14 +221,13 @@ public sealed class ResoniteSceneAnchorResolverTests
 
         SceneAnchor anchor = await resolver.ResolveAsync(
             client,
-            datasetRootSlotId,
+            new ResoniteSlotLocator(datasetRootSlotId),
             completionMeshCode,
-            datasetRootExisted: true,
             CancellationToken.None);
 
-        Assert.Equal(datasetRootSlotId, anchor.LocationSlotId);
+        Assert.Equal(new ResoniteSlotLocator(datasetRootSlotId), anchor.LocationSlot);
         Assert.Equal(completionMeshCode, anchor.MeshCode);
-        Assert.Null(anchor.ReferenceSourceFileRootId);
+        Assert.Null(anchor.ReferenceSourceFileRoot);
         Assert.Equal(0.0, anchor.Position.X, 4);
         Assert.Equal(0.0, anchor.Position.Y, 4);
         Assert.Equal(0.0, anchor.Position.Z, 4);
@@ -251,7 +250,7 @@ public sealed class ResoniteSceneAnchorResolverTests
         ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult("plateau_tokyo23ku_bldg_53394525_a", "dataset-root");
 
         Assert.Equal(ResoniteSceneChildLookupState.FoundWithId, lookup.State);
-        Assert.Equal("mesh-a", lookup.SlotId);
+        Assert.Equal("mesh-a", lookup.Slot!.ID);
     }
 
     private static ResoniteFloat3 ComputeExpectedAnchorPosition(
@@ -357,12 +356,12 @@ public sealed class ResoniteSceneAnchorResolverTests
             return Task.CompletedTask;
         }
 
-        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -385,21 +384,21 @@ public sealed class ResoniteSceneAnchorResolverTests
                 });
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            (string SlotId, int Depth) key = (slotId, depth);
+            (string SlotId, int Depth) key = (slot.Value, depth);
             int callCount = getSlotCallCounts.TryGetValue(key, out int existingCount)
                 ? existingCount + 1
                 : 1;
             getSlotCallCounts[key] = callCount;
-            Slot? slot = getSlot(slotId, depth, callCount);
-            return Task.FromResult(slot is null ? null : CloneSlot(slot, depth: 8));
+            Slot? resolvedSlot = getSlot(slot.Value, depth, callCount);
+            return Task.FromResult(resolvedSlot is null ? null : CloneSlot(resolvedSlot, depth: 8));
         }
 
         public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -412,14 +411,10 @@ public sealed class ResoniteSceneAnchorResolverTests
             throw new NotSupportedException();
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
-
-        public int GetSlotCallCount(string slotId, int depth)
-        {
-            return getSlotCallCounts.TryGetValue((slotId, depth), out int count) ? count : 0;
-        }
     }
 }
+

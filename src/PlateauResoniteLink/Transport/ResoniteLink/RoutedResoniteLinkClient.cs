@@ -45,12 +45,12 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
         return ConnectAllRoutesAsync(endpoint, cancellationToken);
     }
 
-    public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         return RouteForAuthoritative("add_component").AddComponentAsync(request, cancellationToken);
     }
 
-    public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         return RouteForAuthoritative("add_slot").AddSlotAsync(request, cancellationToken);
     }
@@ -64,14 +64,14 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
             cancellationToken);
     }
 
-    public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+    public Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
-        return RouteForAuthoritative("get_slot").GetSlotAsync(slotId, depth, cancellationToken);
+        return RouteForAuthoritative("get_slot").GetSlotAsync(slot, depth, cancellationToken);
     }
 
-    public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+    public Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken)
     {
-        return RouteForAuthoritative("get_component").GetComponentAsync(componentId, cancellationToken);
+        return RouteForAuthoritative("get_component").GetComponentAsync(component, cancellationToken);
     }
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -84,7 +84,7 @@ internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
         return RouteForBalanced("import_texture").ImportTextureAsync(textureImport, cancellationToken);
     }
 
-    public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+    public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
     {
         return RouteForAuthoritative("update_component").UpdateComponentAsync(request, cancellationToken);
     }

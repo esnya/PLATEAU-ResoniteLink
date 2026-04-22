@@ -29,104 +29,102 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 
         List<PlannedBatchSlotEmission> slotEmissions = [];
         List<PlannedBatchComponentEmission> componentEmissions = [];
-        List<BatchPlanEntityId> slotResolutionTargets = [];
-        List<BatchPlanEntityId> componentResolutionTargets = [];
+        List<BatchPlanSlotLocator> slotResolutionTargets = [];
+        List<BatchPlanComponentLocator> componentResolutionTargets = [];
 
-        BatchPlanEntityId meshAssetSlotId = CreateBatchPlanEntityId("mesh-asset-slot");
+        BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator("mesh-asset-slot");
         slotEmissions.Add(new PlannedBatchSlotEmission(
             meshAssetSlotId,
-            BatchPlanTargetReference.Canonical(objectSlots.AssetLodSlot.SlotId),
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
             emissionPlan.GeometryAsset.MeshAssetSlotName,
             null,
             null));
         slotResolutionTargets.Add(meshAssetSlotId);
 
-        BatchPlanEntityId geometryComponentId = CreateBatchPlanEntityId("geometry-component");
+        BatchPlanComponentLocator geometryComponentId = CreateBatchPlanComponentLocator("geometry-component");
         switch (emissionPlan.GeometryAsset)
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
                 componentEmissions.Add(new PlannedBatchComponentEmission(
                     geometryComponentId,
-                    BatchPlanTargetReference.Planned(meshAssetSlotId),
+                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
                     "[FrooxEngine]FrooxEngine.StaticMesh",
-                    new Dictionary<string, Member>(StringComparer.Ordinal)
+                    new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
                     {
-                        ["URL"] = new Field_Uri
+                        ["URL"] = PlannedMembers.Literal(new Field_Uri
                         {
                             Value = triangleMesh.MeshUri,
-                        },
+                        }),
                     }));
                 break;
             case PlannedHeightMapGridGeometryAsset heightMap:
-                BatchPlanEntityId heightMapAssetSlotId = CreateBatchPlanEntityId("heightmap-asset-slot");
-                BatchPlanEntityId heightTextureComponentId = CreateBatchPlanEntityId("height-texture-component");
+                BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator("heightmap-asset-slot");
+                BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator("height-texture-component");
                 slotEmissions.Add(new PlannedBatchSlotEmission(
                     heightMapAssetSlotId,
-                    BatchPlanTargetReference.Canonical(objectSlots.AssetLodSlot.SlotId),
+                    PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
                     heightMap.HeightMapAssetSlotName,
                     null,
                     null));
                 slotResolutionTargets.Add(heightMapAssetSlotId);
                 componentEmissions.Add(new PlannedBatchComponentEmission(
                     heightTextureComponentId,
-                    BatchPlanTargetReference.Planned(heightMapAssetSlotId),
+                    PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlotId),
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)));
+                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)
+                        .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
                 double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
-                Dictionary<string, Member> gridMeshMembers = new(StringComparer.Ordinal)
+                Dictionary<string, PlannedMember> gridMeshMembers = new(StringComparer.Ordinal)
                 {
-                    ["Points"] = new Field_int2
+                    ["Points"] = PlannedMembers.Literal(new Field_int2
                     {
                         Value = new int2
                         {
                             x = heightMap.Geometry.Width,
                             y = heightMap.Geometry.Height,
                         },
-                    },
-                    ["Size"] = new Field_float2
+                    }),
+                    ["Size"] = PlannedMembers.Literal(new Field_float2
                     {
                         Value = new float2
                         {
                             x = (float)heightMap.Geometry.Size.X,
                             y = (float)heightMap.Geometry.Size.Y,
                         },
-                    },
-                    ["DisplacementMagnitude"] = new Field_float
+                    }),
+                    ["DisplacementMagnitude"] = PlannedMembers.Literal(new Field_float
                     {
                         Value = (float)displacementMagnitude,
-                    },
-                    ["DisplacementTexture"] = new Reference
-                    {
-                        TargetID = heightTextureComponentId.Value,
-                    },
+                    }),
+                    ["DisplacementTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTextureComponentId)),
                 };
                 if (heightMap.UvScale is not null)
                 {
-                    gridMeshMembers["UVScale"] = new Field_float2
+                    gridMeshMembers["UVScale"] = PlannedMembers.Literal(new Field_float2
                     {
                         Value = new float2
                         {
                             x = (float)heightMap.UvScale.X,
                             y = (float)heightMap.UvScale.Y,
                         },
-                    };
+                    });
                 }
 
                 if (heightMap.UvOffset is not null)
                 {
-                    gridMeshMembers["UVOffset"] = new Field_float2
+                    gridMeshMembers["UVOffset"] = PlannedMembers.Literal(new Field_float2
                     {
                         Value = new float2
                         {
                             x = (float)heightMap.UvOffset.X,
                             y = (float)heightMap.UvOffset.Y,
                         },
-                    };
+                    });
                 }
 
                 componentEmissions.Add(new PlannedBatchComponentEmission(
                     geometryComponentId,
-                    BatchPlanTargetReference.Planned(meshAssetSlotId),
+                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
                     "[FrooxEngine]FrooxEngine.GridMesh",
                     gridMeshMembers));
                 break;
@@ -136,72 +134,66 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         }
         componentResolutionTargets.Add(geometryComponentId);
 
-        Dictionary<MaterialIdentity, string> emittedMaterialTargets = new();
+        Dictionary<MaterialIdentity, PlannedWorldElementReference> emittedMaterialTargets = new();
         foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
         {
             switch (materialAsset)
             {
                 case PlannedReusableMaterialAsset reusableMaterial:
-                    emittedMaterialTargets[reusableMaterial.Identity] = reusableMaterial.TargetId;
+                    emittedMaterialTargets[reusableMaterial.Identity] = PlannedWorldElementReference.Canonical(reusableMaterial.Target);
                     break;
                 case PlannedDedicatedMaterialAsset dedicatedMaterial:
-                    string emittedMaterialTarget = AddPlannedDedicatedMaterialEmissions(
+                    PlannedWorldElementReference emittedMaterialTarget = AddPlannedDedicatedMaterialEmissions(
                         slotEmissions,
                         componentEmissions,
-                        BatchPlanTargetReference.Planned(meshAssetSlotId),
+                        PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
                         dedicatedMaterial);
                     emittedMaterialTargets[dedicatedMaterial.Identity] = emittedMaterialTarget;
                     break;
                 default:
                     throw new InvalidOperationException(
-                        $"Unsupported planned material asset type '{materialAsset.GetType().Name}'.");
+                    $"Unsupported planned material asset type '{materialAsset.GetType().Name}'.");
             }
         }
 
-        BatchPlanEntityId presentationSlotId = CreateBatchPlanEntityId("presentation-slot");
+        BatchPlanSlotLocator presentationSlotId = CreateBatchPlanSlotLocator("presentation-slot");
         slotEmissions.Add(new PlannedBatchSlotEmission(
             presentationSlotId,
-            BatchPlanTargetReference.Canonical(objectSlots.LodSlot.SlotId),
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
             objectSlots.CityObjectSlotName,
             objectSlots.CityObjectLocalPosition,
             objectSlots.CityObjectRotation));
         slotResolutionTargets.Add(presentationSlotId);
 
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanEntityId("mesh-renderer-component"),
-            BatchPlanTargetReference.Planned(presentationSlotId),
+            CreateBatchPlanComponentLocator("mesh-renderer-component"),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshRenderer",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
-                ["Mesh"] = new Reference
-                {
-                    TargetID = geometryComponentId.Value,
-                },
+                ["Mesh"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(geometryComponentId)),
                 ["Materials"] = CreateRendererMaterials(emissionPlan.Renderer.MaterialBindings, emittedMaterialTargets),
                 ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
                     componentEmissions,
-                    meshAssetSlotId.Value,
-                    presentationSlotId.Value,
+                    meshAssetSlotId,
+                    presentationSlotId,
                     emissionPlan.Renderer.MaterialBindings),
             }));
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanEntityId("mesh-collider-component"),
-            BatchPlanTargetReference.Planned(presentationSlotId),
+            CreateBatchPlanComponentLocator("mesh-collider-component"),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshCollider",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
-                ["Type"] = new Field_Enum
+                ["Type"] = PlannedMembers.Literal(new Field_Enum
                 {
                     Value = emissionPlan.Collider.CollisionEnabled ? "Static" : "NoCollision",
-                },
-                ["CharacterCollider"] = new Field_bool
+                }),
+                ["CharacterCollider"] = PlannedMembers.Literal(new Field_bool
                 {
                     Value = emissionPlan.Collider.CollisionEnabled,
-                },
-                ["Mesh"] = new Reference
-                {
-                    TargetID = geometryComponentId.Value,
-                },
+                }),
+                ["Mesh"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(geometryComponentId)),
             }));
 
         return new PlannedBatchEmission(
@@ -211,17 +203,17 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             componentResolutionTargets);
     }
 
-    private static string AddPlannedDedicatedMaterialEmissions(
+    private static PlannedWorldElementReference AddPlannedDedicatedMaterialEmissions(
         List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
-        BatchPlanTargetReference meshAssetSlotTarget,
+        PlannedSlotTargetReference meshAssetSlotTarget,
         PlannedDedicatedMaterialAsset plannedMaterial)
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;
-        BatchPlanTargetReference materialContainerTarget = meshAssetSlotTarget;
+        PlannedSlotTargetReference materialContainerTarget = meshAssetSlotTarget;
         if (plannedMaterial.PreserveDedicatedMaterialSlot)
         {
-            BatchPlanEntityId materialSlotId = CreateBatchPlanEntityId($"material-slot:{plannedMaterial.Identity.Value}");
+            BatchPlanSlotLocator materialSlotId = CreateBatchPlanSlotLocator($"material-slot:{plannedMaterial.Identity.Value}");
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
             slotEmissions.Add(new PlannedBatchSlotEmission(
                 materialSlotId,
@@ -229,144 +221,124 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 materialSlotName,
                 null,
                 null));
-            materialContainerTarget = BatchPlanTargetReference.Planned(materialSlotId);
+            materialContainerTarget = PlannedSlotTargetReference.PlannedSlot(materialSlotId);
         }
 
-        Dictionary<string, Member> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material);
+        Dictionary<string, PlannedMember> materialMembers = ResoniteMaterialComponentPolicy.CreateMembers(material)
+            .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal);
 
         Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
         if (albedoTextureUri is not null)
         {
-            BatchPlanEntityId albedoTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:albedo");
+            BatchPlanComponentLocator albedoTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:albedo");
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 albedoTextureId,
                 materialContainerTarget,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     albedoTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo)));
-            materialMembers["AlbedoTexture"] = new Reference
-            {
-                TargetID = albedoTextureId.Value,
-            };
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Albedo)
+                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+            materialMembers["AlbedoTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(albedoTextureId));
         }
 
         Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
         if (normalTextureUri is not null)
         {
-            BatchPlanEntityId normalTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:normal");
+            BatchPlanComponentLocator normalTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:normal");
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 normalTextureId,
                 materialContainerTarget,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     normalTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal)));
-            materialMembers["NormalMap"] = new Reference
-            {
-                TargetID = normalTextureId.Value,
-            };
-            materialMembers["NormalScale"] = new Field_float
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Normal)
+                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+            materialMembers["NormalMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(normalTextureId));
+            materialMembers["NormalScale"] = PlannedMembers.Literal(new Field_float
             {
                 Value = DefaultNormalScale,
-            };
+            });
         }
 
         Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
         if (heightTextureUri is not null)
         {
-            BatchPlanEntityId heightTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:height");
+            BatchPlanComponentLocator heightTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:height");
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 heightTextureId,
                 materialContainerTarget,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     heightTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Height)));
-            materialMembers["HeightMap"] = new Reference
-            {
-                TargetID = heightTextureId.Value,
-            };
-            materialMembers["HeightScale"] = new Field_float
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Height)
+                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+            materialMembers["HeightMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTextureId));
+            materialMembers["HeightScale"] = PlannedMembers.Literal(new Field_float
             {
                 Value = DefaultBundledHeightScale,
-            };
+            });
         }
 
         Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
         if (metallicTextureUri is not null)
         {
-            BatchPlanEntityId metallicTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:metallic");
+            BatchPlanComponentLocator metallicTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:metallic");
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 metallicTextureId,
                 materialContainerTarget,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     metallicTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic)));
-            materialMembers["MetallicMap"] = new Reference
-            {
-                TargetID = metallicTextureId.Value,
-            };
-            materialMembers["OcclusionMap"] = new Reference
-            {
-                TargetID = metallicTextureId.Value,
-            };
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Metallic)
+                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+            materialMembers["MetallicMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(metallicTextureId));
+            materialMembers["OcclusionMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(metallicTextureId));
         }
 
         Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
         if (emissionTextureUri is not null)
         {
-            BatchPlanEntityId emissionTextureId = CreateBatchPlanEntityId($"material-texture:{plannedMaterial.Identity.Value}:emission");
+            BatchPlanComponentLocator emissionTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:emission");
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 emissionTextureId,
                 materialContainerTarget,
                 "[FrooxEngine]FrooxEngine.StaticTexture2D",
                 ResoniteSceneMaterialConventions.CreateTextureMembers(
                     emissionTextureUri,
-                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission)));
-            materialMembers["EmissiveMap"] = new Reference
-            {
-                TargetID = emissionTextureId.Value,
-            };
-            materialMembers["EmissiveColor"] = ResoniteMaterialComponentPolicy.CreateColorMember(
-                new ResoniteColor(1.0, 1.0, 1.0, 1.0));
+                    ResoniteSceneMaterialConventions.TextureMemberRole.Emission)
+                    .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+            materialMembers["EmissiveMap"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(emissionTextureId));
+            materialMembers["EmissiveColor"] = PlannedMembers.Literal(
+                ResoniteMaterialComponentPolicy.CreateColorMember(new ResoniteColor(1.0, 1.0, 1.0, 1.0)));
         }
 
-        BatchPlanEntityId materialComponentId = CreateBatchPlanEntityId($"material-component:{plannedMaterial.Identity.Value}");
+        BatchPlanComponentLocator materialComponentId = CreateBatchPlanComponentLocator($"material-component:{plannedMaterial.Identity.Value}");
         componentEmissions.Add(new PlannedBatchComponentEmission(
             materialComponentId,
             materialContainerTarget,
             ResoniteMaterialComponentPolicy.GetComponentType(material),
             materialMembers));
-        return materialComponentId.Value;
+        return PlannedWorldElementReference.Planned(materialComponentId);
     }
 
-    private static SyncList CreateRendererMaterials(
+    private static PlannedSyncListMember CreateRendererMaterials(
         IReadOnlyList<PlannedRendererMaterialBinding> materialBindings,
-        Dictionary<MaterialIdentity, string> emittedMaterialTargets)
+        Dictionary<MaterialIdentity, PlannedWorldElementReference> emittedMaterialTargets)
     {
-        return new SyncList
-        {
-            Elements = materialBindings
-                .Select(binding => (Member)new Reference
-                {
-                    TargetID = emittedMaterialTargets[binding.MaterialIdentity],
-                })
-                .ToList(),
-        };
+        return new PlannedSyncListMember(
+            materialBindings
+                .Select(binding => PlannedMembers.Reference(emittedMaterialTargets[binding.MaterialIdentity]))
+                .ToList());
     }
 
-    private static SyncList CreateRendererMaterialPropertyBlocks(
+    private static PlannedSyncListMember CreateRendererMaterialPropertyBlocks(
         List<PlannedBatchComponentEmission> componentEmissions,
-        string assetSlotId,
-        string presentationSlotId,
+        BatchPlanSlotLocator assetSlotId,
+        BatchPlanSlotLocator presentationSlotId,
         IReadOnlyList<PlannedRendererMaterialBinding> materialBindings)
     {
-        SyncList propertyBlocks = new()
-        {
-            Elements = [],
-        };
+        List<PlannedMember> propertyBlocks = [];
 
         bool hasMaterialPropertyBlockOverride = false;
         foreach (PlannedRendererMaterialBinding materialBinding in materialBindings)
@@ -374,7 +346,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             if (materialBinding is PlannedMainTextureOverrideRendererMaterialBinding mainTextureOverrideBinding)
             {
                 hasMaterialPropertyBlockOverride = true;
-                propertyBlocks.Elements.Add(
+                propertyBlocks.Add(
                     CreateMainTexturePropertyBlockReference(
                         componentEmissions,
                         assetSlotId,
@@ -383,58 +355,56 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 continue;
             }
 
-            propertyBlocks.Elements.Add(new Reference
-            {
-                TargetID = null,
-            });
+            propertyBlocks.Add(PlannedMembers.NullReference());
         }
 
         return hasMaterialPropertyBlockOverride
-            ? propertyBlocks
-            : new SyncList { Elements = [] };
+            ? new PlannedSyncListMember(propertyBlocks)
+            : new PlannedSyncListMember([]);
     }
 
-    private static Reference CreateMainTexturePropertyBlockReference(
+    private static PlannedMember CreateMainTexturePropertyBlockReference(
         List<PlannedBatchComponentEmission> componentEmissions,
-        string assetSlotId,
-        string presentationSlotId,
+        BatchPlanSlotLocator assetSlotId,
+        BatchPlanSlotLocator presentationSlotId,
         PlannedMainTextureOverrideRendererMaterialBinding binding)
     {
         string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
-        BatchPlanEntityId textureId = CreateBatchPlanEntityId($"renderer-texture:{overrideIdentity}");
+        BatchPlanComponentLocator textureId = CreateBatchPlanComponentLocator($"renderer-texture:{overrideIdentity}");
         ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding.ClampWrapMode
             ? ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride
             : ResoniteSceneMaterialConventions.TextureMemberRole.Albedo;
         componentEmissions.Add(new PlannedBatchComponentEmission(
             textureId,
-            BatchPlanTargetReference.Canonical(assetSlotId),
+            PlannedSlotTargetReference.PlannedSlot(assetSlotId),
             "[FrooxEngine]FrooxEngine.StaticTexture2D",
             ResoniteSceneMaterialConventions.CreateTextureMembers(
                 binding.MainTexture.AssetUri,
-                textureRole)));
+                textureRole)
+                .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
 
-        BatchPlanEntityId propertyBlockId = CreateBatchPlanEntityId($"renderer-main-texture-property-block:{overrideIdentity}");
+        BatchPlanComponentLocator propertyBlockId = CreateBatchPlanComponentLocator($"renderer-main-texture-property-block:{overrideIdentity}");
         componentEmissions.Add(new PlannedBatchComponentEmission(
             propertyBlockId,
-            BatchPlanTargetReference.Canonical(presentationSlotId),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock",
-            new Dictionary<string, Member>(StringComparer.Ordinal)
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
-                ["Texture"] = new Reference
-                {
-                    TargetID = textureId.Value,
-                },
+                ["Texture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(textureId)),
             }));
 
-        return new Reference
-        {
-            TargetID = propertyBlockId.Value,
-        };
+        return PlannedMembers.Reference(PlannedWorldElementReference.Planned(propertyBlockId));
     }
 
-    private static BatchPlanEntityId CreateBatchPlanEntityId(string suffix)
+    private static BatchPlanSlotLocator CreateBatchPlanSlotLocator(string suffix)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
-        return new BatchPlanEntityId($"plan:{suffix}");
+        return new BatchPlanSlotLocator($"plan:{suffix}");
+    }
+
+    private static BatchPlanComponentLocator CreateBatchPlanComponentLocator(string suffix)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
+        return new BatchPlanComponentLocator($"plan:{suffix}");
     }
 }

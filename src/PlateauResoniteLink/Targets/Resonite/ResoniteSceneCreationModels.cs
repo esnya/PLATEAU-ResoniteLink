@@ -1,13 +1,25 @@
 namespace PlateauResoniteLink.Targets.Resonite;
 
+internal readonly record struct ResoniteSlotLocator(string Value)
+{
+    public static ResoniteSlotLocator Root { get; } = new("Root");
+
+    public override string ToString() => Value;
+}
+
+internal readonly record struct ResoniteComponentLocator(string Value)
+{
+    public override string ToString() => Value;
+}
+
 internal readonly record struct CreatedSlot(
-    string SlotId,
+    ResoniteSlotLocator Locator,
     string SlotName);
 
 internal readonly record struct CreatedComponent(
-    string ComponentId,
+    ResoniteComponentLocator Locator,
     string ComponentType);
 
 internal readonly record struct CreatedMaterialAsset(
-    string MaterialComponentId,
-    string? MaterialPropertyBlockComponentId);
+    ResoniteComponentLocator MaterialComponent,
+    ResoniteComponentLocator? MaterialPropertyBlockComponent);

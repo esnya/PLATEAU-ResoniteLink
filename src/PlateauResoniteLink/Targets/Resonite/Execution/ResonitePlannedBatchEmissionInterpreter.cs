@@ -42,17 +42,17 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         CancellationToken cancellationToken)
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
-        Dictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId = new(StringComparer.Ordinal);
-        Dictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId = new(StringComparer.Ordinal);
+        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId = new();
+        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId = new();
 
         foreach (PlannedBatchSlotEmission slotEmission in batchEmission.SlotEmissions)
         {
             ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
-                ResolveTargetId(slotEmission.ParentTarget, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                ResolveSlotTargetId(slotEmission.ParentTarget, pendingSlotsByPlanId),
                 slotEmission.SlotName,
                 slotEmission.Position,
                 slotEmission.Rotation);
-            pendingSlotsByPlanId[slotEmission.Identity.Value] = pendingSlot;
+            pendingSlotsByPlanId[slotEmission.Identity] = pendingSlot;
         }
 
         foreach (PlannedBatchComponentEmission componentEmission in batchEmission.ComponentEmissions)
@@ -73,10 +73,10 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
             }
 
             ResoniteBatchOperations.PendingBatchComponent pendingComponent = batchBuilder.AddComponent(
-                ResolveTargetId(componentEmission.ContainerTarget, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                ResolveSlotTargetId(componentEmission.ContainerTarget, pendingSlotsByPlanId),
                 componentEmission.ComponentType,
                 translatedMembers);
-            pendingComponentsByPlanId[componentEmission.Identity.Value] = pendingComponent;
+            pendingComponentsByPlanId[componentEmission.Identity] = pendingComponent;
         }
 
         int operationCount = batchBuilder.Actions.Count;
@@ -91,14 +91,14 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
 
         CanonicalBatchEntityMap canonicalBatchEntityMap = CanonicalBatchEntityMap.Create(batchResponse);
         canonicalBatchEntityMap.ValidateAll(batchBuilder.PendingActions);
-        foreach (BatchPlanEntityId slotResolutionTarget in batchEmission.SlotResolutionTargets)
+        foreach (BatchPlanSlotLocator slotResolutionTarget in batchEmission.SlotResolutionTargets)
         {
-            _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget.Value]);
+            _ = canonicalBatchEntityMap.ResolveSlot(pendingSlotsByPlanId[slotResolutionTarget]);
         }
 
-        foreach (BatchPlanEntityId componentResolutionTarget in batchEmission.ComponentResolutionTargets)
+        foreach (BatchPlanComponentLocator componentResolutionTarget in batchEmission.ComponentResolutionTargets)
         {
-            _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget.Value]);
+            _ = canonicalBatchEntityMap.ResolveComponent(pendingComponentsByPlanId[componentResolutionTarget]);
         }
     }
 
@@ -107,51 +107,58 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         return Math.Max(1L, operationCount) * 1024L;
     }
 
-    private static string ResolveTargetId(
-        BatchPlanTargetReference target,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
+    private static string ResolveSlotTargetId(
+        PlannedSlotTargetReference target,
+        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId)
     {
-        if (!target.IsPlannedEntity)
+        if (target.Canonical is ResoniteSlotLocator canonical)
         {
-            return target.Value;
+            return canonical.Value;
         }
 
-        if (pendingSlotsByPlanId.TryGetValue(target.Value, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
+        if (target.Planned is BatchPlanSlotLocator planned
+            && pendingSlotsByPlanId.TryGetValue(planned, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
         {
             return pendingSlot.LocalId.Value;
         }
 
-        if (pendingComponentsByPlanId.TryGetValue(target.Value, out ResoniteBatchOperations.PendingBatchComponent pendingComponent))
+        throw new InvalidOperationException("Batch slot target did not resolve to a planned or canonical slot.");
+    }
+
+    private static string ResolveWorldElementId(
+        PlannedWorldElementReference target,
+        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
+    {
+        if (target.CanonicalSlot is ResoniteSlotLocator canonicalSlot)
+        {
+            return canonicalSlot.Value;
+        }
+
+        if (target.CanonicalComponent is ResoniteComponentLocator canonicalComponent)
+        {
+            return canonicalComponent.Value;
+        }
+
+        if (target.PlannedSlot is BatchPlanSlotLocator plannedSlot
+            && pendingSlotsByPlanId.TryGetValue(plannedSlot, out ResoniteBatchOperations.PendingBatchSlot pendingSlot))
+        {
+            return pendingSlot.LocalId.Value;
+        }
+
+        if (target.PlannedComponent is BatchPlanComponentLocator plannedComponent
+            && pendingComponentsByPlanId.TryGetValue(plannedComponent, out ResoniteBatchOperations.PendingBatchComponent pendingComponent))
         {
             return pendingComponent.LocalId.Value;
         }
 
-        return target.Value;
-    }
-
-    private static string ResolveTargetId(
-        string targetId,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
-    {
-        if (string.IsNullOrWhiteSpace(targetId))
-        {
-            return targetId;
-        }
-
-        return ResolveTargetId(
-            pendingSlotsByPlanId.ContainsKey(targetId) || pendingComponentsByPlanId.ContainsKey(targetId)
-                ? BatchPlanTargetReference.Planned(new BatchPlanEntityId(targetId))
-                : BatchPlanTargetReference.Canonical(targetId),
-            pendingSlotsByPlanId,
-            pendingComponentsByPlanId);
+        throw new InvalidOperationException("Batch world element reference did not resolve to a planned or canonical entity.");
     }
 
     private static Dictionary<string, Member> TranslateMembers(
-        IReadOnlyDictionary<string, Member> members,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
+        IReadOnlyDictionary<string, PlannedMember> members,
+        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
     {
         return members.ToDictionary(
             static pair => pair.Key,
@@ -160,24 +167,24 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
     }
 
     private static Member TranslateMember(
-        Member member,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
-        IReadOnlyDictionary<string, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
+        PlannedMember member,
+        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId)
     {
         return member switch
         {
-            Reference reference => new Reference
+            PlannedLiteralMember literal => literal.Value,
+            PlannedElementReferenceMember reference => new Reference
             {
-                TargetID = ResolveTargetId(reference.TargetID, pendingSlotsByPlanId, pendingComponentsByPlanId),
+                TargetID = ResolveWorldElementId(reference.Target, pendingSlotsByPlanId, pendingComponentsByPlanId),
             },
-            SyncList syncList => new SyncList
+            PlannedSyncListMember syncList => new SyncList
             {
                 Elements = syncList.Elements
                     .Select(element => TranslateMember(element, pendingSlotsByPlanId, pendingComponentsByPlanId))
                     .ToList(),
             },
-            _ => member,
+            _ => throw new InvalidOperationException($"Unsupported planned member type '{member.GetType().Name}'."),
         };
     }
-
 }

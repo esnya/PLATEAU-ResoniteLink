@@ -170,7 +170,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
-    public void CreateCommonMaterialSlotLookupNames_ForIdentityGenericCommonMaterial_IncludesLegacyScaleOneName()
+    public void CreateCommonMaterialSlotLookupNames_ForIdentityGenericCommonMaterial_UsesCanonicalNameOnly()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
@@ -193,11 +193,11 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
-        Assert.Equal(["shared_uv_generic", "shared_uv_generic_scale_1x1"], slotLookupNames);
+        Assert.Equal(["shared_uv_generic"], slotLookupNames);
     }
 
     [Fact]
-    public void CreateCommonMaterialSlotLookupNames_ForIdentityScaleGenericOffsetMaterial_IncludesLegacyScaleOneName()
+    public void CreateCommonMaterialSlotLookupNames_ForIdentityScaleGenericOffsetMaterial_UsesCanonicalNameOnly()
     {
         ResoniteMaterialBinding material = new(
             MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
@@ -219,7 +219,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
         IReadOnlyList<string> slotLookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(material);
 
         Assert.Equal(
-            ["shared_uv_generic_offset_0.25x0.75_depth_2x3", "shared_uv_generic_scale_1x1_offset_0.25x0.75_depth_2x3"],
+            ["shared_uv_generic_offset_0.25x0.75_depth_2x3"],
             slotLookupNames);
     }
 

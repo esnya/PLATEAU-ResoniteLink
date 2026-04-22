@@ -19,10 +19,7 @@ internal enum ResoniteSceneChildLookupState
 
 internal readonly record struct ResoniteSceneChildLookupResult(
     ResoniteSceneChildLookupState State,
-    Slot? Slot)
-{
-    public string? SlotId => Slot?.ID;
-}
+    Slot? Slot);
 
 internal sealed class ResoniteSceneSlotSnapshot
 {
@@ -38,14 +35,15 @@ internal sealed class ResoniteSceneSlotSnapshot
 
     public static async Task<ResoniteSceneSlotSnapshot> CreateAsync(
         IResoniteLinkClient client,
-        string slotId,
+        ResoniteSlotLocator slot,
         int depth,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
-        ArgumentException.ThrowIfNullOrWhiteSpace(slotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(slot.Value);
 
-        return new ResoniteSceneSlotSnapshot(await client.GetSlotAsync(slotId, depth, cancellationToken));
+        return new ResoniteSceneSlotSnapshot(
+            await client.GetSlotAsync(new ResoniteTransportSlotLocator(slot.Value), depth, cancellationToken));
     }
 
     public ResoniteSceneChildLookupResult GetUniqueChildLookupResult(string slotName, string parentId)

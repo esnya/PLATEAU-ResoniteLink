@@ -38,7 +38,7 @@ public sealed class TerrainTextureAssetGeneratorTests
             new ResoniteFloat2(
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
                 (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
-            firstTexture.CanvasScale);
+            firstTexture.OccupiedUvRect.Scale);
 
         using Image<Rgba32> image = LoadImage(firstTexture.TextureImport);
         Assert.Equal(RoundUpToPowerOfTwo(layout.CropWidth), image.Width);
@@ -65,7 +65,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         using Image<Rgba32> image = LoadImage(texture.TextureImport);
         Assert.Equal(256, image.Width);
         Assert.Equal(128, image.Height);
-        Assert.Equal(new ResoniteFloat2(1.0, 1.0), texture.CanvasScale);
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), texture.OccupiedUvRect.Scale);
         AssertColor(image[64, 32], 255, 0, 0);
         AssertColor(image[192, 32], 0, 255, 0);
     }
@@ -98,12 +98,12 @@ public sealed class TerrainTextureAssetGeneratorTests
             new ResoniteFloat2(
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
                 (double)layout.CropHeight / RoundUpToPowerOfTwo(layout.CropHeight)),
-            texture.CanvasScale);
+            texture.OccupiedUvRect.Scale);
         Assert.Equal(
             new ResoniteFloat2(
                 0.0,
                 0.0),
-            texture.CanvasOffset);
+            texture.OccupiedUvRect.Offset);
         int occupiedTop = image.Height - layout.CropHeight;
         Assert.Equal(TerrainTextureAssetGenerator.DefaultDemGroundFillColor, image[0, 0]);
         AssertColor(image[layout.CropWidth / 4, occupiedTop + (layout.CropHeight / 2)], 255, 0, 0);
@@ -128,7 +128,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         using Image<Rgba32> image = LoadImage(texture.TextureImport);
         Assert.Equal(256, image.Width);
         Assert.Equal(128, image.Height);
-        Assert.Equal(new ResoniteFloat2(1.0, 1.0), texture.CanvasScale);
+        Assert.Equal(new ResoniteFloat2(1.0, 1.0), texture.OccupiedUvRect.Scale);
     }
 
     [Fact]

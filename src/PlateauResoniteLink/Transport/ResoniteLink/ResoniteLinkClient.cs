@@ -15,23 +15,23 @@ internal interface IResoniteLinkClient : IDisposable
 {
     Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken);
 
-    Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
+    Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
 
-    Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
+    Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
 
     Task<BatchResponse> RunDataModelOperationBatchAsync(
         IReadOnlyList<DataModelOperation> operations,
         CancellationToken cancellationToken);
 
-    Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken);
+    Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken);
 
-    Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken);
+    Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken);
 
     Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken);
 
     Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken);
 
-    Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken);
+    Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken);
 }
 
 internal sealed class ResoniteLinkClient : IResoniteLinkClient
@@ -105,7 +105,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         return response;
     }
 
-    public async Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+    public async Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
@@ -113,7 +113,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             _ => link.GetSlotDataAsync(
                 new GetSlot
                 {
-                    SlotID = slotId,
+                    SlotID = slot.Value,
                     Depth = depth,
                     IncludeComponentData = true,
                 }),
@@ -153,17 +153,26 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
         return result.AssetURL ?? throw new InvalidOperationException("ResoniteLink returned a null texture asset URL.");
     }
 
-    public async Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+    public async Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
+        ArgumentNullException.ThrowIfNull(request);
         Response response = await ExecuteSerializedAsync(
-            _ => link.UpdateComponentAsync(request),
+            _ => link.UpdateComponentAsync(
+                new UpdateComponent
+                {
+                    Data = new Component
+                    {
+                        ID = request.Component.Value,
+                        Members = new Dictionary<string, Member>(request.Members, StringComparer.Ordinal),
+                    },
+                }),
             cancellationToken);
         EnsureSuccess(response, "update component");
     }
 
-    public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public async Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
@@ -177,10 +186,11 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             _ => link.AddComponentAsync(request),
             cancellationToken);
         EnsureSuccess(response, operationName);
-        return ValidateCreatedEntityId(response.EntityId, "component");
+        return new ResoniteTransportComponentCreationResult(
+            new ResoniteTransportComponentLocator(ValidateCreatedEntityId(response.EntityId, "component")));
     }
 
-    public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public async Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
@@ -194,10 +204,11 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             _ => link.AddSlotAsync(request),
             cancellationToken);
         EnsureSuccess(response, operationName);
-        return ValidateCreatedEntityId(response.EntityId, "slot");
+        return new ResoniteTransportSlotCreationResult(
+            new ResoniteTransportSlotLocator(ValidateCreatedEntityId(response.EntityId, "slot")));
     }
 
-    public async Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+    public async Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken)
     {
         ThrowIfUnavailable();
         cancellationToken.ThrowIfCancellationRequested();
@@ -205,7 +216,7 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
             _ => link.GetComponentDataAsync(
                 new GetComponent
                 {
-                    ComponentID = componentId,
+                    ComponentID = component.Value,
                 }),
             cancellationToken);
 

@@ -43,10 +43,6 @@ internal sealed record GeneratedTerrainTexture(
             usedSources)
     {
     }
-
-    public ResoniteFloat2 CanvasScale => OccupiedUvRect.Scale;
-
-    public ResoniteFloat2 CanvasOffset => OccupiedUvRect.Offset;
 }
 
 internal sealed class TerrainTextureAssetGenerator(

@@ -12,7 +12,7 @@ internal interface IResoniteSlotCreator
 {
     Task<CreatedSlot> CreateAsync(
         IResoniteLinkClient client,
-        string parentId,
+        ResoniteSlotLocator parent,
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
@@ -23,7 +23,7 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
 {
     public async Task<CreatedSlot> CreateAsync(
         IResoniteLinkClient client,
-        string parentId,
+        ResoniteSlotLocator parent,
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
@@ -31,7 +31,7 @@ internal sealed class ResoniteSlotCreator : IResoniteSlotCreator
     {
         ResoniteBatchOperations.BatchActionBuilder batchBuilder = new();
         ResoniteBatchOperations.PendingBatchSlot pendingSlot = batchBuilder.AddSlot(
-            parentId,
+            parent.Value,
             slotName,
             position,
             rotation);
