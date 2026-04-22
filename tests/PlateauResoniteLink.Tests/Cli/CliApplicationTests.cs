@@ -34,7 +34,6 @@ public sealed class CliApplicationTests
                 documentReader,
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
                     new LocalCityGmlDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                             new DefaultPlateauDatasetContentSourceFactory(

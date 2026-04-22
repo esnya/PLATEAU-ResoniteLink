@@ -242,17 +242,15 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
 
         Assert.Contains(
-            client.SlotPaths.Values,
-            path => string.Equals(
-                path,
-                $"{client.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
-                StringComparison.Ordinal));
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)
+                && slot.Parent is not null
+                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
         Assert.Contains(
-            client.SlotPaths.Values,
-            path => string.Equals(
-                path,
-                $"{client.SlotPaths[commonRoot.ID!]}/vertex-color/shared_uv_vertex-color",
-                StringComparison.Ordinal));
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "shared_uv_vertex-color", StringComparison.Ordinal)
+                && slot.Parent is not null
+                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
     }
 
     [Fact]
@@ -320,8 +318,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
         string currentGenericPath = Assert.Single(
-            client.SlotPaths,
-            static pair => pair.Value.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal)).Key;
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)).ID!;
         AddComponent materialComponentRequest = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
@@ -330,7 +328,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
         Assert.Equal(
             1,
-            client.SlotPaths.Values.Count(static path => path.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal)));
+            client.SlotsById.Values.Count(static slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)));
     }
 
     [Fact]

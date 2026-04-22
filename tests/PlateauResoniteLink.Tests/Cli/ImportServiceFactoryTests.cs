@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -160,12 +159,6 @@ public sealed class ImportServiceFactoryTests
     {
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
-        [Obsolete]
-        public IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(CancellationToken cancellationToken = default)
-        {
-            return AsyncEnumerable.Empty<MaterialBinding>();
-        }
-
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -201,36 +194,4 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
-    {
-        public string SourcePath { get; } = sourcePath;
-
-        public IReadOnlyList<string> EnumerateFiles()
-        {
-            return [];
-        }
-
-        public bool FileExists(string relativePath)
-        {
-            return false;
-        }
-
-        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
-        {
-            return null;
-        }
-
-        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<string> EnsureLocalFileAsync(
-            string relativePath,
-            string outputRoot,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }

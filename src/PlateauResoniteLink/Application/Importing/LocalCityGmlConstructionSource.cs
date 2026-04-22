@@ -22,7 +22,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private readonly SourceFilePipeline[] sourceFiles;
     private readonly GeodeticPoint globalOriginPoint;
     private readonly ICityGmlGeometryProjector geometryProjector;
-    private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
@@ -36,7 +35,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         PlateauImportRequest request,
         LocalCityGmlDocumentReadResult readResult,
         ICityGmlGeometryProjector geometryProjector,
-        ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
         IDemTextureSourcePolicy demTextureSourcePolicy,
         Action<string>? progressReporter = null)
     {
@@ -50,7 +48,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         bootstrapTerrainTextureOverlays = documentSet.TerrainTextureOverlays.ToArray();
         globalOriginPoint = bootstrapContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
-        this.commonMaterialEnumerator = commonMaterialEnumerator;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
@@ -58,40 +55,6 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     }
 
     public ImportedSceneMetadata Metadata { get; }
-
-    public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        HashSet<string> emittedMaterialKeys = new(StringComparer.Ordinal);
-
-        foreach (SourceFilePipeline sourceFile in sourceFiles)
-        {
-            ParsedSourceFileResult parsedSourceFile = await sourceFile.GetParseTask().WaitAsync(cancellationToken);
-            CoordinateReferenceSystem resolvedReferenceSystem = ResolveReferenceSystem(parsedSourceFile);
-            LocalCartesian? globalCartesian = CreateGlobalCartesian(resolvedReferenceSystem);
-            IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays = await GetDemTerrainTextureOverlaysAsync(
-                sourceFile,
-                cancellationToken);
-
-            foreach (BootstrapParsedCityObject parsedCityObject in parsedSourceFile.CityObjects)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                foreach (MaterialBinding material in commonMaterialEnumerator.Enumerate(
-                             new CachedSourceFileDescriptor(parsedSourceFile.SourceFile, [parsedCityObject]),
-                             resolvedReferenceSystem,
-                             globalOriginPoint,
-                             globalCartesian,
-                             demTerrainTextureOverlays,
-                             requestedMeshAreas,
-                             request,
-                             emittedMaterialKeys))
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    yield return material;
-                }
-            }
-        }
-    }
 
     public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

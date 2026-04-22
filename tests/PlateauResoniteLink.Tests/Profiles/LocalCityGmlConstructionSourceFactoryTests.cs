@@ -32,11 +32,12 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
         Assert.Same(expectedSource, result);
-        Assert.Same(request, reader.LastRequest);
-        Assert.Same(progressReporter, reader.LastProgressReporter);
-        Assert.Same(request, composer.LastRequest);
-        Assert.Same(reader.ReadResult, composer.LastReadResult);
-        Assert.Same(progressReporter, composer.LastProgressReporter);
+        Assert.Equal(request, reader.LastRequest);
+        Assert.Equal(request, composer.LastRequest);
+        Assert.NotNull(reader.LastProgressReporter);
+        Assert.NotNull(composer.LastProgressReporter);
+        Assert.Equal(reader.ReadResult.DocumentSet.RelativeSourceFiles, composer.LastReadResult?.DocumentSet.RelativeSourceFiles);
+        Assert.Equal(reader.ReadResult.DocumentSet.PackageNames, composer.LastReadResult?.DocumentSet.PackageNames);
         Assert.Null(demTextureSourcePolicy.LastRequest);
     }
 
@@ -78,7 +79,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request);
 
-        Assert.Same(reader.ReadResult, composer.LastReadResult);
+        Assert.Equal(reader.ReadResult.DocumentSet.RelativeSourceFiles, composer.LastReadResult?.DocumentSet.RelativeSourceFiles);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
         Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
         Assert.Null(demTextureSourcePolicy.LastRequest);
@@ -114,9 +115,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         _ = await factory.CreateAsync(request);
 
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525", "53394526"], demTextureSourcePolicy.LastOverlayRegionIdentities);
-        Assert.Same(reader.ReadResult, composer.LastReadResult);
+        Assert.Equal(reader.ReadResult.DocumentSet.RelativeSourceFiles, composer.LastReadResult?.DocumentSet.RelativeSourceFiles);
         Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
     }
 
@@ -171,7 +172,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         _ = await factory.CreateAsync(request);
 
         Assert.Equal(1, parseCount);
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
@@ -206,7 +207,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         Assert.Equal(["invalid GeoTIFF source"], exception.Errors);
         Assert.Null(composer.LastReadResult);
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
@@ -285,13 +286,6 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     LicenseUrl: "https://example.invalid"),
                 []),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
-
-        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

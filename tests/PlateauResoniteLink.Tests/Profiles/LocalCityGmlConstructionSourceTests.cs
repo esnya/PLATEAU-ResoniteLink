@@ -14,9 +14,6 @@ namespace PlateauResoniteLink.Tests.Profiles;
 
 public sealed class LocalCityGmlConstructionSourceTests
 {
-    private static readonly ICityGmlCommonMaterialEnumerator CommonMaterialEnumerator =
-        new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver());
-
     [Fact]
     public async Task ReadCityObjectsAsyncLimitsProducerConcurrency()
     {
@@ -33,7 +30,6 @@ public sealed class LocalCityGmlConstructionSourceTests
             request,
             CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector(),
-            CommonMaterialEnumerator,
             new StubDemTextureSourcePolicy());
 
         List<ImportedCityObject> cityObjects = [];
@@ -80,7 +76,6 @@ public sealed class LocalCityGmlConstructionSourceTests
                 ],
                 [overlay]),
             geometryProjector,
-            CommonMaterialEnumerator,
             new StubDemTextureSourcePolicy());
 
         List<ImportedCityObject> cityObjects = [];
@@ -122,7 +117,6 @@ public sealed class LocalCityGmlConstructionSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
             geometryProjector,
-            CommonMaterialEnumerator,
             demTextureSourcePolicy);
 
         List<ImportedCityObject> cityObjects = [];
@@ -180,7 +174,6 @@ public sealed class LocalCityGmlConstructionSourceTests
                         streamFactory: cancellationToken => StreamParsedCityObjects(sourceFile, referenceSystem, cancellationToken)),
                 ]),
             new TrackingGeometryProjector(),
-            CommonMaterialEnumerator,
             demTextureSourcePolicy);
 
         await source.ReadCityObjectsAsync().ToListAsync();
@@ -196,68 +189,6 @@ public sealed class LocalCityGmlConstructionSourceTests
             yield return CreateParsedCityObject(0, sourceFile, referenceSystem);
             cancellationToken.ThrowIfCancellationRequested();
             yield return CreateParsedCityObject(1, sourceFile, referenceSystem);
-            await Task.CompletedTask;
-        }
-    }
-
-    [Fact]
-    public async Task ReadCommonMaterialsAsyncReusesParsedSourceFileInsteadOfReparsingStreamFactory()
-    {
-        PlateauImportRequest request = new(
-            Dataset: "plateau-04100-sendai-shi-2024",
-            MeshCode: "57402736",
-            SourceKind: DatasetSourceKind.Local,
-            LocalSourcePath: "/tmp/source.zip",
-            ServerUri: null);
-        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
-        SourceFileDescriptor sourceFile = new("udx/bldg/file-000.gml", "bldg", "57402736", RequiresMeshAreaFilter: false);
-        BootstrapParsedCityObject parsedCityObject = CreateRenderableParsedCityObject(sourceFile, referenceSystem);
-        int parseTaskInvocationCount = 0;
-        int streamFactoryInvocationCount = 0;
-        SourceFilePipeline pipeline = new(
-            sourceFile,
-            parseTaskFactory: () =>
-            {
-                Interlocked.Increment(ref parseTaskInvocationCount);
-                return Task.FromResult(
-                    new ParsedSourceFileResult(
-                        sourceFile,
-                        [parsedCityObject],
-                        referenceSystem,
-                        [],
-                        TimeSpan.Zero));
-            },
-            streamFactory: cancellationToken => CountedParsedCityObjectStream(cancellationToken));
-        LocalCityGmlConstructionSource source = new(
-            CreateMetadata(request),
-            request,
-            new LocalCityGmlDocumentReadResult(
-                new LocalCityGmlDocumentSet(
-                    new EmptyDatasetContentSource(),
-                    [sourceFile.RelativePath],
-                    [sourceFile.PackageName],
-                    [],
-                    ["57402736"]),
-                new LocalCityGmlBootstrapContext(
-                    [pipeline],
-                    new GeodeticPoint(35.0, 139.0, 0.0))),
-            new TrackingGeometryProjector(),
-            CommonMaterialEnumerator,
-            new StubDemTextureSourcePolicy());
-
-        await source.ReadCommonMaterialsAsync().ToListAsync();
-        await source.ReadCityObjectsAsync().ToListAsync();
-
-        Assert.Equal(1, parseTaskInvocationCount);
-        Assert.Equal(1, streamFactoryInvocationCount);
-        return;
-
-        async IAsyncEnumerable<BootstrapParsedCityObject> CountedParsedCityObjectStream(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            Interlocked.Increment(ref streamFactoryInvocationCount);
-            cancellationToken.ThrowIfCancellationRequested();
-            yield return parsedCityObject;
             await Task.CompletedTask;
         }
     }
@@ -296,7 +227,6 @@ public sealed class LocalCityGmlConstructionSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
             geometryProjector,
-            CommonMaterialEnumerator,
             demTextureSourcePolicy);
 
         List<ImportedCityObject> cityObjects = [];
@@ -336,11 +266,10 @@ public sealed class LocalCityGmlConstructionSourceTests
                                 sourceFile,
                                 [CreateParsedCityObject(0, sourceFile, referenceSystem)],
                                 referenceSystem,
-                                [],
-                                TimeSpan.Zero))),
+                            [],
+                            TimeSpan.Zero))),
                 ]),
             new TrackingGeometryProjector(),
-            CommonMaterialEnumerator,
             demTextureSourcePolicy);
 
         using CancellationTokenSource cancellationTokenSource = new();

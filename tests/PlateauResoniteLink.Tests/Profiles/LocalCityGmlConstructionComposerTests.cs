@@ -42,7 +42,6 @@ public sealed class LocalCityGmlConstructionComposerTests
 
         LocalCityGmlConstructionComposer composer = new(
             new ThrowingGeometryProjector(),
-            new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
             new StubDemTextureSourcePolicy());
 
         IImportedSceneSource source = composer.Compose(request, readResult);

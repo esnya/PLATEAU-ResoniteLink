@@ -208,12 +208,5 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             await Task.CompletedTask;
             yield break;
         }
-
-        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
     }
 }

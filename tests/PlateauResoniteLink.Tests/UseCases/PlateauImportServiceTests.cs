@@ -80,8 +80,7 @@ public sealed class PlateauImportServiceTests
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
-            CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
-            sourceCommonMaterials);
+            CreateMetadata(resolvedRequest, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
@@ -119,7 +118,6 @@ public sealed class PlateauImportServiceTests
             sourceCommonMaterials.Select(static material => material.MaterialKey),
             materialKey => Assert.DoesNotContain(materialKey, sceneBuilder.BeginRequest.CommonMaterials.Select(material => material.MaterialKey)));
         Assert.Single(sceneBuilder.ProcessedCityObjects);
-        Assert.Equal(0, source.CommonMaterialsReadCallCount);
         Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
         Assert.Equal(1, sceneBuilder.ExecuteCallCount);
         Assert.Equal(1, constructionSourceFactory.CreateCallCount);
@@ -207,8 +205,7 @@ public sealed class PlateauImportServiceTests
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
-            CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles),
-            commonMaterials: []);
+            CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
         RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
 
         PlateauImportService service = new(
@@ -224,7 +221,6 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(
             new CommonMaterialCatalog().CreateForPackages(["bldg"]).Select(static material => material.MaterialKey).OrderBy(static key => key),
             sceneBuilder.BeginRequest!.CommonMaterials.Select(material => material.MaterialKey).OrderBy(static key => key));
-        Assert.Equal(0, source.CommonMaterialsReadCallCount);
     }
 
     [Fact]
@@ -393,28 +389,12 @@ public sealed class PlateauImportServiceTests
 
     private sealed class StubConstructionSource(
         ImportedSceneMetadata metadata,
-        IReadOnlyList<MaterialBinding>? commonMaterials = null,
         IReadOnlyList<ImportedCityObject>? cityObjects = null)
         : IImportedSceneSource
     {
-        private readonly IReadOnlyList<MaterialBinding> commonMaterials = commonMaterials ?? [];
         private readonly IReadOnlyList<ImportedCityObject> cityObjects = cityObjects ?? [CreateCityObject()];
-        public int CommonMaterialsReadCallCount { get; private set; }
 
         public ImportedSceneMetadata Metadata { get; } = metadata;
-
-        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            CommonMaterialsReadCallCount++;
-            foreach (MaterialBinding material in this.commonMaterials)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return material;
-            }
-
-            await Task.CompletedTask;
-        }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)

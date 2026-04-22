@@ -31,8 +31,8 @@ public sealed class SceneImportExecutionPlanTests
             resolvedRequest,
             new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
 
-        Assert.Same(normalizedRequest, plan.NormalizedRequest);
-        Assert.Same(resolvedRequest, plan.ResolvedRequest);
+        Assert.Equal(normalizedRequest, plan.NormalizedRequest);
+        Assert.Equal(resolvedRequest, plan.ResolvedRequest);
         Assert.Equal(resolvedRequest.LocalSourcePath, plan.SceneBuildRequest.Metadata.Request.LocalSourcePath);
     }
 

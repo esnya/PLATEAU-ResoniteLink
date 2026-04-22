@@ -21,11 +21,9 @@ public static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
-        services.TryAddSingleton<ICityGmlCommonMaterialEnumerator, LocalCityGmlCommonMaterialEnumerator>();
         services.TryAddSingleton<IImportedSceneSourceComposer>(provider =>
             new LocalCityGmlConstructionComposer(
                 provider.GetRequiredService<ICityGmlGeometryProjector>(),
-                provider.GetRequiredService<ICityGmlCommonMaterialEnumerator>(),
                 provider.GetRequiredService<IDemTextureSourcePolicy>()));
         services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
             new LocalCityGmlDocumentReader(

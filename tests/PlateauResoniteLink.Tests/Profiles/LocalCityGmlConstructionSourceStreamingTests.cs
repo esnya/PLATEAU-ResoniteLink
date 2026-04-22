@@ -17,9 +17,6 @@ namespace PlateauResoniteLink.Tests.Profiles;
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class LocalCityGmlConstructionSourceStreamingTests
 {
-    private static readonly ICityGmlCommonMaterialEnumerator CommonMaterialEnumerator =
-        new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver());
-
     [Fact]
     public async Task ReadCityObjectsAsync_UsesStreamingPipelineWithoutInvokingCachedParseTask()
     {
@@ -117,7 +114,6 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             request,
             readResult,
             geometryProjector,
-            CommonMaterialEnumerator,
             new StubDemTextureSourcePolicy());
         List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
@@ -239,7 +235,6 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             request,
             readResult,
             new RecordingGeometryProjector(),
-            CommonMaterialEnumerator,
             new StubDemTextureSourcePolicy());
     }
 
