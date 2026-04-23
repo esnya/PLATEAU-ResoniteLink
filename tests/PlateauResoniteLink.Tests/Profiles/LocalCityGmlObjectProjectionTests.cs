@@ -45,7 +45,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
-                new PassthroughImportedCityObjectOptimizer()),
+                new PassthroughImportedObjectUnitOptimizer()),
             commonMaterialCatalog: new CommonMaterialCatalog(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
@@ -90,7 +90,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
-            new PassthroughImportedCityObjectOptimizer());
+            new PassthroughImportedObjectUnitOptimizer());
         IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);

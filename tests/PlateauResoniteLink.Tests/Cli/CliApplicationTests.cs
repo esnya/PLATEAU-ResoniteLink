@@ -44,7 +44,7 @@ public sealed class CliApplicationTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
-                new PassthroughImportedCityObjectOptimizer()),
+                new PassthroughImportedObjectUnitOptimizer()),
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
     }

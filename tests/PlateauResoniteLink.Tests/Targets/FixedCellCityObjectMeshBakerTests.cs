@@ -366,7 +366,7 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncFlushesWhenConfiguredVertexBudgetIsExceeded()
+    public async Task TryBufferAsyncKeepsAuthoritativeSourceFileBufferedPastVertexBudget()
     {
         FixedCellCityObjectMeshBaker baker = new(
             cellSizeMeters: 64.0,
@@ -378,10 +378,11 @@ public sealed class FixedCellCityObjectMeshBakerTests
 
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
-        ResoniteConstructionCityObject flushed = Assert.Single(second.ReadyCityObjects);
-        Assert.Equal(8, flushed.Mesh.Vertices.Count);
-        Assert.Single(flushed.Mesh.Submeshes);
-        Assert.Empty(await baker.FlushAllAsync());
+        Assert.True(second.Buffered);
+        Assert.Empty(second.ReadyCityObjects);
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal(8, baked.Mesh.Vertices.Count);
+        Assert.Single(baked.Mesh.Submeshes);
     }
 
     [Fact]
