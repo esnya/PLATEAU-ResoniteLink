@@ -14,7 +14,8 @@ public sealed record ResoniteConstructionCityObject(
     bool CollisionEnabled = true,
     string? SourceObjectKey = null,
     string? SourceUnitKey = null,
-    string? SourceFileRelativePath = null)
+    string? SourceFileRelativePath = null,
+    bool UsesFallbackRoofStrategy = false)
 {
     public ResoniteConstructionCityObject(
         string SlotKey,
@@ -28,7 +29,8 @@ public sealed record ResoniteConstructionCityObject(
         bool CollisionEnabled = true,
         string? SourceObjectKey = null,
         string? SourceUnitKey = null,
-        string? SourceFileRelativePath = null)
+        string? SourceFileRelativePath = null,
+        bool UsesFallbackRoofStrategy = false)
         : this(
             SlotKey,
             DisplayName,
@@ -41,7 +43,8 @@ public sealed record ResoniteConstructionCityObject(
             CollisionEnabled,
             SourceObjectKey,
             SourceUnitKey,
-            SourceFileRelativePath)
+            SourceFileRelativePath,
+            UsesFallbackRoofStrategy)
     {
     }
 

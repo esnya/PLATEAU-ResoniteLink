@@ -526,7 +526,10 @@ public sealed class FixedCellCityObjectMeshBakerTests
             z,
             sourceUnitKey,
             sourceFileRelativePath,
-            CreateBundledRoofMaterial("roof|fallback-roof"));
+            CreateBundledRoofMaterial("roof")) with
+        {
+            UsesFallbackRoofStrategy = true,
+        };
     }
 
     private static ResoniteConstructionCityObject CreateMixedMaterialBuilding(

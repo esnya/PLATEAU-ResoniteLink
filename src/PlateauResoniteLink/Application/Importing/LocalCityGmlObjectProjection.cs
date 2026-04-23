@@ -22,7 +22,6 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static partial class LocalCityGmlObjectProjection
 {
-    private const string FallbackRoofMaterialKeySuffix = "|fallback-roof";
     public const string DefaultDemTerrainTexturePath = DemTerrainTextureDefaults.PlateauOrthoPath;
     public const string DefaultDemTerrainTextureUrlTemplate = DemTerrainTextureDefaults.PlateauOrthoUrlTemplate;
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = DemTerrainTextureDefaults.GsiFallbackUrlTemplate;
@@ -1277,12 +1276,11 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
-            string materialKey = MarkFallbackRoofMaterialKey(
-                materialGroup.Key,
-                IsFallbackRoofMaterialGroup(materialGroup, materialGroups.Length));
-            submeshes.Add(new MeshSubmesh(materialIndex, materialKey, indices));
-            materials.Add(CreateMaterialBinding(representativeSurface, materialKey, materialIndex));
+            submeshes.Add(new MeshSubmesh(materialIndex, materialGroup.Key, indices));
+            materials.Add(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex));
         }
+
+        bool usesFallbackRoofStrategy = materialGroups.Any(group => IsFallbackRoofMaterialGroup(group, materialGroups.Length));
 
         return new ImportedCityObject(
             ObjectKey: cityObject.SlotKey,
@@ -1295,7 +1293,8 @@ internal static partial class LocalCityGmlObjectProjection
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
+            SourceFileRelativePath: cityObject.SourceFileRelativePath,
+            UsesFallbackRoofStrategy: usesFallbackRoofStrategy);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)
@@ -2523,13 +2522,6 @@ internal static partial class LocalCityGmlObjectProjection
             && string.Equals(representativeSurface.Material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal);
     }
 
-    private static string MarkFallbackRoofMaterialKey(string materialKey, bool isFallbackRoof)
-    {
-        return isFallbackRoof
-            ? string.Concat(materialKey, FallbackRoofMaterialKeySuffix)
-            : materialKey;
-    }
-
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainOverlay)
     {
         return string.Create(
@@ -3083,20 +3075,9 @@ internal static partial class LocalCityGmlObjectProjection
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
-                string materialKey = MarkFallbackRoofMaterialKey(
-                    group.Key,
-                    IsFallbackRoofMaterialGroup(group, resolvedSurfaces
-                        .GroupBy(
-                            static resolvedSurface => CreateBindingMaterialKey(
-                                resolvedSurface.Material,
-                                resolvedSurface.DepthOffset,
-                                resolvedSurface.Material.TextureScale,
-                                resolvedSurface.Surface.BaseColor),
-                            StringComparer.Ordinal)
-                        .Count()));
                 return CreateMaterialBinding(
                     representativeSurface,
-                    materialKey,
+                    group.Key,
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)

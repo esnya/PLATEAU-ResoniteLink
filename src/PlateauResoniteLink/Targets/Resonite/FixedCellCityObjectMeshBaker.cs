@@ -13,7 +13,6 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObjectBaker
 {
-    private const string FallbackRoofMaterialKeySuffix = "|fallback-roof";
     internal const double DefaultCellSizeMeters = 128.0;
     internal const int DefaultMaxCityObjectsPerBatch = 64;
     internal const int DefaultMaxVerticesPerBatch = 200_000;
@@ -204,13 +203,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             && cityObject.LodLevel == 1
             && cityObject.Geometry is ResoniteTriangleMeshGeometry
             && cityObject.Transform.Rotation is null
-            && !UsesFallbackRoofMaterial(cityObject);
-    }
-
-    private static bool UsesFallbackRoofMaterial(ResoniteConstructionCityObject cityObject)
-    {
-        return cityObject.Materials.Any(static material =>
-            material.MaterialKey.Contains(FallbackRoofMaterialKeySuffix, StringComparison.Ordinal));
+            && !cityObject.UsesFallbackRoofStrategy;
     }
 
     private static CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)

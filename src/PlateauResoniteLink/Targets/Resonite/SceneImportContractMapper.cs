@@ -30,7 +30,8 @@ internal static class SceneImportContractMapper
                 cityObject.CollisionEnabled,
                 cityObject.SourceObjectKey,
                 cityObject.SourceUnitKey,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.UsesFallbackRoofStrategy),
             HeightMapGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
@@ -51,7 +52,8 @@ internal static class SceneImportContractMapper
                 cityObject.CollisionEnabled,
                 cityObject.SourceObjectKey,
                 cityObject.SourceUnitKey,
-                cityObject.SourceFileRelativePath),
+                cityObject.SourceFileRelativePath,
+                cityObject.UsesFallbackRoofStrategy),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
     }
