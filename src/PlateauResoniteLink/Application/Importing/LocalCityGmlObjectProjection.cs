@@ -2541,8 +2541,8 @@ internal static partial class LocalCityGmlObjectProjection
                     builder.Add(ProjectionToken(material.Projection));
                     builder.AddRounded(textureScale?.X);
                     builder.AddRounded(textureScale?.Y);
-                    builder.AddRounded(textureOffset?.X);
-                    builder.AddRounded(textureOffset?.Y);
+                    builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.X);
+                    builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.Y);
                 });
         }
 
@@ -2582,6 +2582,13 @@ internal static partial class LocalCityGmlObjectProjection
             MaterialProjection.Triplanar => "triplanar",
             _ => projection.ToString().ToLowerInvariant(),
         };
+    }
+
+    private static bool IsZeroTextureOffset(Float2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 
     private static bool ShouldPreferUvProjection(

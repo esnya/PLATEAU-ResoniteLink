@@ -110,7 +110,7 @@ public sealed class CommonMaterialCatalog
                 builder.Add(ProjectionToken(projection));
                 builder.AddRounded((double?)textureScale.X);
                 builder.AddRounded((double?)textureScale.Y);
-                AddFloat2(builder, textureOffset);
+                AddFloat2(builder, IsZeroTextureOffset(textureOffset) ? null : textureOffset);
             });
     }
 
@@ -208,5 +208,12 @@ public sealed class CommonMaterialCatalog
         ArgumentNullException.ThrowIfNull(builder);
         builder.AddRounded(value?.Factor);
         builder.AddRounded(value?.Units);
+    }
+
+    private static bool IsZeroTextureOffset(Float2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 }

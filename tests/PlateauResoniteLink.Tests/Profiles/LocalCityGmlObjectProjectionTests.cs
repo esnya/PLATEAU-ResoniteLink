@@ -310,8 +310,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             textureScale: material.TextureScale!,
             color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             textureOffset: new Float2(0.0, 0.0));
+        string defaultOffsetMaterialKey = CreateBindingMaterialKeyForTest(
+            material,
+            depthOffset: null,
+            textureScale: material.TextureScale!,
+            color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            textureOffset: null);
 
         Assert.Equal("common|facade|variant:0|Uv|scale:0.166667x0.166667|offset:none", materialKey);
+        Assert.Equal(defaultOffsetMaterialKey, materialKey);
     }
 
     [Fact]
