@@ -244,7 +244,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         double y = geometry.Height == 1
             ? 0.0
             : (-geometry.Size.Y / 2.0) + (geometry.Size.Y * row / (geometry.Height - 1.0));
-        double height = geometry.HeightSamples[(row * geometry.Width) + column] - geometry.MaxHeight;
+        double height = geometry.MaxHeight - geometry.HeightSamples[(row * geometry.Width) + column];
         double baseU = geometry.Width == 1 ? 0.0 : column / (geometry.Width - 1.0);
         double baseV = geometry.Height == 1 ? 0.0 : row / (geometry.Height - 1.0);
 
