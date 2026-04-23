@@ -2108,7 +2108,19 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        return new SurfaceUvProjection(surfaceAxes.AxisU, surfaceAxes.AxisV);
+        return new SurfaceUvProjection(
+            surfaceAxes.AxisU,
+            surfaceAxes.AxisV,
+            ResolveGeneratedSurfaceUvScale(packageName));
+    }
+
+    private static ResoniteFloat2 ResolveGeneratedSurfaceUvScale(string packageName)
+    {
+        return IsBuildingPackage(packageName)
+            ? new ResoniteFloat2(
+                FacadeMaterialUvScaling.ToFloorSquareUnits(1.0),
+                FacadeMaterialUvScaling.ToFloorSquareUnits(1.0))
+            : new ResoniteFloat2(1.0, 1.0);
     }
 
     private static Float2 CreateGeneratedSurfaceUv(

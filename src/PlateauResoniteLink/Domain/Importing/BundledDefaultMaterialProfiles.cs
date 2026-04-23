@@ -2,10 +2,10 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public static class BundledDefaultMaterialProfiles
 {
-    public static readonly ScalarPair FacadeDefaultTilesPerMeterValue = CreateTilesPerMeterValue(13.0, 13.0);
-    public static readonly ScalarPair Facade018ATilesPerMeterValue = CreateTilesPerMeterValue(13.0, 13.0);
-    public static readonly ScalarPair Facade019ATilesPerMeterValue = CreateTilesPerMeterValue(13.0, 13.0);
-    public static readonly ScalarPair Facade020ATilesPerMeterValue = CreateTilesPerMeterValue(13.0, 13.0);
+    public static readonly ScalarPair FacadeDefaultTilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
+    public static readonly ScalarPair Facade018ATilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
+    public static readonly ScalarPair Facade019ATilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
+    public static readonly ScalarPair Facade020ATilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
     public static readonly ScalarPair ConcreteDefaultTilesPerMeterValue = BundledDefaultMaterialTiling.DefaultTilesPerMeterValue;
     public static readonly ScalarPair RoofingTiles012ATilesPerMeterValue = CreateTilesPerMeterValue(2.9, 2.9);
     public static readonly ScalarPair RoofingTiles014BTilesPerMeterValue = CreateTilesPerMeterValue(2.9, 2.9);
