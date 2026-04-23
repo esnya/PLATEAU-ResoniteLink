@@ -54,7 +54,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common|facade|variant:0|Uv|scale:0.0625x0.1|offset:none",
+            MaterialKey: "common|facade|variant:0|Uv|scale:0.166667x0.166667|offset:0x0.083333",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -63,6 +63,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: FacadeDefaultTilesPerMeter(),
+            TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.Common);
@@ -101,7 +102,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForVariantSpecificFacadeDefault_DoesNotAddScaleDiscriminator()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common|facade|variant:1|Uv|scale:0.166667x0.166667|offset:none",
+            MaterialKey: "common|facade|variant:1|Uv|scale:0.166667x0.166667|offset:0x0.083333",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -110,6 +111,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0),
+            TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 1,
             AssetScope: ResoniteMaterialAssetScope.Common);
@@ -118,6 +120,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         Assert.StartsWith("shared_uv_variant_1_", slotName, StringComparison.Ordinal);
         Assert.DoesNotContain("_scale_", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("_offset_", slotName, StringComparison.Ordinal);
     }
 
     [Fact]

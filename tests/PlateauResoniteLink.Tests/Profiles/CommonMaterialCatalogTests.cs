@@ -48,13 +48,14 @@ public sealed class CommonMaterialCatalogTests
                     && material.Projection == MaterialProjection.Uv
                     && material.BundledVariantIndex == variantIndex);
             Float2 expectedScale = ExpectedFacadeScale(variantIndex);
+            Float2? expectedOffset = ExpectedFacadeOffset(variantIndex);
 
             Assert.Equal(expectedScale, facadeMaterial.TextureScale);
-            Assert.Null(facadeMaterial.TextureOffset);
+            Assert.Equal(expectedOffset, facadeMaterial.TextureOffset);
             Assert.Equal(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"common|facade|variant:{variantIndex}|Uv|scale:{expectedScale.X:0.######}x{expectedScale.Y:0.######}|offset:none"),
+                    $"common|facade|variant:{variantIndex}|Uv|scale:{expectedScale.X:0.######}x{expectedScale.Y:0.######}|offset:{CreateOffsetToken(expectedOffset)}"),
                 facadeMaterial.MaterialKey);
         }
 
@@ -77,8 +78,20 @@ public sealed class CommonMaterialCatalogTests
 
     private static Float2 ExpectedFacadeScale(int variantIndex)
     {
-        return variantIndex == 0
-            ? new Float2(1.0 / 16.0, 1.0 / 10.0)
-            : new Float2(1.0 / 6.0, 1.0 / 6.0);
+        _ = variantIndex;
+        return new Float2(1.0 / 6.0, 1.0 / 6.0);
+    }
+
+    private static Float2? ExpectedFacadeOffset(int variantIndex)
+    {
+        _ = variantIndex;
+        return new Float2(0.0, 0.5 / 6.0);
+    }
+
+    private static string CreateOffsetToken(Float2? offset)
+    {
+        return offset is null
+            ? "none"
+            : string.Create(CultureInfo.InvariantCulture, $"{offset.X:0.######}x{offset.Y:0.######}");
     }
 }

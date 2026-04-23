@@ -14,7 +14,6 @@ public static class BundledDefaultMaterialFamilies
 
     public static readonly IReadOnlyList<string> FacadeVariants =
     [
-        "default-materials/facade/Facade001_2K-JPG_Color.jpg",
         "default-materials/facade/Facade018A_2K-JPG_Color.jpg",
         "default-materials/facade/Facade019A_2K-JPG_Color.jpg",
         "default-materials/facade/Facade020A_2K-JPG_Color.jpg",

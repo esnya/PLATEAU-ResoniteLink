@@ -62,14 +62,14 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Theory]
-    [InlineData(0, 1.0 / 16.0, 1.0 / 10.0)]
-    [InlineData(1, 1.0 / 6.0, 1.0 / 6.0)]
-    [InlineData(2, 1.0 / 6.0, 1.0 / 6.0)]
-    [InlineData(3, 1.0 / 6.0, 1.0 / 6.0)]
+    [InlineData(0, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
+    [InlineData(1, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
+    [InlineData(2, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
     public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform(
         int bundledVariantIndex,
         double expectedScaleX,
-        double expectedScaleY)
+        double expectedScaleY,
+        double expectedOffsetRows)
     {
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "mixed-material-city-object",
@@ -124,17 +124,11 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.NotSame(cityObject, normalized);
         Assert.Null(bundledMaterial.TextureScale);
         Assert.Null(bundledMaterial.TextureOffset);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.0), normalized.Mesh.Vertices[3].UV0);
-        Assert.Equal(
-            new ResoniteFloat2(
-                (float)(1.0 / expectedScaleX),
-                0.0f),
-            normalized.Mesh.Vertices[4].UV0);
-        Assert.Equal(
-            new ResoniteFloat2(
-                0.0f,
-                (float)(1.0 / expectedScaleY)),
-            normalized.Mesh.Vertices[5].UV0);
+        Assert.Equal(new ResoniteFloat2(0.0, (float)-expectedOffsetRows), normalized.Mesh.Vertices[3].UV0);
+        Assert.Equal((float)(1.0 / expectedScaleX), normalized.Mesh.Vertices[4].UV0.X, 6);
+        Assert.Equal((float)-expectedOffsetRows, normalized.Mesh.Vertices[4].UV0.Y, 6);
+        Assert.Equal(0.0f, normalized.Mesh.Vertices[5].UV0.X, 6);
+        Assert.Equal((float)((1.0 / expectedScaleY) - expectedOffsetRows), normalized.Mesh.Vertices[5].UV0.Y, 6);
     }
 
     [Fact]

@@ -4,78 +4,24 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public static class FacadeMaterialUvScaling
 {
-    public const double FloorSquareMeters = 3.5;
-    private const double MinimumReferenceHeightMeters = 1e-6;
-
     public static readonly BundledDefaultMaterialProfile Facade001Profile = CreateProfile(
         columnsPerTexture: 16.0,
         rowsPerTexture: 10.0);
 
     public static readonly BundledDefaultMaterialProfile Facade018AProfile = CreateProfile(
         columnsPerTexture: 6.0,
-        rowsPerTexture: 6.0);
+        rowsPerTexture: 6.0,
+        offsetRows: 0.5);
 
     public static readonly BundledDefaultMaterialProfile Facade019AProfile = CreateProfile(
         columnsPerTexture: 6.0,
-        rowsPerTexture: 6.0);
+        rowsPerTexture: 6.0,
+        offsetRows: 0.5);
 
     public static readonly BundledDefaultMaterialProfile Facade020AProfile = CreateProfile(
         columnsPerTexture: 6.0,
-        rowsPerTexture: 6.0);
-
-    public static double ToFloorSquareUnits(double meters)
-    {
-        return meters / FloorSquareMeters;
-    }
-
-    public static int ResolveFloorCount(
-        int? floorsAboveGround,
-        double? measuredHeightMeters,
-        double? geometryHeightMeters = null)
-    {
-        if (floorsAboveGround is > 0)
-        {
-            return floorsAboveGround.Value;
-        }
-
-        double? referenceHeightMeters = geometryHeightMeters is > MinimumReferenceHeightMeters
-            ? geometryHeightMeters.Value
-            : measuredHeightMeters is > MinimumReferenceHeightMeters
-                ? measuredHeightMeters.Value
-                : null;
-
-        if (referenceHeightMeters is null)
-        {
-            return 1;
-        }
-
-        return Math.Max(
-            1,
-            (int)Math.Round(
-                referenceHeightMeters.Value / FloorSquareMeters,
-                MidpointRounding.AwayFromZero));
-    }
-
-    public static double EstimateFloorHeightMeters(
-        int? floorsAboveGround,
-        double? measuredHeightMeters,
-        double? geometryHeightMeters = null)
-    {
-        int floorCount = ResolveFloorCount(floorsAboveGround, measuredHeightMeters, geometryHeightMeters);
-        double referenceHeightMeters = floorsAboveGround is > 0
-            ? geometryHeightMeters is > MinimumReferenceHeightMeters
-                ? geometryHeightMeters.Value
-                : measuredHeightMeters is > MinimumReferenceHeightMeters
-                    ? measuredHeightMeters.Value
-                    : FloorSquareMeters * floorCount
-            : geometryHeightMeters is > MinimumReferenceHeightMeters
-                ? geometryHeightMeters.Value
-                : measuredHeightMeters is > MinimumReferenceHeightMeters
-                    ? measuredHeightMeters.Value
-                    : FloorSquareMeters * floorCount;
-
-        return referenceHeightMeters / floorCount;
-    }
+        rowsPerTexture: 6.0,
+        offsetRows: 0.5);
 
     public static BundledDefaultMaterialProfile GetBundledProfile(string texturePath)
     {
@@ -96,12 +42,12 @@ public static class FacadeMaterialUvScaling
         double offsetRows = 0.0)
     {
         return new BundledDefaultMaterialProfile(
-            CreateTilesPerMeterValue(columnsPerTexture, rowsPerTexture),
+            CreateFloorUnitScaleValue(columnsPerTexture, rowsPerTexture),
             CreateTextureOffsetValue(columnsPerTexture, rowsPerTexture, offsetColumns, offsetRows),
             ScaleSemantic: BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits);
     }
 
-    private static ScalarPair CreateTilesPerMeterValue(double columnsPerTexture, double rowsPerTexture)
+    private static ScalarPair CreateFloorUnitScaleValue(double columnsPerTexture, double rowsPerTexture)
     {
         return new ScalarPair(
             1.0 / columnsPerTexture,

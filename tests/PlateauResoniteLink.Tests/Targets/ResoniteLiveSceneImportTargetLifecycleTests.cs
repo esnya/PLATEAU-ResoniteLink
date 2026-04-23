@@ -965,7 +965,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         int variantIndex = 0;
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
         ResoniteFloat2 textureScale = CreateTilesPerMeter(texturePath);
-        string materialKey = $"common|facade|variant:0|Uv|scale:{textureScale.X:0.######}x{textureScale.Y:0.######}|offset:none";
+        ResoniteFloat2 textureOffset = new(0.0, 0.5 / 6.0);
+        string materialKey = $"common|facade|variant:0|Uv|scale:{textureScale.X:0.######}x{textureScale.Y:0.######}|offset:{textureOffset.X:0.######}x{textureOffset.Y:0.######}";
         return new ResoniteConstructionCityObject(
             objectKey,
             $"CityObject {objectKey}",
@@ -986,7 +987,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     [0],
                     TextureScale: textureScale,
                     Family: family,
-                    TextureOffset: null,
+                    TextureOffset: textureOffset,
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: variantIndex),
             ],

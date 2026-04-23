@@ -347,7 +347,8 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value) && value >= 0
+        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value)
+            && (value == 0 || FacadeFloorMetrics.IsUsableFloorCount(value))
             ? value
             : null;
     }
@@ -2128,7 +2129,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         double uvScale = PlateauPackageCatalog.IsBuildingPackage(packageName)
-            ? 1.0 / Math.Max(facadeUvProjectionContext?.FloorHeightMeters ?? FacadeMaterialUvScaling.FloorSquareMeters, 1e-6)
+            ? 1.0 / Math.Max(facadeUvProjectionContext?.FloorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters, 1e-6)
             : 1.0;
         double vOffset = PlateauPackageCatalog.IsBuildingPackage(packageName)
             ? -((facadeUvProjectionContext?.MinimumY ?? positions.Min(static position => position.Y)) * uvScale)
@@ -2776,11 +2777,11 @@ internal static partial class LocalCityGmlObjectProjection
         double minimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
         double maximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
         double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
-        int floorCount = FacadeMaterialUvScaling.ResolveFloorCount(
+        int floorCount = FacadeFloorMetrics.ResolveFloorCount(
             floorsAboveGround,
             measuredHeightMeters,
             geometryHeightMeters);
-        double floorHeightMeters = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+        double floorHeightMeters = FacadeFloorMetrics.EstimateFloorHeightMeters(
             floorsAboveGround,
             measuredHeightMeters,
             geometryHeightMeters);

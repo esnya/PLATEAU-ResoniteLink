@@ -110,14 +110,14 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin.Longitude,
             origin.Altitude,
             referenceSystem.Geocentric);
-        double longitudeDelta = FacadeMaterialUvScaling.FloorSquareMeters
+        double longitudeDelta = FacadeFloorMetrics.DefaultFloorUnitMeters
             / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
         LocalCityGmlObjectProjection.GeodeticPoint[] wallVertices =
         [
             origin,
             new(origin.Latitude, origin.Longitude + longitudeDelta, 0.0),
-            new(origin.Latitude, origin.Longitude + longitudeDelta, FacadeMaterialUvScaling.FloorSquareMeters),
-            new(origin.Latitude, origin.Longitude, FacadeMaterialUvScaling.FloorSquareMeters),
+            new(origin.Latitude, origin.Longitude + longitudeDelta, FacadeFloorMetrics.DefaultFloorUnitMeters),
+            new(origin.Latitude, origin.Longitude, FacadeFloorMetrics.DefaultFloorUnitMeters),
         ];
         LocalCityGmlObjectProjection.ParsedSurface wallSurface = CreateParsedSurface(
             "wall",
@@ -142,7 +142,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void EstimateFloorHeightMeters_UsesMeasuredHeightPerStoreyWhenAvailable()
     {
-        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
             floorsAboveGround: 4,
             measuredHeightMeters: 11.8);
 
@@ -152,7 +152,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void EstimateFloorHeightMeters_UsesNearestStoreyCountWhenStoreyMetadataIsMissing()
     {
-        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
             floorsAboveGround: null,
             measuredHeightMeters: 10.4);
 
@@ -162,7 +162,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void EstimateFloorHeightMeters_UsesGeometryHeightToAlignExactStoreyCount()
     {
-        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
             floorsAboveGround: 2,
             measuredHeightMeters: 11.8,
             geometryHeightMeters: 7.0);
@@ -173,7 +173,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     [Fact]
     public void EstimateFloorHeightMeters_UsesGeometryHeightConsistentlyWhenStoreyMetadataIsMissing()
     {
-        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
             floorsAboveGround: null,
             measuredHeightMeters: 11.8,
             geometryHeightMeters: 7.0);
@@ -219,6 +219,78 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void ProjectCityObject_CreatesFacadeUvWithIntegerTopFromProductionFloorContext()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+            "floor-context-wall",
+            BootstrapParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 7.0),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [wallSurface],
+            referenceSystem,
+            floorsAboveGround: 2,
+            measuredHeightMeters: 11.8);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: null,
+            materialResolver: new DefaultMaterialResolver());
+
+        double minV = projected.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        double maxV = projected.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
+
+        Assert.Equal(0.0, minV, 6);
+        Assert.Equal(2.0, maxV, 6);
+    }
+
+    [Fact]
+    public void ProjectCityObject_IgnoresUnknownStoreySentinelForFacadeFloorUv()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+            "unknown-storey-wall",
+            BootstrapParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 3.2),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [wallSurface],
+            referenceSystem,
+            floorsAboveGround: FacadeFloorMetrics.UnknownFloorCountSentinel,
+            measuredHeightMeters: null);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: null,
+            materialResolver: new DefaultMaterialResolver());
+
+        double minV = projected.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        double maxV = projected.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
+
+        Assert.Equal(0.0, minV, 6);
+        Assert.Equal(1.0, maxV, 6);
+    }
+
+    [Fact]
     public void SharedBundledFacadeBindingKey_UsesCanonicalScaleAndTreatsExplicitZeroOffsetAsNone()
     {
         ResolvedMaterial material = new(
@@ -227,10 +299,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             TextureSourceKind.Bundled,
             MaterialProjection.Uv,
             BundledDefaultMaterialFamilies.Facade,
-            TextureScale: new Float2(1.0 / 16.0, 1.0 / 10.0),
+            TextureScale: new Float2(1.0 / 6.0, 1.0 / 6.0),
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: 0,
-            TextureOffset: null);
+            TextureOffset: new Float2(0.0, 0.5 / 6.0));
 
         string materialKey = CreateBindingMaterialKeyForTest(
             material,
@@ -239,7 +311,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             textureOffset: new Float2(0.0, 0.0));
 
-        Assert.Equal("common|facade|variant:0|Uv|scale:0.0625x0.1|offset:none", materialKey);
+        Assert.Equal("common|facade|variant:0|Uv|scale:0.166667x0.166667|offset:none", materialKey);
     }
 
     [Fact]
@@ -313,6 +385,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
         Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "high-outer-floor");
     }
+
     [Fact]
     public void ProjectCityObjectKeepsNonBuildingDownwardHorizontalGroundSurface()
     {
@@ -410,6 +483,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-roof");
         Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-wall");
     }
+
     [Fact]
     public void ProjectCityObjectKeepsHighDownwardHorizontalBuildingSurfaceOutsideBottomBand()
     {
@@ -1425,7 +1499,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ? Activator.CreateInstance(
                     contextType,
                     minimumY,
-                    floorHeightMeters ?? FacadeMaterialUvScaling.FloorSquareMeters,
+                    floorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters,
                     1)
                 : null;
         return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian, context])!
@@ -1478,7 +1552,9 @@ public sealed class LocalCityGmlObjectProjectionTests
         string packageName,
         BootstrapParsedSurface[] surfaces,
         CoordinateReferenceSystem referenceSystem,
-        int? lodLevel = 1)
+        int? lodLevel = 1,
+        int? floorsAboveGround = null,
+        double? measuredHeightMeters = null)
     {
         return new BootstrapParsedCityObject(
             SlotKey: $"{packageName}-slot",
@@ -1491,7 +1567,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",
             SourceUnitIdentity: "unit",
             SourceIdentity: $"{packageName}:identity",
-            SharedAcrossMeshCodes: false);
+            SharedAcrossMeshCodes: false,
+            FloorsAboveGround: floorsAboveGround,
+            MeasuredHeightMeters: measuredHeightMeters);
     }
 
     private static BootstrapParsedSurface CreateBootstrapParsedSurface(
@@ -1659,4 +1737,5 @@ public sealed class LocalCityGmlObjectProjectionTests
             return ValueTask.CompletedTask;
         }
     }
+
 }

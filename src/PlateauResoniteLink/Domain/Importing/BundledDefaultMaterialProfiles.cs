@@ -2,7 +2,7 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public static class BundledDefaultMaterialProfiles
 {
-    public static readonly ScalarPair FacadeDefaultTilesPerMeterValue = FacadeMaterialUvScaling.Facade001Profile.TextureScale;
+    public static readonly ScalarPair FacadeDefaultTilesPerMeterValue = FacadeMaterialUvScaling.Facade018AProfile.TextureScale;
     public static readonly ScalarPair Facade018ATilesPerMeterValue = FacadeMaterialUvScaling.Facade018AProfile.TextureScale;
     public static readonly ScalarPair Facade019ATilesPerMeterValue = FacadeMaterialUvScaling.Facade019AProfile.TextureScale;
     public static readonly ScalarPair Facade020ATilesPerMeterValue = FacadeMaterialUvScaling.Facade020AProfile.TextureScale;

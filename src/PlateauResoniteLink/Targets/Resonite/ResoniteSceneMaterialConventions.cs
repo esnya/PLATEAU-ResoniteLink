@@ -431,7 +431,7 @@ internal static class ResoniteSceneMaterialConventions
                 || Math.Abs(materialTextureScale.X - defaultTextureScale.X) > 1e-9
                 || Math.Abs(materialTextureScale.Y - defaultTextureScale.Y) > 1e-9);
         ResoniteFloat2? defaultTextureOffset = TryGetBundledDefaultOffset(material);
-        ResoniteFloat2? materialTextureOffset = material.TextureOffset;
+        ResoniteFloat2? materialTextureOffset = material.TextureOffset ?? defaultTextureOffset;
         bool hasNonDefaultOffset = !AreEquivalentTextureOffsets(materialTextureOffset, defaultTextureOffset);
         string scaleToken = hasNonDefaultScale
             ? string.Create(
@@ -439,9 +439,11 @@ internal static class ResoniteSceneMaterialConventions
                 $"_scale_{materialTextureScale!.X:0.######}x{materialTextureScale.Y:0.######}")
             : string.Empty;
         string bundledOffsetToken = hasNonDefaultOffset
-            ? string.Create(
-                CultureInfo.InvariantCulture,
-                $"_offset_{materialTextureOffset!.X:0.######}x{materialTextureOffset.Y:0.######}")
+            ? materialTextureOffset is null
+                ? "_offset_none"
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"_offset_{materialTextureOffset.X:0.######}x{materialTextureOffset.Y:0.######}")
             : string.Empty;
         string variantNameToken = TryCreateBundledVariantNameToken(material);
         string variantNameSuffix = string.IsNullOrWhiteSpace(variantNameToken)
@@ -512,7 +514,9 @@ internal static class ResoniteSceneMaterialConventions
             && (defaultTextureScale is null
                 || Math.Abs(material.TextureScale.X - defaultTextureScale.X) > 1e-9
                 || Math.Abs(material.TextureScale.Y - defaultTextureScale.Y) > 1e-9);
-        return hasNonDefaultScale || !AreEquivalentTextureOffsets(material.TextureOffset, TryGetBundledDefaultOffset(material));
+        ResoniteFloat2? defaultTextureOffset = TryGetBundledDefaultOffset(material);
+        ResoniteFloat2? effectiveTextureOffset = material.TextureOffset ?? defaultTextureOffset;
+        return hasNonDefaultScale || !AreEquivalentTextureOffsets(effectiveTextureOffset, defaultTextureOffset);
     }
 
     private static bool AreEquivalentTextureOffsets(ResoniteFloat2? left, ResoniteFloat2? right)
