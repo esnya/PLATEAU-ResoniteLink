@@ -95,7 +95,7 @@ internal static partial class LocalCityGmlObjectProjection
             sourceFile.RelativePath,
             cancellationToken);
         global::PlateauResoniteLink.Application.Importing.TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
+            ? DemSourceBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
             : [];
 
         progressReporter?.Invoke(

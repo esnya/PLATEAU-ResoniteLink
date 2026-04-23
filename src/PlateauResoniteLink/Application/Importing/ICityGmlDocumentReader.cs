@@ -8,7 +8,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal interface ICityGmlDocumentReader
 {
-    Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
+    Task<ImportedSceneSourceSnapshot> ReadAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default);

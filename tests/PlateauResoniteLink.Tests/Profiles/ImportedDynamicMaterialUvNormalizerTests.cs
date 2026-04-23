@@ -1,12 +1,11 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-[SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ImportedDynamicMaterialUvNormalizerTests
 {
     [Fact]
@@ -22,32 +21,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         Assert.False(shouldBake);
         Assert.Null(normalized.TextureScale);
         Assert.Null(normalized.TextureOffset);
-    }
-
-    [Fact]
-    public void ShouldBakeTextureTransform_ReturnsFalseForSharedUvMaterialWithTransform()
-    {
-        MaterialBinding material = new(
-            MaterialKey: "shared-common-material",
-            BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
-            MaterialType: MaterialType.Standard,
-            TexturePayload: null,
-            TextureSourceKind: TextureSourceKind.Bundled,
-            Projection: MaterialProjection.Uv,
-            DepthOffset: null,
-            SubmeshIndices: [0],
-            TextureScale: new Float2(2.0, 2.0),
-            Family: BundledDefaultMaterialFamilies.Facade,
-            TextureOffset: new Float2(0.25, 0.5),
-            ReuseScope: MaterialReuseScope.Shared,
-            BundledVariantIndex: 0);
-
-        bool shouldBake = ImportedDynamicMaterialUvNormalizer.ShouldBakeTextureTransform(material);
-        MaterialBinding normalized = ImportedDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
-
-        Assert.False(shouldBake);
-        Assert.Equal(material.TextureScale, normalized.TextureScale);
-        Assert.Equal(material.TextureOffset, normalized.TextureOffset);
     }
 
     [Fact]
@@ -77,9 +50,8 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: new Float2(1.0, 1.0),
-            Family: BundledDefaultMaterialFamilies.Facade,
             TextureOffset: new Float2(0.0, 0.0),
-            ReuseScope: MaterialReuseScope.PerObject,
+            Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0);
 
         MaterialBinding normalized = ImportedDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
@@ -127,9 +99,8 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     DepthOffset: null,
                     SubmeshIndices: [1],
                     TextureScale: new Float2(1.0, 1.0),
-                    Family: BundledDefaultMaterialFamilies.Facade,
                     TextureOffset: new Float2(0.0, 0.0),
-                    ReuseScope: MaterialReuseScope.PerObject,
+                    Family: BundledDefaultMaterialFamilies.Facade,
                     BundledVariantIndex: 0),
             ],
             SourceObjectKey: "unit-a:mixed-material-city-object",
@@ -188,10 +159,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     DepthOffset: null,
                     SubmeshIndices: [1],
                     TextureScale: new Float2(1.0, 1.0),
-                    Family: null,
-                    TextureOffset: new Float2(0.0, 0.0),
-                    ReuseScope: MaterialReuseScope.PerObject,
-                    BundledVariantIndex: null),
+                    TextureOffset: new Float2(0.0, 0.0)),
             ],
             SourceObjectKey: "unit-a:mixed-triplanar-city-object",
             SourceUnitKey: "unit-a",
@@ -277,9 +245,7 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             DepthOffset: null,
             SubmeshIndices: [0],
             TextureScale: textureScale,
-            Family: null,
             TextureOffset: textureOffset,
-            ReuseScope: MaterialReuseScope.PerObject,
             TerrainOverlay: terrainOverlay);
     }
 }

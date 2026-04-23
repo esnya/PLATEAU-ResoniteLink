@@ -28,6 +28,7 @@ public static class ImportedDynamicMaterialUvNormalizer
             return cityObject;
         }
 
+        EnsureUniqueMaterialAssignments(cityObject);
         Dictionary<int, MaterialBinding> materialBySubmeshIndex = cityObject.Materials
             .SelectMany(material => material.SubmeshIndices.Select(submeshIndex => (submeshIndex, material)))
             .ToDictionary(static pair => pair.submeshIndex, static pair => pair.material);
@@ -159,5 +160,21 @@ public static class ImportedDynamicMaterialUvNormalizer
         return textureOffset is null
             || (Math.Abs(textureOffset.X) < 1e-9
                 && Math.Abs(textureOffset.Y) < 1e-9);
+    }
+
+    private static void EnsureUniqueMaterialAssignments(ImportedCityObject cityObject)
+    {
+        HashSet<int> assignedSubmeshIndices = [];
+        foreach (MaterialBinding material in cityObject.Materials)
+        {
+            foreach (int submeshIndex in material.SubmeshIndices)
+            {
+                if (!assignedSubmeshIndices.Add(submeshIndex))
+                {
+                    throw new InvalidOperationException(
+                        $"Triangle mesh '{cityObject.DisplayName}' assigned submesh index {submeshIndex} multiple times (materials={cityObject.Materials.Count}).");
+                }
+            }
+        }
     }
 }

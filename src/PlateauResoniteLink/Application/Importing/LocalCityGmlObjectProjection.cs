@@ -153,7 +153,7 @@ internal static partial class LocalCityGmlObjectProjection
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+        return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
                 DemTerrainBounds.FromLegacy(demBounds),
                 requestedMeshCodes)
             .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
@@ -447,7 +447,7 @@ internal static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeBounds? fallbackBounds)
     {
-        DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+        DemTerrainBounds? bounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
             demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
             fallbackBounds is null ? null : DemTerrainBounds.FromLegacy(fallbackBounds));
         return bounds?.ToLegacy();
@@ -456,7 +456,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
+        return DemSourceBootstrapSupport.CreateTerrainHeightTriangles(
                 cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
             .Select(static triangle => triangle.ToLegacy())
             .ToArray();

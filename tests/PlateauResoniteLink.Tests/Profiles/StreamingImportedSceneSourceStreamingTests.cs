@@ -15,7 +15,7 @@ using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Tests.Profiles;
 
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
-public sealed class LocalCityGmlConstructionSourceStreamingTests
+public sealed class StreamingImportedSceneSourceStreamingTests
 {
     [Fact]
     public async Task ReadCityObjectsAsync_UsesStreamingPipelineWithoutInvokingCachedParseTask()
@@ -36,7 +36,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 throw new InvalidOperationException("cached parse task should not be used in streaming path");
             });
 
-        LocalCityGmlConstructionSource source = CreateSource(
+        StreamingImportedSceneSource source = CreateSource(
             referenceSystem,
             globalOriginPoint,
             [bldgPipeline]);
@@ -71,8 +71,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, lodLevel: 1)],
             beforeYield: demReleaseSignal.Task);
 
-        LocalCityGmlBootstrapSnapshot readResult = new(
-            new LocalCityGmlDocumentSet(
+        ImportedSceneSourceSnapshot readResult = new(
+            new ImportedSceneSourceDataset(
                 new EmptyDatasetContentSource(),
                 [
                     bldgPipeline.SourceFile.RelativePath,
@@ -82,7 +82,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 ["bldg", "dem", "tran"],
                 [],
                 ["53394525"]),
-            new LocalCityGmlBootstrapContext(
+            new ImportedSceneSourceContext(
                 [bldgPipeline, tranPipeline, demPipeline],
                 globalOriginPoint));
 
@@ -109,7 +109,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
         RecordingGeometryProjector geometryProjector = new();
 
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             metadata,
             request,
             readResult,
@@ -169,7 +169,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             cityObjects,
             cityObjects.Length == 0 ? null : cityObjects[0].ReferenceSystem,
             string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
+                ? DemSourceBootstrapSupport.CreateTerrainHeightTriangles(cityObjects)
                 : [],
             TimeSpan.Zero);
     }
@@ -193,7 +193,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         }
     }
 
-    private static LocalCityGmlConstructionSource CreateSource(
+    private static StreamingImportedSceneSource CreateSource(
         CoordinateReferenceSystem referenceSystem,
         GeodeticPoint globalOriginPoint,
         IReadOnlyList<SourceFilePipeline> sourceFilePipelines)
@@ -219,18 +219,18 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
-        LocalCityGmlBootstrapSnapshot readResult = new(
-            new LocalCityGmlDocumentSet(
+        ImportedSceneSourceSnapshot readResult = new(
+            new ImportedSceneSourceDataset(
                 new EmptyDatasetContentSource(),
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 packageNames,
                 [],
                 ["53394525"]),
-            new LocalCityGmlBootstrapContext(
+            new ImportedSceneSourceContext(
                 sourceFilePipelines,
                 globalOriginPoint));
 
-        return new LocalCityGmlConstructionSource(
+        return new StreamingImportedSceneSource(
             metadata,
             request,
             readResult,
@@ -373,4 +373,3 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         }
     }
 }
-

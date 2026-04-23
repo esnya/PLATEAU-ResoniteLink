@@ -52,7 +52,7 @@ internal sealed class DefaultDemTerrainGeoReferencedRasterCatalogFactory(
     }
 }
 
-internal sealed class LocalCityGmlDemTextureSourcePolicy(
+internal sealed class DefaultDemTextureSourcePolicy(
     IDemTerrainGeoReferencedRasterCatalogFactory rasterCatalogFactory)
     : IDemTextureSourcePolicy
 {

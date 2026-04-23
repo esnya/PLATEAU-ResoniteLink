@@ -11,7 +11,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class LocalCityGmlConstructionComposerTests
+public sealed class DefaultImportedSceneSourceComposerTests
 {
     [Fact]
     public void ComposeMapsDocumentSetBoundaryIntoImportedSceneMetadata()
@@ -30,17 +30,17 @@ public sealed class LocalCityGmlConstructionComposerTests
             GeographicBounds: new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
             MaxTextureSize: 1024);
 
-        LocalCityGmlDocumentSet documentSet = new(
+        ImportedSceneSourceDataset documentSet = new(
             new EmptyDatasetContentSource(),
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
             ["bldg", "dem"],
             [overlay],
             ["53394525"]);
-        LocalCityGmlBootstrapSnapshot readResult = new(
+        ImportedSceneSourceSnapshot readResult = new(
             documentSet,
-            new LocalCityGmlBootstrapContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
+            new ImportedSceneSourceContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
-        LocalCityGmlConstructionComposer composer = new(
+        DefaultImportedSceneSourceComposer composer = new(
             new ThrowingGeometryProjector(),
             new StubDemTextureSourcePolicy());
 
@@ -144,4 +144,3 @@ public sealed class LocalCityGmlConstructionComposerTests
         }
     }
 }
-

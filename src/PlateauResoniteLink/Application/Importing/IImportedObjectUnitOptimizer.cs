@@ -3,10 +3,9 @@ using System.Threading;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IImportedSceneSource
+internal interface IImportedObjectUnitOptimizer
 {
-    ImportedSceneMetadata Metadata { get; }
-
-    IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
+    IAsyncEnumerable<ImportedObjectUnit> OptimizeAsync(
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         CancellationToken cancellationToken = default);
 }

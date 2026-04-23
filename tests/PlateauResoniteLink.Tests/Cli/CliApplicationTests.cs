@@ -30,16 +30,16 @@ public sealed class CliApplicationTests
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            new LocalCityGmlConstructionSourceFactory(
+            new DefaultImportedSceneSourceFactory(
                 documentReader,
-                new LocalCityGmlConstructionComposer(
+                new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlDemTextureSourcePolicy(
+                    new DefaultDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                             new DefaultPlateauDatasetContentSourceFactory(
                                 new RemoteArchiveDistributionPolicy(),
                                 new ArchiveFileLayoutPolicy())))),
-                new LocalCityGmlDemTextureSourcePolicy(
+                new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
@@ -238,13 +238,13 @@ public sealed class CliApplicationTests
 
         public async Task<SceneImportExecutionResult> ExecuteAsync(
             SceneImportExecutionPlan plan,
-            IAsyncEnumerable<ImportedCityObject> cityObjects,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
             CancellationToken cancellationToken = default)
         {
             _ = plan;
-            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                CityObjects.Add(cityObject);
+                CityObjects.AddRange(objectUnit.CityObjects);
             }
 
             return new SceneImportExecutionResult(

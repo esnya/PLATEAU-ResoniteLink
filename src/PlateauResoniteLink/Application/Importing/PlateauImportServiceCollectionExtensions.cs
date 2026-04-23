@@ -7,7 +7,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class PlateauImportServiceCollectionExtensions
 {
-    internal static IServiceCollection AddLocalCityGmlImportServices(this IServiceCollection services)
+    internal static IServiceCollection AddImportedSceneSourceServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
@@ -16,14 +16,19 @@ internal static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<CommonMaterialCatalog>();
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
         services.TryAddSingleton<IDemTerrainGeoReferencedRasterCatalogFactory, DefaultDemTerrainGeoReferencedRasterCatalogFactory>();
-        services.TryAddSingleton<IDemTextureSourcePolicy, LocalCityGmlDemTextureSourcePolicy>();
-        services.TryAddSingleton<IImportedCityObjectOptimizer, PassthroughImportedCityObjectOptimizer>();
+        services.TryAddSingleton<IDemTextureSourcePolicy, DefaultDemTextureSourcePolicy>();
         services.TryAddSingleton<ICityGmlAppearanceStoreFactory, CityGmlAppearanceStoreFactory>();
         services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
+        services.TryAddSingleton<ImportedDynamicMaterialUvUnitOptimizer>();
+        services.TryAddSingleton<IImportedObjectUnitOptimizer>(provider =>
+            new CompositeImportedObjectUnitOptimizer(
+                [
+                    provider.GetRequiredService<ImportedDynamicMaterialUvUnitOptimizer>(),
+                ]));
         services.TryAddSingleton<IImportedSceneSourceComposer>(provider =>
-            new LocalCityGmlConstructionComposer(
+            new DefaultImportedSceneSourceComposer(
                 provider.GetRequiredService<ICityGmlGeometryProjector>(),
                 provider.GetRequiredService<IDemTextureSourcePolicy>()));
         services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
@@ -32,11 +37,11 @@ internal static class PlateauImportServiceCollectionExtensions
                 provider.GetRequiredService<ICityGmlAppearanceStoreFactory>(),
                 provider.GetRequiredService<ICityGmlLodSelector>()));
         services.TryAddSingleton<IImportedSceneSourceFactory>(provider =>
-            new LocalCityGmlConstructionSourceFactory(
+            new DefaultImportedSceneSourceFactory(
                 provider.GetRequiredService<ICityGmlDocumentReader>(),
                 provider.GetRequiredService<IImportedSceneSourceComposer>(),
                 provider.GetRequiredService<IDemTextureSourcePolicy>(),
-                provider.GetRequiredService<IImportedCityObjectOptimizer>()));
+                provider.GetRequiredService<IImportedObjectUnitOptimizer>()));
 
         return services;
     }

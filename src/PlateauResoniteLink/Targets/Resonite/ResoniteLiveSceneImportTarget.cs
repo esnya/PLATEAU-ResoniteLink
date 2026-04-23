@@ -82,11 +82,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(cityObjects);
+        ArgumentNullException.ThrowIfNull(objectUnits);
         if (Interlocked.Exchange(ref executionClaimed, 1) != 0)
         {
             throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
@@ -105,7 +105,70 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
                 cancellationToken);
 
-            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
+            {
+                await QueueCityObjectUnitAsync(state, objectUnit, cancellationToken);
+            }
+
+            IReadOnlyList<string> destinations = await FinalizeRunAsync(state, cancellationToken);
+            completedSuccessfully = true;
+            return new SceneImportExecutionResult(
+                destinations,
+                state.Progress.ProcessedCityObjectCount,
+                state.Progress.FailedCityObjectCount,
+                CreateDataSourceUsages(state));
+        }
+        finally
+        {
+            try
+            {
+                await ReleaseRunResourcesAsync(
+                    state,
+                    disposeClients: false,
+                    resetClients: !completedSuccessfully);
+            }
+            finally
+            {
+                Volatile.Write(ref executionClaimed, 0);
+            }
+        }
+    }
+
+    internal Task<SceneImportExecutionResult> ExecuteAsync(
+        SceneImportExecutionPlan plan,
+        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(cityObjects);
+        if (Interlocked.Exchange(ref executionClaimed, 1) != 0)
+        {
+            throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
+        }
+
+        return ExecuteLegacyFlatStreamAsync(plan, cityObjects, cancellationToken);
+    }
+
+    private async Task<SceneImportExecutionResult> ExecuteLegacyFlatStreamAsync(
+        SceneImportExecutionPlan plan,
+        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        CancellationToken cancellationToken)
+    {
+        bool completedSuccessfully = false;
+        LiveSendRunState? state = null;
+
+        try
+        {
+            SceneBuildRequest request = plan.SceneBuildRequest;
+            state = await CreateRunStateAsync(
+                CreateSceneBootstrapInfo(request),
+                request.WorkRoot,
+                request.CommonMaterials,
+                plan.NormalizedRequest,
+                CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
+                cancellationToken);
+
+            await foreach (ImportedCityObject cityObject in EnumerateNormalizedImportedCityObjectsAsync(cityObjects, cancellationToken))
             {
                 await QueueCityObjectAsync(state, SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
             }
@@ -297,6 +360,36 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return state;
     }
 
+    private static async IAsyncEnumerable<ImportedCityObject> EnumerateNormalizedImportedCityObjectsAsync(
+        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+        {
+            ImportedCityObject normalizedCityObject;
+            try
+            {
+                normalizedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
+            }
+            catch (Exception exception) when (exception is not ResoniteMeshValidationException)
+            {
+                if (cityObject.Geometry is TriangleMeshGeometry triangleMesh)
+                {
+                    ResoniteConstructionCityObject mappedCityObject = SceneImportContractMapper.ToInternal(cityObject);
+                    throw new ResoniteMeshValidationException(
+                        $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
+                        + $"{CreateTriangleMeshDiagnosticSummary(mappedCityObject, mappedCityObject.Mesh)} "
+                        + $"Reason: {exception.Message}",
+                        exception);
+                }
+
+                throw;
+            }
+
+            yield return normalizedCityObject;
+        }
+    }
+
     private LiveSendRunPlan CreateRunPlan(
         ResoniteSceneBootstrapInfo bootstrapInfo,
         string resolvedWorkRoot,
@@ -480,6 +573,54 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         await EnqueueCityObjectAsync(state, cityObject, cancellationToken);
     }
 
+    private async Task QueueCityObjectUnitAsync(
+        LiveSendRunState state,
+        ImportedObjectUnit objectUnit,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(objectUnit);
+
+        foreach (ImportedCityObject cityObject in objectUnit.CityObjects)
+        {
+            await QueueCityObjectAsync(state, SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
+        }
+
+        CompositeCityObjectBaker? cityObjectBaker = state.Context.CityObjectBaker;
+        if (cityObjectBaker is null)
+        {
+            return;
+        }
+
+        await FlushBufferedCityObjectsAsync(state, cityObjectBaker, cancellationToken);
+    }
+
+    private async Task<int> FlushBufferedCityObjectsAsync(
+        LiveSendRunState state,
+        CompositeCityObjectBaker cityObjectBaker,
+        CancellationToken cancellationToken)
+    {
+        int bakedCityObjectCount = 0;
+        List<Task> bakeEnqueueTasks = [];
+        int maxInFlightBakeEnqueueTasks = Math.Max(4, connectionCount * 2);
+        await cityObjectBaker.FlushAllAsync(
+            async (bakedCityObject, callbackCancellationToken) =>
+            {
+                _ = Interlocked.Increment(ref bakedCityObjectCount);
+                bakeEnqueueTasks.Add(EnqueueCityObjectAsync(state, bakedCityObject, callbackCancellationToken));
+                if (bakeEnqueueTasks.Count >= maxInFlightBakeEnqueueTasks)
+                {
+                    await AwaitOneTaskSlotAsync(bakeEnqueueTasks, callbackCancellationToken);
+                }
+            },
+            cancellationToken);
+        if (bakeEnqueueTasks.Count > 0)
+        {
+            await Task.WhenAll(bakeEnqueueTasks).WaitAsync(cancellationToken);
+        }
+
+        return bakedCityObjectCount;
+    }
+
     private async Task<IReadOnlyList<string>> FinalizeRunAsync(
         LiveSendRunState state,
         CancellationToken cancellationToken = default)
@@ -504,24 +645,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
 
             Stopwatch bakeFlushStopwatch = Stopwatch.StartNew();
-            int bakedCityObjectCount = 0;
-            List<Task> bakeEnqueueTasks = [];
-            int maxInFlightBakeEnqueueTasks = Math.Max(4, connectionCount * 2);
-            await cityObjectBaker.FlushAllAsync(
-                async (bakedCityObject, callbackCancellationToken) =>
-                {
-                    _ = Interlocked.Increment(ref bakedCityObjectCount);
-                    bakeEnqueueTasks.Add(EnqueueCityObjectAsync(state, bakedCityObject, callbackCancellationToken));
-                    if (bakeEnqueueTasks.Count >= maxInFlightBakeEnqueueTasks)
-                    {
-                        await AwaitOneTaskSlotAsync(bakeEnqueueTasks, callbackCancellationToken);
-                    }
-                },
-                cancellationToken);
-            if (bakeEnqueueTasks.Count > 0)
-            {
-                await Task.WhenAll(bakeEnqueueTasks).WaitAsync(cancellationToken);
-            }
+            int bakedCityObjectCount = await FlushBufferedCityObjectsAsync(state, cityObjectBaker, cancellationToken);
             bakeFlushStopwatch.Stop();
             ReportProgress(
                 PlateauLog.Info(
@@ -929,9 +1053,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
 
         }
-
-        cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-
         TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)
             .Select(static material => material.TerrainOverlay!)

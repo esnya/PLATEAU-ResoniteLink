@@ -14,7 +14,7 @@ using LocalCartesian = GeographicLib.LocalCartesian;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
+internal sealed class StreamingImportedSceneSource : IImportedSceneSource
 {
     internal const int MaxConcurrentCityObjectProducers = 8;
 
@@ -23,7 +23,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private readonly GeodeticPoint globalOriginPoint;
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
-    private readonly IImportedCityObjectOptimizer cityObjectOptimizer;
+    private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly ConcurrentDictionary<string, Task<TerrainTextureOverlay[]>> demTerrainTextureOverlayTasks = new(StringComparer.Ordinal);
@@ -31,19 +31,19 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private readonly TerrainTextureOverlay[] bootstrapTerrainTextureOverlays;
     private CoordinateReferenceSystem? referenceSystem;
 
-    public LocalCityGmlConstructionSource(
+    public StreamingImportedSceneSource(
         ImportedSceneMetadata metadata,
         PlateauImportRequest request,
-        LocalCityGmlBootstrapSnapshot readResult,
+        ImportedSceneSourceSnapshot readResult,
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        Action<string>? progressReporter = null,
-        IImportedCityObjectOptimizer? cityObjectOptimizer = null)
+        IImportedObjectUnitOptimizer? objectUnitOptimizer = null,
+        Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(readResult);
-        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
-        LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
+        ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
+        ImportedSceneSourceContext bootstrapContext = readResult.BootstrapContext;
         Metadata = metadata;
         this.request = request;
         sourceFiles = bootstrapContext.SourceFilePipelines.ToArray();
@@ -51,22 +51,22 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         globalOriginPoint = bootstrapContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
+        this.objectUnitOptimizer = objectUnitOptimizer ?? new PassthroughImportedObjectUnitOptimizer();
         this.progressReporter = progressReporter;
-        this.cityObjectOptimizer = cityObjectOptimizer ?? new PassthroughImportedCityObjectOptimizer();
         requestedMeshAreas = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
     }
 
     public ImportedSceneMetadata Metadata { get; }
 
-    public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
+    public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         ReportProgress(
             PlateauLog.Info(
                 "import",
-                $"City object streaming pipeline starting (source_files={sourceFiles.Length})."));
-        Channel<ImportedCityObject> channel = Channel.CreateBounded<ImportedCityObject>(
+                $"City object unit streaming pipeline starting (source_files={sourceFiles.Length})."));
+        Channel<ImportedObjectUnit> channel = Channel.CreateBounded<ImportedObjectUnit>(
             new BoundedChannelOptions(32)
             {
                 SingleReader = true,
@@ -80,7 +80,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         ReportProgress(
             PlateauLog.Info(
                 "import",
-                $"City object producers launched: {producerConcurrency} worker(s) for {sourceFiles.Length} file-scoped streams."));
+                $"City object unit producers launched: {producerConcurrency} worker(s) for {sourceFiles.Length} file-scoped streams."));
 
         Task[] producers = Enumerable.Range(0, producerConcurrency)
             .Select(_ => Task.Run(
@@ -93,9 +93,9 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
             .ToArray();
         Task completionTask = CompleteWriterWhenFinishedAsync(channel.Writer, producers);
 
-        await foreach (ImportedCityObject cityObject in channel.Reader.ReadAllAsync(cancellationToken))
+        await foreach (ImportedObjectUnit objectUnit in channel.Reader.ReadAllAsync(cancellationToken))
         {
-            yield return cityObject;
+            yield return objectUnit;
         }
 
         await completionTask;
@@ -113,7 +113,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     }
 
     private async Task ProduceCityObjectsAsync(
-        ChannelWriter<ImportedCityObject> writer,
+        ChannelWriter<ImportedObjectUnit> writer,
         SourceFilePipeline sourceFile,
         int fileIndex,
         int totalFiles,
@@ -127,12 +127,14 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}'."));
 
         int yieldedCount = 0;
-        await foreach (ImportedCityObject cityObject in cityObjectOptimizer.OptimizeAsync(
-                           StreamProjectedCityObjectsAsync(sourceFile, cancellationToken),
-                           cancellationToken).WithCancellation(cancellationToken))
+        int yieldedUnitCount = 0;
+        await foreach (ImportedObjectUnit objectUnit in objectUnitOptimizer.OptimizeAsync(
+                           BuildObjectUnitsAsync(sourceFile, cancellationToken),
+                           cancellationToken))
         {
-            yieldedCount++;
-            await writer.WriteAsync(cityObject, cancellationToken);
+            yieldedUnitCount++;
+            yieldedCount += objectUnit.CityObjects.Count;
+            await writer.WriteAsync(objectUnit, cancellationToken);
         }
 
         progressReporter?.Invoke(
@@ -140,11 +142,11 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 "import",
                 $"City object producer finished source file "
                 + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}' "
-                + $"(yielded={yieldedCount})."));
+                + $"(yielded_units={yieldedUnitCount}, yielded_city_objects={yieldedCount})."));
     }
 
     private async Task ProduceCityObjectsUntilDrainedAsync(
-        ChannelWriter<ImportedCityObject> writer,
+        ChannelWriter<ImportedObjectUnit> writer,
         ConcurrentQueue<(SourceFilePipeline SourceFile, int Index)> pendingSourceFiles,
         int totalFiles,
         CancellationToken cancellationToken)
@@ -161,7 +163,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     }
 
     private static async Task CompleteWriterWhenFinishedAsync(
-        ChannelWriter<ImportedCityObject> writer,
+        ChannelWriter<ImportedObjectUnit> writer,
         IReadOnlyList<Task> producers)
     {
         Task allProducers = Task.WhenAll(producers);
@@ -225,6 +227,44 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 "import",
                 $"City object producer projected '{sourceFile.SourceFile.RelativePath}' "
                 + $"(parsed_city_objects={parsedCount}, yielded={yieldedCount}, elapsed={fileStopwatch.Elapsed.TotalSeconds:F3}s)."));
+    }
+
+    private async IAsyncEnumerable<ImportedObjectUnit> BuildObjectUnitsAsync(
+        SourceFilePipeline sourceFile,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        List<(int? LodLevel, List<ImportedCityObject> CityObjects)> objectUnitsByLod = [];
+
+        await foreach (ImportedCityObject cityObject in StreamProjectedCityObjectsAsync(sourceFile, cancellationToken))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            int? lodLevel = cityObject.LodLevel;
+            int existingIndex = objectUnitsByLod.FindIndex(group => group.LodLevel == lodLevel);
+            if (existingIndex < 0)
+            {
+                List<ImportedCityObject> cityObjects = [cityObject];
+                objectUnitsByLod.Add((lodLevel, cityObjects));
+                continue;
+            }
+
+            objectUnitsByLod[existingIndex].CityObjects.Add(cityObject);
+        }
+
+        foreach ((int? lodLevel, List<ImportedCityObject> cityObjects) in objectUnitsByLod)
+        {
+            if (cityObjects.Count == 0)
+            {
+                continue;
+            }
+
+            yield return new ImportedObjectUnit(
+                scopeKey: sourceFile.SourceFile.RelativePath,
+                scopePath: sourceFile.SourceFile.RelativePath,
+                packageName: sourceFile.SourceFile.PackageName,
+                lodLevel: lodLevel,
+                cityObjects: cityObjects.ToArray(),
+                matchedMeshCode: sourceFile.SourceFile.MatchedMeshCode);
+        }
     }
 
     private void ReportProgress(string message)
@@ -394,17 +434,17 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         {
             return fallbackBounds is null
                 ? []
-                : LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+                : DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
                     fallbackBounds,
                     selectedMeshCodes);
         }
 
-        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+        DemTerrainBounds? demBounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
             [parsedSourceFile],
             fallbackBounds);
         return demBounds is null
             ? []
-            : LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+            : DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
                 demBounds,
                 selectedMeshCodes);
     }

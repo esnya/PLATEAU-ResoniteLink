@@ -9,7 +9,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class LocalCityGmlDemTextureSourcePolicyTests
+public sealed class DefaultDemTextureSourcePolicyTests
 {
     [Fact]
     public async Task ResolveAsyncPrefersExplicitGeoReferencedRasterBeforeMapTileFallback()
@@ -22,7 +22,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
                 "EPSG:4326",
                 PixelWidthMeters: 0.8,
                 PixelHeightMeters: 0.8));
-        LocalCityGmlDemTextureSourcePolicy policy = new(
+        DefaultDemTextureSourcePolicy policy = new(
             new StubDemTerrainGeoReferencedRasterCatalogFactory(
                 new StubDemTerrainGeoReferencedRasterCatalog(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase)
@@ -51,7 +51,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
     [Fact]
     public async Task ResolveAsyncRejectsExplicitGeoTiffSourceWhenRequestedMeshIsNotCovered()
     {
-        LocalCityGmlDemTextureSourcePolicy policy = new(
+        DefaultDemTextureSourcePolicy policy = new(
             new StubDemTerrainGeoReferencedRasterCatalogFactory(
                 new StubDemTerrainGeoReferencedRasterCatalog(
                     new Dictionary<string, TerrainTextureGeoReferencedRasterSource?>(StringComparer.OrdinalIgnoreCase))));
@@ -73,7 +73,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
     [Fact]
     public async Task ResolveAsyncUsesPlateauOrthoThenGsiFallbackWhenNoExplicitRasterMatches()
     {
-        LocalCityGmlDemTextureSourcePolicy policy = new(
+        DefaultDemTextureSourcePolicy policy = new(
             new StubDemTerrainGeoReferencedRasterCatalogFactory(
                 catalog: null));
         PlateauImportRequest request = new(
@@ -111,7 +111,7 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
     [Fact]
     public void CreateMapTileFallbackOverlaysBuildsProviderOrderInsidePolicy()
     {
-        LocalCityGmlDemTextureSourcePolicy policy = new(
+        DefaultDemTextureSourcePolicy policy = new(
             new StubDemTerrainGeoReferencedRasterCatalogFactory(
                 catalog: null));
 
@@ -176,6 +176,6 @@ public sealed class LocalCityGmlDemTextureSourcePolicyTests
 
     private static IReadOnlyList<DemTerrainOverlayRegion> CreateOverlayRegions(params string[] meshCodes)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(meshCodes);
+        return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(meshCodes);
     }
 }
