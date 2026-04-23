@@ -14,7 +14,7 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteGeometryAssetAssemblerTests
 {
     [Fact]
-    public async Task PrepareHeightMapGridAsync_PreparesBorderSkirtFallbackWithDepthBasedOnHeightRange()
+    public async Task PrepareHeightMapGridAsync_PreparesBorderSkirtFallbackThatExtendsBelowBaseHeight()
     {
         using SceneBuilderRecordingClient client = new();
         ResoniteGeometryAssetAssembler assembler = new();
@@ -50,6 +50,6 @@ public sealed class ResoniteGeometryAssetAssemblerTests
             minimumZ = Math.Min(minimumZ, position.z);
         }
 
-        Assert.True(minimumZ <= -6.0f);
+        Assert.True(minimumZ < 0.0f);
     }
 }

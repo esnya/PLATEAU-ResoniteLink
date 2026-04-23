@@ -2036,13 +2036,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
     }
 
-    private static bool ShouldIncludeHeightMapBorderSkirtFallback(ResoniteConstructionCityObject cityObject)
-    {
-        return cityObject.Geometry is ResoniteHeightMapGridGeometry
-            && string.Equals(cityObject.PackageName, DemPackageName, StringComparison.OrdinalIgnoreCase)
-            && cityObject.Materials.Count == 1;
-    }
-
     private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneBuildRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

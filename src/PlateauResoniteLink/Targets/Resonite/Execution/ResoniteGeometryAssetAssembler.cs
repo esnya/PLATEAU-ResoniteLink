@@ -254,7 +254,14 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
 
     private static double ResolveHeightMapBorderSkirtDepthMeters(ResoniteHeightMapGridGeometry geometry)
     {
-        return Math.Max(1.0, geometry.MaxHeight - geometry.MinHeight);
+        double heightRange = geometry.MaxHeight - geometry.MinHeight;
+        double cellWidth = geometry.Width > 1
+            ? geometry.Size.X / (geometry.Width - 1)
+            : 0.0;
+        double cellHeight = geometry.Height > 1
+            ? geometry.Size.Y / (geometry.Height - 1)
+            : 0.0;
+        return Math.Max(1.0, Math.Max(heightRange, Math.Max(cellWidth, cellHeight)));
     }
 
     private static void AppendQuad(
