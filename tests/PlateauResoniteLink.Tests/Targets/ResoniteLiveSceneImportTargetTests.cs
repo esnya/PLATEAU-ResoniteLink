@@ -1085,7 +1085,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceObjectKey: "invalid-submesh-duplicate-dynamic");
 
-        ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
 
         Assert.Contains("assigned submesh index 0", exception.Message, StringComparison.Ordinal);

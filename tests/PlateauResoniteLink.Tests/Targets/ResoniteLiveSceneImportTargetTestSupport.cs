@@ -155,7 +155,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 metadata,
                 workDirectory,
                 commonMaterials: commonMaterials ?? CollectExecutionPlanCommonMaterials(metadata, cityObjects)),
-            CreateImportedCityObjectsAsync(cityObjects, cancellationToken),
+            CreateImportedObjectUnitsAsync(cityObjects, cancellationToken),
             cancellationToken);
     }
 
@@ -381,14 +381,25 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 new ResoniteBufferedCityObjectBakerFactory()));
     }
 
-    private static async IAsyncEnumerable<ImportedCityObject> CreateImportedCityObjectsAsync(
+    private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnitsAsync(
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         foreach (ResoniteConstructionCityObject cityObject in cityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return ToImportedCityObject(cityObject);
+            ImportedCityObject importedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(ToImportedCityObject(cityObject));
+            string scopeKey = importedCityObject.SourceUnitKey
+                ?? importedCityObject.SourceObjectKey
+                ?? importedCityObject.ObjectKey;
+            string scopePath = importedCityObject.SourceFileRelativePath ?? scopeKey;
+            yield return new ImportedObjectUnit(
+                scopeKey,
+                scopePath,
+                importedCityObject.PackageName,
+                importedCityObject.LodLevel,
+                [importedCityObject],
+                importedCityObject.ActualMeshCode);
         }
     }
 

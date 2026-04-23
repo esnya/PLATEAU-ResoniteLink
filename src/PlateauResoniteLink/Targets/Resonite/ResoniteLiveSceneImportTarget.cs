@@ -134,69 +134,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         }
     }
 
-    internal Task<SceneImportExecutionResult> ExecuteAsync(
-        SceneImportExecutionPlan plan,
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(plan);
-        ArgumentNullException.ThrowIfNull(cityObjects);
-        if (Interlocked.Exchange(ref executionClaimed, 1) != 0)
-        {
-            throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
-        }
-
-        return ExecuteLegacyFlatStreamAsync(plan, cityObjects, cancellationToken);
-    }
-
-    private async Task<SceneImportExecutionResult> ExecuteLegacyFlatStreamAsync(
-        SceneImportExecutionPlan plan,
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
-        CancellationToken cancellationToken)
-    {
-        bool completedSuccessfully = false;
-        LiveSendRunState? state = null;
-
-        try
-        {
-            SceneBuildRequest request = plan.SceneBuildRequest;
-            state = await CreateRunStateAsync(
-                CreateSceneBootstrapInfo(request),
-                request.WorkRoot,
-                request.CommonMaterials,
-                plan.NormalizedRequest,
-                CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
-                cancellationToken);
-
-            await foreach (ImportedCityObject cityObject in EnumerateNormalizedImportedCityObjectsAsync(cityObjects, cancellationToken))
-            {
-                await QueueCityObjectAsync(state, SceneImportContractMapper.ToInternal(cityObject), cancellationToken);
-            }
-
-            IReadOnlyList<string> destinations = await FinalizeRunAsync(state, cancellationToken);
-            completedSuccessfully = true;
-            return new SceneImportExecutionResult(
-                destinations,
-                state.Progress.ProcessedCityObjectCount,
-                state.Progress.FailedCityObjectCount,
-                CreateDataSourceUsages(state));
-        }
-        finally
-        {
-            try
-            {
-                await ReleaseRunResourcesAsync(
-                    state,
-                    disposeClients: false,
-                    resetClients: !completedSuccessfully);
-            }
-            finally
-            {
-                Volatile.Write(ref executionClaimed, 0);
-            }
-        }
-    }
-
     private async Task<LiveSendRunState> CreateRunStateAsync(
         ResoniteSceneBootstrapInfo bootstrapInfo,
         string workRoot,
@@ -358,36 +295,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 "live",
                 $"Send lane startup phase complete in {laneStartStopwatch.Elapsed.TotalSeconds:F2}s."));
         return state;
-    }
-
-    private static async IAsyncEnumerable<ImportedCityObject> EnumerateNormalizedImportedCityObjectsAsync(
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
-        {
-            ImportedCityObject normalizedCityObject;
-            try
-            {
-                normalizedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
-            }
-            catch (Exception exception) when (exception is not ResoniteMeshValidationException)
-            {
-                if (cityObject.Geometry is TriangleMeshGeometry triangleMesh)
-                {
-                    ResoniteConstructionCityObject mappedCityObject = SceneImportContractMapper.ToInternal(cityObject);
-                    throw new ResoniteMeshValidationException(
-                        $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
-                        + $"{CreateTriangleMeshDiagnosticSummary(mappedCityObject, mappedCityObject.Mesh)} "
-                        + $"Reason: {exception.Message}",
-                        exception);
-                }
-
-                throw;
-            }
-
-            yield return normalizedCityObject;
-        }
     }
 
     private LiveSendRunPlan CreateRunPlan(
