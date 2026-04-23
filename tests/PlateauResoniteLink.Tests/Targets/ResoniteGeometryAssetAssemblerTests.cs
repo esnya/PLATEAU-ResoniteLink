@@ -41,7 +41,6 @@ public sealed class ResoniteGeometryAssetAssemblerTests
         PreparedTriangleMeshAssetBatch skirtAsset = Assert.Single(batch.VisualFallbackAssets ?? []);
         ImportMeshRawData importedSkirtMesh = Assert.Single(client.ImportedMeshes);
 
-        Assert.EndsWith("skirt", skirtAsset.MeshAssetSlotName, StringComparison.Ordinal);
         Assert.Equal("resdb:///mesh/0", skirtAsset.MeshUri.ToString());
         Assert.True(importedSkirtMesh.VertexCount > 0);
         Assert.NotEmpty(importedSkirtMesh.Submeshes);

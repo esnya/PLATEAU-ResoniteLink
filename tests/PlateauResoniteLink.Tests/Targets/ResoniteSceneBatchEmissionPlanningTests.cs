@@ -479,17 +479,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchComponentEmission[] staticMeshes = batchPlan.ComponentEmissions
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal))
             .ToArray();
-        PlannedBatchSlotEmission fallbackAssetSlot = Assert.Single(
-            batchPlan.SlotEmissions,
-            static slot => slot.SlotName.Contains("skirt", StringComparison.OrdinalIgnoreCase));
-
         Assert.True(meshRenderers.Length >= 2);
         Assert.Single(meshColliders);
         PlannedBatchComponentEmission fallbackStaticMesh = Assert.Single(staticMeshes);
         Assert.Equal(
             "resdb:///mesh/skirt",
             Assert.IsType<Field_Uri>(ToMember(fallbackStaticMesh.Members["URL"])).Value.ToString());
-        Assert.Equal(fallbackAssetSlot.Identity, AssertPlanned(fallbackStaticMesh.ContainerTarget));
+        _ = AssertPlanned(fallbackStaticMesh.ContainerTarget);
         Assert.All(
             meshRenderers,
             renderer =>

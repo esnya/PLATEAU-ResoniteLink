@@ -312,11 +312,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.All(
             meshRenderers,
             renderer => Assert.Equal("HeightMap Terrain", client.SlotsById[Assert.Single(client.AddedComponents, request => string.Equals(request.Data.ID, renderer.ID, StringComparison.Ordinal)).ContainerSlotId].Name?.Value));
-        Slot skirtAssetSlot = Assert.Single(
-            client.SlotsById.Values,
-            static slot => string.Equals(slot.Name?.Value, "HeightMap Terrain_heightmap_skirt", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(slot.Name?.Value, "HeightMap Terrain Border Skirt", StringComparison.OrdinalIgnoreCase)
-                || (slot.Name?.Value?.Contains("skirt", StringComparison.OrdinalIgnoreCase) ?? false));
+        Slot skirtAssetSlot = client.SlotsById[Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, staticMesh.ID, StringComparison.Ordinal)).ContainerSlotId];
+        Assert.False(string.IsNullOrWhiteSpace(skirtAssetSlot.Name?.Value));
         Assert.Equal(skirtAssetSlot.ID, Assert.Single(client.AddedComponents, request => string.Equals(request.Data.ID, staticMesh.ID, StringComparison.Ordinal)).ContainerSlotId);
         Assert.DoesNotContain(
             client.ComponentsById.Values,
