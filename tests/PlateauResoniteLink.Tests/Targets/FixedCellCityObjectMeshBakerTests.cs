@@ -403,6 +403,15 @@ public sealed class FixedCellCityObjectMeshBakerTests
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-a")), out _));
         Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-b", 18.0, 20.0, "unit-b", "common.gml", CreateBundledRoofMaterial("roof-b")), out _));
+        Assert.Single(baker.FlushAll());
+    }
+
+    [Fact]
+    public void FlushAllMergesEquivalentBundledRoofMaterialsOutsideFallbackPattern()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledUvRoofMaterial("roof-a")), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-b", 18.0, 20.0, "unit-b", "common.gml", CreateBundledUvRoofMaterial("roof-b")), out _));
 
         ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
 
@@ -415,16 +424,10 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
-    public void TryBufferReturnsFalseForLod1BuildingsThatUseFallbackRoofStrategy()
+    public void TryBufferSkipsFallbackRoofBuildings()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
-
-        bool buffered = baker.TryBuffer(
-            CreateFallbackRoofStrategyBuilding("roof-strategy", 10.0, 12.0, "unit-a", "common.gml"),
-            out ResoniteConstructionCityObject? bakedCityObject);
-
-        Assert.False(buffered);
-        Assert.Null(bakedCityObject);
+        Assert.False(baker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-a|fallback-roof")), out _));
         Assert.Empty(baker.FlushAll());
     }
 

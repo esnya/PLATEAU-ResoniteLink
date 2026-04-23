@@ -22,6 +22,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static partial class LocalCityGmlObjectProjection
 {
+    private const string FallbackRoofMaterialKeySuffix = "|fallback-roof";
     public const string DefaultDemTerrainTexturePath = DemTerrainTextureDefaults.PlateauOrthoPath;
     public const string DefaultDemTerrainTextureUrlTemplate = DemTerrainTextureDefaults.PlateauOrthoUrlTemplate;
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = DemTerrainTextureDefaults.GsiFallbackUrlTemplate;
@@ -1276,8 +1277,11 @@ internal static partial class LocalCityGmlObjectProjection
             }
 
             ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
-            submeshes.Add(new MeshSubmesh(materialIndex, materialGroup.Key, indices));
-            materials.Add(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex));
+            string materialKey = MarkFallbackRoofMaterialKey(
+                materialGroup.Key,
+                IsFallbackRoofMaterialGroup(materialGroup, materialGroups.Length));
+            submeshes.Add(new MeshSubmesh(materialIndex, materialKey, indices));
+            materials.Add(CreateMaterialBinding(representativeSurface, materialKey, materialIndex));
         }
 
         return new ImportedCityObject(
@@ -2500,6 +2504,32 @@ internal static partial class LocalCityGmlObjectProjection
             textureOffset);
     }
 
+    private static bool IsFallbackRoofMaterialGroup(
+        IGrouping<string, ResolvedSurfaceMaterial> materialGroup,
+        int totalGroupCount)
+    {
+        if (totalGroupCount != 1)
+        {
+            return false;
+        }
+
+        ResolvedSurfaceMaterial representativeSurface = materialGroup.First();
+        return materialGroup.All(static resolvedSurface => resolvedSurface.Surface.Semantic is ParsedSurfaceSemantic.Roof)
+            && representativeSurface.Material.ReuseScope == MaterialReuseScope.Shared
+            && representativeSurface.Material.TexturePayload is null
+            && representativeSurface.Material.TextureSourceKind == TextureSourceKind.Bundled
+            && representativeSurface.Material.Projection == MaterialProjection.Triplanar
+            && representativeSurface.Material.TerrainOverlay is null
+            && string.Equals(representativeSurface.Material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal);
+    }
+
+    private static string MarkFallbackRoofMaterialKey(string materialKey, bool isFallbackRoof)
+    {
+        return isFallbackRoof
+            ? string.Concat(materialKey, FallbackRoofMaterialKeySuffix)
+            : materialKey;
+    }
+
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainOverlay)
     {
         return string.Create(
@@ -3053,13 +3083,20 @@ internal static partial class LocalCityGmlObjectProjection
             .Select((group, materialIndex) =>
             {
                 ResolvedSurfaceMaterial representativeSurface = group.First();
+                string materialKey = MarkFallbackRoofMaterialKey(
+                    group.Key,
+                    IsFallbackRoofMaterialGroup(group, resolvedSurfaces
+                        .GroupBy(
+                            static resolvedSurface => CreateBindingMaterialKey(
+                                resolvedSurface.Material,
+                                resolvedSurface.DepthOffset,
+                                resolvedSurface.Material.TextureScale,
+                                resolvedSurface.Surface.BaseColor),
+                            StringComparer.Ordinal)
+                        .Count()));
                 return CreateMaterialBinding(
                     representativeSurface,
-                    CreateBindingMaterialKey(
-                        representativeSurface.Material,
-                        representativeSurface.DepthOffset,
-                        representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor),
+                    materialKey,
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
