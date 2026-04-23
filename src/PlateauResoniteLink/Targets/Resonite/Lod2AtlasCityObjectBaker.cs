@@ -336,6 +336,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         Rgba32 detectedBackgroundColor = DetectRepresentativeBackgroundColor(sourceImage);
         using Image<Rgba32> preparedSourceImage = sourceImage.Clone();
         FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
+        bool isUniformDatasetTexture = TryGetUniformPixelColor(preparedSourceImage, out _);
 
         int maxTileWidth = EffectiveMaxAtlasTextureEdge;
         int maxTileHeight = EffectiveMaxAtlasTextureEdge;
@@ -344,7 +345,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
 
         ApplyBaseColor(bakedImage, material.BaseColor);
-        if (TryGetUniformPixelColor(bakedImage, out Rgba32 uniformColor))
+        if (isUniformDatasetTexture && TryGetUniformPixelColor(bakedImage, out Rgba32 uniformColor))
         {
             return CreateSolidColorTile(uniformColor);
         }

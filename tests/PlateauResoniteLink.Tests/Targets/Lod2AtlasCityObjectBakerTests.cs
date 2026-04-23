@@ -82,6 +82,27 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncKeepsBakedUniformRegionFromNonUniformDatasetTextureAtBakedResolution()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
+            "building-nonuniform",
+            CreateStripedPayload("textures/nonuniform-red-region.png", [new Rgba32(255, 0, 0, 255), new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), new Rgba32(0, 0, 255, 255)]),
+            "unit-a",
+            new ResoniteFloat2(0.5, 1.0),
+            new ResoniteFloat2(0.0, 0.0)));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload);
+
+        Assert.Equal(2, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 1, 0));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncRepeatsTextureContentWhenUsedUvRangeExceedsUnitSquare()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
