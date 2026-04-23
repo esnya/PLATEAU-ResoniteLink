@@ -46,13 +46,13 @@ public sealed class CommonMaterialCatalogTests
 
         Assert.Equal(
             new Float2(
-                FacadeMaterialUvScaling.CommonMaterialScale.X,
-                FacadeMaterialUvScaling.CommonMaterialScale.Y),
+                FacadeMaterialUvScaling.CommonMaterialScaleValue.X,
+                FacadeMaterialUvScaling.CommonMaterialScaleValue.Y),
             facadeMaterial.TextureScale);
         Assert.Equal(
             new Float2(
-                BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeter.X,
-                BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeter.Y),
+                BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X,
+                BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
             roofMaterial.TextureScale);
     }
 

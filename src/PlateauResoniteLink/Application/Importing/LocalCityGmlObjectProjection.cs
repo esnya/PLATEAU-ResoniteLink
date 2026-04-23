@@ -2110,14 +2110,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         return new SurfaceUvProjection(
             surfaceAxes.AxisU,
-            surfaceAxes.AxisV,
-            ResolveGeneratedSurfaceUvScale(packageName));
-    }
-
-    private static ResoniteFloat2 ResolveGeneratedSurfaceUvScale(string packageName)
-    {
-        _ = packageName;
-        return new ResoniteFloat2(1.0, 1.0);
+            surfaceAxes.AxisV);
     }
 
     private static Float2 CreateGeneratedSurfaceUv(

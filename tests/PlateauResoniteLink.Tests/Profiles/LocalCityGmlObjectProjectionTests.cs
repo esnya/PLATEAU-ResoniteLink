@@ -989,7 +989,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
     }
 
-    private static ResoniteFloat2 CreateGeneratedSurfaceUvForTest(
+    private static Float2 CreateGeneratedSurfaceUvForTest(
         LocalCityGmlObjectProjection.GeodeticPoint point,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian,

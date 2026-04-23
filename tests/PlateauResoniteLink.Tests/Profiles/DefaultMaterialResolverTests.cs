@@ -44,8 +44,8 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
         Assert.Equal(
             new Float2(
-                FacadeMaterialUvScaling.CommonMaterialScale.X,
-                FacadeMaterialUvScaling.CommonMaterialScale.Y),
+                FacadeMaterialUvScaling.CommonMaterialScaleValue.X,
+                FacadeMaterialUvScaling.CommonMaterialScaleValue.Y),
             material.TextureScale);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
     }

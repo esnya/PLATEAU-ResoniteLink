@@ -897,9 +897,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, textureOffset.Value.x, 6);
         Assert.Equal(0.0f, textureOffset.Value.y, 6);
-        float expectedUvScale = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.X);
-        float expectedUvOffsetX = (float)(0.125 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.X);
-        float expectedUvOffsetY = (float)(0.25 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.Y);
+        float expectedUvScale = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvOffsetX = (float)(0.125 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvOffsetY = (float)(0.25 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
         Assert.Equal(expectedUvOffsetX, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(expectedUvOffsetY, importedMesh.AccessUV_2D(0)[0].y, 6);
         Assert.Equal(expectedUvOffsetX + expectedUvScale, importedMesh.AccessUV_2D(0)[1].x, 6);

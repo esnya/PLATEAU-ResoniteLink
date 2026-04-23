@@ -8,10 +8,6 @@ public static class FacadeMaterialUvScaling
         ToFloorSquareUnits(1.0),
         ToFloorSquareUnits(1.0));
 
-    public static readonly ResoniteFloat2 CommonMaterialScale = new(
-        CommonMaterialScaleValue.X,
-        CommonMaterialScaleValue.Y);
-
     public static double ToFloorSquareUnits(double meters)
     {
         return meters / FloorSquareMeters;
