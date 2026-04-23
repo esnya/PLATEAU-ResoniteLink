@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -366,22 +367,20 @@ internal sealed class TerrainTextureAssetGenerator(
         TerrainTextureOverlay terrainTextureOverlay,
         List<TerrainTextureSource> usedSources)
     {
-        return StableOpaqueId.Create(
-            "terrain-overlay",
-            builder =>
-            {
-                builder.Add(terrainTextureOverlay.PackageName.ToLowerInvariant());
-                builder.Add(usedSources.Count);
-                foreach (TerrainTextureSource source in usedSources)
-                {
-                    builder.Add(source.IdentityKey);
-                }
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"terrain-overlay-{terrainTextureOverlay.PackageName.ToLowerInvariant()}-sources-{string.Join("|", usedSources.Select(static source => source.IdentityKey))}-bounds-{FormatBounds(terrainTextureOverlay.GeographicBounds)}");
+    }
 
-                builder.Add(terrainTextureOverlay.GeographicBounds.MinLatitude);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLatitude);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MinLongitude);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLongitude);
-            });
+    private static string FormatBounds(GeographicRectangle bounds) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+
+    private static string FormatRounded(double value)
+    {
+        double normalized = value == 0.0 ? 0.0 : value;
+        return normalized.ToString("G17", CultureInfo.InvariantCulture);
     }
 
     private static Image<Rgba32> ResizeSourceImage(Image<Rgba32> image, int width, int height)

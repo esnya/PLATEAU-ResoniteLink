@@ -40,28 +40,18 @@ public static class ResoniteMaterialSharing
         ResoniteFloat2? textureOffset,
         ResoniteMaterialDepthOffset? depthOffset)
     {
-        return StableOpaqueId.Create(
-            "shared-generic",
-            builder =>
-            {
-                builder.Add(ProjectionToken(projection));
-                AddFloat2(builder, textureScale);
-                AddFloat2(builder, textureOffset);
-                AddDepth(builder, depthOffset);
-            });
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"shared-generic-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-depth-{FormatDepth(depthOffset)}");
     }
 
     public static string CreateCanonicalVertexColorCommonMaterialKey(
         ResoniteMaterialProjection projection,
         ResoniteMaterialDepthOffset? depthOffset)
     {
-        return StableOpaqueId.Create(
-            "shared-vertex",
-            builder =>
-            {
-                builder.Add(ProjectionToken(projection));
-                AddDepth(builder, depthOffset);
-            });
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"shared-vertex-{ProjectionToken(projection)}-depth-{FormatDepth(depthOffset)}");
     }
 
     public static bool IsWhiteBaseColor(ResoniteColor color)
@@ -72,16 +62,28 @@ public static class ResoniteMaterialSharing
             && Math.Abs(color.A - 1.0) < 1e-9;
     }
 
-    private static void AddFloat2(StableOpaqueId.Builder builder, ResoniteFloat2? value)
+    private static string FormatFloat2(ResoniteFloat2? value)
     {
-        builder.AddRounded(value?.X);
-        builder.AddRounded(value?.Y);
+        return value is null
+            ? "none"
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
     }
 
-    private static void AddDepth(StableOpaqueId.Builder builder, ResoniteMaterialDepthOffset? value)
+    private static string FormatDepth(ResoniteMaterialDepthOffset? value)
     {
-        builder.AddRounded(value?.Factor);
-        builder.AddRounded(value?.Units);
+        return value is null
+            ? "none"
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
+    }
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static string ProjectionToken(ResoniteMaterialProjection projection)

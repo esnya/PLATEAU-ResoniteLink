@@ -28,8 +28,6 @@ internal static class SceneImportContractMapper
                 ToInternal(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceObjectKey,
-                cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath),
             HeightMapGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
@@ -49,8 +47,6 @@ internal static class SceneImportContractMapper
                     heightMap.UvOffset is null ? null : ToInternal(heightMap.UvOffset)),
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceObjectKey,
-                cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };

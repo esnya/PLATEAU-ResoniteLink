@@ -112,8 +112,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     BundledVariantIndex: bundledVariantIndex,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
-            SourceObjectKey: "unit-a:mixed-material-city-object",
-            SourceUnitKey: "unit-a",
             SourceFileRelativePath: "unit-a.gml");
 
         ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -175,8 +173,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     BundledVariantIndex: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
-            SourceObjectKey: "unit-a:mixed-triplanar-city-object",
-            SourceUnitKey: "unit-a",
             SourceFileRelativePath: "unit-a.gml");
 
         ResoniteConstructionCityObject normalized = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -239,8 +235,6 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
             [
                 CreateDynamicUvMaterial(textureScale, textureOffset, terrainOverlay),
             ],
-            SourceObjectKey: "unit-a:dynamic-uv-city-object",
-            SourceUnitKey: "unit-a",
             SourceFileRelativePath: "unit-a.gml");
     }
 

@@ -282,18 +282,10 @@ internal static class ResoniteSceneMaterialConventions
         ResoniteFloat2? textureScale,
         ResoniteFloat2? textureOffset)
     {
-        return StableOpaqueId.Create(
-            "common",
-            builder =>
-            {
-                builder.Add(family);
-                builder.Add(bundledVariantIndex);
-                builder.Add(ProjectionToken(projection));
-                builder.AddRounded(textureScale?.X);
-                builder.AddRounded(textureScale?.Y);
-                builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.X);
-                builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.Y);
-            });
+        ResoniteFloat2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"common-{family}-{bundledVariantIndex}-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -458,18 +450,9 @@ internal static class ResoniteSceneMaterialConventions
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
-        return StableOpaqueId.Create(
-            "terrain-overlay",
-            builder =>
-            {
-                builder.Add(terrainTextureOverlay.PackageName.ToLowerInvariant());
-                builder.Add(terrainTextureOverlay.SourceIdentityKey);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MinLatitude);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLatitude);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MinLongitude);
-                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLongitude);
-            },
-            hexLength: 16);
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"terrain-overlay-{terrainTextureOverlay.PackageName.ToLowerInvariant()}-{terrainTextureOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainTextureOverlay.GeographicBounds)}");
     }
 
     private static string ComputeShortStableHash(string text)
@@ -486,6 +469,26 @@ internal static class ResoniteSceneMaterialConventions
             ResoniteMaterialProjection.Triplanar => "triplanar",
             _ => projection.ToString().ToLowerInvariant(),
         };
+    }
+
+    private static string FormatFloat2(ResoniteFloat2? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
+    }
+
+    private static string FormatBounds(GeographicRectangle bounds) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
     }
 
     private static bool IsWhiteBaseColor(ResoniteColor color)

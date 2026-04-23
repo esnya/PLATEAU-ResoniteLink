@@ -29,8 +29,6 @@ public sealed class LocalCityGmlGeometryProjectorTests
                     Surfaces: [],
                     ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:6697"),
                     SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
-                    SourceUnitIdentity: "unit",
-                    SourceIdentity: "identity",
                     SharedAcrossMeshCodes: false),
             ]);
 

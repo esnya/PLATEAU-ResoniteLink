@@ -70,8 +70,6 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
             Transform: new ResoniteTransform(worldPosition),
             Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("wireframe-material"),
             Materials: [CreateWireframeMaterial()],
-            SourceObjectKey: sourceObjectKey,
-            SourceUnitKey: sourceObjectKey,
             SourceFileRelativePath: $"udx/bldg/{actualMeshCode}/plateau_{DatasetName}_bldg_{actualMeshCode}.gml");
     }
 

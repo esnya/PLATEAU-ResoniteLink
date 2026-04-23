@@ -294,8 +294,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             Surfaces: [surface],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{objectKey}.gml",
-            SourceUnitIdentity: $"{packageName}_{objectKey}_unit",
-            SourceIdentity: $"{packageName}_{objectKey}",
             SharedAcrossMeshCodes: false);
     }
 
@@ -345,8 +343,6 @@ public sealed class StreamingImportedSceneSourceStreamingTests
                             ],
                             [new MeshSubmesh(0, $"{cityObject.PackageName}_material", [0, 1, 2])])),
                     [],
-                    SourceObjectKey: cityObject.SourceIdentity,
-                    SourceUnitKey: cityObject.SourceUnitIdentity,
                     SourceFileRelativePath: sourceFile.RelativePath);
             }
         }

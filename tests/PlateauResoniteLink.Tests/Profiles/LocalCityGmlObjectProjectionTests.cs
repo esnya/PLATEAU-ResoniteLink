@@ -1573,8 +1573,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",
-            SourceUnitIdentity: "unit",
-            SourceIdentity: $"{packageName}:identity",
             SharedAcrossMeshCodes: false,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters);
@@ -1717,8 +1715,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 MaxHeight: heightSamples.Max(),
                 HeightSamples: heightSamples),
             Materials: [material],
-            SourceObjectKey: slotKey,
-            SourceUnitKey: slotKey,
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
     private sealed class StubSceneBuilder : ISceneSink

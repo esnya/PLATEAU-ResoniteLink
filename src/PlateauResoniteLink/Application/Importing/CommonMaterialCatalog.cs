@@ -101,17 +101,10 @@ public sealed class CommonMaterialCatalog
         Float2 textureScale,
         Float2? textureOffset)
     {
-        return StableOpaqueId.Create(
-            "common",
-            builder =>
-            {
-                builder.Add(family);
-                builder.Add(variantIndex);
-                builder.Add(ProjectionToken(projection));
-                builder.AddRounded((double?)textureScale.X);
-                builder.AddRounded((double?)textureScale.Y);
-                AddFloat2(builder, IsZeroTextureOffset(textureOffset) ? null : textureOffset);
-            });
+        Float2? effectiveOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"common-{family}-{variantIndex}-{ProjectionToken(projection)}-scale-{FormatRounded(textureScale.X)}-{FormatRounded(textureScale.Y)}-offset-{FormatFloat2(effectiveOffset)}");
     }
 
     private static MaterialBinding CreateSharedAlbedoCommonMaterialBinding()
@@ -160,28 +153,18 @@ public sealed class CommonMaterialCatalog
         Float2? textureOffset,
         MaterialDepthOffset? depthOffset)
     {
-        return StableOpaqueId.Create(
-            "shared-generic",
-            builder =>
-            {
-                builder.Add(ProjectionToken(projection));
-                AddFloat2(builder, textureScale);
-                AddFloat2(builder, textureOffset);
-                AddDepthOffset(builder, depthOffset);
-            });
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"shared-generic-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-depth-{FormatDepth(depthOffset)}");
     }
 
     private static string CreateCanonicalVertexColorCommonMaterialKey(
         MaterialProjection projection,
         MaterialDepthOffset? depthOffset)
     {
-        return StableOpaqueId.Create(
-            "shared-vertex",
-            builder =>
-            {
-                builder.Add(ProjectionToken(projection));
-                AddDepthOffset(builder, depthOffset);
-            });
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"shared-vertex-{ProjectionToken(projection)}-depth-{FormatDepth(depthOffset)}");
     }
 
     private static string ProjectionToken(MaterialProjection projection)
@@ -196,18 +179,28 @@ public sealed class CommonMaterialCatalog
 
     private static Float2 ToContract(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
 
-    private static void AddFloat2(StableOpaqueId.Builder builder, Float2? value)
+    private static string FormatFloat2(Float2? value)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.AddRounded(value?.X);
-        builder.AddRounded(value?.Y);
+        return value is null
+            ? "none"
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
     }
 
-    private static void AddDepthOffset(StableOpaqueId.Builder builder, MaterialDepthOffset? value)
+    private static string FormatDepth(MaterialDepthOffset? value)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.AddRounded(value?.Factor);
-        builder.AddRounded(value?.Units);
+        return value is null
+            ? "none"
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
+    }
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static bool IsZeroTextureOffset(Float2? textureOffset)

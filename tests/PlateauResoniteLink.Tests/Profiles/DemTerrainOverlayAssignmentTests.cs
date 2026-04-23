@@ -243,8 +243,6 @@ public sealed class DemTerrainOverlayAssignmentTests
             Surfaces: [surface],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
-            SourceUnitIdentity: "source-unit",
-            SourceIdentity: "source",
             SharedAcrossMeshCodes: false);
     }
 

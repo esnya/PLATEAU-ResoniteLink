@@ -890,9 +890,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         {
             ImportedCityObject importedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(
                 ResoniteLiveSceneImportTargetTestSupport.ToImportedCityObject(cityObject));
-            string scopeKey = importedCityObject.SourceUnitKey
-                ?? importedCityObject.SourceObjectKey
-                ?? importedCityObject.ObjectKey;
+            string scopeKey = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
             string scopePath = importedCityObject.SourceFileRelativePath ?? scopeKey;
             yield return new ImportedObjectUnit(
                 scopeKey,
@@ -941,8 +939,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     [0]),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectKey,
-            SourceUnitKey: objectKey,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -972,8 +968,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     TerrainOverlay: overlay),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectKey,
-            SourceUnitKey: objectKey,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1010,8 +1004,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     BundledVariantIndex: variantIndex),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectKey,
-            SourceUnitKey: objectKey,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 
@@ -1039,8 +1031,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectIdentity,
-            SourceUnitKey: objectIdentity,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 

@@ -88,7 +88,6 @@ internal static partial class LocalCityGmlObjectProjection
 
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject[] cityObjectArray = cityObjects
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
-            .ThenBy(static cityObject => cityObject.SourceIdentity, StringComparer.Ordinal)
             .ToArray();
         coordinateReferenceSystem ??= await ReadDocumentReferenceSystemCoreAsync(
             datasetSource,

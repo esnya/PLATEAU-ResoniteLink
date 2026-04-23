@@ -131,16 +131,6 @@ internal static partial class LocalCityGmlObjectProjection
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
-        string sourceUnitIdentity = StableOpaqueId.Create(
-            "srcunit",
-            builder => builder.Add(relativeSourceFile));
-        string sourceIdentity = StableOpaqueId.Create(
-            "srcobj",
-            builder =>
-            {
-                builder.Add(relativeSourceFile);
-                builder.Add(objectId);
-            });
         return new ParsedCityObject(
             slotKey,
             displayName!,
@@ -150,8 +140,6 @@ internal static partial class LocalCityGmlObjectProjection
             surfaces,
             coordinateReferenceSystem,
             relativeSourceFile,
-            sourceUnitIdentity,
-            sourceIdentity,
             SharedAcrossMeshCodes: sharedAcrossMeshCodes,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters);
@@ -1314,8 +1302,6 @@ internal static partial class LocalCityGmlObjectProjection
             Transform: new Transform3D(ToContractFloat3(slotPosition)),
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
@@ -1568,13 +1554,6 @@ internal static partial class LocalCityGmlObjectProjection
             ? null
             : cityObject with
             {
-                SourceIdentity = StableOpaqueId.Create(
-                    "srcobj",
-                    builder =>
-                    {
-                        builder.Add(cityObject.SourceIdentity);
-                        builder.Add("road_marking");
-                    }),
                 SlotKey = $"{cityObject.SlotKey}_road_marking",
                 DisplayName = $"{cityObject.DisplayName} Marking",
                 Surfaces = markingSurfaces.ToArray(),
@@ -2497,28 +2476,12 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba color,
         Float2? textureOffset = null)
     {
-        return StableOpaqueId.Create(
-            "material",
-            builder =>
-            {
-                builder.AddEnum(materialType);
-                builder.AddEnum(projection);
-                builder.Add(terrainOverlay is not null);
-                builder.Add(terrainOverlay is null ? null : CreateTerrainOverlayToken(terrainOverlay));
-                builder.Add(texturePayload?.Identity);
-                builder.AddEnum(textureSourceKind);
-                builder.Add(string.IsNullOrWhiteSpace(family) ? null : family.ToLowerInvariant());
-                builder.AddRounded(depthOffset?.Factor);
-                builder.AddRounded(depthOffset?.Units);
-                builder.AddRounded(textureScale?.X);
-                builder.AddRounded(textureScale?.Y);
-                builder.AddRounded(textureOffset?.X);
-                builder.AddRounded(textureOffset?.Y);
-                builder.AddRounded(color.R);
-                builder.AddRounded(color.G);
-                builder.AddRounded(color.B);
-                builder.AddRounded(color.A);
-            });
+        string terrainToken = terrainOverlay is null ? "none" : CreateTerrainOverlayToken(terrainOverlay);
+        string textureToken = texturePayload?.Identity ?? "none";
+        string familyToken = string.IsNullOrWhiteSpace(family) ? "none" : family.ToLowerInvariant();
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"material-{MaterialTypeToken(materialType)}-{ProjectionToken(projection)}-terrain-{terrainToken}-texture-{textureToken}-source-{textureSourceKind.ToString().ToLowerInvariant()}-family-{familyToken}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-color-{FormatColor(color)}");
     }
 
     private static string CreateBindingMaterialKey(
@@ -2532,18 +2495,10 @@ internal static partial class LocalCityGmlObjectProjection
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
-            return StableOpaqueId.Create(
-                "common",
-                builder =>
-                {
-                    builder.Add(family);
-                    builder.Add(variantIndex);
-                    builder.Add(ProjectionToken(material.Projection));
-                    builder.AddRounded(textureScale?.X);
-                    builder.AddRounded(textureScale?.Y);
-                    builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.X);
-                    builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.Y);
-                });
+            Float2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"common-{family}-{variantIndex}-{ProjectionToken(material.Projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
         }
 
         return CreateMaterialKey(
@@ -2561,18 +2516,13 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainOverlay)
     {
-        return StableOpaqueId.Create(
-            "terrain-overlay",
-            builder =>
-            {
-                builder.Add(terrainOverlay.PackageName.ToLowerInvariant());
-                builder.Add(terrainOverlay.SourceIdentityKey);
-                builder.Add(terrainOverlay.GeographicBounds.MinLatitude);
-                builder.Add(terrainOverlay.GeographicBounds.MaxLatitude);
-                builder.Add(terrainOverlay.GeographicBounds.MinLongitude);
-                builder.Add(terrainOverlay.GeographicBounds.MaxLongitude);
-            });
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"terrain-overlay-{terrainOverlay.PackageName.ToLowerInvariant()}-{terrainOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainOverlay.GeographicBounds)}");
     }
+
+    private static string MaterialTypeToken(MaterialType materialType) =>
+        materialType.ToString().ToLowerInvariant();
 
     private static string ProjectionToken(MaterialProjection projection)
     {
@@ -2582,6 +2532,40 @@ internal static partial class LocalCityGmlObjectProjection
             MaterialProjection.Triplanar => "triplanar",
             _ => projection.ToString().ToLowerInvariant(),
         };
+    }
+
+    private static string FormatFloat2(Float2? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
+    }
+
+    private static string FormatDepth(MaterialDepthOffset? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
+    }
+
+    private static string FormatColor(ColorRgba value) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(value.R)}-{FormatRounded(value.G)}-{FormatRounded(value.B)}-{FormatRounded(value.A)}");
+
+    private static string FormatBounds(GeographicRectangle bounds) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
     }
 
     private static bool IsZeroTextureOffset(Float2? textureOffset)
@@ -3346,7 +3330,7 @@ internal static partial class LocalCityGmlObjectProjection
         foreach (List<BoundaryHeightSampleReference> references in sampleReferencesByKey.Values)
         {
             if (references.Count < 2
-                || references.Select(static reference => reference.State.CityObject.SourceObjectKey ?? reference.State.CityObject.ObjectKey).Distinct(StringComparer.Ordinal).Count() < 2)
+                || references.Select(static reference => reference.State.CityObject).Distinct().Count() < 2)
             {
                 continue;
             }
@@ -3652,8 +3636,6 @@ internal static partial class LocalCityGmlObjectProjection
                 UvScale: heightMapUvScale,
                 UvOffset: heightMapUvOffset),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
         return true;
     }
@@ -3812,8 +3794,6 @@ internal static partial class LocalCityGmlObjectProjection
                 UvScale: heightMapUvScale,
                 UvOffset: heightMapUvOffset),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
         return true;
     }
@@ -4510,8 +4490,6 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
         string SourceFileRelativePath,
-        string SourceUnitIdentity,
-        string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
         GeodeticPoint? OriginOverride = null,

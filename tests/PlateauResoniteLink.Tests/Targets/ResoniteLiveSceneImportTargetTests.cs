@@ -71,7 +71,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "dem-overlay-source",
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -197,7 +196,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "dem-overlay-current-source",
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -263,7 +261,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: "heightmap-source",
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
@@ -353,7 +350,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "heightmap-overlay-source",
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -415,8 +411,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0]),
             ],
             CollisionEnabled: false,
-            SourceObjectKey: "no-collision-source",
-            SourceUnitKey: "no-collision-source",
             SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
@@ -462,8 +456,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
-            ],
-            SourceObjectKey: "terrain-overlay-budget");
+            ]
+        );
         ResoniteConstructionCityObject withoutOverlay = withOverlay with
         {
             Materials =
@@ -516,8 +510,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureScale: null,
                     TextureOffset: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
-            ],
-            SourceObjectKey: "uv-bake-budget-baseline");
+            ]
+        );
         ResoniteConstructionCityObject withBake = baseline with
         {
             SlotKey = "uv-bake-budget-baked",
@@ -530,7 +524,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     TextureOffset = new ResoniteFloat2(0.25, 0.75),
                 },
             ],
-            SourceObjectKey = "uv-bake-budget-baked",
         };
 
         long baselineEstimate = InvokeEstimatedWorkingSetBytes(baseline);
@@ -592,7 +585,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [1]),
             ],
-            SourceObjectKey: "tag-source",
             SourceFileRelativePath: sourceFile);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false);
@@ -634,7 +626,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: "hierarchy-source",
             SourceFileRelativePath: sourceFile);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
@@ -682,7 +673,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: "placeholder-source",
             SourceFileRelativePath: sourceFile);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
@@ -737,7 +727,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: "non-baked-source",
             SourceFileRelativePath: sourceFile);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -794,7 +783,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
                     BundledVariantIndex: 0),
             ],
-            SourceObjectKey: "bundled-family-scale-source",
             SourceFileRelativePath: sourceFile);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -883,7 +871,6 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped,
                     BundledVariantIndex: 0),
             ],
-            SourceObjectKey: "bundled-family-transform-source",
             SourceFileRelativePath: sourceFile);
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -974,8 +961,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [1]),
-            ],
-            SourceObjectKey: "invalid-submesh-range");
+            ]
+        );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
@@ -1027,8 +1014,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0, 1]),
-            ],
-            SourceObjectKey: "invalid-submesh-duplicate");
+            ]
+        );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
@@ -1082,8 +1069,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0, 1]),
-            ],
-            SourceObjectKey: "invalid-submesh-duplicate-dynamic");
+            ]
+        );
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
@@ -1126,8 +1113,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0]),
-            ],
-            SourceObjectKey: "invalid-submesh-unassigned");
+            ]
+        );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));
@@ -1186,8 +1173,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Projection: ResoniteMaterialProjection.Uv,
                     DepthOffset: null,
                     SubmeshIndices: [0]),
-            ],
-            SourceObjectKey: "invalid-empty-submesh");
+            ]
+        );
 
         ResoniteMeshValidationException exception = await Assert.ThrowsAsync<ResoniteMeshValidationException>(
             () => ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client, enableMeshBake: false));

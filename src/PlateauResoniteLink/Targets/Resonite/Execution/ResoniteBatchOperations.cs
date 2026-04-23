@@ -148,13 +148,7 @@ internal static class ResoniteBatchOperations
         int? sequence = null)
     {
         return new BatchTemporarySlotId(
-            StableOpaqueId.Create(
-                prefix,
-                builder =>
-                {
-                    builder.Add(batchScopeToken);
-                    builder.Add(sequence);
-                }));
+            FormatRequestLocalId(prefix, batchScopeToken, sequence));
     }
 
     private static BatchTemporaryComponentId CreateTemporaryComponentId(
@@ -163,13 +157,7 @@ internal static class ResoniteBatchOperations
         int? sequence = null)
     {
         return new BatchTemporaryComponentId(
-            StableOpaqueId.Create(
-                prefix,
-                builder =>
-                {
-                    builder.Add(batchScopeToken);
-                    builder.Add(sequence);
-                }));
+            FormatRequestLocalId(prefix, batchScopeToken, sequence));
     }
 
     private static BatchTemporaryMessageId CreateTemporaryMessageId(
@@ -178,13 +166,16 @@ internal static class ResoniteBatchOperations
         int? sequence = null)
     {
         return new BatchTemporaryMessageId(
-            StableOpaqueId.Create(
-                string.Concat(prefix, "-message"),
-                builder =>
-                {
-                    builder.Add(batchScopeToken);
-                    builder.Add(sequence);
-                }));
+            FormatRequestLocalId(string.Concat(prefix, "_message"), batchScopeToken, sequence));
+    }
+
+    private static string FormatRequestLocalId(string prefix, string batchScopeToken, int? sequence)
+    {
+        return sequence.HasValue
+            ? string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{prefix}_{batchScopeToken}_{sequence.Value}")
+            : string.Concat(prefix, "_", batchScopeToken);
     }
 
     public static AddSlot CreateAddSlotOperation(

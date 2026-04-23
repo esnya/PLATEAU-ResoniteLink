@@ -103,8 +103,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     Family: BundledDefaultMaterialFamilies.Facade,
                     BundledVariantIndex: 0),
             ],
-            SourceObjectKey: "unit-a:mixed-material-city-object",
-            SourceUnitKey: "unit-a",
             SourceFileRelativePath: "unit-a.gml");
 
         ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -161,8 +159,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
                     TextureScale: new Float2(1.0, 1.0),
                     TextureOffset: new Float2(0.0, 0.0)),
             ],
-            SourceObjectKey: "unit-a:mixed-triplanar-city-object",
-            SourceUnitKey: "unit-a",
             SourceFileRelativePath: "unit-a.gml");
 
         ImportedCityObject normalized = ImportedDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -225,8 +221,6 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
             [
                 CreateDynamicUvMaterial(textureScale, textureOffset, terrainOverlay),
             ],
-            SourceObjectKey: "unit-a:dynamic-uv-city-object",
-            SourceUnitKey: "unit-a",
             SourceFileRelativePath: "unit-a.gml");
     }
 

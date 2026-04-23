@@ -569,8 +569,6 @@ public sealed class PlateauImportServiceTests
                     ],
                     [new MeshSubmesh(0, "material", [0, 1, 2])])),
                 Materials: [],
-                SourceObjectKey: "source-object",
-                SourceUnitKey: "source-unit",
                 SourceFileRelativePath: "udx/bldg/53394525/building.gml");
         }
     }

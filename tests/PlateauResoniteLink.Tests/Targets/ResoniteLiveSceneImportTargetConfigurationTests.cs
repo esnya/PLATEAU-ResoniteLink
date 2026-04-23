@@ -208,7 +208,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     x: 10.0,
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null) with
+                    sourceFileRelativePath: "shared-unit.gml") with
                 {
                     PackageName = "tran",
                 }));
@@ -231,7 +231,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     x: 10.0 + (index * 0.01),
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)));
+                    sourceFileRelativePath: "shared-unit.gml")));
     }
 
     [Theory]
@@ -401,8 +401,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     null,
                     [0]),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 }

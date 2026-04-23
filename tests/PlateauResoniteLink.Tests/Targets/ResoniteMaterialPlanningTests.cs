@@ -158,36 +158,36 @@ public sealed class ResoniteMaterialPlanningTests
         PlannedTextureAsset? firstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
             client,
             firstMaterial,
-            new Dictionary<string, ResoniteTextureImport>
+            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
         PlannedTextureAsset? repeatedFirstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
             client,
             firstMaterial,
-            new Dictionary<string, ResoniteTextureImport>
+            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
         PlannedTextureAsset? secondOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
             client,
             secondMaterial,
-            new Dictionary<string, ResoniteTextureImport>
+            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+                [secondMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
         PlannedTextureAsset? thirdOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
             client,
             firstMaterial,
-            new Dictionary<string, ResoniteTextureImport>
+            new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-b"),
+                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-b"),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);

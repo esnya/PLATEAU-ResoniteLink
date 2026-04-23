@@ -43,7 +43,7 @@ public sealed class StreamingImportedSceneSourceTests
         Assert.Equal(sourceFileCount, cityObjects.Count);
         Assert.All(
             cityObjects,
-            static cityObject => Assert.Equal("test-unit", cityObject.SourceUnitKey));
+            static cityObject => Assert.Equal("bldg", cityObject.PackageName));
         Assert.InRange(
             TrackingGeometryProjector.MaxObservedConcurrency,
             1,
@@ -402,8 +402,6 @@ public sealed class StreamingImportedSceneSourceTests
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SourceUnitIdentity: "test-unit",
-            SourceIdentity: $"{sourceFile.PackageName}:slot-{index:000}",
             SharedAcrossMeshCodes: false);
     }
 
@@ -442,8 +440,6 @@ public sealed class StreamingImportedSceneSourceTests
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SourceUnitIdentity: "test-unit",
-            SourceIdentity: $"{sourceFile.PackageName}:slot-renderable",
             SharedAcrossMeshCodes: false);
     }
 
@@ -509,8 +505,6 @@ public sealed class StreamingImportedSceneSourceTests
                     Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                     Materials: [],
-                    SourceObjectKey: parsedCityObject.SourceIdentity,
-                    SourceUnitKey: parsedCityObject.SourceUnitIdentity,
                     SourceFileRelativePath: parsedCityObject.SourceFileRelativePath);
             }
             finally
@@ -576,8 +570,6 @@ public sealed class StreamingImportedSceneSourceTests
                 Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                 Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                 Materials: [],
-                SourceObjectKey: parsedCityObject.SourceIdentity,
-                SourceUnitKey: parsedCityObject.SourceUnitIdentity,
                 SourceFileRelativePath: sourceFile.RelativePath);
         }
     }

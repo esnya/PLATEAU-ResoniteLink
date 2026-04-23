@@ -1019,7 +1019,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0),
             ],
-            SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1054,7 +1053,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     TextureOffset: textureOffset,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
-            SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1097,7 +1095,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Family: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
-            SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1133,7 +1130,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1162,7 +1158,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     SubmeshIndices: [0],
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
-            SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1204,7 +1199,6 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Family: null,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
-            SourceObjectKey: objectIdentity,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 

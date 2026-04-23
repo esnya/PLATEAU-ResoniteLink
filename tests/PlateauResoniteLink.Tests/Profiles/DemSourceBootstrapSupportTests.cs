@@ -100,8 +100,6 @@ public sealed class DemSourceBootstrapSupportTests
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
-            SourceUnitIdentity: "udx/dem/53394525/sample.gml",
-            SourceIdentity: "source",
             SharedAcrossMeshCodes: false,
             TerrainAligned: false,
             OriginOverride: null);

@@ -352,8 +352,6 @@ public sealed class DefaultImportedSceneSourceFactoryTests
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: "udx/dem/53394525/terrain.gml",
-            SourceUnitIdentity: "test-unit",
-            SourceIdentity: "dem:slot-000",
             SharedAcrossMeshCodes: false);
     }
 

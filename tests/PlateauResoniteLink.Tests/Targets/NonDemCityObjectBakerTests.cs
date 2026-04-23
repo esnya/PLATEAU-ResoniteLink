@@ -28,7 +28,6 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Single(cityObject.Mesh.Submeshes);
         Assert.Equal(6, cityObject.Mesh.Vertices.Count);
         Assert.Equal("unit-a.gml", cityObject.SourceFileRelativePath);
-        Assert.Null(cityObject.SourceUnitKey);
         ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, atlasPayload.Format);
         Assert.NotNull(atlasPayload.Width);
@@ -566,8 +565,8 @@ public sealed class NonDemCityObjectBakerTests
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
         Assert.Equal(2, baked.Count);
-        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey is null && cityObject.SourceFileRelativePath == "unit-a.gml");
-        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey is null && cityObject.SourceFileRelativePath == "unit-b.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "unit-a.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceFileRelativePath == "unit-b.gml");
     }
 
     [Fact]
@@ -586,7 +585,6 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
 
         Assert.Equal("common.gml", baked.SourceFileRelativePath);
-        Assert.Null(baked.SourceUnitKey);
     }
 
     [Fact]
@@ -871,8 +869,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
@@ -924,8 +920,6 @@ public sealed class NonDemCityObjectBakerTests
                     DepthOffset: null,
                     SubmeshIndices: [1]),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
@@ -976,8 +970,6 @@ public sealed class NonDemCityObjectBakerTests
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 0),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
@@ -1055,8 +1047,6 @@ public sealed class NonDemCityObjectBakerTests
                     SubmeshIndices: [1],
                     Family: BundledDefaultMaterialFamilies.Facade),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
@@ -1125,8 +1115,6 @@ public sealed class NonDemCityObjectBakerTests
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: 1),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
@@ -1193,8 +1181,6 @@ public sealed class NonDemCityObjectBakerTests
                     Family: BundledDefaultMaterialFamilies.Roof,
                     BundledVariantIndex: 1),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 }

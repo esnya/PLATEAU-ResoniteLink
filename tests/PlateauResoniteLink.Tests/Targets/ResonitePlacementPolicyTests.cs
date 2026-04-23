@@ -139,14 +139,12 @@ public sealed class ResonitePlacementPolicyTests
             Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
             Mesh: new PlateauResoniteLink.Targets.Resonite.ResoniteImportedMesh([], []),
             Materials: [],
-            SourceObjectKey: "source-a",
-            SourceUnitKey: null,
             SourceFileRelativePath: null);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
             () => PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveCityGmlScopeKey(cityObject));
 
-        Assert.Contains("SourceFileRelativePath or SourceUnitKey", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("SourceFileRelativePath", exception.Message, StringComparison.Ordinal);
     }
 
     private static PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)

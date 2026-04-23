@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace PlateauResoniteLink.Domain.Importing;
@@ -20,13 +21,7 @@ public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel)
         : throw new ArgumentOutOfRangeException(nameof(ZoomLevel));
 
     public override string IdentityKey =>
-        StableOpaqueId.Create(
-            "tile",
-            builder =>
-            {
-                builder.Add(ZoomLevel);
-                builder.Add(UrlTemplate);
-            });
+        string.Create(CultureInfo.InvariantCulture, $"tile-z{ZoomLevel}-{UrlTemplate}");
 }
 
 public sealed record GeoReferencedRasterMetadata(
@@ -40,18 +35,9 @@ public sealed record GeoReferencedRasterMetadata(
         && PixelHeightMeters > 0.0;
 
     public string IdentityKey =>
-        StableOpaqueId.Create(
-            "georaster-meta",
-            builder =>
-            {
-                builder.Add(CoordinateSystemIdentifier);
-                builder.Add(PixelWidthMeters);
-                builder.Add(PixelHeightMeters);
-                builder.Add(GeographicBounds.MinLatitude);
-                builder.Add(GeographicBounds.MaxLatitude);
-                builder.Add(GeographicBounds.MinLongitude);
-                builder.Add(GeographicBounds.MaxLongitude);
-            });
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"georaster-meta-crs-{CoordinateSystemIdentifier ?? "none"}-pixel-{TerrainTextureDescriptorFormatting.FormatRounded(PixelWidthMeters)}x{TerrainTextureDescriptorFormatting.FormatRounded(PixelHeightMeters)}-bounds-{TerrainTextureDescriptorFormatting.FormatBounds(GeographicBounds)}");
 }
 
 public sealed record TerrainTextureGeoReferencedRasterSource(
@@ -65,13 +51,7 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
     public GeoReferencedRasterMetadata? Metadata { get; init; } = Metadata;
 
     public override string IdentityKey =>
-        StableOpaqueId.Create(
-            "georaster",
-            builder =>
-            {
-                builder.Add(SourcePath);
-                builder.Add(Metadata?.IdentityKey);
-            });
+        string.Create(CultureInfo.InvariantCulture, $"georaster-{SourcePath}-meta-{Metadata?.IdentityKey ?? "none"}");
 }
 
 public sealed record TerrainTextureOverlay
@@ -153,17 +133,8 @@ public sealed record TerrainTextureOverlay
 
     public int? FallbackZoomLevel => GetFallbackTileSource()?.ZoomLevel;
 
-    public string SourceIdentityKey =>
-        StableOpaqueId.Create(
-            "terrain-sources",
-            builder =>
-            {
-                builder.Add(Sources.Count);
-                foreach (TerrainTextureSource source in Sources)
-                {
-                    builder.Add(source.IdentityKey);
-                }
-            });
+    public string SourceDescriptorKey =>
+        string.Join("|", Sources.Select(static source => source.IdentityKey));
 
     public TerrainTextureTileSource GetRequiredPrimaryTileSource() => GetRequiredTileSource(PrimarySource);
 
@@ -206,6 +177,21 @@ public sealed record TerrainTextureOverlay
         return source as TerrainTextureTileSource
             ?? throw new InvalidOperationException(
                 $"Terrain texture source '{source.GetType().Name}' does not provide a web tile URL.");
+    }
+
+}
+
+internal static class TerrainTextureDescriptorFormatting
+{
+    public static string FormatBounds(GeographicRectangle bounds) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+
+    public static string FormatRounded(double value)
+    {
+        double normalized = value == 0.0 ? 0.0 : value;
+        return normalized.ToString("G17", CultureInfo.InvariantCulture);
     }
 }
 

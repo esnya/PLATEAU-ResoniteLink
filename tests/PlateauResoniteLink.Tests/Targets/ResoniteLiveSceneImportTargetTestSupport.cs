@@ -389,9 +389,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportedCityObject importedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(ToImportedCityObject(cityObject));
-            string scopeKey = importedCityObject.SourceUnitKey
-                ?? importedCityObject.SourceObjectKey
-                ?? importedCityObject.ObjectKey;
+            string scopeKey = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
             string scopePath = importedCityObject.SourceFileRelativePath ?? scopeKey;
             yield return new ImportedObjectUnit(
                 scopeKey,
@@ -422,8 +420,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 ToContractMesh(triangleMesh.Mesh),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceObjectKey,
-                cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath),
             ResoniteHeightMapGridGeometry heightMap => new ImportedCityObject(
                 cityObject.SlotKey,
@@ -443,8 +439,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                     heightMap.UvOffset is null ? null : ToContractFloat2(heightMap.UvOffset)),
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
-                cityObject.SourceObjectKey,
-                cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
