@@ -15,6 +15,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddScoped<Func<IResoniteLinkClient>>(_ => static () => new ResoniteLinkClient());
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
         services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
@@ -72,6 +73,25 @@ internal interface IResoniteClientSessionFactory
     ILiveSendClientSession Create(
         ResoniteLiveSceneImportTargetOptions options,
         ResoniteLinkSendDiagnostics diagnostics);
+}
+
+internal sealed class ResoniteLinkClientSessionFactory(
+    Func<IResoniteLinkClient> baseClientFactory) : IResoniteClientSessionFactory
+{
+    public ILiveSendClientSession Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLinkSendDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        return ResoniteLinkTransportSessionFactory.Create(
+            options.Endpoint,
+            options.ConnectionCount,
+            diagnostics,
+            options.ProgressReporter,
+            baseClientFactory);
+    }
 }
 
 internal interface ITerrainTextureAssetGeneratorFactory

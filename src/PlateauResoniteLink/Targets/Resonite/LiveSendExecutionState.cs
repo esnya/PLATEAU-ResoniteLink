@@ -4,14 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
-
-internal sealed record LiveSendExecutionContext(
-    SceneBootstrapInfo BootstrapInfo,
-    CreatedSlot DatasetRootSlot,
-    CompositeCityObjectBaker? CityObjectBaker);
 
 internal sealed class LiveSendProgressSink
 {
@@ -60,7 +53,7 @@ internal sealed class CommonMaterialAssetCache
 }
 
 internal sealed record LiveSendRunPlan(
-    SceneBootstrapInfo BootstrapInfo,
+    ResoniteSceneBootstrapInfo BootstrapInfo,
     string ResolvedWorkRoot,
     ResoniteLocalOrigin RequestLocalOrigin,
     IReadOnlyDictionary<string, string> SourceFileSlotNamesByRelativePath,

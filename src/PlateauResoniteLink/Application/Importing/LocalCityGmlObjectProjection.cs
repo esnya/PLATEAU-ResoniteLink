@@ -542,7 +542,7 @@ internal static partial class LocalCityGmlObjectProjection
                 cityObject.ReferenceSystem.Geocentric)
             : null;
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         if (!IsNearHorizontalSurface(positions))
         {
@@ -1078,7 +1078,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         return IsNearHorizontalSurface(positions);
     }
@@ -1252,7 +1252,7 @@ internal static partial class LocalCityGmlObjectProjection
                 cityObjectOrigin.Altitude,
                 cityObject.ReferenceSystem.Geocentric)
             : null;
-        Float3 slotPosition = CreateResonitePosition(
+        Float3 slotPosition = CreateScenePosition(
             cityObjectOrigin,
             globalOriginPoint,
             globalCartesian);
@@ -1485,7 +1485,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         Float3[] positions = vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         Float3? normal = ComputePolygonNormal(positions);
         if (normal is null || Math.Abs(normal.Y) < 0.7)
@@ -1523,10 +1523,10 @@ internal static partial class LocalCityGmlObjectProjection
             GeodeticPoint[] side0Source = [side0Start, side0End];
             GeodeticPoint[] side1Source = [side1Start, side1End];
             Float3[] side0Positions = side0Source
-                .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+                .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
                 .ToArray();
             Float3[] side1Positions = side1Source
-                .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+                .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
                 .ToArray();
 
             GeodeticPoint[] side0 = MoveTowardCrossSection(
@@ -1927,7 +1927,7 @@ internal static partial class LocalCityGmlObjectProjection
     {
         TessellatedVertex[] vertices = ring.Vertices
             .Select((point, index) => new TessellatedVertex(
-                CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian),
+                CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian),
                 ring.UVs is not null && index < ring.UVs.Count
                     ? ToInternalFloat2(ring.UVs[index])
                     : generatedDemUvProjection is not null
@@ -2005,7 +2005,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         if (positions.Length < 3)
         {
@@ -2034,7 +2034,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         SurfaceUvProjection projection)
     {
-        Float3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
+        Float3 position = CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian);
         double u = Dot(position, projection.AxisU);
         double v = Dot(position, projection.AxisV);
         return new Float2(u, v);
@@ -2336,31 +2336,19 @@ internal static partial class LocalCityGmlObjectProjection
             vector.Z / magnitude);
     }
 
-    private static Float3 MapToResonitePosition((double x, double y, double z) eun)
-    {
-        return new Float3(
-            X: eun.x,
-            Y: eun.z,
-            Z: eun.y);
-    }
-
-    private static Float3 CreateResonitePosition(
+    private static Float3 CreateScenePosition(
         GeodeticPoint point,
         GeodeticPoint origin,
         LocalCartesian? cartesian)
     {
-        if (cartesian is null)
-        {
-            return new Float3(
-                X: point.Latitude - origin.Latitude,
-                Y: point.Altitude - origin.Altitude,
-                Z: point.Longitude - origin.Longitude);
-        }
-
-        return MapToResonitePosition(cartesian.Forward(
+        return SceneAxisMapper.CreatePosition(
             point.Latitude,
             point.Longitude,
-            point.Altitude));
+            point.Altitude,
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            cartesian);
     }
 
     private static string CreateMaterialKey(
@@ -2508,7 +2496,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         Float3? normal = ComputePolygonNormal(positions);
         if (normal is null)
@@ -2525,7 +2513,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         Float3? normal = ComputePolygonNormal(positions);
         return normal is not null && Math.Abs(normal.Y) >= 0.98;
@@ -2626,69 +2614,6 @@ internal static partial class LocalCityGmlObjectProjection
             value.Select(character => char.IsLetterOrDigit(character) ? character : '_'));
     }
 
-    internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
-        global::PlateauResoniteLink.Application.Importing.CachedSourceFileDescriptor sourceFile,
-        global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,
-        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
-        Func<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null)
-    {
-        return ProjectCityObjects(
-            sourceFile.ToLegacy(),
-            referenceSystem.ToLegacy(),
-            globalOriginPoint.ToLegacy(),
-            globalCartesian,
-            demTerrainTextureOverlays,
-            requestedMeshAreas,
-            terrainHeightSampler,
-            request,
-            materialResolver,
-            predicate is null ? null : cityObject => predicate(global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject)));
-    }
-
-    internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
-        CachedSourceFileDescriptor sourceFile,
-        CoordinateReferenceSystem referenceSystem,
-        GeodeticPoint globalOriginPoint,
-        LocalCartesian? globalCartesian,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
-        TerrainHeightSampler? terrainHeightSampler,
-        PlateauImportRequest request,
-        IDefaultMaterialResolver materialResolver,
-        Func<ParsedCityObject, bool>? predicate = null)
-    {
-        ValidateCompatibleReferenceSystem(
-            referenceSystem,
-            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem ?? referenceSystem);
-
-        foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
-        {
-            if (predicate is not null && !predicate(parsedCityObject))
-            {
-                continue;
-            }
-
-            foreach (ImportedCityObject cityObject in ProjectParsedCityObject(
-                         parsedCityObject,
-                         globalOriginPoint,
-                         globalCartesian,
-                         demTerrainTextureOverlays,
-                         requestedMeshAreas,
-                         terrainHeightSampler,
-                         request,
-                         materialResolver))
-            {
-                yield return cityObject;
-            }
-        }
-    }
-
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterials(
         CachedSourceFileDescriptor sourceFile,
         CoordinateReferenceSystem referenceSystem,
@@ -2708,8 +2633,8 @@ internal static partial class LocalCityGmlObjectProjection
         foreach (ParsedCityObject parsedCityObject in sourceFile.CityObjects)
         {
             foreach (MaterialBinding material in EnumerateCommonMaterialsForParsedCityObject(
-                         parsedCityObject,
-                         globalOriginPoint,
+                         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(parsedCityObject),
+                         global::PlateauResoniteLink.Application.Importing.GeodeticPoint.FromLegacy(globalOriginPoint),
                          globalCartesian,
                          demTerrainTextureOverlays,
                          requestedMeshAreas,
@@ -2727,9 +2652,53 @@ internal static partial class LocalCityGmlObjectProjection
         }
     }
 
+    internal static IEnumerable<ImportedCityObject> ProjectCityObjects(
+        global::PlateauResoniteLink.Application.Importing.CachedSourceFileDescriptor sourceFile,
+        global::PlateauResoniteLink.Application.Importing.CoordinateReferenceSystem referenceSystem,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
+        IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver,
+        Func<global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject, bool>? predicate = null)
+    {
+        ArgumentNullException.ThrowIfNull(sourceFile);
+        ArgumentNullException.ThrowIfNull(referenceSystem);
+        ArgumentNullException.ThrowIfNull(globalOriginPoint);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(materialResolver);
+
+        CoordinateReferenceSystem legacyReferenceSystem = referenceSystem.ToLegacy();
+        ValidateCompatibleReferenceSystem(
+            legacyReferenceSystem,
+            sourceFile.CityObjects.FirstOrDefault()?.ReferenceSystem.ToLegacy() ?? legacyReferenceSystem);
+
+        foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject in sourceFile.CityObjects)
+        {
+            if (predicate is not null && !predicate(parsedCityObject))
+            {
+                continue;
+            }
+
+            foreach (ImportedCityObject cityObject in ProjectParsedCityObject(
+                         parsedCityObject,
+                         globalOriginPoint,
+                         globalCartesian,
+                         demTerrainTextureOverlays,
+                         requestedMeshAreas,
+                         terrainHeightSampler: null,
+                         request,
+                         materialResolver))
+            {
+                yield return cityObject;
+            }
+        }
+    }
+
     internal static IEnumerable<ImportedCityObject> ProjectParsedCityObject(
-        ParsedCityObject parsedCityObject,
-        GeodeticPoint globalOriginPoint,
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds> requestedMeshAreas,
@@ -2737,20 +2706,30 @@ internal static partial class LocalCityGmlObjectProjection
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        ArgumentNullException.ThrowIfNull(parsedCityObject);
+        ArgumentNullException.ThrowIfNull(globalOriginPoint);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(materialResolver);
+
+        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject.ToLegacy(), terrainHeightSampler);
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject terrainAlignedBootstrapCityObject =
+            global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(terrainAlignedCityObject);
+        GeodeticPoint legacyGlobalOriginPoint = globalOriginPoint.ToLegacy();
         List<ImportedCityObject> projectedCityObjects = [];
         List<ImportedCityObject> generatedRoadMarkings = [];
 
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
-                     terrainAlignedCityObject,
+        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+                 in DemTerrainOverlayAssignment.SplitParsedCityObject(
+                     terrainAlignedBootstrapCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
+            ParsedCityObject splitLegacyCityObject = splitCityObject.CityObject.ToLegacy();
             ImportedCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
-                && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(splitLegacyCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 && TryProjectDemHeightMapCityObject(
-                    splitCityObject.CityObject,
-                    globalOriginPoint,
+                    splitLegacyCityObject,
+                    legacyGlobalOriginPoint,
                     globalCartesian,
                     splitCityObject.Overlay,
                     request,
@@ -2758,8 +2737,8 @@ internal static partial class LocalCityGmlObjectProjection
                     out ImportedCityObject? heightMapCityObject)
                     ? heightMapCityObject!
                     : ProjectCityObject(
-                        splitCityObject.CityObject,
-                        globalOriginPoint,
+                        splitLegacyCityObject,
+                        legacyGlobalOriginPoint,
                         globalCartesian,
                         splitCityObject.Overlay,
                         materialResolver);
@@ -2769,16 +2748,16 @@ internal static partial class LocalCityGmlObjectProjection
                 projectedCityObjects.Add(cityObject);
             }
 
-            GeodeticPoint markingOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
-            LocalCartesian? markingCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+            GeodeticPoint markingOrigin = GetCityObjectOrigin(splitLegacyCityObject);
+            LocalCartesian? markingCartesian = splitLegacyCityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
                     markingOrigin.Latitude,
                     markingOrigin.Longitude,
                     markingOrigin.Altitude,
-                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                    splitLegacyCityObject.ReferenceSystem.Geocentric)
                 : null;
             ParsedCityObject? roadMarkingCityObject = CreateGeneratedRoadMarkingCityObject(
-                splitCityObject.CityObject,
+                splitLegacyCityObject,
                 markingOrigin,
                 markingCartesian);
             if (roadMarkingCityObject is null)
@@ -2788,7 +2767,7 @@ internal static partial class LocalCityGmlObjectProjection
 
             ImportedCityObject markingObject = ProjectCityObject(
                 roadMarkingCityObject,
-                globalOriginPoint,
+                legacyGlobalOriginPoint,
                 globalCartesian,
                 splitCityObject.Overlay,
                 materialResolver) with
@@ -2803,7 +2782,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         ImportedCityObject[] alignedCityObjects =
             request.DemTerrainMode == DemTerrainMode.HeightMap
-            && string.Equals(parsedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(terrainAlignedCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? AlignAdjacentDemHeightMapChunkBoundaries(projectedCityObjects)
                 : [.. projectedCityObjects];
 
@@ -2819,8 +2798,8 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     internal static IEnumerable<MaterialBinding> EnumerateCommonMaterialsForParsedCityObject(
-        ParsedCityObject parsedCityObject,
-        GeodeticPoint globalOriginPoint,
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject parsedCityObject,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
         IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
         IReadOnlyList<MeshCodeBounds>? requestedMeshAreas,
@@ -2828,32 +2807,41 @@ internal static partial class LocalCityGmlObjectProjection
         PlateauImportRequest request,
         IDefaultMaterialResolver materialResolver)
     {
-        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject, terrainHeightSampler);
+        ArgumentNullException.ThrowIfNull(parsedCityObject);
+        ArgumentNullException.ThrowIfNull(globalOriginPoint);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(materialResolver);
 
-        foreach ((ParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject in SplitParsedCityObject(
-                     terrainAlignedCityObject,
+        ParsedCityObject terrainAlignedCityObject = ConformCityObjectToTerrain(parsedCityObject.ToLegacy(), terrainHeightSampler);
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject terrainAlignedBootstrapCityObject =
+            global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(terrainAlignedCityObject);
+
+        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) splitCityObject
+                 in DemTerrainOverlayAssignment.SplitParsedCityObject(
+                     terrainAlignedBootstrapCityObject,
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
-            GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitCityObject.CityObject);
-            LocalCartesian? cityObjectCartesian = splitCityObject.CityObject.ReferenceSystem.IsGeographic
+            ParsedCityObject splitLegacyCityObject = splitCityObject.CityObject.ToLegacy();
+            GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(splitLegacyCityObject);
+            LocalCartesian? cityObjectCartesian = splitLegacyCityObject.ReferenceSystem.IsGeographic
                 ? new LocalCartesian(
                     cityObjectOrigin.Latitude,
                     cityObjectOrigin.Longitude,
                     cityObjectOrigin.Altitude,
-                    splitCityObject.CityObject.ReferenceSystem.Geocentric)
+                    splitLegacyCityObject.ReferenceSystem.Geocentric)
                 : null;
 
             foreach (MaterialBinding material in request.DemTerrainMode == DemTerrainMode.HeightMap
-                         && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+                         && string.Equals(splitLegacyCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                             ? CreateDemHeightMapMaterials(
-                                splitCityObject.CityObject,
+                                splitLegacyCityObject,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
                                 splitCityObject.Overlay,
                                 materialResolver)
                             : CreateCommonMaterialBindings(
-                                splitCityObject.CityObject,
+                                splitLegacyCityObject,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
                                 splitCityObject.Overlay,
@@ -3109,7 +3097,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        Float3 slotPosition = CreateResonitePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
+        Float3 slotPosition = CreateScenePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
             .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
@@ -3524,7 +3512,7 @@ internal static partial class LocalCityGmlObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian)
     {
-        Float3 globalPosition = CreateResonitePosition(point, globalOriginPoint, globalCartesian);
+        Float3 globalPosition = CreateScenePosition(point, globalOriginPoint, globalCartesian);
         return new Float3(
             globalPosition.X - slotPosition.X,
             globalPosition.Y - slotPosition.Y,
@@ -3724,7 +3712,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
     }
 
-    private static void ValidateCompatibleReferenceSystem(
+    internal static void ValidateCompatibleReferenceSystem(
         CoordinateReferenceSystem expectedReferenceSystem,
         CoordinateReferenceSystem? actualReferenceSystem)
     {
@@ -3735,20 +3723,6 @@ internal static partial class LocalCityGmlObjectProjection
 
         throw new PlateauImportValidationException(
             [$"Mixed CityGML coordinate reference systems are not supported. Found '{expectedReferenceSystem.SrsName}' and '{actualReferenceSystem.SrsName}'."]);
-    }
-
-    private static IEnumerable<(ParsedCityObject CityObject, TerrainTextureOverlay? Overlay)> SplitParsedCityObject(
-        ParsedCityObject parsedCityObject,
-        IReadOnlyList<TerrainTextureOverlay> demTerrainTextureOverlays,
-        IReadOnlyList<MeshCodeBounds>? requestedMeshAreas = null)
-    {
-        foreach ((global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject CityObject, TerrainTextureOverlay? Overlay) entry in DemTerrainOverlayAssignment.SplitParsedCityObject(
-                     global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(parsedCityObject),
-                     demTerrainTextureOverlays,
-                     requestedMeshAreas))
-        {
-            yield return (entry.CityObject.ToLegacy(), entry.Overlay);
-        }
     }
 
     internal sealed record ParsedCityObject(

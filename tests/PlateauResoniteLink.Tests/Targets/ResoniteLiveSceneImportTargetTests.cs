@@ -37,7 +37,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureAssetGenerator terrainTextureGenerator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreatePaddedCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -46,8 +46,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             sourceFiles:
             [
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ],
-            terrainTextureOverlays: [overlay]);
+            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "dem-overlay-object",
             DisplayName: "DEM Overlay Object",
@@ -160,7 +159,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.125, 0.375)));
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -169,8 +168,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             sourceFiles:
             [
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ],
-            terrainTextureOverlays: [overlay]);
+            ]);
         SeededCommonMaterialComponent seededCommonMaterial = await SeedCommonMaterialComponentAsync(
             client,
             familySlotName: "generic",
@@ -226,7 +224,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -312,7 +310,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     "terrain-overlay/generated-heightmap"),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.125, 0.375)));
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -321,8 +319,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             sourceFiles:
             [
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ],
-            terrainTextureOverlays: [overlay]);
+            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "heightmap-overlay-terrain",
             DisplayName: "HeightMap Overlay Terrain",
@@ -382,7 +379,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -550,7 +547,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -603,7 +600,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -651,7 +648,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -705,7 +702,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -759,7 +756,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -835,7 +832,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -911,7 +908,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -955,7 +952,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1008,7 +1005,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1063,7 +1060,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1107,7 +1104,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,

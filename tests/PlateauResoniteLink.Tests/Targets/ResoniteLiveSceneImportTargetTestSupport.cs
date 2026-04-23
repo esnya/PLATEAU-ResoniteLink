@@ -23,7 +23,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     private static BundledDefaultMaterialAssetStore CreateBundledDefaultMaterialAssetStore() => new();
 
     public static async Task BuildSceneAsync(
-        ResoniteConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         SceneBuilderRecordingClient client,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
@@ -78,39 +78,42 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         return new ResoniteTexturePayload(2, 2, ResoniteTextureColorProfiles.Srgb, rawBytes, identity);
     }
 
-    public static ResoniteConstructionMetadata CreateMetadata(
+    public static ImportedSceneMetadata CreateMetadata(
         string datasetName,
         string meshCode,
         string datasetRoot,
         ResoniteLocalOrigin localOrigin,
         IReadOnlyList<string>? packageNames = null,
         IReadOnlyList<string>? sourceFiles = null,
-        IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null,
         IReadOnlyList<string>? requestedMeshCodes = null)
     {
-        return new ResoniteConstructionMetadata(
+        return new ImportedSceneMetadata(
             SchemaVersion: "3.0",
-            WorldName: $"PLATEAU {datasetName} {meshCode}",
-            Request: new ResoniteImportRequest(
+            SceneName: $"PLATEAU {datasetName} {meshCode}",
+            Request: new PlateauImportRequest(
                 Dataset: datasetName,
                 MeshCode: meshCode,
-                LocalSourcePath: datasetRoot),
-            SourceDataset: new ResoniteSourceDataset(
+                Source: DatasetLocation.Local(datasetRoot),
+                PackageNames: packageNames ?? ["bldg"]),
+            SourceDataset: new PlateauSourceDataset(
                 PackageNames: packageNames ?? ["bldg"],
                 SourceFiles: sourceFiles ?? [],
                 SelectedMeshCodes: requestedMeshCodes),
-            Attribution: new ResoniteAttribution(
-                DatasetLicense: new LicenseAttributionMetadata(
+            Attribution: new Attribution(
+                DatasetLicense: new LicenseMetadata(
                     RequireCredit: true,
                     CreditText: "credit",
                     LicenseName: "license",
                     LicenseUrl: "https://example.invalid/license"),
                 MaterialLicenses: []),
-            LocalOrigin: localOrigin);
+            GeodeticOrigin: new GeodeticOrigin(
+                localOrigin.Latitude,
+                localOrigin.Longitude,
+                localOrigin.Altitude));
     }
 
     public static async Task BuildSceneTwiceAsync(
-        ResoniteConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> firstRunCityObjects,
         IReadOnlyList<ResoniteConstructionCityObject> secondRunCityObjects,
         SceneBuilderRecordingClient client)
@@ -140,7 +143,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
 
     public static Task<SceneImportExecutionResult> ExecuteSceneAsync(
         ResoniteLiveSceneImportTarget builder,
-        ResoniteConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         string workDirectory,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects,
         IReadOnlyList<MaterialBinding>? commonMaterials = null,
@@ -153,33 +156,6 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 commonMaterials: commonMaterials ?? CollectExecutionPlanCommonMaterials(metadata, cityObjects)),
             CreateImportedCityObjectsAsync(cityObjects, cancellationToken),
             cancellationToken);
-    }
-
-    public static SceneImportExecutionPlan CreateExecutionPlan(
-        ResoniteConstructionMetadata metadata,
-        string workDirectory,
-        PlateauImportRequest? normalizedRequest = null,
-        IReadOnlyList<MaterialBinding>? commonMaterials = null)
-    {
-        ImportedSceneMetadata contractMetadata = SceneImportContractMapper.ToContract(metadata);
-        PlateauImportRequest effectiveNormalizedRequest = normalizedRequest ?? contractMetadata.Request;
-        PlateauImportRequest resolvedRequest = CreateResolvedRequest(
-            effectiveNormalizedRequest,
-            contractMetadata.Request,
-            workDirectory);
-        PlateauImportRequest buildRequest = CreateBuildRequest(effectiveNormalizedRequest, resolvedRequest);
-        ImportedSceneMetadata effectiveMetadata = contractMetadata with
-        {
-            Request = buildRequest,
-        };
-
-        return SceneImportExecutionPlan.Create(
-            effectiveNormalizedRequest,
-            resolvedRequest,
-            effectiveMetadata,
-            GetRequiredResolvedLocalSourcePath(resolvedRequest),
-            workDirectory,
-            commonMaterials ?? new CommonMaterialCatalog().CreateForPackages(metadata.SourceDataset.PackageNames));
     }
 
     public static SceneImportExecutionPlan CreateExecutionPlan(
@@ -220,7 +196,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
     }
 
     private static IReadOnlyList<MaterialBinding> CollectExecutionPlanCommonMaterials(
-        ResoniteConstructionMetadata metadata,
+        ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> cityObjects)
     {
         Dictionary<string, ResoniteMaterialBinding> materialsByKey = new(StringComparer.Ordinal);
@@ -248,7 +224,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
             }
         }
 
-        return SceneImportContractMapper.ToContract(
+        return ToContractMaterials(
             materialsByKey.Values
                 .OrderBy(static material => material.MaterialKey, StringComparer.Ordinal)
                 .ToArray());
@@ -411,9 +387,104 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         foreach (ResoniteConstructionCityObject cityObject in cityObjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return SceneImportContractMapper.ToContract(cityObject);
+            yield return ToImportedCityObject(cityObject);
         }
     }
+
+    public static MaterialBinding[] ToContractMaterials(IReadOnlyList<ResoniteMaterialBinding> bindings)
+    {
+        return bindings.Select(ToContractMaterial).ToArray();
+    }
+
+    public static ImportedCityObject ToImportedCityObject(ResoniteConstructionCityObject cityObject)
+    {
+        return cityObject.Geometry switch
+        {
+            ResoniteTriangleMeshGeometry triangleMesh => new ImportedCityObject(
+                cityObject.SlotKey,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.ActualMeshCode,
+                cityObject.LodLevel,
+                ToContractTransform(cityObject.Transform),
+                ToContractMesh(triangleMesh.Mesh),
+                cityObject.Materials.Select(ToContractMaterial).ToArray(),
+                cityObject.CollisionEnabled,
+                cityObject.SourceObjectKey,
+                cityObject.SourceUnitKey,
+                cityObject.SourceFileRelativePath),
+            ResoniteHeightMapGridGeometry heightMap => new ImportedCityObject(
+                cityObject.SlotKey,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.ActualMeshCode,
+                cityObject.LodLevel,
+                ToContractTransform(cityObject.Transform),
+                new HeightMapGridGeometry(
+                    heightMap.Width,
+                    heightMap.Height,
+                    ToContractFloat2(heightMap.Size),
+                    heightMap.MinHeight,
+                    heightMap.MaxHeight,
+                    heightMap.HeightSamples,
+                    heightMap.UvScale is null ? null : ToContractFloat2(heightMap.UvScale),
+                    heightMap.UvOffset is null ? null : ToContractFloat2(heightMap.UvOffset)),
+                cityObject.Materials.Select(ToContractMaterial).ToArray(),
+                cityObject.CollisionEnabled,
+                cityObject.SourceObjectKey,
+                cityObject.SourceUnitKey,
+                cityObject.SourceFileRelativePath),
+            _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
+        };
+    }
+
+    public static MaterialBinding ToContractMaterial(ResoniteMaterialBinding binding)
+    {
+        return new MaterialBinding(
+            binding.MaterialKey,
+            ToContractColor(binding.BaseColor),
+            (MaterialType)binding.MaterialType,
+            binding.TexturePayload is null ? null : ToContractTexturePayload(binding.TexturePayload),
+            (TextureSourceKind)binding.TextureSourceKind,
+            (MaterialProjection)binding.Projection,
+            binding.DepthOffset is null ? null : new MaterialDepthOffset(binding.DepthOffset.Factor, binding.DepthOffset.Units),
+            binding.SubmeshIndices,
+            binding.TextureScale is null ? null : ToContractFloat2(binding.TextureScale),
+            binding.Family,
+            binding.TextureOffset is null ? null : ToContractFloat2(binding.TextureOffset),
+            binding.AssetScope == ResoniteMaterialAssetScope.Common ? MaterialReuseScope.Shared : MaterialReuseScope.PerObject,
+            binding.TerrainOverlay,
+            binding.BundledVariantIndex);
+    }
+
+    private static Transform3D ToContractTransform(ResoniteTransform transform)
+        => new(
+            ToContractFloat3(transform.Position),
+            transform.Rotation is null ? null : new Quaternion(transform.Rotation.X, transform.Rotation.Y, transform.Rotation.Z, transform.Rotation.W));
+
+    private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
+
+    private static Float3 ToContractFloat3(ResoniteFloat3 value) => new(value.X, value.Y, value.Z);
+
+    private static ColorRgba ToContractColor(ResoniteColor value) => new(value.R, value.G, value.B, value.A);
+
+    private static ImportedMesh ToContractMesh(ResoniteImportedMesh mesh)
+        => new(
+            mesh.Vertices.Select(static vertex => new MeshVertex(
+                new Float3(vertex.Position.X, vertex.Position.Y, vertex.Position.Z),
+                new Float3(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z),
+                new Float2(vertex.UV0.X, vertex.UV0.Y),
+                vertex.Color is null ? null : new ColorRgba(vertex.Color.R, vertex.Color.G, vertex.Color.B, vertex.Color.A))).ToArray(),
+            mesh.Submeshes.Select(static submesh => new MeshSubmesh(submesh.Index, submesh.MaterialKey, submesh.TriangleVertexIndices)).ToArray());
+
+    private static TexturePayload ToContractTexturePayload(ResoniteTexturePayload payload)
+        => new(
+            payload.Width,
+            payload.Height,
+            payload.ColorProfile,
+            payload.BinaryPayload,
+            payload.Identity,
+            (TexturePayloadFormat)payload.Format);
 
 }
 
@@ -862,4 +933,3 @@ public sealed class BundledCompanionTextureIsolationGroup
 {
     public const string Name = "BundledCompanionTextureIsolation";
 }
-

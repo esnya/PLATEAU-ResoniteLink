@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
@@ -36,7 +35,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
 
     public async Task<ResoniteSceneBootstrapState> BootstrapAsync(
         IResoniteLinkClient setupClient,
-        SceneBootstrapInfo setupInfo,
+        ResoniteSceneBootstrapInfo setupInfo,
         IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
         CancellationToken cancellationToken)
     {
@@ -334,14 +333,13 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
             commonMaterialFamilies);
     }
 
-    private static DatasetLicenseDefinition[] CreateDatasetLicensePlan(SceneBootstrapInfo setupInfo)
+    private static DatasetLicenseDefinition[] CreateDatasetLicensePlan(ResoniteSceneBootstrapInfo setupInfo)
     {
         ArgumentNullException.ThrowIfNull(setupInfo);
 
-        return setupInfo.AdditionalDatasetLicenses
-            .Prepend(setupInfo.DatasetLicense)
+        return new[] { setupInfo.DatasetLicense }
             .Distinct()
-            .Select(static (license, index) => new DatasetLicenseDefinition(
+            .Select((license, index) => new DatasetLicenseDefinition(
                 ComponentKey: $"license_{index}",
                 DeduplicationKey: CreateLicenseDeduplicationKey(license),
                 License: license,
@@ -374,7 +372,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
         return matchedKeys;
     }
 
-    private static string CreateLicenseDeduplicationKey(LicenseAttributionMetadata license)
+    private static string CreateLicenseDeduplicationKey(ResoniteLicenseAttributionMetadata license)
     {
         return string.Join(
             "\n",
@@ -708,7 +706,7 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     }
 
     private static Dictionary<string, Member> CreateDatasetLicenseMembers(
-        LicenseAttributionMetadata license)
+        ResoniteLicenseAttributionMetadata license)
     {
         return new Dictionary<string, Member>(StringComparer.Ordinal)
         {
@@ -744,6 +742,6 @@ internal sealed class ResoniteSceneBootstrapInterpreter : IResoniteSceneBootstra
     private sealed record DatasetLicenseDefinition(
         string ComponentKey,
         string DeduplicationKey,
-        LicenseAttributionMetadata License,
+        ResoniteLicenseAttributionMetadata License,
         IReadOnlyDictionary<string, Member> Members);
 }

@@ -58,7 +58,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             Source: DatasetLocation.Remote(new Uri("https://example.invalid/tokyo23ku/source-archive.zip")));
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             CreateRequest(resolvedDatasetDirectory.Path),
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
@@ -116,7 +116,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteBufferedCityObjectBakerFactory()));
 
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
@@ -167,7 +167,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
@@ -182,7 +182,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
                 EmptyImportedCityObjects()));
 
-        Assert.Equal("A live scene build run is already active on this live scene import target instance.", exception.Message);
+        Assert.Equal("A live scene import run is already active on this live scene import target instance.", exception.Message);
         Assert.Equal(1, session.EnsureConnectedCallCount);
 
         releaseEnsureConnected.TrySetResult();
@@ -199,7 +199,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
@@ -256,14 +256,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
         IReadOnlyList<MaterialBinding> commonMaterials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
-            SceneImportContractMapper.ToContract(metadata),
+            metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
             commonMaterials);
@@ -309,14 +309,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 new ResoniteSlotCreator(),
                 new ResoniteBufferedCityObjectBakerFactory()));
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
         SceneImportExecutionPlan plan = SceneImportExecutionPlan.Create(
             request,
             request,
-            SceneImportContractMapper.ToContract(metadata),
+            metadata,
             request.LocalSourcePath!,
             workDirectory.Path,
             commonMaterials: []);
@@ -364,15 +364,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             terrainTextureGenerator,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
             request.LocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays: [overlay]);
-        MaterialBinding bootstrapTerrainOverlayMaterial = SceneImportContractMapper.ToContract(
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
+        MaterialBinding bootstrapTerrainOverlayMaterial = ResoniteLiveSceneImportTargetTestSupport.ToContractMaterial(
             new ResoniteMaterialBinding(
                 "dem-overlay-bootstrap",
                 new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -430,14 +429,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             terrainTextureGenerator,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
             request.LocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays: [overlay]);
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => builder.ExecuteAsync(
@@ -456,7 +454,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
@@ -515,14 +513,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             terrainTextureGenerator,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
             request.LocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays: [overlay]);
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
 
         SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
@@ -594,14 +591,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             terrainTextureGenerator,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
             request.LocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays: [overlay]);
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
 
         SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
@@ -672,14 +668,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             terrainTextureGenerator,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
             request.LocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays: [overlay]);
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
@@ -738,14 +733,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             terrainTextureGenerator,
             session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             request.Dataset,
             request.MeshCode,
             request.LocalSourcePath!,
             new ResoniteLocalOrigin(35.0, 139.0, 0.0),
             packageNames: ["dem"],
-            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"],
-            terrainTextureOverlays: [overlay]);
+            sourceFiles: ["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"]);
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
@@ -766,7 +760,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_BootstrapHandlesAdditionalDatasetAttributionWithoutUsingUpdates()
+    public async Task ExecuteAsync_BootstrapHandlesDatasetAttributionWithoutUsingUpdates()
     {
         using TemporaryDirectory workDirectory = new();
         using SceneBuilderRecordingClient routedClient = new();
@@ -819,7 +813,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         DelegatingClientSession session = new(routedClient);
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(routedClient, session: session);
         PlateauImportRequest request = CreateRequest(datasetDirectory.Path);
-        ResoniteConstructionMetadata metadata = CreateMetadata(
+        ImportedSceneMetadata metadata = CreateMetadata(
             request,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"]);
 
@@ -862,10 +856,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             MeshCode: "53394525",
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: datasetRoot,
-            ServerUri: null);
+            ServerUri: null,
+            PackageNames: ["bldg"]);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(
+    private static ImportedSceneMetadata CreateMetadata(
         PlateauImportRequest request,
         IReadOnlyList<string>? sourceFiles = null)
     {
@@ -887,7 +882,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         foreach (ResoniteConstructionCityObject cityObject in cityObjects)
         {
-            yield return SceneImportContractMapper.ToContract(cityObject);
+            yield return ResoniteLiveSceneImportTargetTestSupport.ToImportedCityObject(cityObject);
         }
     }
 
@@ -1032,7 +1027,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
     {
         public async Task<ResoniteSceneBootstrapState> BootstrapAsync(
             IResoniteLinkClient setupClient,
-            SceneBootstrapInfo setupInfo,
+            ResoniteSceneBootstrapInfo setupInfo,
             IReadOnlyList<ResoniteMaterialBinding> commonMaterials,
             CancellationToken cancellationToken)
         {
@@ -1092,5 +1087,3 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         }
     }
 }
-
-

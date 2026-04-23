@@ -89,7 +89,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(cityObjects);
         if (Interlocked.Exchange(ref executionClaimed, 1) != 0)
         {
-            throw new InvalidOperationException("A live scene build run is already active on this live scene import target instance.");
+            throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
         }
         bool completedSuccessfully = false;
         LiveSendRunState? state = null;
@@ -98,11 +98,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             SceneBuildRequest request = plan.SceneBuildRequest;
             state = await CreateRunStateAsync(
-                CreateBootstrapInfo(request),
+                CreateSceneBootstrapInfo(request),
                 request.WorkRoot,
                 request.CommonMaterials,
                 plan.NormalizedRequest,
-                SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
+                CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
                 cancellationToken);
 
             await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
@@ -135,7 +135,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private async Task<LiveSendRunState> CreateRunStateAsync(
-        SceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneBootstrapInfo bootstrapInfo,
         string workRoot,
         IReadOnlyList<MaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
@@ -298,7 +298,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private LiveSendRunPlan CreateRunPlan(
-        SceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneBootstrapInfo bootstrapInfo,
         string resolvedWorkRoot,
         ResoniteLocalOrigin requestLocalOrigin)
     {
@@ -406,7 +406,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         CancellationToken cancellationToken)
     {
         Stopwatch laneClientStopwatch = Stopwatch.StartNew();
-        SceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
+        ResoniteSceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
         if (laneIndex == 0)
         {
             ReportProgress(
@@ -2016,25 +2016,26 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
     }
 
-    private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
+    private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneBuildRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return new SceneBootstrapInfo(
+        return new ResoniteSceneBootstrapInfo(
             request.Metadata.Request.Dataset,
             request.Metadata.Request.MeshCode,
-            request.ResolvedSourcePath
-                ?? request.Metadata.Request.LocalSourcePath
-                ?? string.Empty,
-            request.Metadata.SourceDataset.PackageNames,
             request.Metadata.SourceDataset.SourceFiles,
             request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
-            new LicenseAttributionMetadata(
+            new ResoniteLicenseAttributionMetadata(
                 request.Metadata.Attribution.DatasetLicense.RequireCredit,
                 request.Metadata.Attribution.DatasetLicense.CreditText,
                 request.Metadata.Attribution.DatasetLicense.LicenseName,
-                request.Metadata.Attribution.DatasetLicense.LicenseUrl),
-            []);
+                request.Metadata.Attribution.DatasetLicense.LicenseUrl));
+    }
+
+    private static ResoniteLocalOrigin CreateLocalOrigin(GeodeticOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
     internal sealed record QueuedCityObject(

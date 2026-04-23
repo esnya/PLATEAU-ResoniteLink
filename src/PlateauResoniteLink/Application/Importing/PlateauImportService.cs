@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,14 +42,18 @@ internal sealed class PlateauImportService(
         ValidatedPlateauImportRequest validatedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
         PlateauImportRequest normalizedRequest = validatedRequest.ToImportRequest();
         string datasetWorkRoot = archiveFileLayoutPolicy.ResolveDatasetRoot(workRoot, validatedRequest.Dataset);
-
-        PlateauImportRequest resolvedRequest =
-            (await datasetSourceResolver.ResolveAsync(validatedRequest, datasetWorkRoot, cancellationToken)).ToImportRequest();
-        ReportProgress(
-            PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
+        ExceptionDispatchInfo? failure = null;
 
         try
         {
+            PlateauImportRequest resolvedRequest =
+                (await datasetSourceResolver.ResolveAsync(
+                    validatedRequest,
+                    datasetWorkRoot,
+                    cancellationToken)).ToImportRequest();
+            ReportProgress(
+                PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
+
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IImportedSceneSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
@@ -119,9 +124,22 @@ internal sealed class PlateauImportService(
                 executionResult.Destinations,
                 CreateDataSourceUsages(metadata, executionResult));
         }
+        catch (Exception exception)
+        {
+            failure = ExceptionDispatchInfo.Capture(exception);
+            throw;
+        }
         finally
         {
-            await sceneSink.DisposeAsync();
+            try
+            {
+                await sceneSink.DisposeAsync();
+            }
+#pragma warning disable CA1031
+            catch when (failure is not null)
+            {
+            }
+#pragma warning restore CA1031
         }
     }
 

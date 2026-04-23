@@ -24,6 +24,40 @@ internal sealed record GeodeticPoint(
     }
 }
 
+internal static class SceneAxisMapper
+{
+    public static Float3 FromEastUpNorth((double X, double Y, double Z) eastUpNorth)
+    {
+        return new Float3(
+            X: eastUpNorth.X,
+            Y: eastUpNorth.Z,
+            Z: eastUpNorth.Y);
+    }
+
+    public static Float3 CreatePosition(
+        double latitude,
+        double longitude,
+        double altitude,
+        double originLatitude,
+        double originLongitude,
+        double originAltitude,
+        LocalCartesian? cartesian)
+    {
+        if (cartesian is null)
+        {
+            return new Float3(
+                X: latitude - originLatitude,
+                Y: altitude - originAltitude,
+                Z: longitude - originLongitude);
+        }
+
+        return FromEastUpNorth(cartesian.Forward(
+            latitude,
+            longitude,
+            altitude));
+    }
+}
+
 internal sealed record TerrainHeightTriangle(
     GeodeticPoint Vertex0,
     GeodeticPoint Vertex1,

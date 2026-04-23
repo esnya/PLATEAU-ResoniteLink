@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Targets;
@@ -11,7 +10,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeUsesNonDemSourceFilenames()
     {
-        SceneBootstrapInfo setupInfo = CreateSetupInfo(
+        ResoniteSceneBootstrapInfo setupInfo = CreateSetupInfo(
             [
                 "udx/dem/533945/plateau_tokyo23ku_dem_533945.gml",
                 "udx/bldg/53394526/plateau_tokyo23ku_bldg_53394526.gml",
@@ -26,7 +25,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeFallsBackToDemFilenamesWhenNeeded()
     {
-        SceneBootstrapInfo setupInfo = CreateSetupInfo(
+        ResoniteSceneBootstrapInfo setupInfo = CreateSetupInfo(
             ["udx/dem/533945/plateau_tokyo23ku_dem_533945.gml"]);
 
         string meshCode = ResoniteSourceMeshCodeAnchor.ResolveCompletionMeshCode(setupInfo);
@@ -37,7 +36,7 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
     [Fact]
     public void ResolveCompletionMeshCodeThrowsWhenSourceFilenamesDoNotContainAMeshCode()
     {
-        SceneBootstrapInfo setupInfo = CreateSetupInfo(
+        ResoniteSceneBootstrapInfo setupInfo = CreateSetupInfo(
             ["udx/bldg/unknown/plateau_tokyo23ku_bldg_regex.gml"],
             []);
 
@@ -47,18 +46,15 @@ public sealed class ResoniteSourceMeshCodeAnchorTests
         Assert.Contains("discovered source filenames", exception.Message, StringComparison.Ordinal);
     }
 
-    private static SceneBootstrapInfo CreateSetupInfo(
+    private static ResoniteSceneBootstrapInfo CreateSetupInfo(
         IReadOnlyList<string> sourceFiles,
         IReadOnlyList<string>? selectedMeshCodes = null)
     {
-        return new SceneBootstrapInfo(
+        return new ResoniteSceneBootstrapInfo(
             Dataset: "tokyo23ku",
             MeshCode: "5339452[56]",
-            LocalSourcePath: "/tmp",
-            PackageNames: ["bldg", "dem"],
             SourceFiles: sourceFiles,
             SelectedMeshCodes: selectedMeshCodes ?? ["53394525", "53394526"],
-            DatasetLicense: new LicenseAttributionMetadata(true, "credit", "name", "url"),
-            AdditionalDatasetLicenses: []);
+            DatasetLicense: new ResoniteLicenseAttributionMetadata(true, "credit", "name", "url"));
     }
 }

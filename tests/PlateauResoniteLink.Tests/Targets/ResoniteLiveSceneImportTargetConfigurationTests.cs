@@ -79,7 +79,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     public async Task FactoryCreateReusesTransportDiagnostics()
     {
         ServiceProvider provider = new ServiceCollection()
-            .AddScoped<Func<IResoniteLinkClient>>(_ => static () => new ResoniteLinkClient())
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -110,7 +109,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         ServiceProvider provider = new ServiceCollection()
             .AddScoped<IResoniteClientSessionFactory>(
                 _ => new RecordingClientSessionFactory(() => recordedSession = new DelegatingClientSession()))
-            .AddScoped<Func<IResoniteLinkClient>>(_ => static () => new ResoniteLinkClient())
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -141,7 +139,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         RecordingTerrainTextureAssetGeneratorFactory terrainTextureFactory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddScoped<ITerrainTextureAssetGeneratorFactory>(_ => terrainTextureFactory)
-            .AddScoped<Func<IResoniteLinkClient>>(_ => static () => new ResoniteLinkClient())
             .AddResoniteLiveSendTargetServices()
             .BuildServiceProvider();
         using IServiceScope scope = provider.CreateScope();
@@ -166,6 +163,33 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.NotNull(terrainTextureFactory.LastOptions);
         Assert.Equal("cache-root", terrainTextureFactory.LastOptions!.TerrainTileCacheRoot);
         Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
+    }
+
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesRegistersDefaultBaseClientFactory()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.NotNull(builder.ClientSession);
     }
 
     [Theory]
@@ -412,4 +436,3 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
             SourceFileRelativePath: sourceFileRelativePath);
     }
 }
-
