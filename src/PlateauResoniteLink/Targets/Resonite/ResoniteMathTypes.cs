@@ -1,10 +1,8 @@
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public sealed record ResoniteFloat2(
     double X,
-    double Y) : ScalarPair(X, Y);
+    double Y);
 
 public sealed record ResoniteFloat3(
     double X,

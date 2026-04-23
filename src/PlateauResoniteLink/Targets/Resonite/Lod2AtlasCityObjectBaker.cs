@@ -701,7 +701,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
             atlasRect.Height,
             (int)Math.Round(atlasWidth),
             (int)Math.Round(atlasHeight));
-        ScalarPair remapped = TextureUvRect.RemapValue(sourceUv, uvBounds, atlasUvRect);
+        ScalarPair remapped = TextureUvRect.RemapValue(
+            new ScalarPair(sourceUv.X, sourceUv.Y),
+            uvBounds,
+            atlasUvRect);
         return new ResoniteFloat2(remapped.X, remapped.Y);
     }
 

@@ -92,7 +92,7 @@ internal static class LocalCityGmlBootstrapPipeline
                 [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
-        LocalCityGmlObjectProjection.GeodeticPoint globalOriginPoint = new(
+        GeodeticPoint globalOriginPoint = new(
             resolvedGeodeticCenter.Latitude,
             resolvedGeodeticCenter.Longitude,
             resolvedGeodeticCenter.Altitude);
@@ -113,10 +113,7 @@ internal static class LocalCityGmlBootstrapPipeline
             discoveryResult.SelectedMeshCodes);
         LocalCityGmlBootstrapContext bootstrapContext = new(
             sourceFilePipelines,
-            new GeodeticPoint(
-                globalOriginPoint.Latitude,
-                globalOriginPoint.Longitude,
-                globalOriginPoint.Altitude));
+            globalOriginPoint);
         return new LocalCityGmlBootstrapSnapshot(documentSet, bootstrapContext);
     }
 }

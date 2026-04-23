@@ -12,6 +12,7 @@ using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
@@ -40,7 +41,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     {
         await using ResoniteLiveSceneImportTarget builder = CreateBuilder();
 
-        Assert.Equal(PlateauImportMemoryProfile.Large, builder.MemoryProfile);
+        Assert.Equal(ResoniteImportMemoryProfile.Large, builder.MemoryProfile);
     }
 
     [Fact]
@@ -52,7 +53,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: true,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 EnableMeshBake: true,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -89,7 +90,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     new Uri("ws://localhost:12345/"),
                     1,
                     EnableSendMetrics: true,
-                    MemoryProfile: PlateauImportMemoryProfile.Large,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
@@ -119,7 +120,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     new Uri("ws://localhost:12345/"),
                     1,
                     EnableSendMetrics: false,
-                    MemoryProfile: PlateauImportMemoryProfile.Large,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: null,
                     DisableTerrainTileCache: false,
@@ -149,7 +150,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     new Uri("ws://localhost:12345/"),
                     1,
                     EnableSendMetrics: false,
-                    MemoryProfile: PlateauImportMemoryProfile.Large,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
                     EnableMeshBake: true,
                     TerrainTileCacheRoot: "cache-root",
                     DisableTerrainTileCache: true,
@@ -164,11 +165,38 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
         Assert.True(terrainTextureFactory.LastOptions.DisableTerrainTileCache);
     }
 
+    [Fact]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The created target is disposed via await using in this test.")]
+    public async Task AddResoniteLiveSendTargetServicesRegistersDefaultBaseClientFactory()
+    {
+        ServiceProvider provider = new ServiceCollection()
+            .AddResoniteLiveSendTargetServices()
+            .BuildServiceProvider();
+        using IServiceScope scope = provider.CreateScope();
+        using HttpClient terrainTextureAssetHttpClient = new();
+        ISceneSink target = scope.ServiceProvider
+            .GetRequiredService<IResoniteLiveSceneImportFactory>()
+            .CreateTarget(
+                new ResoniteLiveSceneImportTargetOptions(
+                    new Uri("ws://localhost:12345/"),
+                    1,
+                    EnableSendMetrics: false,
+                    MemoryProfile: ResoniteImportMemoryProfile.Large,
+                    EnableMeshBake: true,
+                    TerrainTileCacheRoot: null,
+                    DisableTerrainTileCache: false,
+                    ProgressReporter: null),
+                terrainTextureAssetHttpClient);
+        await using ResoniteLiveSceneImportTarget builder = Assert.IsType<ResoniteLiveSceneImportTarget>(target);
+
+        Assert.NotNull(builder.ClientSession);
+    }
+
     [Theory]
-    [InlineData(PlateauImportMemoryProfile.Small, 512, 513)]
-    [InlineData(PlateauImportMemoryProfile.Large, 4096, 4097)]
+    [InlineData(ResoniteImportMemoryProfile.Small, 512, 513)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 4096, 4097)]
     public async Task BufferedCityObjectBakerFactoryAppliesPerBatchCityObjectLimitsByMemoryProfile(
-        PlateauImportMemoryProfile memoryProfile,
+        ResoniteImportMemoryProfile memoryProfile,
         int noFlushCount,
         int flushCount)
     {
@@ -196,10 +224,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
-    [InlineData(PlateauImportMemoryProfile.Small, 256, 257)]
-    [InlineData(PlateauImportMemoryProfile.Large, 1024, 1025)]
+    [InlineData(ResoniteImportMemoryProfile.Small, 256, 257)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 1024, 1025)]
     public async Task BufferedCityObjectBakerFactoryAppliesBufferedCellLimitsByMemoryProfile(
-        PlateauImportMemoryProfile memoryProfile,
+        ResoniteImportMemoryProfile memoryProfile,
         int noFlushCount,
         int flushCount)
     {
@@ -227,10 +255,10 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
-    [InlineData(PlateauImportMemoryProfile.Small, 32, 33, 1024)]
-    [InlineData(PlateauImportMemoryProfile.Large, 63, 64, 1024)]
+    [InlineData(ResoniteImportMemoryProfile.Small, 32, 33, 1024)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 63, 64, 1024)]
     public async Task BufferedCityObjectBakerFactoryAppliesVertexBudgetByMemoryProfile(
-        PlateauImportMemoryProfile memoryProfile,
+        ResoniteImportMemoryProfile memoryProfile,
         int noFlushCount,
         int flushCount,
         int vertexCount)
@@ -268,7 +296,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 new Uri("ws://localhost:12345/"),
                 1,
                 EnableSendMetrics: false,
-                PlateauImportMemoryProfile.Large,
+                ResoniteImportMemoryProfile.Large,
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
@@ -333,7 +361,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     private static async Task<int> CountReadyBeforeFlushAsync(
-        PlateauImportMemoryProfile memoryProfile,
+        ResoniteImportMemoryProfile memoryProfile,
         int cityObjectCount,
         Func<int, ResoniteConstructionCityObject> createCityObject)
     {

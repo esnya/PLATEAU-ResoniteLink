@@ -1,7 +1,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal interface ILiveSendClientSession
 {

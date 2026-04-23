@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class AsyncWeightedGate(long capacity)
 {

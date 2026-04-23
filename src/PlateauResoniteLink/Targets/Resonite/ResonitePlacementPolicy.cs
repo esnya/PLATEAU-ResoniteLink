@@ -134,7 +134,9 @@ internal static class ResonitePlacementPolicy
             return cityObjectPosition;
         }
 
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
         ResoniteFloat3 rootPosition = new(
             rootOffsetFromRequest.X,
             observedRootPosition?.Y ?? rootOffsetFromRequest.Y,
@@ -152,7 +154,9 @@ internal static class ResonitePlacementPolicy
             return new ResoniteFloat3(0.0, observedRootHeight ?? 0.0, 0.0);
         }
 
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
         return new ResoniteFloat3(
             rootOffsetFromRequest.X,
             observedRootHeight ?? rootOffsetFromRequest.Y,
@@ -178,6 +182,13 @@ internal static class ResonitePlacementPolicy
         }
 
         return ComputeOriginOffset(referenceCenter, currentCenter);
+    }
+
+    public static ResoniteFloat3 ComputeOriginOffset(ResoniteLocalOrigin referenceCenter, ResoniteLocalOrigin currentCenter)
+    {
+        return ComputeOriginOffset(
+            new GeodeticCoordinate(referenceCenter.Latitude, referenceCenter.Longitude, referenceCenter.Altitude),
+            new GeodeticCoordinate(currentCenter.Latitude, currentCenter.Longitude, currentCenter.Altitude));
     }
 
     public static ResoniteFloat3 ComputeOriginOffset(GeodeticCoordinate referenceCenter, GeodeticCoordinate currentCenter)

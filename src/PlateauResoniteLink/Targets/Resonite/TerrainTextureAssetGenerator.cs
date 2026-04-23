@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -38,7 +39,9 @@ internal sealed record GeneratedTerrainTexture(
         IReadOnlyList<TerrainTextureSource>? usedSources = null)
         : this(
             textureImport,
-            TextureUvRect.FromScaleOffsetValue(canvasScale, canvasOffset),
+            TextureUvRect.FromScaleOffsetValue(
+                new ScalarPair(canvasScale.X, canvasScale.Y),
+                new ScalarPair(canvasOffset.X, canvasOffset.Y)),
             usedSource,
             usedSources)
     {

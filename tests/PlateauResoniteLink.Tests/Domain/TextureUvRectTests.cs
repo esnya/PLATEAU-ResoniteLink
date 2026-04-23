@@ -1,4 +1,5 @@
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Targets.Resonite;
 
 namespace PlateauResoniteLink.Tests.Domain;
 
@@ -44,6 +45,7 @@ public sealed class TextureUvRectTests
         ScalarPair denormalized = target.DenormalizeValue(0.5, 0.25);
 
         Assert.IsType<ScalarPair>(remapped);
+        Assert.IsNotType<ResoniteFloat2>(remapped);
         Assert.Equal(0.5, remapped.X, 9);
         Assert.Equal(0.5, remapped.Y, 9);
         Assert.Equal(0.5, denormalized.X, 9);

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -358,8 +359,8 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         (ScalarPair? effectiveTextureScale, ScalarPair? effectiveTextureOffset)
             = TextureUvRect.ComposeMaterialTransformValue(
                 generatedTerrainTexture.OccupiedUvRect,
-                material.TextureScale,
-                material.TextureOffset);
+                material.TextureScale is null ? null : new ScalarPair(material.TextureScale.X, material.TextureScale.Y),
+                material.TextureOffset is null ? null : new ScalarPair(material.TextureOffset.X, material.TextureOffset.Y));
         return material with
         {
             TextureScale = effectiveTextureScale is null ? null : new ResoniteFloat2(effectiveTextureScale.X, effectiveTextureScale.Y),

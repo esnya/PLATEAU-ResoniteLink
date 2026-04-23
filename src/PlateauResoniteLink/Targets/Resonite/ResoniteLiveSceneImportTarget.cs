@@ -13,6 +13,7 @@ using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Application.Logging;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -77,7 +78,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
-    internal PlateauImportMemoryProfile MemoryProfile { get; }
+    internal ResoniteImportMemoryProfile MemoryProfile { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -88,7 +89,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(cityObjects);
         if (Interlocked.Exchange(ref executionClaimed, 1) != 0)
         {
-            throw new InvalidOperationException("A live scene build run is already active on this live scene import target instance.");
+            throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
         }
         bool completedSuccessfully = false;
         LiveSendRunState? state = null;
@@ -97,11 +98,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             SceneBuildRequest request = plan.SceneBuildRequest;
             state = await CreateRunStateAsync(
-                CreateBootstrapInfo(request),
+                CreateSceneBootstrapInfo(request),
                 request.WorkRoot,
                 request.CommonMaterials,
                 plan.NormalizedRequest,
-                SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
+                CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
                 cancellationToken);
 
             await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
@@ -134,7 +135,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private async Task<LiveSendRunState> CreateRunStateAsync(
-        SceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneBootstrapInfo bootstrapInfo,
         string workRoot,
         IReadOnlyList<MaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
@@ -297,7 +298,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     }
 
     private LiveSendRunPlan CreateRunPlan(
-        SceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneBootstrapInfo bootstrapInfo,
         string resolvedWorkRoot,
         ResoniteLocalOrigin requestLocalOrigin)
     {
@@ -405,7 +406,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         CancellationToken cancellationToken)
     {
         Stopwatch laneClientStopwatch = Stopwatch.StartNew();
-        SceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
+        ResoniteSceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
         if (laneIndex == 0)
         {
             ReportProgress(
@@ -1406,7 +1407,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             {
                 ResoniteMeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
                 ResoniteFloat2 adjustedUv = generatedTextureBySubmeshIndex.TryGetValue(submesh.Index, out GeneratedTerrainTexture? generatedTexture)
-                    ? CreateResoniteFloat2(TextureUvRect.RemapValue(sourceVertex.UV0, TextureUvRect.Identity, generatedTexture.OccupiedUvRect))
+                    ? CreateResoniteFloat2(TextureUvRect.RemapValue(
+                        new ScalarPair(sourceVertex.UV0.X, sourceVertex.UV0.Y),
+                        TextureUvRect.Identity,
+                        generatedTexture.OccupiedUvRect))
                     : sourceVertex.UV0;
                 adjustedVertices.Add(sourceVertex with { UV0 = adjustedUv });
                 adjustedIndices.Add(adjustedVertices.Count - 1);
@@ -1472,8 +1476,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     {
         TextureUvRect objectRect = geometry.UvScale is not null || geometry.UvOffset is not null
             ? TextureUvRect.FromScaleOffsetValue(
-                geometry.UvScale ?? new ScalarPair(1.0, 1.0),
-                geometry.UvOffset ?? new ScalarPair(0.0, 0.0))
+                geometry.UvScale is null ? new ScalarPair(1.0, 1.0) : new ScalarPair(geometry.UvScale.X, geometry.UvScale.Y),
+                geometry.UvOffset is null ? new ScalarPair(0.0, 0.0) : new ScalarPair(geometry.UvOffset.X, geometry.UvOffset.Y))
             : TextureUvRect.Identity;
 
         TerrainTextureOverlay? overlay = cityObject.Materials
@@ -2012,25 +2016,26 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
     }
 
-    private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
+    private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneBuildRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return new SceneBootstrapInfo(
+        return new ResoniteSceneBootstrapInfo(
             request.Metadata.Request.Dataset,
             request.Metadata.Request.MeshCode,
-            request.ResolvedSourcePath
-                ?? request.Metadata.Request.LocalSourcePath
-                ?? string.Empty,
-            request.Metadata.SourceDataset.PackageNames,
             request.Metadata.SourceDataset.SourceFiles,
             request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
-            new LicenseAttributionMetadata(
+            new ResoniteLicenseAttributionMetadata(
                 request.Metadata.Attribution.DatasetLicense.RequireCredit,
                 request.Metadata.Attribution.DatasetLicense.CreditText,
                 request.Metadata.Attribution.DatasetLicense.LicenseName,
-                request.Metadata.Attribution.DatasetLicense.LicenseUrl),
-            []);
+                request.Metadata.Attribution.DatasetLicense.LicenseUrl));
+    }
+
+    private static ResoniteLocalOrigin CreateLocalOrigin(GeodeticOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
     internal sealed record QueuedCityObject(

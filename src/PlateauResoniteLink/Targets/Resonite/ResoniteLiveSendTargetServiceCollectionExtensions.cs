@@ -5,8 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 using PlateauResoniteLink.Targets.Resonite.Execution;
-
-using ResoniteLink;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -16,6 +15,7 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.TryAddScoped<Func<IResoniteLinkClient>>(_ => static () => new ResoniteLinkClient());
         services.TryAddScoped<BundledDefaultMaterialAssetStore>();
         services.TryAddScoped<IResoniteBatchEmissionPlanner, ResoniteBatchEmissionPlanner>();
         services.TryAddScoped<IResoniteBufferedCityObjectBakerFactory, ResoniteBufferedCityObjectBakerFactory>();
@@ -25,8 +25,6 @@ public static class ResoniteLiveSendTargetServiceCollectionExtensions
         services.TryAddScoped<IResoniteSlotCreator, ResoniteSlotCreator>();
         services.TryAddScoped<IResoniteSceneAnchorResolver, ResoniteSceneAnchorResolver>();
         services.TryAddScoped<IResoniteSceneSlotLocator, ResoniteSceneSlotLocator>();
-        services.TryAddScoped<Func<IResoniteLinkClient>>(
-            static _ => () => new ResoniteLinkClient(new LinkInterfaceResoniteLinkTransport(new LinkInterface())));
         services.TryAddScoped<IResoniteClientSessionFactory, ResoniteLinkClientSessionFactory>();
         services.TryAddScoped<ITerrainTextureAssetGeneratorFactory, TerrainTextureAssetGeneratorFactory>();
         services.TryAddScoped<IResoniteSceneBootstrapInterpreter>(
@@ -75,6 +73,25 @@ internal interface IResoniteClientSessionFactory
     ILiveSendClientSession Create(
         ResoniteLiveSceneImportTargetOptions options,
         ResoniteLinkSendDiagnostics diagnostics);
+}
+
+internal sealed class ResoniteLinkClientSessionFactory(
+    Func<IResoniteLinkClient> baseClientFactory) : IResoniteClientSessionFactory
+{
+    public ILiveSendClientSession Create(
+        ResoniteLiveSceneImportTargetOptions options,
+        ResoniteLinkSendDiagnostics diagnostics)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(diagnostics);
+
+        return ResoniteLinkTransportSessionFactory.Create(
+            options.Endpoint,
+            options.ConnectionCount,
+            diagnostics,
+            options.ProgressReporter,
+            baseClientFactory);
+    }
 }
 
 internal interface ITerrainTextureAssetGeneratorFactory

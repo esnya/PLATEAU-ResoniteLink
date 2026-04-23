@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class ResoniteMaterialPlanningTests

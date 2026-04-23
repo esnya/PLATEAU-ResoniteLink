@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 
 namespace PlateauResoniteLink.Tests.Transport;

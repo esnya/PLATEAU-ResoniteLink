@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 

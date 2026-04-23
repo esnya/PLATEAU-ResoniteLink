@@ -7,7 +7,7 @@ using System.Threading;
 
 using PlateauResoniteLink.Application.Logging;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class ResoniteLinkSendDiagnostics
 {

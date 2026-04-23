@@ -7,7 +7,7 @@ using PlateauResoniteLink.Application.Logging;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class RoutedResoniteLinkClient : IResoniteLinkClient
 {

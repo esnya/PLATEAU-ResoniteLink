@@ -13,7 +13,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static partial class LocalCityGmlObjectProjection
+internal static partial class LocalCityGmlObjectProjection
 {
     internal static GeodeticCoordinate? ResolveGeodeticCenter(
         MeshCodeBounds? requestedMeshArea)

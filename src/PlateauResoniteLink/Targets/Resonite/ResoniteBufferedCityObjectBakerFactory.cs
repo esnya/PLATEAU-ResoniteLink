@@ -1,7 +1,5 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 internal interface IResoniteBufferedCityObjectBakerFactory
@@ -23,20 +21,20 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBuffered
 
         int maxVerticesPerBatch = resourceBudget.Name switch
         {
-            PlateauImportMemoryProfile.Small => 32_768,
-            PlateauImportMemoryProfile.Large => 65_535,
+            ResoniteImportMemoryProfile.Small => 32_768,
+            ResoniteImportMemoryProfile.Large => 65_535,
             _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
         };
         int maxCityObjectsPerBatch = resourceBudget.Name switch
         {
-            PlateauImportMemoryProfile.Small => 512,
-            PlateauImportMemoryProfile.Large => 4096,
+            ResoniteImportMemoryProfile.Small => 512,
+            ResoniteImportMemoryProfile.Large => 4096,
             _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
         };
         int maxBufferedCells = resourceBudget.Name switch
         {
-            PlateauImportMemoryProfile.Small => 256,
-            PlateauImportMemoryProfile.Large => 1024,
+            ResoniteImportMemoryProfile.Small => 256,
+            ResoniteImportMemoryProfile.Large => 1024,
             _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
         };
 

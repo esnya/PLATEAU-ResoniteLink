@@ -13,6 +13,9 @@ internal static class LocalCityGmlDemOverlayRegionResolver
         IReadOnlyList<string> requestedDemMeshCodes,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(bootstrapContext);
+        ArgumentNullException.ThrowIfNull(requestedDemMeshCodes);
+
         SourceFilePipeline[] demPipelines = bootstrapContext.SourceFilePipelines
             .Where(static pipeline => string.Equals(
                 pipeline.SourceFile.PackageName,

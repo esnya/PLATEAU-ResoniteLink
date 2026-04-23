@@ -1,4 +1,4 @@
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed record LiveSendConnectionRequest(
     string Dataset,

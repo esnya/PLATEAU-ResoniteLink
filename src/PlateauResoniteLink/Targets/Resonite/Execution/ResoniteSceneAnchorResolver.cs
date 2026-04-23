@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using GeographicLib;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 

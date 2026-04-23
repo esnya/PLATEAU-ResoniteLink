@@ -62,9 +62,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.Common);
@@ -443,9 +441,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped);
@@ -470,9 +466,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             TextureOffset: new ResoniteFloat2(0.125, 0.25),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
@@ -498,9 +492,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.Common);
@@ -524,9 +516,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             TextureOffset: new ResoniteFloat2(0.125, 0.25),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
@@ -551,9 +541,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
             AssetScope: ResoniteMaterialAssetScope.Common);
@@ -576,9 +564,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: new ResoniteMaterialDepthOffset(1.0, 1.0),
             SubmeshIndices: [0],
-            TextureScale: new ResoniteFloat2(
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureScale: FacadeDefaultTilesPerMeter(),
             TextureOffset: new ResoniteFloat2(0.125, 0.25),
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0,
@@ -625,5 +611,11 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(new ResoniteFloat2(0.5, 0.25), normalizedMaterial.TextureScale);
         Assert.Equal(new ResoniteFloat2(0.125, 0.375), normalizedMaterial.TextureOffset);
         Assert.Equal("generic|Uv|scale:0.5x0.25|offset:0.125x0.375|depth:none", normalizedMaterial.MaterialKey);
+    }
+
+    private static ResoniteFloat2 FacadeDefaultTilesPerMeter()
+    {
+        ScalarPair value = BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue;
+        return new ResoniteFloat2(value.X, value.Y);
     }
 }

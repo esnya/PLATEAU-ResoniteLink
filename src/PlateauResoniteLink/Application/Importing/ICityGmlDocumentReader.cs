@@ -13,4 +13,3 @@ internal interface ICityGmlDocumentReader
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default);
 }
-

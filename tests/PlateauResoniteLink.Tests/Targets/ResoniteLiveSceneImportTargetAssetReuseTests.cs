@@ -32,7 +32,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncSharesCommonMaterialAssetsAcrossCityObjectsInSameSession()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -60,7 +60,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenUvScaleDiffers()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -80,7 +80,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncSharesBundledTriplanarRoofCommonMaterialAssets()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -114,7 +114,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -151,7 +151,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithExplicitNoOpTransform()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -179,7 +179,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithDifferentUvTransforms()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -231,7 +231,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncBootstrapsFixedGenericAndVertexColorCommonMaterials()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -257,7 +257,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForVertexColor()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -282,7 +282,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesExistingSharedVertexColorCommonMaterialAssetsAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -302,7 +302,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesExistingEmptyCurrentGenericCommonMaterialSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         string emptyCurrentMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
@@ -335,7 +335,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialAcrossRunsForPayloadAlbedoOverridesWithDifferentUvTransforms()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -382,7 +382,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncUsesDistinctPropertyBlocksForSameMaterialKeyWithDifferentPayloadOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -409,7 +409,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncPreservesMixedCommonAndOverrideMaterialOrder()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -442,7 +442,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesNamedDatasetRootAssetsAndCommonAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -466,7 +466,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesExistingSharedCommonMaterialAssetsForPayloadOverridesAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -494,7 +494,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAssignsSourceFileRootPositionForNonCompletionMeshAndPreservesWorldPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 worldPosition = new(123.0, 0.0, 456.0);
 
@@ -528,7 +528,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncCreatesIndependentSourceFileRootAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 secondRunWorldPosition = new(200.0, 0.0, 300.0);
 
@@ -575,7 +575,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncCreatesNewSourceFileRootWithoutMutatingExistingVerticalOffset()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -633,7 +633,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesLegacyLod0BranchForNullLodObjects()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -681,7 +681,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAssignsSourceFileRootPositionForHeightMapDemAndPreservesWorldPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
+        ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 worldPosition = new(123.0, 15.5, 456.0);
 
@@ -715,7 +715,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncCreatesIndependentSourceFileRootAcrossRunsForHeightMapDem()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
+        ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 secondRunWorldPosition = new(200.0, 25.0, 300.0);
 
@@ -762,7 +762,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task CompleteAsyncReturnsLocationAnchoredToResolvedSourceFileRoot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client);
@@ -795,7 +795,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAppendsIntoAssetsOnlyDatasetRootAndAnchorsFirstActualSourceFileRootAtDatasetRoot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
@@ -841,8 +841,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAppendWithDifferentSecondRunRequestMeshPreservesObjectLocalPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
-        ResoniteConstructionMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
+        ImportedSceneMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             SecondaryMeshCode,
             datasetDirectory.Path,
@@ -903,7 +903,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSingleSourceFileRootAcrossConcurrentLodHierarchyCreation()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client, enableMeshBake: false);
@@ -952,7 +952,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(["LOD1", "LOD2"], lodChildren);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
+    private static ImportedSceneMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
     {
         return ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -963,7 +963,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             sourceFiles: sourceFiles ?? [PrimarySourceFile]);
     }
 
-    private static ResoniteConstructionMetadata CreateDemMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
+    private static ImportedSceneMetadata CreateDemMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
     {
         return ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,

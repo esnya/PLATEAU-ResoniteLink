@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal sealed class MetricsResoniteLinkClient(
     IResoniteLinkClient inner,

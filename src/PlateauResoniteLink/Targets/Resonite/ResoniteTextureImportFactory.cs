@@ -3,35 +3,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Transport.ResoniteLink;
+
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
-
-internal abstract record ResoniteTextureImport;
-
-internal readonly record struct TextureImportCacheKey(
-    string Kind,
-    string Identity,
-    string? ColorProfile = null);
-
-internal static class ResoniteTextureColorProfiles
-{
-    public const string Linear = "Linear";
-    public const string Srgb = "sRGB";
-}
-
-internal sealed record ResoniteRawTextureImport(
-    int Width,
-    int Height,
-    string ColorProfile,
-    byte[] RawRgba32Bytes,
-    string? Identity = null) : ResoniteTextureImport;
-
-internal sealed record ResoniteRawHdrTextureImport(
-    int Width,
-    int Height,
-    byte[] RawRgbaFloatBytes) : ResoniteTextureImport;
 
 internal static class ResoniteTextureImportFactory
 {

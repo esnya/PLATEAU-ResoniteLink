@@ -184,6 +184,123 @@ public sealed class PlateauImportServiceTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_DisposesSceneBuilderWhenSourceResolutionFails()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingSceneBuilder sceneBuilder = new();
+        ThrowingDatasetSourceResolver datasetSourceResolver = new();
+        RecordingConstructionSourceFactory constructionSourceFactory = new(
+            new StubConstructionSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
+            CreateReadResult(new RecordingDatasetSource(rawSourceRoot.Path), ["bldg"], ["udx/bldg/53394525/building.gml"]));
+
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory,
+            new CommonMaterialCatalog(),
+            new ArchiveFileLayoutPolicy());
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(request, workRoot.Path));
+
+        Assert.Equal("resolver-failed", exception.Message);
+        Assert.Equal(1, datasetSourceResolver.ResolveCallCount);
+        Assert.Equal(0, constructionSourceFactory.CreateCallCount);
+        Assert.Equal(0, sceneBuilder.ExecuteCallCount);
+        Assert.Equal(1, sceneBuilder.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SuppressesDisposeFailureWhenResolverAlreadyFailed()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingSceneBuilder sceneBuilder = new()
+        {
+            DisposeException = new InvalidOperationException("dispose-failed"),
+        };
+        ThrowingDatasetSourceResolver datasetSourceResolver = new();
+        RecordingConstructionSourceFactory constructionSourceFactory = new(
+            new StubConstructionSource(CreateMetadata(request, ["bldg"], ["udx/bldg/53394525/building.gml"])),
+            CreateReadResult(new RecordingDatasetSource(rawSourceRoot.Path), ["bldg"], ["udx/bldg/53394525/building.gml"]));
+
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory,
+            new CommonMaterialCatalog(),
+            new ArchiveFileLayoutPolicy());
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(request, workRoot.Path));
+
+        Assert.Equal("resolver-failed", exception.Message);
+        Assert.Equal(1, sceneBuilder.DisposeCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_PropagatesDisposeFailureAfterSuccessfulExecution()
+    {
+        using TemporaryDirectory rawSourceRoot = new();
+        using TemporaryDirectory workRoot = new();
+
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        ValidatedPlateauImportRequest validatedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            MeshCodePattern: new Regex("^53394525$", RegexOptions.CultureInvariant),
+            Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
+            PackageNames: ["bldg"]);
+        RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
+        LocalCityGmlBootstrapSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        RecordingSceneBuilder sceneBuilder = new()
+        {
+            DisposeException = new InvalidOperationException("dispose-failed"),
+        };
+        RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
+        StubConstructionSource source = new(
+            CreateMetadata(request, ["bldg"], readResult.DocumentSet.RelativeSourceFiles));
+        RecordingConstructionSourceFactory constructionSourceFactory = new(source, readResult);
+
+        PlateauImportService service = new(
+            sceneBuilder,
+            datasetSourceResolver,
+            constructionSourceFactory,
+            new CommonMaterialCatalog(),
+            new ArchiveFileLayoutPolicy());
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.ExecuteAsync(request, workRoot.Path));
+
+        Assert.Equal("dispose-failed", exception.Message);
+        Assert.Equal(1, sceneBuilder.ExecuteCallCount);
+        Assert.Equal(1, sceneBuilder.DisposeCount);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_UsesPackageCatalogCommonMaterialsWhenSourceEnumerationIsEmpty()
     {
         using TemporaryDirectory rawSourceRoot = new();
@@ -316,6 +433,8 @@ public sealed class PlateauImportServiceTests
 
         public Func<int, SceneImportExecutionResult>? ExecutionResultFactory { get; init; }
 
+        public Exception? DisposeException { get; init; }
+
         public async Task<SceneImportExecutionResult> ExecuteAsync(
             SceneImportExecutionPlan plan,
             IAsyncEnumerable<ImportedCityObject> cityObjects,
@@ -346,6 +465,11 @@ public sealed class PlateauImportServiceTests
         public ValueTask DisposeAsync()
         {
             DisposeCount++;
+            if (DisposeException is not null)
+            {
+                throw DisposeException;
+            }
+
             return ValueTask.CompletedTask;
         }
     }
@@ -364,6 +488,20 @@ public sealed class PlateauImportServiceTests
             ResolveCallCount++;
             LastWorkRoot = workRoot;
             return Task.FromResult(resolvedRequest);
+        }
+    }
+
+    private sealed class ThrowingDatasetSourceResolver : IPlateauDatasetSourceResolver
+    {
+        public int ResolveCallCount { get; private set; }
+
+        public Task<ValidatedPlateauImportRequest> ResolveAsync(
+            ValidatedPlateauImportRequest request,
+            string workRoot,
+            CancellationToken cancellationToken = default)
+        {
+            ResolveCallCount++;
+            throw new InvalidOperationException("resolver-failed");
         }
     }
 
@@ -455,4 +593,3 @@ public sealed class PlateauImportServiceTests
         }
     }
 }
-

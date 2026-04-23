@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Targets.Resonite;
+namespace PlateauResoniteLink.Transport.ResoniteLink;
 
 internal readonly record struct ResoniteTransportSlotLocator
 {
