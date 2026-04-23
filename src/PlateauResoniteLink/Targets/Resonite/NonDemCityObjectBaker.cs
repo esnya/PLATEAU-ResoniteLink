@@ -19,7 +19,8 @@ internal sealed class NonDemCityObjectBaker(
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
     IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
-    ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
+    ResoniteImportBudgetProfile? resourceBudget = null,
+    int? maxBufferedCityObjectsPerSourceUnit = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
@@ -27,6 +28,8 @@ internal sealed class NonDemCityObjectBaker(
 
     private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
     private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
+    private readonly LinkedList<SourceUnitBatchKey> bufferedSourceUnitOrder = [];
+    private readonly Dictionary<SourceUnitBatchKey, LinkedListNode<SourceUnitBatchKey>> bufferedSourceUnitNodes = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? NonDemCityObjectBakePolicies.DefaultPolicies;
 
@@ -68,10 +71,22 @@ internal sealed class NonDemCityObjectBaker(
         {
             bufferedCityObjects = [];
             bufferedCityObjectsBySourceUnit.Add(sourceUnitKey, bufferedCityObjects);
+            AttachBufferedSourceUnit(sourceUnitKey);
+        }
+        else
+        {
+            TrackBufferedSourceUnitAccess(sourceUnitKey);
         }
 
         bufferedCityObjects.Add(bufferedCityObject);
         BakedInputCityObjectCount++;
+        if (maxBufferedCityObjectsPerSourceUnit.HasValue
+            && cityObject.SourceFileRelativePath is null
+            && bufferedCityObjects.Count > maxBufferedCityObjectsPerSourceUnit.Value)
+        {
+            return FlushReadyBufferedCityObjectsAsync(sourceUnitKey, cancellationToken);
+        }
+
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
 
@@ -108,6 +123,30 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
+    private async ValueTask<BufferedCityObjectBufferResult> FlushReadyBufferedCityObjectsAsync(
+        SourceUnitBatchKey sourceUnitKey,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = await FlushSourceUnitAsync(sourceUnitKey, cancellationToken);
+        return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
+    }
+
+    private async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushSourceUnitAsync(
+        SourceUnitBatchKey sourceUnitKey,
+        CancellationToken cancellationToken)
+    {
+        List<ResoniteConstructionCityObject> bakedCityObjects = [];
+        await EmitSourceUnitAsync(
+            sourceUnitKey,
+            (bakedCityObject, _) =>
+            {
+                bakedCityObjects.Add(bakedCityObject);
+                return Task.CompletedTask;
+            },
+            cancellationToken);
+        return bakedCityObjects;
+    }
+
     private async Task EmitSourceUnitAsync(
         SourceUnitBatchKey sourceUnitKey,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
@@ -117,6 +156,8 @@ internal sealed class NonDemCityObjectBaker(
         {
             return;
         }
+
+        DetachBufferedSourceUnit(sourceUnitKey);
 
         int emittedCount = 0;
         int batchStartIndex = nextBatchIndexBySourceUnit.GetValueOrDefault(sourceUnitKey);
@@ -1148,11 +1189,10 @@ internal sealed class NonDemCityObjectBaker(
         NonDemCityObjectBakePolicy policy)
     {
         string context = policy.Name;
-        string sourceUnitKey = cityObject.SourceUnitKey ?? string.Empty;
-        string sourceFileRelativePath = cityObject.SourceFileRelativePath ?? string.Empty;
+        string sourceScopeKey = cityObject.SourceFileRelativePath ?? cityObject.SourceUnitKey ?? string.Empty;
         string sourceUnitIdentity = string.Create(
             CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceUnitKey}|{sourceFileRelativePath}");
+            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceScopeKey}");
 
         return new SourceUnitBatchKey(
             cityObject.ActualMeshCode,
@@ -1160,7 +1200,7 @@ internal sealed class NonDemCityObjectBaker(
             cityObject.LodLevel,
             sourceUnitIdentity,
             context,
-            SourceUnitKey: cityObject.SourceUnitKey,
+            SourceUnitKey: cityObject.SourceFileRelativePath is null ? cityObject.SourceUnitKey : null,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
@@ -1637,6 +1677,36 @@ internal sealed class NonDemCityObjectBaker(
         {
             tileImage.Dispose();
         }
+    }
+
+    private void AttachBufferedSourceUnit(SourceUnitBatchKey sourceUnitKey)
+    {
+        LinkedListNode<SourceUnitBatchKey> node = bufferedSourceUnitOrder.AddLast(sourceUnitKey);
+        bufferedSourceUnitNodes[sourceUnitKey] = node;
+    }
+
+    private void TrackBufferedSourceUnitAccess(SourceUnitBatchKey sourceUnitKey)
+    {
+        if (!bufferedSourceUnitNodes.TryGetValue(sourceUnitKey, out LinkedListNode<SourceUnitBatchKey>? node))
+        {
+            throw new InvalidOperationException($"Buffered source-unit order tracking is missing '{sourceUnitKey}'.");
+        }
+
+        if (node != bufferedSourceUnitOrder.Last)
+        {
+            bufferedSourceUnitOrder.Remove(node);
+            bufferedSourceUnitOrder.AddLast(node);
+        }
+    }
+
+    private void DetachBufferedSourceUnit(SourceUnitBatchKey sourceUnitKey)
+    {
+        if (!bufferedSourceUnitNodes.Remove(sourceUnitKey, out LinkedListNode<SourceUnitBatchKey>? node))
+        {
+            return;
+        }
+
+        bufferedSourceUnitOrder.Remove(node);
     }
 
     private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image, Rgba32 BackgroundColor);

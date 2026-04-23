@@ -9,9 +9,12 @@ namespace PlateauResoniteLink.Targets.Resonite;
 internal sealed class ScopedBufferedCityObjectBaker(
     string name,
     Func<IResoniteBufferedCityObjectBaker> bakerFactory,
-    Func<ResoniteConstructionCityObject, bool>? canBufferCityObject = null) : IResoniteBufferedCityObjectBaker
+    Func<ResoniteConstructionCityObject, bool>? canBufferCityObject = null,
+    int? maxBufferedScopes = null) : IResoniteBufferedCityObjectBaker
 {
     private readonly Dictionary<ScopedBakeKey, IResoniteBufferedCityObjectBaker> bakersByScope = [];
+    private readonly LinkedList<ScopedBakeKey> bufferedScopeOrder = [];
+    private readonly Dictionary<ScopedBakeKey, LinkedListNode<ScopedBakeKey>> bufferedScopeNodes = [];
     private readonly Func<ResoniteConstructionCityObject, bool> canBufferPredicate = canBufferCityObject ?? (_ => true);
 
     public string Name { get; } = name;
@@ -20,7 +23,7 @@ internal sealed class ScopedBufferedCityObjectBaker(
 
     public int BakedOutputCityObjectCount => bakersByScope.Values.Sum(static baker => baker.BakedOutputCityObjectCount);
 
-    public ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
+    public async ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
@@ -28,7 +31,7 @@ internal sealed class ScopedBufferedCityObjectBaker(
 
         if (!canBufferPredicate(cityObject))
         {
-            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
+            return new BufferedCityObjectBufferResult(Buffered: false, []);
         }
 
         ScopedBakeKey scopeKey = CreateScopedBakeKey(cityObject);
@@ -36,9 +39,27 @@ internal sealed class ScopedBufferedCityObjectBaker(
         {
             baker = bakerFactory();
             bakersByScope.Add(scopeKey, baker);
+            AttachBufferedScope(scopeKey);
+        }
+        else
+        {
+            TrackBufferedScopeAccess(scopeKey);
         }
 
-        return baker.TryBufferAsync(cityObject, cancellationToken);
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject, cancellationToken);
+        if (!result.Buffered || !maxBufferedScopes.HasValue || bakersByScope.Count <= maxBufferedScopes.Value)
+        {
+            return result;
+        }
+
+        List<ResoniteConstructionCityObject> readyCityObjects = [.. result.ReadyCityObjects];
+        while (maxBufferedScopes.HasValue && bakersByScope.Count > maxBufferedScopes.Value)
+        {
+            ScopedBakeKey overflowScopeKey = GetOldestBufferedScopeKey(excluding: scopeKey);
+            readyCityObjects.AddRange(await FlushScopeAsync(overflowScopeKey, cancellationToken));
+        }
+
+        return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
     }
 
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
@@ -68,7 +89,21 @@ internal sealed class ScopedBufferedCityObjectBaker(
             cancellationToken.ThrowIfCancellationRequested();
             await baker.FlushAllAsync(onBakedCityObject, cancellationToken);
             _ = bakersByScope.Remove(scopeKey);
+            DetachBufferedScope(scopeKey);
         }
+    }
+
+    private async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushScopeAsync(
+        ScopedBakeKey scopeKey,
+        CancellationToken cancellationToken)
+    {
+        if (!bakersByScope.Remove(scopeKey, out IResoniteBufferedCityObjectBaker? baker))
+        {
+            return [];
+        }
+
+        DetachBufferedScope(scopeKey);
+        return await baker.FlushAllAsync(cancellationToken);
     }
 
     private static ScopedBakeKey CreateScopedBakeKey(ResoniteConstructionCityObject cityObject)
@@ -86,6 +121,52 @@ internal sealed class ScopedBufferedCityObjectBaker(
     }
 
     private readonly record struct ScopedBakeKey(string CityGmlScopeKey, int? LodLevel);
+
+    private void AttachBufferedScope(ScopedBakeKey scopeKey)
+    {
+        LinkedListNode<ScopedBakeKey> node = bufferedScopeOrder.AddLast(scopeKey);
+        bufferedScopeNodes[scopeKey] = node;
+    }
+
+    private void TrackBufferedScopeAccess(ScopedBakeKey scopeKey)
+    {
+        if (!bufferedScopeNodes.TryGetValue(scopeKey, out LinkedListNode<ScopedBakeKey>? node))
+        {
+            throw new InvalidOperationException($"Buffered scope order tracking is missing '{scopeKey}'.");
+        }
+
+        if (node != bufferedScopeOrder.Last)
+        {
+            bufferedScopeOrder.Remove(node);
+            bufferedScopeOrder.AddLast(node);
+        }
+    }
+
+    private void DetachBufferedScope(ScopedBakeKey scopeKey)
+    {
+        if (!bufferedScopeNodes.Remove(scopeKey, out LinkedListNode<ScopedBakeKey>? node))
+        {
+            return;
+        }
+
+        bufferedScopeOrder.Remove(node);
+    }
+
+    private ScopedBakeKey GetOldestBufferedScopeKey(ScopedBakeKey excluding)
+    {
+        LinkedListNode<ScopedBakeKey>? node = bufferedScopeOrder.First;
+        while (node is not null)
+        {
+            if (!node.Value.Equals(excluding))
+            {
+                return node.Value;
+            }
+
+            node = node.Next;
+        }
+
+        throw new InvalidOperationException("Buffered scope overflow had no eligible scope to flush.");
+    }
 
     private sealed class ScopedBakeKeyComparer : IComparer<ScopedBakeKey>
     {

@@ -193,6 +193,88 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
+    [InlineData(ResoniteImportMemoryProfile.Small, 512, 513)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 4096, 4097)]
+    public async Task BufferedCityObjectBakerFactoryAppliesPerBatchCityObjectLimitsByMemoryProfile(
+        ResoniteImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                noFlushCount,
+                index => CreateTriangleBuilding(
+                    $"city-{index}",
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)));
+        Assert.True(
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateTriangleBuilding(
+                    $"city-{index}",
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)) > 0);
+    }
+
+    [Theory]
+    [InlineData(ResoniteImportMemoryProfile.Small, 256, 257)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 1024, 1025)]
+    public async Task BufferedCityObjectBakerFactoryAppliesBufferedSourceUnitLimitsByMemoryProfile(
+        ResoniteImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                noFlushCount,
+                index => CreateTriangleBuilding(
+                    $"scope-{index}",
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: $"unit-{index}",
+                    sourceFileRelativePath: null)));
+        Assert.True(
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateTriangleBuilding(
+                    $"scope-{index}",
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: $"unit-{index}",
+                    sourceFileRelativePath: null)) > 0);
+    }
+
+    [Theory]
+    [InlineData(ResoniteImportMemoryProfile.Small)]
+    [InlineData(ResoniteImportMemoryProfile.Large)]
+    public async Task BufferedCityObjectBakerFactoryKeepsMeshesAboveUInt16VertexRangeBufferedUntilExplicitFlush(
+        ResoniteImportMemoryProfile memoryProfile)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                1,
+                index => CreateDenseTriangleBuilding(
+                    $"dense-{index}",
+                    65_536,
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)));
+    }
+
+    [Theory]
     [InlineData(ResoniteImportMemoryProfile.Small)]
     [InlineData(ResoniteImportMemoryProfile.Large)]
     public async Task BufferedCityObjectBakerFactoryBuffersLod1NonDemObjectsAcrossMemoryProfiles(
@@ -235,40 +317,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     PackageName = "dem",
                     LodLevel = null,
                 }));
-    }
-
-    [InlineData(ResoniteImportMemoryProfile.Small, 32, 33, 1024)]
-    [InlineData(ResoniteImportMemoryProfile.Large, 63, 64, 1024)]
-    public async Task BufferedCityObjectBakerFactoryKeepsVertexBudgetedNonDemObjectsBufferedUntilExplicitFlush(
-        ResoniteImportMemoryProfile memoryProfile,
-        int noFlushCount,
-        int flushCount,
-        int vertexCount)
-    {
-        Assert.Equal(
-            0,
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                noFlushCount,
-                index => CreateDenseTriangleBuilding(
-                    $"dense-{index}",
-                    vertexCount,
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)));
-        Assert.Equal(
-            0,
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                flushCount,
-                index => CreateDenseTriangleBuilding(
-                    $"dense-{index}",
-                    vertexCount,
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)));
     }
 
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)

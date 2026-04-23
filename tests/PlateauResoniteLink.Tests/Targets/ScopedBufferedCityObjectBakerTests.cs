@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Targets.Resonite;
@@ -91,6 +92,54 @@ public sealed class ScopedBufferedCityObjectBakerTests
         Assert.Contains(baked, static cityObject => cityObject.LodLevel == 2);
     }
 
+    [Fact]
+    public async Task TryBufferAsyncFlushesLeastRecentlyUsedScopeWhenMaxBufferedScopesIsExceeded()
+    {
+        ScopedBufferedCityObjectBaker baker = new(
+            "NonDemBake",
+            () => new RecordingBufferedCityObjectBaker(),
+            maxBufferedScopes: 2);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateNonDemObject(
+                "object-one",
+                lodLevel: 1,
+                "source-object-one",
+                sourceUnitKey: "source-unit-one",
+                sourceFileRelativePath: null,
+                CreatePayload("textures/object-one.png", new Rgba32(255, 0, 0, 255))));
+        await AssertBufferedAsync(
+            baker,
+            CreateNonDemObject(
+                "object-two",
+                lodLevel: 1,
+                "source-object-two",
+                sourceUnitKey: "source-unit-two",
+                sourceFileRelativePath: null,
+                CreatePayload("textures/object-two.png", new Rgba32(0, 255, 0, 255))));
+
+        _ = await baker.TryBufferAsync(
+            CreateNonDemObject(
+                "object-one-refresh",
+                lodLevel: 1,
+                "source-object-one-refresh",
+                sourceUnitKey: "source-unit-one",
+                sourceFileRelativePath: null,
+                CreatePayload("textures/object-one-refresh.png", new Rgba32(255, 255, 0, 255))));
+        BufferedCityObjectBufferResult overflowResult = await baker.TryBufferAsync(
+            CreateNonDemObject(
+                "object-three",
+                lodLevel: 1,
+                "source-object-three",
+                sourceUnitKey: "source-unit-three",
+                sourceFileRelativePath: null,
+                CreatePayload("textures/object-three.png", new Rgba32(0, 0, 255, 255))));
+
+        Assert.True(overflowResult.Buffered);
+        Assert.Equal("source-unit-two", Assert.Single(overflowResult.ReadyCityObjects).SourceUnitKey);
+    }
+
     private static ScopedBufferedCityObjectBaker CreateScopedBaker()
     {
         return new ScopedBufferedCityObjectBaker(
@@ -164,5 +213,46 @@ public sealed class ScopedBufferedCityObjectBakerTests
         });
 
         return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private sealed class RecordingBufferedCityObjectBaker : IResoniteBufferedCityObjectBaker
+    {
+        private readonly List<ResoniteConstructionCityObject> bufferedCityObjects = [];
+
+        public string Name => "Recording";
+
+        public int BakedInputCityObjectCount { get; private set; }
+
+        public int BakedOutputCityObjectCount { get; private set; }
+
+        public ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
+            ResoniteConstructionCityObject cityObject,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            bufferedCityObjects.Add(cityObject);
+            BakedInputCityObjectCount++;
+            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, []));
+        }
+
+        public Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = bufferedCityObjects.ToArray();
+            BakedOutputCityObjectCount += readyCityObjects.Count;
+            bufferedCityObjects.Clear();
+            return Task.FromResult(readyCityObjects);
+        }
+
+        public async Task FlushAllAsync(
+            Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(onBakedCityObject);
+            foreach (ResoniteConstructionCityObject cityObject in await FlushAllAsync(cancellationToken))
+            {
+                await onBakedCityObject(cityObject, cancellationToken);
+            }
+        }
     }
 }

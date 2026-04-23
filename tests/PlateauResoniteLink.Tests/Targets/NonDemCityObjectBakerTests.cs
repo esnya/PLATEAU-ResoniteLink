@@ -559,6 +559,28 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncKeepsSameSourceFileInSingleAtlasBatchAcrossDifferentSourceUnits()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+            {
+                SourceFileRelativePath = "shared.gml",
+            });
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-b") with
+            {
+                SourceFileRelativePath = "shared.gml",
+            });
+
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal("shared.gml", baked.SourceFileRelativePath);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncPacksMixedSizeTexturesIntoSingleAtlasBatch()
     {
         NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 16, tilePaddingPixels: 0);
@@ -687,6 +709,43 @@ public sealed class NonDemCityObjectBakerTests
         ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(512, atlasPayload.Width);
         Assert.Equal(512, atlasPayload.Height);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncAdvancesBatchIdentityAcrossRepeatedEarlyFlushesForSameSourceUnit()
+    {
+        NonDemCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(),
+            maxAtlasSize: 32,
+            tilePaddingPixels: 0,
+            maxBufferedCityObjectsPerSourceUnit: 2);
+
+        List<ResoniteConstructionCityObject> earlyBatches = [];
+        for (int index = 0; index < 6; index++)
+        {
+            BufferedCityObjectBufferResult result = await baker.TryBufferAsync(
+                CreateLod2Building(
+                    $"building-{index}",
+                    CreateCheckerPayload($"textures/repeated-{index}.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), 4, 4),
+                    index * 2,
+                    "unit-a") with
+                {
+                    SourceFileRelativePath = null,
+                });
+            if (result.ReadyCityObjects.Count > 0)
+            {
+                earlyBatches.Add(Assert.Single(result.ReadyCityObjects));
+            }
+        }
+
+        Assert.Equal(2, earlyBatches.Count);
+        ResoniteConstructionCityObject firstBatch = earlyBatches[0];
+        ResoniteConstructionCityObject secondBatch = earlyBatches[1];
+        Assert.NotEqual(firstBatch!.SlotKey, secondBatch.SlotKey);
+        Assert.NotEqual(firstBatch.SourceObjectKey, secondBatch.SourceObjectKey);
+        Assert.NotEqual(
+            Assert.IsType<ResoniteTexturePayload>(Assert.Single(firstBatch.Materials).TexturePayload).Identity,
+            Assert.IsType<ResoniteTexturePayload>(Assert.Single(secondBatch.Materials).TexturePayload).Identity);
     }
 
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
