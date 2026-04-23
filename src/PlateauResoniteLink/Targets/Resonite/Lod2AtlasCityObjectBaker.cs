@@ -159,7 +159,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 continue;
             }
 
-            if (candidate.AtlasEntries.Count == 0)
+            if (candidate.AtlasEntries.Count == 0 && !RequiresBakeEmission(candidate))
             {
                 passThroughCandidates.Add(candidate);
                 continue;
@@ -277,6 +277,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         List<AtlasBatchEntry> atlasEntries = [];
         List<PreservedSubmeshEntry> preservedEntries = [];
+        bool hadAtlasCandidateMaterial = false;
         foreach (ResoniteMeshSubmesh submesh in normalizedCityObject.Mesh.Submeshes.OrderBy(static candidate => candidate.Index))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -290,9 +291,22 @@ internal sealed class Lod2AtlasCityObjectBaker(
             switch (category)
             {
                 case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
-                    TextureUvRect uvBounds = ComputeUvBounds(normalizedCityObject.Mesh.Vertices, submesh, material);
-                    MaterialAtlasTile tile = await CreateAtlasTileAsync(material, uvBounds, cancellationToken);
-                    atlasEntries.Add(new AtlasBatchEntry(normalizedCityObject, submesh, material, tile, uvBounds));
+                    hadAtlasCandidateMaterial = true;
+                    AtlasOrPreservedEntry bakeEntry = await CreateAtlasOrPreservedEntryAsync(
+                        normalizedCityObject,
+                        submesh,
+                        material,
+                        cancellationToken);
+                    if (bakeEntry.AtlasEntry is not null)
+                    {
+                        atlasEntries.Add(bakeEntry.AtlasEntry);
+                    }
+
+                    if (bakeEntry.PreservedEntry is not null)
+                    {
+                        preservedEntries.Add(bakeEntry.PreservedEntry);
+                    }
+
                     break;
                 case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
                 case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
@@ -305,7 +319,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             }
         }
 
-        if (policy.RequireAtlasCandidateMaterial && atlasEntries.Count == 0)
+        if (policy.RequireAtlasCandidateMaterial && !hadAtlasCandidateMaterial)
         {
             DisposeCandidateImages(new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries));
             return null;
@@ -320,23 +334,34 @@ internal sealed class Lod2AtlasCityObjectBaker(
         return new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries);
     }
 
-    private async Task<MaterialAtlasTile> CreateAtlasTileAsync(
+    private async Task<AtlasOrPreservedEntry> CreateAtlasOrPreservedEntryAsync(
+        ResoniteConstructionCityObject cityObject,
+        ResoniteMeshSubmesh submesh,
         ResoniteMaterialBinding material,
-        TextureUvRect uvBounds,
         CancellationToken cancellationToken)
     {
         if (material.TexturePayload is null)
         {
-            return CreateSolidColorTile(material.BaseColor);
+            throw new InvalidOperationException("LOD2 atlas bake candidate material must have a texture payload.");
         }
 
+        TextureUvRect uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
         using Image<Rgba32> sourceImage = await textureImageLoader.LoadAsync(
             ResoniteTextureImportFactory.CreateRawFromPayload(material.TexturePayload),
             cancellationToken);
         Rgba32 detectedBackgroundColor = DetectRepresentativeBackgroundColor(sourceImage);
         using Image<Rgba32> preparedSourceImage = sourceImage.Clone();
         FillTransparentRgb(preparedSourceImage, detectedBackgroundColor);
-        bool isUniformDatasetTexture = TryGetUniformPixelColor(preparedSourceImage, out _);
+        if (TryGetUniformPixelColor(preparedSourceImage, out Rgba32 uniformDatasetColor))
+        {
+            return new AtlasOrPreservedEntry(
+                AtlasEntry: null,
+                PreservedEntry: new PreservedSubmeshEntry(
+                    cityObject,
+                    submesh,
+                    CreateVertexColorMaterial(material, submesh.Index),
+                    ToColor(MultiplyPixel(uniformDatasetColor, ToPixel(material.BaseColor)))));
+        }
 
         int maxTileWidth = EffectiveMaxAtlasTextureEdge;
         int maxTileHeight = EffectiveMaxAtlasTextureEdge;
@@ -345,29 +370,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
         using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
 
         ApplyBaseColor(bakedImage, material.BaseColor);
-        if (isUniformDatasetTexture && TryGetUniformPixelColor(bakedImage, out Rgba32 uniformColor))
-        {
-            return CreateSolidColorTile(uniformColor);
-        }
-
-        return new MaterialAtlasTile(
-            material.TexturePayload.Identity ?? material.MaterialKey,
-            bakedImage.Clone(),
-            MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor)));
-    }
-
-    private static MaterialAtlasTile CreateSolidColorTile(ResoniteColor color)
-    {
-        return CreateSolidColorTile(ToPixel(color));
-    }
-
-    private static MaterialAtlasTile CreateSolidColorTile(Rgba32 color)
-    {
-        using Image<Rgba32> image = new(1, 1, color);
-        return new MaterialAtlasTile(
-            $"solid:{color.R:0.###},{color.G:0.###},{color.B:0.###},{color.A:0.###}",
-            image.Clone(),
-            color);
+        return new AtlasOrPreservedEntry(
+            AtlasEntry: new AtlasBatchEntry(
+                cityObject,
+                submesh,
+                material,
+                new MaterialAtlasTile(
+                    material.TexturePayload.Identity ?? material.MaterialKey,
+                    bakedImage.Clone(),
+                    MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor))),
+                uvBounds),
+            PreservedEntry: null);
     }
 
     private static bool CanBufferCityObjectMaterials(
@@ -693,6 +706,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             vertices.Add(sourceVertex with
             {
                 Position = Add(sourceVertex.Position, cityObjectOffset),
+                Color = preservedEntry.VertexColorOverride ?? sourceVertex.Color,
             });
             triangleIndices.Add(vertices.Count - 1);
         }
@@ -1097,6 +1111,33 @@ internal sealed class Lod2AtlasCityObjectBaker(
             (byte)Math.Round(Math.Clamp(color.G, 0.0, 1.0) * 255.0),
             (byte)Math.Round(Math.Clamp(color.B, 0.0, 1.0) * 255.0),
             (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
+    }
+
+    private static ResoniteColor ToColor(Rgba32 color)
+    {
+        return new ResoniteColor(
+            color.R / 255.0,
+            color.G / 255.0,
+            color.B / 255.0,
+            color.A / 255.0);
+    }
+
+    private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
+    {
+        return material with
+        {
+            MaterialType = ResoniteMaterialType.VertexColor,
+            MaterialKey = $"vertex-color:{material.MaterialKey}",
+            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            TexturePayload = null,
+            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+            TextureScale = null,
+            TextureOffset = null,
+            Family = null,
+            TerrainOverlay = null,
+            AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
+            SubmeshIndices = [submeshIndex],
+        };
     }
 
     private static SourceUnitBatchKey CreateSourceUnitKey(
@@ -1623,6 +1664,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image, Rgba32 BackgroundColor);
 
+    private sealed record AtlasOrPreservedEntry(
+        AtlasBatchEntry? AtlasEntry,
+        PreservedSubmeshEntry? PreservedEntry);
+
     private readonly record struct BufferedCityObject(
         ResoniteConstructionCityObject CityObject,
         Lod2AtlasCityObjectBakePolicy Policy);
@@ -1637,12 +1682,18 @@ internal sealed class Lod2AtlasCityObjectBaker(
     private sealed record PreservedSubmeshEntry(
         ResoniteConstructionCityObject CityObject,
         ResoniteMeshSubmesh Submesh,
-        ResoniteMaterialBinding Material);
+        ResoniteMaterialBinding Material,
+        ResoniteColor? VertexColorOverride = null);
 
     private sealed record CityObjectBakeCandidate(
         ResoniteConstructionCityObject CityObject,
         IReadOnlyList<AtlasBatchEntry> AtlasEntries,
         IReadOnlyList<PreservedSubmeshEntry> PreservedEntries);
+
+    private static bool RequiresBakeEmission(CityObjectBakeCandidate candidate)
+    {
+        return candidate.PreservedEntries.Any(static entry => entry.VertexColorOverride is not null);
+    }
 
     private sealed record AtlasBatchPlan(
         IReadOnlyList<IReadOnlyList<CityObjectBakeCandidate>> Batches,

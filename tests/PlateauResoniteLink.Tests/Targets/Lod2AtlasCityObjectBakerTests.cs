@@ -18,8 +18,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
-        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a"));
-        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 4, 4), 2, "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -59,7 +59,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
-    public async Task FlushAllAsyncCollapsesUniformDatasetTextureToSingleSolidAtlasPixel()
+    public async Task FlushAllAsyncConvertsUniformDatasetTextureToSharedVertexColorMaterial()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
 
@@ -73,12 +73,11 @@ public sealed class Lod2AtlasCityObjectBakerTests
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(material.TexturePayload);
-
-        Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
-        Assert.Equal(1, atlasPayload.Width);
-        Assert.Equal(1, atlasPayload.Height);
-        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(ResoniteMaterialType.VertexColor, material.MaterialType);
+        Assert.Null(material.TexturePayload);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+        Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), material.BaseColor);
+        Assert.All(cityObject.Mesh.Vertices, static vertex => Assert.Equal(new ResoniteColor(1.0, 0.0, 0.0, 1.0), vertex.Color));
     }
 
     [Fact]
@@ -100,6 +99,34 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Equal(1, atlasPayload.Height);
         Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
         Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 1, 0));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsUniformVertexColorAndNonUniformAtlasMaterialsInSameBatch()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-uniform",
+                CreatePayload("textures/uniform-red.png", new Rgba32(255, 0, 0, 255), 8, 8),
+                0,
+                "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-nonuniform",
+                CreateCheckerPayload("textures/nonuniform.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 0, 255, 255), 4, 4),
+                2,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal(2, cityObject.Materials.Count);
+        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
+        Assert.Contains(cityObject.Materials, static material => material.MaterialType == ResoniteMaterialType.VertexColor && material.TexturePayload is null);
+        Assert.Contains(cityObject.Materials, static material => material.MaterialType == ResoniteMaterialType.Standard && material.TexturePayload is not null);
+        Assert.Contains(cityObject.Mesh.Vertices, static vertex => vertex.Color == new ResoniteColor(1.0, 0.0, 0.0, 1.0));
     }
 
     [Fact]
@@ -159,7 +186,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
-        await AssertBufferedAsync(baker, CreateMixedScopeLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), "unit-a"));
+        await AssertBufferedAsync(baker, CreateMixedScopeLod2Building("building-one", CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4), "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Equal(2, cityObject.Materials.Count);
@@ -445,28 +472,16 @@ public sealed class Lod2AtlasCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Single(cityObject.Materials);
         Assert.Single(cityObject.Mesh.Submeshes);
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
-        Assert.NotNull(atlasPayload.Width);
-        Assert.NotNull(atlasPayload.Height);
-        Assert.True(atlasPayload.Width > 0);
-        Assert.True(atlasPayload.Height > 0);
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        Assert.Equal(ResoniteMaterialType.VertexColor, material.MaterialType);
+        Assert.Null(material.TexturePayload);
 
-        HashSet<Rgba32> atlasColors = [];
-        int pixelCount = atlasPayload.Width.Value * atlasPayload.Height.Value;
-        ReadOnlySpan<byte> atlasBytes = atlasPayload.BinaryPayload.AsSpan();
-        for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++)
-        {
-            int offset = pixelIndex * 4;
-            atlasColors.Add(new Rgba32(
-                atlasBytes[offset],
-                atlasBytes[offset + 1],
-                atlasBytes[offset + 2],
-                atlasBytes[offset + 3]));
-        }
-
-        Assert.Contains(new Rgba32(255, 0, 0, 255), atlasColors);
-        Assert.Contains(new Rgba32(0, 255, 0, 255), atlasColors);
-        Assert.DoesNotContain(new Rgba32(0, 0, 0, 0), atlasColors);
+        HashSet<ResoniteColor> vertexColors = cityObject.Mesh.Vertices
+            .Select(static vertex => vertex.Color)
+            .OfType<ResoniteColor>()
+            .ToHashSet();
+        Assert.Contains(new ResoniteColor(1.0, 0.0, 0.0, 1.0), vertexColors);
+        Assert.Contains(new ResoniteColor(0.0, 1.0, 0.0, 1.0), vertexColors);
     }
 
     [Fact]
