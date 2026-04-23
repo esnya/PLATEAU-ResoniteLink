@@ -14,18 +14,6 @@ public static class BundledDefaultMaterialProfiles
     public static readonly ScalarPair Plaster002TilesPerMeterValue = CreateTilesPerMeterValue(2.5, 2.5);
     public static readonly ScalarPair Ground054TilesPerMeterValue = CreateTilesPerMeterValue(3.5, 3.5);
 
-    public static readonly ResoniteFloat2 FacadeDefaultTilesPerMeter = ToResoniteFloat2(FacadeDefaultTilesPerMeterValue);
-    public static readonly ResoniteFloat2 Facade018ATilesPerMeter = ToResoniteFloat2(Facade018ATilesPerMeterValue);
-    public static readonly ResoniteFloat2 Facade019ATilesPerMeter = ToResoniteFloat2(Facade019ATilesPerMeterValue);
-    public static readonly ResoniteFloat2 Facade020ATilesPerMeter = ToResoniteFloat2(Facade020ATilesPerMeterValue);
-    public static readonly ResoniteFloat2 ConcreteDefaultTilesPerMeter = ToResoniteFloat2(ConcreteDefaultTilesPerMeterValue);
-    public static readonly ResoniteFloat2 RoofingTiles012ATilesPerMeter = ToResoniteFloat2(RoofingTiles012ATilesPerMeterValue);
-    public static readonly ResoniteFloat2 RoofingTiles014BTilesPerMeter = ToResoniteFloat2(RoofingTiles014BTilesPerMeterValue);
-    public static readonly ResoniteFloat2 Asphalt020LTilesPerMeter = ToResoniteFloat2(Asphalt020LTilesPerMeterValue);
-    public static readonly ResoniteFloat2 Asphalt023LTilesPerMeter = ToResoniteFloat2(Asphalt023LTilesPerMeterValue);
-    public static readonly ResoniteFloat2 Plaster002TilesPerMeter = ToResoniteFloat2(Plaster002TilesPerMeterValue);
-    public static readonly ResoniteFloat2 Ground054TilesPerMeter = ToResoniteFloat2(Ground054TilesPerMeterValue);
-
     public static ScalarPair GetTilesPerMeterValue(string texturePath)
     {
         return texturePath.ToLowerInvariant() switch
@@ -47,18 +35,8 @@ public static class BundledDefaultMaterialProfiles
         };
     }
 
-    public static ResoniteFloat2 GetTilesPerMeter(string texturePath)
-    {
-        return ToResoniteFloat2(GetTilesPerMeterValue(texturePath));
-    }
-
     private static ScalarPair CreateTilesPerMeterValue(double widthMeters, double heightMeters)
     {
         return new ScalarPair(1.0 / widthMeters, 1.0 / heightMeters);
-    }
-
-    private static ResoniteFloat2 ToResoniteFloat2(ScalarPair value)
-    {
-        return new ResoniteFloat2(value.X, value.Y);
     }
 }

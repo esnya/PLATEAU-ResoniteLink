@@ -5,34 +5,9 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
-
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Transport.ResoniteLink;
-
-internal interface IResoniteLinkClient : IDisposable
-{
-    Task ConnectAsync(Uri endpoint, CancellationToken cancellationToken);
-
-    Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken);
-
-    Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken);
-
-    Task<BatchResponse> RunDataModelOperationBatchAsync(
-        IReadOnlyList<DataModelOperation> operations,
-        CancellationToken cancellationToken);
-
-    Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken);
-
-    Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken);
-
-    Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken);
-
-    Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken);
-
-    Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken);
-}
+namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class ResoniteLinkClient : IResoniteLinkClient
 {
@@ -44,11 +19,6 @@ internal sealed class ResoniteLinkClient : IResoniteLinkClient
     private readonly IResoniteLinkTransport link;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private int disposed;
-
-    public ResoniteLinkClient()
-        : this(new LinkInterfaceResoniteLinkTransport(new LinkInterface()))
-    {
-    }
 
     internal ResoniteLinkClient(
         IResoniteLinkTransport link)

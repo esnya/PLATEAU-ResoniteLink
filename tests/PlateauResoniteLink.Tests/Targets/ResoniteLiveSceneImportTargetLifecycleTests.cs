@@ -11,7 +11,6 @@ using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -981,7 +980,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TextureScale: BundledDefaultMaterialProfiles.GetTilesPerMeter(texturePath),
+                    TextureScale: new ResoniteFloat2(
+                        BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath).X,
+                        BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath).Y),
                     Family: family,
                     TextureOffset: null,
                     AssetScope: ResoniteMaterialAssetScope.Common,
@@ -1086,4 +1087,3 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         }
     }
 }
-

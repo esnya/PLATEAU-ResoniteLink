@@ -10,7 +10,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResoniteMaterialComponentPolicy
 {
-    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = BundledDefaultMaterialTiling.DefaultTilesPerMeter;
+    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = new(
+        BundledDefaultMaterialTiling.DefaultTilesPerMeterValue.X,
+        BundledDefaultMaterialTiling.DefaultTilesPerMeterValue.Y);
     private const float DefaultWireframeThickness = 0.01f;
     private const double DefaultWireframeFillOpacity = 0.08;
 

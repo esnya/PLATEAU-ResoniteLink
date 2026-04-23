@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
-
 using ResoniteLink;
 
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class MetricsResoniteLinkClient(
     IResoniteLinkClient inner,

@@ -21,19 +21,19 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveCityObjectLocalPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
-        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
-        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 originalPosition = new(25.0, 15.0, -10.0);
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 observedRootPosition = new(999.0, 5.0, 888.0);
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 requestRelativeRootPosition = new(
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 originalPosition = new(25.0, 15.0, -10.0);
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 observedRootPosition = new(999.0, 5.0, 888.0);
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 requestRelativeRootPosition = new(
             PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin).X,
             observedRootPosition.Y,
             PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin).Z);
 
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 expected = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.Subtract(
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expected = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.Subtract(
             originalPosition,
             requestRelativeRootPosition);
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 actual = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 actual = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
             requestOrigin,
             "53394525",
             observedRootPosition,
@@ -45,13 +45,13 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void ResolveMeshRootPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
-        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
-        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 resolved = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 resolved = PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveMeshRootPosition(
             requestOrigin,
             "53394525",
             observedRootHeight: 5.0);
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 expectedOffset =
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expectedOffset =
             PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
 
         Assert.Equal(expectedOffset.X, resolved.X, 6);
@@ -78,13 +78,13 @@ public sealed class ResonitePlacementPolicyTests
         Assert.NotEqual(slotNames["udx/bldg/a/sample.gml"], slotNames["udx/dem/b/sample.gml"]);
     }
 
-    private static PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
+    private static PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
     {
         if (PlateauResoniteLink.Domain.Importing.PlateauMeshCode.TryGetGeodeticCenter(
             meshCode,
             out PlateauResoniteLink.Domain.Importing.GeodeticCoordinate center))
         {
-            return new PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin(
+            return new PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin(
                 center.Latitude,
                 center.Longitude,
                 center.Altitude);

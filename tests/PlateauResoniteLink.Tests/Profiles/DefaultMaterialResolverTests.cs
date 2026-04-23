@@ -81,7 +81,7 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
         Assert.NotNull(material.TextureScale);
         Assert.Equal(
-            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeter(BundledDefaultMaterialFamilies.GetVariants(BundledDefaultMaterialFamilies.CityFurniture)[0])),
+            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(BundledDefaultMaterialFamilies.GetVariants(BundledDefaultMaterialFamilies.CityFurniture)[0])),
             material.TextureScale);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
     }
@@ -121,10 +121,10 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(first.BundledVariantIndex, second.BundledVariantIndex);
         Assert.Equal(first.TextureScale, second.TextureScale);
         Assert.Equal(
-            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeter(
+            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(
                 BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value))),
             first.TextureScale);
     }
 
-    private static Float2 ToContractFloat2(ResoniteFloat2 value) => new(value.X, value.Y);
+    private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);
 }

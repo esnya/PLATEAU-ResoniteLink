@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Domain.Importing;
-
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;

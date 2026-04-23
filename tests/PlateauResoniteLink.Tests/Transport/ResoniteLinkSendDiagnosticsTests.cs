@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
+using PlateauResoniteLink.Targets.Resonite;
 
 
 namespace PlateauResoniteLink.Tests.Transport;

@@ -9,10 +9,9 @@ using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
-using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
-using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+using TransportComponentLocator = PlateauResoniteLink.Targets.Resonite.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Targets.Resonite.ResoniteTransportSlotLocator;
 
 using ResoniteLink;
 
@@ -543,7 +542,7 @@ internal sealed class SceneBuilderRecordingClient : IResoniteLinkClient
                     break;
                 case UpdateComponent updateComponent:
                     await UpdateComponentAsync(
-                        new PlateauResoniteLink.Transport.ResoniteLink.ResoniteComponentUpdate
+                        new PlateauResoniteLink.Targets.Resonite.ResoniteComponentUpdate
                         {
                             Component = new TransportComponentLocator(updateComponent.Data.ID!),
                             Members = new Dictionary<string, Member>(updateComponent.Data.Members, StringComparer.Ordinal),

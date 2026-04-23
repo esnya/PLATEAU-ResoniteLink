@@ -819,8 +819,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[commonMaterialContainerSlotId],
             StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.Y, textureScale.Value.y, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].y, 6);
         Assert.Equal(6.5f, importedMesh.AccessUV_2D(0)[1].x, 6);
@@ -894,8 +894,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[materialRequest.ContainerSlotId],
             StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.Y, textureScale.Value.y, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, textureOffset.Value.x, 6);
         Assert.Equal(0.0f, textureOffset.Value.y, 6);
         Assert.Equal(1.625f, importedMesh.AccessUV_2D(0)[0].x, 6);

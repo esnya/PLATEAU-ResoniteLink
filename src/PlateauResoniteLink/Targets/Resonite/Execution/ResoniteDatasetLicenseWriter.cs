@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Transport.ResoniteLink;
-
 using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite.Execution;

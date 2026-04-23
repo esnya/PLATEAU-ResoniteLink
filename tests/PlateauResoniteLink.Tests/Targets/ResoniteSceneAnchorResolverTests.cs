@@ -9,10 +9,9 @@ using GeographicLib;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
-using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
-using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+using TransportComponentLocator = PlateauResoniteLink.Targets.Resonite.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Targets.Resonite.ResoniteTransportSlotLocator;
 
 using ResoniteLink;
 
@@ -417,4 +416,3 @@ public sealed class ResoniteSceneAnchorResolverTests
         }
     }
 }
-

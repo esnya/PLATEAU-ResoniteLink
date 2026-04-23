@@ -542,7 +542,7 @@ public static partial class LocalCityGmlObjectProjection
                 cityObject.ReferenceSystem.Geocentric)
             : null;
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         if (!IsNearHorizontalSurface(positions))
         {
@@ -1078,7 +1078,7 @@ public static partial class LocalCityGmlObjectProjection
         }
 
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         return IsNearHorizontalSurface(positions);
     }
@@ -1252,7 +1252,7 @@ public static partial class LocalCityGmlObjectProjection
                 cityObjectOrigin.Altitude,
                 cityObject.ReferenceSystem.Geocentric)
             : null;
-        Float3 slotPosition = CreateResonitePosition(
+        Float3 slotPosition = CreateLocalPosition(
             cityObjectOrigin,
             globalOriginPoint,
             globalCartesian);
@@ -1485,7 +1485,7 @@ public static partial class LocalCityGmlObjectProjection
         }
 
         Float3[] positions = vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         Float3? normal = ComputePolygonNormal(positions);
         if (normal is null || Math.Abs(normal.Y) < 0.7)
@@ -1523,10 +1523,10 @@ public static partial class LocalCityGmlObjectProjection
             GeodeticPoint[] side0Source = [side0Start, side0End];
             GeodeticPoint[] side1Source = [side1Start, side1End];
             Float3[] side0Positions = side0Source
-                .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+                .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
                 .ToArray();
             Float3[] side1Positions = side1Source
-                .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+                .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
                 .ToArray();
 
             GeodeticPoint[] side0 = MoveTowardCrossSection(
@@ -1927,7 +1927,7 @@ public static partial class LocalCityGmlObjectProjection
     {
         TessellatedVertex[] vertices = ring.Vertices
             .Select((point, index) => new TessellatedVertex(
-                CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian),
+                CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian),
                 ring.UVs is not null && index < ring.UVs.Count
                     ? ToInternalFloat2(ring.UVs[index])
                     : generatedDemUvProjection is not null
@@ -2005,7 +2005,7 @@ public static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.ExteriorRing.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         if (positions.Length < 3)
         {
@@ -2034,7 +2034,7 @@ public static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         SurfaceUvProjection projection)
     {
-        Float3 position = CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian);
+        Float3 position = CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian);
         double u = Dot(position, projection.AxisU);
         double v = Dot(position, projection.AxisV);
         return new Float2(u, v);
@@ -2336,7 +2336,7 @@ public static partial class LocalCityGmlObjectProjection
             vector.Z / magnitude);
     }
 
-    private static Float3 MapToResonitePosition((double x, double y, double z) eun)
+    private static Float3 MapToLocalPosition((double x, double y, double z) eun)
     {
         return new Float3(
             X: eun.x,
@@ -2344,7 +2344,7 @@ public static partial class LocalCityGmlObjectProjection
             Z: eun.y);
     }
 
-    private static Float3 CreateResonitePosition(
+    private static Float3 CreateLocalPosition(
         GeodeticPoint point,
         GeodeticPoint origin,
         LocalCartesian? cartesian)
@@ -2357,7 +2357,7 @@ public static partial class LocalCityGmlObjectProjection
                 Z: point.Longitude - origin.Longitude);
         }
 
-        return MapToResonitePosition(cartesian.Forward(
+        return MapToLocalPosition(cartesian.Forward(
             point.Latitude,
             point.Longitude,
             point.Altitude));
@@ -2508,7 +2508,7 @@ public static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         Float3? normal = ComputePolygonNormal(positions);
         if (normal is null)
@@ -2525,7 +2525,7 @@ public static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian)
     {
         Float3[] positions = surface.Vertices
-            .Select(point => CreateResonitePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .Select(point => CreateLocalPosition(point, cityObjectOrigin, cityObjectCartesian))
             .ToArray();
         Float3? normal = ComputePolygonNormal(positions);
         return normal is not null && Math.Abs(normal.Y) >= 0.98;
@@ -3084,7 +3084,7 @@ public static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        Float3 slotPosition = CreateResonitePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
+        Float3 slotPosition = CreateLocalPosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
             .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
@@ -3499,7 +3499,7 @@ public static partial class LocalCityGmlObjectProjection
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian)
     {
-        Float3 globalPosition = CreateResonitePosition(point, globalOriginPoint, globalCartesian);
+        Float3 globalPosition = CreateLocalPosition(point, globalOriginPoint, globalCartesian);
         return new Float3(
             globalPosition.X - slotPosition.X,
             globalPosition.Y - slotPosition.Y,
@@ -4584,4 +4584,3 @@ public static partial class LocalCityGmlObjectProjection
     }
 
 }
-

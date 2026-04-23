@@ -1,8 +1,6 @@
 using System;
 
-using PlateauResoniteLink.Targets.Resonite;
-
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResoniteLinkTransportSessionFactory
 {
@@ -11,12 +9,11 @@ internal static class ResoniteLinkTransportSessionFactory
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter,
-        Func<IResoniteLinkClient>? baseClientFactory = null)
+        Func<IResoniteLinkClient> baseClientFactory)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(diagnostics);
-
-        baseClientFactory ??= static () => new ResoniteLinkClient();
+        ArgumentNullException.ThrowIfNull(baseClientFactory);
 
         IResoniteLinkClient CreateConfiguredClient()
         {
@@ -35,6 +32,13 @@ internal static class ResoniteLinkTransportSessionFactory
 
 internal sealed class ResoniteLinkClientSessionFactory : IResoniteClientSessionFactory
 {
+    private readonly Func<IResoniteLinkClient> baseClientFactory;
+
+    public ResoniteLinkClientSessionFactory(Func<IResoniteLinkClient> baseClientFactory)
+    {
+        this.baseClientFactory = baseClientFactory ?? throw new ArgumentNullException(nameof(baseClientFactory));
+    }
+
     public ILiveSendClientSession Create(
         ResoniteLiveSceneImportTargetOptions options,
         ResoniteLinkSendDiagnostics diagnostics)
@@ -46,6 +50,7 @@ internal sealed class ResoniteLinkClientSessionFactory : IResoniteClientSessionF
             options.Endpoint,
             options.ConnectionCount,
             diagnostics,
-            options.ProgressReporter);
+            options.ProgressReporter,
+            baseClientFactory);
     }
 }

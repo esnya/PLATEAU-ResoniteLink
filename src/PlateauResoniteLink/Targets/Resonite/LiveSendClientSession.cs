@@ -5,7 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
-namespace PlateauResoniteLink.Transport.ResoniteLink;
+
+namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class LiveSendClientSession : ILiveSendClientSession, IDisposable
 {

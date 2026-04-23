@@ -104,8 +104,8 @@ internal static class ResoniteSceneMaterialConventions
                 ? BundledDefaultMaterialFamilies.Other
                 : material.Family!;
             int canonicalVariantIndex = material.BundledVariantIndex ?? 0;
-            ResoniteFloat2 defaultTextureScale = BundledDefaultMaterialProfiles.GetTilesPerMeter(
-                BundledDefaultMaterialFamilies.GetVariant(canonicalFamily, canonicalVariantIndex));
+            ResoniteFloat2 defaultTextureScale = CreateResoniteFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(
+                BundledDefaultMaterialFamilies.GetVariant(canonicalFamily, canonicalVariantIndex)));
             ResoniteFloat2 canonicalTextureScale = material.TextureScale ?? defaultTextureScale;
             return material with
             {
@@ -463,7 +463,7 @@ internal static class ResoniteSceneMaterialConventions
         }
 
         string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        return BundledDefaultMaterialProfiles.GetTilesPerMeter(bundledVariantPath);
+        return CreateResoniteFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(bundledVariantPath));
     }
 
     private static string TryCreateBundledVariantNameToken(ResoniteMaterialBinding material)
@@ -551,6 +551,8 @@ internal static class ResoniteSceneMaterialConventions
             || (Math.Abs(textureOffset.X) < 1e-9
                 && Math.Abs(textureOffset.Y) < 1e-9);
     }
+
+    private static ResoniteFloat2 CreateResoniteFloat2(ScalarPair value) => new(value.X, value.Y);
 
     private static Field_Enum CreateEnumMember(string value)
     {

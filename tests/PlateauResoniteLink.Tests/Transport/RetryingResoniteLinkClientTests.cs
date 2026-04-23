@@ -4,10 +4,9 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Targets.Resonite;
-using PlateauResoniteLink.Transport.ResoniteLink;
 
-using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
-using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
+using TransportComponentLocator = PlateauResoniteLink.Targets.Resonite.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Targets.Resonite.ResoniteTransportSlotLocator;
 
 using ResoniteLink;
 
@@ -916,6 +915,3 @@ public sealed class RetryingResoniteLinkClientTests
         }
     }
 }
-
-
-

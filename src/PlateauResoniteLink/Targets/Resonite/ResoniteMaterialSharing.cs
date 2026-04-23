@@ -1,7 +1,5 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
 public static class ResoniteMaterialSharing
