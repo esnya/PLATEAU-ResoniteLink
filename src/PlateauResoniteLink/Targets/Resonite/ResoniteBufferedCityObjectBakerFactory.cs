@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -27,7 +28,10 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBuffered
 
         return enableMeshBake
             ? new CompositeCityObjectBaker(
-                new NonDemCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget))
+                new ScopedBufferedCityObjectBaker(
+                    "NonDemBake",
+                    () => new NonDemCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget),
+                    static cityObject => NonDemCityObjectBakePolicies.DefaultPolicies.Any(policy => policy.CanBuffer(cityObject))))
             : null;
     }
 }

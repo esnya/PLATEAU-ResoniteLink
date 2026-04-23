@@ -483,6 +483,67 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncKeepsWhiteBundledFamilyMaterialsDedicatedForLod1Batches()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
+            "building-lod1-roof",
+            CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a") with
+        {
+            LodLevel = 1,
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-lod1-atlas",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-lod1-roof-0",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    BundledVariantIndex: 0),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-lod1-roof-1",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [2],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    BundledVariantIndex: 0),
+            ],
+        };
+
+        await AssertBufferedAsync(baker, source);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding[] preservedRoofMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+        Assert.Contains(preservedRoofMaterials, static material => material.MaterialKey == "building-lod1-roof-0");
+        Assert.Contains(preservedRoofMaterials, static material => material.MaterialKey == "building-lod1-roof-1");
+    }
+
+    [Fact]
     public async Task FlushAllAsyncKeepsDistinctSourceUnitsInSeparateAtlasBatches()
     {
         NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
@@ -748,6 +809,7 @@ public sealed class NonDemCityObjectBakerTests
             SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
+
 
     private static ResoniteConstructionCityObject CreateMultiTextureLod2Building(
         string slotKey,

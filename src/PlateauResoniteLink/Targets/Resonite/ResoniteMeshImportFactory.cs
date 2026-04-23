@@ -64,13 +64,7 @@ internal static class ResoniteMeshImportFactory
             if (request.HasColors)
             {
                 ResoniteColor color = vertex.Color ?? new ResoniteColor(1.0, 1.0, 1.0, 1.0);
-                request.Colors[index] = new color
-                {
-                    r = (float)color.R,
-                    g = (float)color.G,
-                    b = (float)color.B,
-                    a = (float)color.A,
-                };
+                request.Colors[index] = ResoniteColorSpace.CreateLinearVertexColor(color);
             }
         }
 

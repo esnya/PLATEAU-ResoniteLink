@@ -1234,7 +1234,9 @@ internal static partial class LocalCityGmlObjectProjection
 
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !ShouldCullSurfaceBeforeProjection(cityObject.PackageName, surface.ToLegacy(), cityObjectOrigin.ToLegacy(), cityObjectCartesian))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         IGrouping<string, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
@@ -2604,6 +2606,26 @@ internal static partial class LocalCityGmlObjectProjection
         return normal is not null && Math.Abs(normal.Y) >= 0.98;
     }
 
+    private static bool ShouldCullSurfaceBeforeProjection(
+        string packageName,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(packageName)
+            || surface.Semantic is not (ParsedSurfaceSemantic.Ground or ParsedSurfaceSemantic.OuterFloor))
+        {
+            return false;
+        }
+
+        Float3[] positions = surface.Vertices
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        Float3? normal = ComputePolygonNormal(positions);
+        return normal is not null
+            && normal.Y <= -0.98;
+    }
+
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
     {
         return surface.PolygonId.Contains("_generated_marking", StringComparison.Ordinal);
@@ -3003,7 +3025,9 @@ internal static partial class LocalCityGmlObjectProjection
     {
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !ShouldCullSurfaceBeforeProjection(cityObject.PackageName, surface, cityObjectOrigin, cityObjectCartesian))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3040,7 +3064,9 @@ internal static partial class LocalCityGmlObjectProjection
     {
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !ShouldCullSurfaceBeforeProjection(cityObject.PackageName, surface.ToLegacy(), cityObjectOrigin.ToLegacy(), cityObjectCartesian))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3583,7 +3609,9 @@ internal static partial class LocalCityGmlObjectProjection
     {
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !ShouldCullSurfaceBeforeProjection(cityObject.PackageName, surface, cityObjectOrigin, cityObjectCartesian))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces

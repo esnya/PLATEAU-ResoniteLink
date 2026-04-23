@@ -411,7 +411,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0]),
             ],
             CollisionEnabled: false,
-            SourceObjectKey: "no-collision-source");
+            SourceObjectKey: "no-collision-source",
+            SourceUnitKey: "no-collision-source",
+            SourceFileRelativePath: $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
@@ -803,22 +805,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Bundled Family Scale Check", StringComparison.Ordinal))
             .Data;
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        string materialId = Assert.IsType<Reference>(Assert.Single(materials.Elements)).TargetID;
-        Component sharedMaterial = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)).Data;
-        string commonMaterialContainerSlotId = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)).ContainerSlotId;
-        Field_float2 textureScale = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureScale"]);
+        Assert.IsType<Reference>(Assert.Single(materials.Elements));
+        SyncList propertyBlocks = Assert.IsType<SyncList>(meshRenderer.Members["MaterialPropertyBlocks"]);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
 
-        Assert.Contains(
-            "PLATEAU Shared Assets/Common Materials/",
-            client.SlotPaths[commonMaterialContainerSlotId],
-            StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
+        Assert.Empty(propertyBlocks.Elements);
         float expectedUvScale = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].y, 6);
@@ -881,22 +872,11 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "Bundled Family Transform Check", StringComparison.Ordinal));
         Component meshRenderer = meshRendererRequest.Data;
         SyncList materials = Assert.IsType<SyncList>(meshRenderer.Members["Materials"]);
-        string materialId = Assert.IsType<Reference>(Assert.Single(materials.Elements)).TargetID;
-        AddComponent materialRequest = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal));
-        Field_float2 textureScale = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureScale"]);
-        Field_float2 textureOffset = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureOffset"]);
+        Assert.IsType<Reference>(Assert.Single(materials.Elements));
+        SyncList propertyBlocks = Assert.IsType<SyncList>(meshRenderer.Members["MaterialPropertyBlocks"]);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
 
-        Assert.Contains(
-            "PLATEAU Shared Assets/Common Materials/",
-            client.SlotPaths[materialRequest.ContainerSlotId],
-            StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
-        Assert.Equal(0.0f, textureOffset.Value.x, 6);
-        Assert.Equal(0.0f, textureOffset.Value.y, 6);
+        Assert.Empty(propertyBlocks.Elements);
         float expectedUvScale = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
         float expectedUvOffsetX = (float)(0.125 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
         float expectedUvOffsetY = (float)(0.25 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);

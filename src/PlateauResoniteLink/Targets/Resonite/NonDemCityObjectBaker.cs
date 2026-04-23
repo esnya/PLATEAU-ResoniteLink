@@ -1560,39 +1560,13 @@ internal sealed class NonDemCityObjectBaker(
             normalizedMaterial.Projection,
             normalizedMaterial.DepthOffset,
             normalizedMaterial.TextureScale,
-            normalizedMaterial.Family,
             normalizedMaterial.TextureOffset,
             normalizedMaterial.AssetScope);
     }
 
     private static ResoniteMaterialBinding NormalizePreservedMaterial(ResoniteMaterialBinding material)
     {
-        ResoniteMaterialBinding normalizedMaterial = ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
-        if (normalizedMaterial.MaterialType != ResoniteMaterialType.Standard
-            || normalizedMaterial.TexturePayload is not null
-            || normalizedMaterial.TerrainOverlay is not null
-            || string.IsNullOrWhiteSpace(normalizedMaterial.Family)
-            || normalizedMaterial.TextureSourceKind != ResoniteTextureSourceKind.Bundled
-            || !ResoniteMaterialSharing.IsWhiteBaseColor(normalizedMaterial.BaseColor)
-            || normalizedMaterial.TextureOffset is not null
-            || normalizedMaterial.DepthOffset is not null)
-        {
-            return normalizedMaterial;
-        }
-
-        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(
-            normalizedMaterial with
-            {
-                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                TexturePayload = null,
-                TerrainOverlay = null,
-                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-                TextureScale = null,
-                TextureOffset = null,
-                DepthOffset = null,
-                AssetScope = ResoniteMaterialAssetScope.Common,
-                BundledVariantIndex = 0,
-            });
+        return ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
     }
 
     private async Task EmitAtlasBatchAsync(
@@ -1759,7 +1733,6 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteMaterialProjection Projection,
         ResoniteMaterialDepthOffset? DepthOffset,
         ResoniteFloat2? TextureScale,
-        string? Family,
         ResoniteFloat2? TextureOffset,
         ResoniteMaterialAssetScope AssetScope);
 
@@ -1812,7 +1785,6 @@ internal sealed class NonDemCityObjectBaker(
                 && x.Projection == y.Projection
                 && EqualityComparer<ResoniteMaterialDepthOffset?>.Default.Equals(x.DepthOffset, y.DepthOffset)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureScale, y.TextureScale)
-                && string.Equals(x.Family, y.Family, StringComparison.Ordinal)
                 && EqualityComparer<ResoniteFloat2?>.Default.Equals(x.TextureOffset, y.TextureOffset)
                 && x.AssetScope == y.AssetScope;
         }
@@ -1829,7 +1801,6 @@ internal sealed class NonDemCityObjectBaker(
             hash.Add(obj.Projection);
             hash.Add(obj.DepthOffset);
             hash.Add(obj.TextureScale);
-            hash.Add(obj.Family, StringComparer.Ordinal);
             hash.Add(obj.TextureOffset);
             hash.Add(obj.AssetScope);
             return hash.ToHashCode();
