@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;

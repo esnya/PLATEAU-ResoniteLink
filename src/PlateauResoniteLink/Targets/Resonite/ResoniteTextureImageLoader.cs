@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink.Transport.ResoniteLink;
+
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 

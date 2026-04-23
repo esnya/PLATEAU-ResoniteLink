@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
