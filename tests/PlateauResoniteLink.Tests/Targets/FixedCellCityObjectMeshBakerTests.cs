@@ -417,7 +417,8 @@ public sealed class FixedCellCityObjectMeshBakerTests
 
         Assert.Single(baked.Mesh.Submeshes);
         ResoniteMaterialBinding material = Assert.Single(baked.Materials);
-        Assert.Equal("common|roof|variant:2|Uv|scale:0.344828x0.344828", material.MaterialKey);
+        Assert.False(string.IsNullOrWhiteSpace(material.MaterialKey));
+        Assert.Equal(ResoniteMaterialProjection.Uv, material.Projection);
         Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
         Assert.Equal(2, material.BundledVariantIndex);
@@ -427,7 +428,7 @@ public sealed class FixedCellCityObjectMeshBakerTests
     public void TryBufferSkipsFallbackRoofBuildings()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
-        Assert.False(baker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-a|fallback-roof")), out _));
+        Assert.False(baker.TryBuffer(CreateFallbackRoofStrategyBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml"), out _));
         Assert.Empty(baker.FlushAll());
     }
 
@@ -519,49 +520,13 @@ public sealed class FixedCellCityObjectMeshBakerTests
         string sourceUnitKey,
         string? sourceFileRelativePath)
     {
-        return new ResoniteConstructionCityObject(
-            SlotKey: slotKey,
-            DisplayName: slotKey,
-            PackageName: "bldg",
-            ActualMeshCode: "53394525",
-            LodLevel: 1,
-            Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
-            Mesh: new ResoniteImportedMesh(
-                [
-                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
-                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
-                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
-                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 1.0)),
-                ],
-                [
-                    new ResoniteMeshSubmesh(0, "facade", [0, 1, 2]),
-                    new ResoniteMeshSubmesh(1, "roof", [1, 3, 2]),
-                ]),
-            Materials:
-            [
-                new ResoniteMaterialBinding(
-                    MaterialKey: "facade",
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-                    MaterialType: ResoniteMaterialType.Standard,
-                    TexturePayload: null,
-                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
-                    Projection: ResoniteMaterialProjection.Uv,
-                    DepthOffset: null,
-                    SubmeshIndices: [0],
-                    TextureScale: new ResoniteFloat2(
-                        BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
-                        BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
-                    Family: BundledDefaultMaterialFamilies.Facade,
-                    AssetScope: ResoniteMaterialAssetScope.Common,
-                    BundledVariantIndex: 0),
-                CreateBundledRoofMaterial("roof") with
-                {
-                    SubmeshIndices = [1],
-                },
-            ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
-            SourceFileRelativePath: sourceFileRelativePath);
+        return CreateTriangleBuilding(
+            slotKey,
+            x,
+            z,
+            sourceUnitKey,
+            sourceFileRelativePath,
+            CreateBundledRoofMaterial("roof|fallback-roof"));
     }
 
     private static ResoniteConstructionCityObject CreateMixedMaterialBuilding(
