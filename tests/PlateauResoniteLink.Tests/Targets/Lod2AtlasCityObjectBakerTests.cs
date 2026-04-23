@@ -59,6 +59,29 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncCollapsesUniformDatasetTextureToSingleSolidAtlasPixel()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-uniform",
+                CreatePayload("textures/uniform-red.png", new Rgba32(255, 0, 0, 255), 8, 8),
+                0,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(material.TexturePayload);
+
+        Assert.Equal(ResoniteMaterialType.Standard, material.MaterialType);
+        Assert.Equal(1, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncRepeatsTextureContentWhenUsedUvRangeExceedsUnitSquare()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
@@ -346,8 +369,8 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 12, tilePaddingPixels: 1);
         ResoniteConstructionCityObject oversizedCandidate = CreateMultiTextureLod2Building(
             "building-one",
-            CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 12, 12),
-            CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 12, 12),
+            CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 12, 12),
+            CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 0, 255, 255), 12, 12),
             "unit-a");
 
         await AssertBufferedAsync(baker, oversizedCandidate);
@@ -366,7 +389,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
         ResoniteConstructionCityObject oversizedCandidate = CreateUvScaledLod2Building(
             "building-dynamic-fallback",
-            CreatePayload("textures/dynamic-fallback.png", new Rgba32(255, 0, 0, 255), 9, 3),
+            CreateCheckerPayload("textures/dynamic-fallback.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), 9, 3),
             "unit-a",
             new ResoniteFloat2(2.0, 0.5),
             new ResoniteFloat2(0.25, 0.75));
@@ -445,9 +468,9 @@ public sealed class Lod2AtlasCityObjectBakerTests
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 16, tilePaddingPixels: 0);
 
-        await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreatePayload("textures/a.png", new Rgba32(255, 0, 0, 255), 7, 7), 0, "unit-a"));
-        await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreatePayload("textures/b.png", new Rgba32(0, 255, 0, 255), 1, 7), 2, "unit-a"));
-        await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreatePayload("textures/c.png", new Rgba32(0, 0, 255, 255), 3, 3), 4, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreateCheckerPayload("textures/a.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 7, 7), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreateCheckerPayload("textures/b.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 1, 7), 2, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreateCheckerPayload("textures/c.png", new Rgba32(0, 0, 255, 255), new Rgba32(255, 0, 255, 255), 3, 3), 4, "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
@@ -510,7 +533,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             baker,
             CreateLod2Building(
                 "building-large",
-                CreatePayload("textures/large.png", new Rgba32(255, 0, 0, 255), 1024, 1024),
+                CreateVerticalSplitPayload("textures/large.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 0, 255, 255), 1024, 1024),
                 0,
                 "unit-a"));
 
@@ -554,6 +577,35 @@ public sealed class Lod2AtlasCityObjectBakerTests
         for (int x = 0; x < colors.Count; x++)
         {
             image[x, 0] = colors[x];
+        }
+
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private static ResoniteTexturePayload CreateCheckerPayload(string identity, Rgba32 primary, Rgba32 secondary, int width, int height)
+    {
+        using Image<Rgba32> image = new(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                image[x, y] = ((x + y) & 1) == 0 ? primary : secondary;
+            }
+        }
+
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private static ResoniteTexturePayload CreateVerticalSplitPayload(string identity, Rgba32 left, Rgba32 right, int width, int height)
+    {
+        using Image<Rgba32> image = new(width, height);
+        int splitX = width / 2;
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                image[x, y] = x < splitX ? left : right;
+            }
         }
 
         return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);

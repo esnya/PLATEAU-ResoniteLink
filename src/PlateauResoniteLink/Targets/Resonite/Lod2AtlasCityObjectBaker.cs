@@ -344,6 +344,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
         using Image<Rgba32> bakedImage = BakeUsedUvRegion(preparedSourceImage, uvBounds, targetWidth, targetHeight);
 
         ApplyBaseColor(bakedImage, material.BaseColor);
+        if (TryGetUniformPixelColor(bakedImage, out Rgba32 uniformColor))
+        {
+            return CreateSolidColorTile(uniformColor);
+        }
+
         return new MaterialAtlasTile(
             material.TexturePayload.Identity ?? material.MaterialKey,
             bakedImage.Clone(),
@@ -352,11 +357,16 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static MaterialAtlasTile CreateSolidColorTile(ResoniteColor color)
     {
-        using Image<Rgba32> image = new(1, 1, ToPixel(color));
+        return CreateSolidColorTile(ToPixel(color));
+    }
+
+    private static MaterialAtlasTile CreateSolidColorTile(Rgba32 color)
+    {
+        using Image<Rgba32> image = new(1, 1, color);
         return new MaterialAtlasTile(
             $"solid:{color.R:0.###},{color.G:0.###},{color.B:0.###},{color.A:0.###}",
             image.Clone(),
-            ToPixel(color));
+            color);
     }
 
     private static bool CanBufferCityObjectMaterials(
@@ -1255,6 +1265,30 @@ internal sealed class Lod2AtlasCityObjectBaker(
                     pixel.A);
             }
         }
+    }
+
+    private static bool TryGetUniformPixelColor(Image<Rgba32> image, out Rgba32 color)
+    {
+        color = default;
+        if (image.Width <= 0 || image.Height <= 0)
+        {
+            return false;
+        }
+
+        Rgba32 firstPixel = image[0, 0];
+        for (int y = 0; y < image.Height; y++)
+        {
+            for (int x = 0; x < image.Width; x++)
+            {
+                if (!image[x, y].Equals(firstPixel))
+                {
+                    return false;
+                }
+            }
+        }
+
+        color = firstPixel;
+        return true;
     }
 
     private static bool TryAverageBoundaryOpaquePixels(Image<Rgba32> image, out Rgba32 color)
