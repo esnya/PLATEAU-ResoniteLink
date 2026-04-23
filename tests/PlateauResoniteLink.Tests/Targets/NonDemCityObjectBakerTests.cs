@@ -747,7 +747,6 @@ public sealed class NonDemCityObjectBakerTests
             Assert.IsType<ResoniteTexturePayload>(Assert.Single(firstBatch.Materials).TexturePayload).Identity,
             Assert.IsType<ResoniteTexturePayload>(Assert.Single(secondBatch.Materials).TexturePayload).Identity);
     }
-
     private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
     {
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);

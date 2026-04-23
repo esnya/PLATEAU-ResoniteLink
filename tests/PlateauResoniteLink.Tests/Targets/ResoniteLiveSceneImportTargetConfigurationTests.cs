@@ -193,34 +193,25 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
-    [InlineData(ResoniteImportMemoryProfile.Small, 512, 513)]
-    [InlineData(ResoniteImportMemoryProfile.Large, 4096, 4097)]
-    public async Task BufferedCityObjectBakerFactoryAppliesPerBatchCityObjectLimitsByMemoryProfile(
-        ResoniteImportMemoryProfile memoryProfile,
-        int noFlushCount,
-        int flushCount)
+    [InlineData(ResoniteImportMemoryProfile.Small)]
+    [InlineData(ResoniteImportMemoryProfile.Large)]
+    public async Task BufferedCityObjectBakerFactoryBuffersLod1NonDemObjectsAcrossMemoryProfiles(
+        ResoniteImportMemoryProfile memoryProfile)
     {
         Assert.Equal(
             0,
             await CountReadyBeforeFlushAsync(
                 memoryProfile,
-                noFlushCount,
-                index => CreateTriangleBuilding(
-                    $"city-{index}",
-                    x: 10.0 + (index * 0.01),
+                1,
+                _ => CreateTriangleBuilding(
+                    "tran-lod1",
+                    x: 10.0,
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)));
-        Assert.True(
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                flushCount,
-                index => CreateTriangleBuilding(
-                    $"city-{index}",
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)) > 0);
+                    sourceFileRelativePath: null) with
+                {
+                    PackageName = "tran",
+                }));
     }
 
     [Theory]
@@ -252,6 +243,29 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     z: 10.0,
                     sourceUnitKey: $"unit-{index}",
                     sourceFileRelativePath: null)) > 0);
+    }
+
+    [Theory]
+    [InlineData(ResoniteImportMemoryProfile.Small)]
+    [InlineData(ResoniteImportMemoryProfile.Large)]
+    public async Task BufferedCityObjectBakerFactorySkipsDemObjectsAcrossMemoryProfiles(
+        ResoniteImportMemoryProfile memoryProfile)
+    {
+        Assert.Equal(
+            1,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                1,
+                _ => CreateTriangleBuilding(
+                    "dem-lod1",
+                    x: 10.0,
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null) with
+                {
+                    PackageName = "dem",
+                    LodLevel = null,
+                }));
     }
 
     [Theory]
