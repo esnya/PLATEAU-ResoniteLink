@@ -272,13 +272,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TriangleSubmeshRawData importedSkirtSubmesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(importedSkirtMesh.Submeshes));
         Assert.Equal(16, importedSkirtMesh.VertexCount);
         Assert.Equal(8, importedSkirtSubmesh.TriangleCount);
-        float minimumY = float.MaxValue;
+        float minimumZ = float.MaxValue;
         foreach (float3 position in importedSkirtMesh.Positions)
         {
-            minimumY = Math.Min(minimumY, position.y);
+            minimumZ = Math.Min(minimumZ, position.z);
         }
 
-        Assert.True(minimumY <= -6.0f);
+        Assert.True(minimumZ <= -6.0f);
         float[] pixels = new float[importedTexture.RawRgbaFloatBytes.Length / sizeof(float)];
         Buffer.BlockCopy(importedTexture.RawRgbaFloatBytes, 0, pixels, 0, importedTexture.RawRgbaFloatBytes.Length);
         Assert.Equal(0.0f, pixels[0]);

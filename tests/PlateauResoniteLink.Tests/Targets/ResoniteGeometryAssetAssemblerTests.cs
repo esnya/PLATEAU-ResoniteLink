@@ -44,12 +44,12 @@ public sealed class ResoniteGeometryAssetAssemblerTests
         Assert.Equal("resdb:///mesh/0", skirtAsset.MeshUri.ToString());
         Assert.True(importedSkirtMesh.VertexCount > 0);
         Assert.NotEmpty(importedSkirtMesh.Submeshes);
-        float minimumY = float.MaxValue;
+        float minimumZ = float.MaxValue;
         foreach (float3 position in importedSkirtMesh.Positions)
         {
-            minimumY = Math.Min(minimumY, position.y);
+            minimumZ = Math.Min(minimumZ, position.z);
         }
 
-        Assert.True(minimumY <= -6.0f);
+        Assert.True(minimumZ <= -6.0f);
     }
 }

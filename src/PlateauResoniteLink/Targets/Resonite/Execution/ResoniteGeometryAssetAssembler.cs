@@ -153,8 +153,8 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         double skirtDepthMeters = ResolveHeightMapBorderSkirtDepthMeters(geometry);
         List<ResoniteMeshVertex> vertices = [];
         List<int> indices = [];
-        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: 0, outwardZ: -1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
-        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: geometry.Height - 1, outwardZ: 1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: 0, outwardY: -1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: geometry.Height - 1, outwardY: 1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
         AppendHeightMapBorderSkirtVerticalEdge(geometry, column: 0, outwardX: -1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
         AppendHeightMapBorderSkirtVerticalEdge(geometry, column: geometry.Width - 1, outwardX: 1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
 
@@ -168,7 +168,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
     private static void AppendHeightMapBorderSkirtHorizontalEdge(
         ResoniteHeightMapGridGeometry geometry,
         int row,
-        double outwardZ,
+        double outwardY,
         double skirtDepthMeters,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
@@ -181,18 +181,18 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             ResoniteMeshVertex topRight = CreateHeightMapBorderSkirtVertex(geometry, column + 1, row, uvScale, uvOffset);
             ResoniteMeshVertex bottomLeft = topLeft with
             {
-                Position = new ResoniteFloat3(topLeft.Position.X, topLeft.Position.Y - skirtDepthMeters, topLeft.Position.Z),
-                Normal = new ResoniteFloat3(0.0, 0.0, outwardZ),
+                Position = new ResoniteFloat3(topLeft.Position.X, topLeft.Position.Y, topLeft.Position.Z - skirtDepthMeters),
+                Normal = new ResoniteFloat3(0.0, outwardY, 0.0),
             };
             ResoniteMeshVertex bottomRight = topRight with
             {
-                Position = new ResoniteFloat3(topRight.Position.X, topRight.Position.Y - skirtDepthMeters, topRight.Position.Z),
-                Normal = new ResoniteFloat3(0.0, 0.0, outwardZ),
+                Position = new ResoniteFloat3(topRight.Position.X, topRight.Position.Y, topRight.Position.Z - skirtDepthMeters),
+                Normal = new ResoniteFloat3(0.0, outwardY, 0.0),
             };
 
-            topLeft = topLeft with { Normal = new ResoniteFloat3(0.0, 0.0, outwardZ) };
-            topRight = topRight with { Normal = new ResoniteFloat3(0.0, 0.0, outwardZ) };
-            AppendQuad(vertices, indices, topLeft, topRight, bottomLeft, bottomRight, outwardZ >= 0.0);
+            topLeft = topLeft with { Normal = new ResoniteFloat3(0.0, outwardY, 0.0) };
+            topRight = topRight with { Normal = new ResoniteFloat3(0.0, outwardY, 0.0) };
+            AppendQuad(vertices, indices, topLeft, topRight, bottomLeft, bottomRight, outwardY < 0.0);
         }
     }
 
@@ -212,12 +212,12 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             ResoniteMeshVertex topFar = CreateHeightMapBorderSkirtVertex(geometry, column, row + 1, uvScale, uvOffset);
             ResoniteMeshVertex bottomNear = topNear with
             {
-                Position = new ResoniteFloat3(topNear.Position.X, topNear.Position.Y - skirtDepthMeters, topNear.Position.Z),
+                Position = new ResoniteFloat3(topNear.Position.X, topNear.Position.Y, topNear.Position.Z - skirtDepthMeters),
                 Normal = new ResoniteFloat3(outwardX, 0.0, 0.0),
             };
             ResoniteMeshVertex bottomFar = topFar with
             {
-                Position = new ResoniteFloat3(topFar.Position.X, topFar.Position.Y - skirtDepthMeters, topFar.Position.Z),
+                Position = new ResoniteFloat3(topFar.Position.X, topFar.Position.Y, topFar.Position.Z - skirtDepthMeters),
                 Normal = new ResoniteFloat3(outwardX, 0.0, 0.0),
             };
 
@@ -237,7 +237,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         double x = geometry.Width == 1
             ? 0.0
             : (-geometry.Size.X / 2.0) + (geometry.Size.X * column / (geometry.Width - 1.0));
-        double z = geometry.Height == 1
+        double y = geometry.Height == 1
             ? 0.0
             : (-geometry.Size.Y / 2.0) + (geometry.Size.Y * row / (geometry.Height - 1.0));
         double height = geometry.HeightSamples[(row * geometry.Width) + column] - geometry.MaxHeight;
@@ -245,8 +245,8 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         double baseV = geometry.Height == 1 ? 0.0 : row / (geometry.Height - 1.0);
 
         return new ResoniteMeshVertex(
-            new ResoniteFloat3(x, height, z),
-            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat3(x, y, height),
+            new ResoniteFloat3(0.0, 0.0, 1.0),
             new ResoniteFloat2(
                 (baseU * (uvScale?.X ?? 1.0)) + (uvOffset?.X ?? 0.0),
                 (baseV * (uvScale?.Y ?? 1.0)) + (uvOffset?.Y ?? 0.0)));
