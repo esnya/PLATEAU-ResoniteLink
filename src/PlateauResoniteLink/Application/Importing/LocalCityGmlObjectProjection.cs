@@ -1280,8 +1280,6 @@ internal static partial class LocalCityGmlObjectProjection
             materials.Add(CreateMaterialBinding(representativeSurface, materialGroup.Key, materialIndex));
         }
 
-        bool usesFallbackRoofStrategy = materialGroups.Any(group => IsFallbackRoofMaterialGroup(group, materialGroups.Length));
-
         return new ImportedCityObject(
             ObjectKey: cityObject.SlotKey,
             DisplayName: cityObject.DisplayName,
@@ -1293,8 +1291,7 @@ internal static partial class LocalCityGmlObjectProjection
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath,
-            UsesFallbackRoofStrategy: usesFallbackRoofStrategy);
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)

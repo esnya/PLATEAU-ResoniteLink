@@ -15,8 +15,7 @@ public sealed record ImportedCityObject(
     bool CollisionEnabled = true,
     string? SourceObjectKey = null,
     string? SourceUnitKey = null,
-    string? SourceFileRelativePath = null,
-    bool UsesFallbackRoofStrategy = false)
+    string? SourceFileRelativePath = null)
 {
     public ImportedCityObject(
         string ObjectKey,
@@ -30,8 +29,7 @@ public sealed record ImportedCityObject(
         bool CollisionEnabled = true,
         string? SourceObjectKey = null,
         string? SourceUnitKey = null,
-        string? SourceFileRelativePath = null,
-        bool UsesFallbackRoofStrategy = false)
+        string? SourceFileRelativePath = null)
         : this(
             ObjectKey,
             DisplayName,
@@ -44,8 +42,7 @@ public sealed record ImportedCityObject(
             CollisionEnabled,
             SourceObjectKey,
             SourceUnitKey,
-            SourceFileRelativePath,
-            UsesFallbackRoofStrategy)
+            SourceFileRelativePath)
     {
     }
 
