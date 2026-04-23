@@ -2108,7 +2108,9 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        return new SurfaceUvProjection(surfaceAxes.AxisU, surfaceAxes.AxisV);
+        return new SurfaceUvProjection(
+            surfaceAxes.AxisU,
+            surfaceAxes.AxisV);
     }
 
     private static Float2 CreateGeneratedSurfaceUv(

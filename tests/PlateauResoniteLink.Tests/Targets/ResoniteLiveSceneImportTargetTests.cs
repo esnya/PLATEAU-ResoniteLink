@@ -819,12 +819,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
             StringComparison.Ordinal);
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
+        float expectedUvScale = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].y, 6);
-        Assert.Equal(6.5f, importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(expectedUvScale, importedMesh.AccessUV_2D(0)[1].x, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[1].y, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[2].x, 6);
-        Assert.Equal(6.5f, importedMesh.AccessUV_2D(0)[2].y, 6);
+        Assert.Equal(expectedUvScale, importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]
@@ -896,12 +897,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, textureOffset.Value.x, 6);
         Assert.Equal(0.0f, textureOffset.Value.y, 6);
-        Assert.Equal(1.625f, importedMesh.AccessUV_2D(0)[0].x, 6);
-        Assert.Equal(3.25f, importedMesh.AccessUV_2D(0)[0].y, 6);
-        Assert.Equal(8.125f, importedMesh.AccessUV_2D(0)[1].x, 6);
-        Assert.Equal(3.25f, importedMesh.AccessUV_2D(0)[1].y, 6);
-        Assert.Equal(1.625f, importedMesh.AccessUV_2D(0)[2].x, 6);
-        Assert.Equal(9.75f, importedMesh.AccessUV_2D(0)[2].y, 6);
+        float expectedUvScale = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvOffsetX = (float)(0.125 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvOffsetY = (float)(0.25 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
+        Assert.Equal(expectedUvOffsetX, importedMesh.AccessUV_2D(0)[0].x, 6);
+        Assert.Equal(expectedUvOffsetY, importedMesh.AccessUV_2D(0)[0].y, 6);
+        Assert.Equal(expectedUvOffsetX + expectedUvScale, importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(expectedUvOffsetY, importedMesh.AccessUV_2D(0)[1].y, 6);
+        Assert.Equal(expectedUvOffsetX, importedMesh.AccessUV_2D(0)[2].x, 6);
+        Assert.Equal(expectedUvOffsetY + expectedUvScale, importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]

@@ -17,6 +17,7 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
+[SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class LocalCityGmlObjectProjectionTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
@@ -96,6 +97,44 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains("bldg", source.Metadata.SourceDataset.PackageNames);
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
+    }
+    [Fact]
+    public void GeneratedFacadeUvProjection_UsesWorldMeterUnitsForBuildingWalls()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        double longitudeDelta = FacadeMaterialUvScaling.FloorSquareMeters
+            / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
+        LocalCityGmlObjectProjection.GeodeticPoint[] wallVertices =
+        [
+            origin,
+            new(origin.Latitude, origin.Longitude + longitudeDelta, 0.0),
+            new(origin.Latitude, origin.Longitude + longitudeDelta, FacadeMaterialUvScaling.FloorSquareMeters),
+            new(origin.Latitude, origin.Longitude, FacadeMaterialUvScaling.FloorSquareMeters),
+        ];
+        LocalCityGmlObjectProjection.ParsedSurface wallSurface = CreateParsedSurface(
+            "wall",
+            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
+            [.. wallVertices, wallVertices[0]]);
+
+        object projection = CreateGeneratedSurfaceUvProjectionForTest(wallSurface, "bldg", origin, cartesian);
+        Float2 uvOrigin = CreateGeneratedSurfaceUvForTest(origin, origin, cartesian, projection);
+        Float2 uvHorizontal = CreateGeneratedSurfaceUvForTest(wallVertices[1], origin, cartesian, projection);
+        Float2 uvVertical = CreateGeneratedSurfaceUvForTest(wallVertices[3], origin, cartesian, projection);
+
+        Assert.InRange(
+            Math.Abs(uvHorizontal.X - uvOrigin.X),
+            FacadeMaterialUvScaling.FloorSquareMeters - 0.05,
+            FacadeMaterialUvScaling.FloorSquareMeters + 0.05);
+        Assert.InRange(
+            Math.Abs(uvVertical.Y - uvOrigin.Y),
+            FacadeMaterialUvScaling.FloorSquareMeters - 0.05,
+            FacadeMaterialUvScaling.FloorSquareMeters + 0.05);
     }
 
     [Fact]
@@ -936,6 +975,46 @@ public sealed class LocalCityGmlObjectProjectionTests
         return (ImportedCityObject[])method.Invoke(null, [cityObjects])!;
     }
 
+    private static object CreateGeneratedSurfaceUvProjectionForTest(
+        LocalCityGmlObjectProjection.ParsedSurface surface,
+        string packageName,
+        LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
+        GeographicLib.LocalCartesian cartesian)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "CreateGeneratedSurfaceUvProjection",
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUvProjection.");
+        return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian])!
+            ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
+    }
+
+    private static Float2 CreateGeneratedSurfaceUvForTest(
+        LocalCityGmlObjectProjection.GeodeticPoint point,
+        LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
+        GeographicLib.LocalCartesian cartesian,
+        object projection)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "CreateGeneratedSurfaceUv",
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUv.");
+        return (Float2)method.Invoke(null, [point, cityObjectOrigin, cartesian, projection])!;
+    }
+
+    private static LocalCityGmlObjectProjection.ParsedSurface CreateParsedSurface(
+        string polygonId,
+        LocalCityGmlObjectProjection.ParsedSurfaceSemantic semantic,
+        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices)
+    {
+        return new LocalCityGmlObjectProjection.ParsedSurface(
+            polygonId,
+            semantic,
+            new LocalCityGmlObjectProjection.ParsedRing($"{polygonId}-ring", vertices.ToArray(), null),
+            [],
+            new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            TexturePayload: null);
+    }
     private static ImportedCityObject CreateHeightMapCityObject(
         string slotKey,
         Float3 position,

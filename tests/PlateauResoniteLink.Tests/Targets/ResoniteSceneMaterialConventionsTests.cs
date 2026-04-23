@@ -54,7 +54,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common|facade|variant:0|Uv|scale:13x13",
+            MaterialKey: "common|facade|variant:0|Uv|scale:0.307692x0.307692",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
