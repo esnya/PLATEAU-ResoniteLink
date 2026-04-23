@@ -43,6 +43,55 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
+    public void EvaluateRootPlacementCorrection_SplitsPlacementAndPostPlacementLayers()
+    {
+        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+
+        PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionResult correction =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.EvaluateRootPlacementCorrection(
+                requestOrigin,
+                "53394525",
+                observedRootHeight: 5.0);
+        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 expectedOffset =
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
+
+        Assert.Empty(correction.Layers.Source);
+        Assert.Empty(correction.Layers.Import);
+        Assert.Collection(
+            correction.Layers.Placement,
+            term =>
+            {
+                Assert.Equal(PlateauResoniteLink.Targets.Resonite.ResoniteCorrectionAxis.X, term.Axis);
+                Assert.Equal(expectedOffset.X, term.Value, 6);
+                Assert.Equal(
+                    PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset,
+                    term.Reason);
+            },
+            term =>
+            {
+                Assert.Equal(PlateauResoniteLink.Targets.Resonite.ResoniteCorrectionAxis.Z, term.Axis);
+                Assert.Equal(expectedOffset.Z, term.Value, 6);
+                Assert.Equal(
+                    PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset,
+                    term.Reason);
+            });
+        Assert.Collection(
+            correction.Layers.PostPlacement,
+            term =>
+            {
+                Assert.Equal(PlateauResoniteLink.Targets.Resonite.ResoniteCorrectionAxis.Y, term.Axis);
+                Assert.Equal(5.0, term.Value, 6);
+                Assert.Equal(
+                    PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionReason.ObservedRootHeight,
+                    term.Reason);
+            });
+        Assert.Equal(expectedOffset.X, correction.CorrectedRootPosition.X, 6);
+        Assert.Equal(5.0, correction.CorrectedRootPosition.Y, 6);
+        Assert.Equal(expectedOffset.Z, correction.CorrectedRootPosition.Z, 6);
+    }
+
+    [Fact]
     public void ResolveMeshRootPosition_UsesRequestRelativeHorizontalOffsetAndObservedVerticalOffset()
     {
         PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
