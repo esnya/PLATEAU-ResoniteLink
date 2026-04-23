@@ -137,7 +137,9 @@ internal static class ResonitePlacementPolicy
                 cityObjectPosition.Z);
         }
 
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
         ResoniteFloat3 rootPosition = new(
             rootOffsetFromRequest.X,
             observedRootPosition?.Y ?? rootOffsetFromRequest.Y,
@@ -180,7 +182,9 @@ internal static class ResonitePlacementPolicy
                     postPlacementTerms));
         }
 
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
         placementTerms.Add(new ResonitePlacementCorrectionTerm(
             ResoniteCorrectionAxis.X,
             rootOffsetFromRequest.X,

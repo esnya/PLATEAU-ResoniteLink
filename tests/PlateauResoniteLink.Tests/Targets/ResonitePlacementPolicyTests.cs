@@ -45,15 +45,15 @@ public sealed class ResonitePlacementPolicyTests
     [Fact]
     public void EvaluateRootPlacementCorrection_SplitsPlacementAndPostPlacementLayers()
     {
-        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
-        PlateauResoniteLink.Domain.Importing.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin requestOrigin = RequireMeshCodeCenter("53394535");
+        PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin rootOrigin = RequireMeshCodeCenter("53394525");
 
         PlateauResoniteLink.Targets.Resonite.ResonitePlacementCorrectionResult correction =
             PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.EvaluateRootPlacementCorrection(
                 requestOrigin,
                 "53394525",
                 observedRootHeight: 5.0);
-        PlateauResoniteLink.Domain.Importing.ResoniteFloat3 expectedOffset =
+        PlateauResoniteLink.Targets.Resonite.ResoniteFloat3 expectedOffset =
             PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ComputeOriginOffset(requestOrigin, rootOrigin);
 
         Assert.Empty(correction.Layers.Source);
