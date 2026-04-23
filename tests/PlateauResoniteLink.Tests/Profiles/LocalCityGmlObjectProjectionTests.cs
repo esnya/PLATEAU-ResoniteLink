@@ -243,7 +243,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectCullsOnlyBottomBandDownwardFacingBuildingSurfaces()
+    public void ProjectCityObjectCullsBottomBandBuildingSurfacesBySemanticOrDownwardLod1Face()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
@@ -270,28 +270,34 @@ public sealed class LocalCityGmlObjectProjectionTests
         BootstrapParsedSurface reversedGroundSurface = CreateBootstrapParsedSurface(
             "ground-reversed",
             BootstrapParsedSurfaceSemantic.Ground,
-            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.25, sizeMeters: 8.0, reverseWinding: true),
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 6.0, reverseWinding: true),
             CreateTexturePayload("ground-reversed"));
         BootstrapParsedSurface outerFloorSurface = CreateBootstrapParsedSurface(
             "outer-floor",
             BootstrapParsedSurfaceSemantic.OuterFloor,
-            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 8.0, reverseWinding: true),
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 4.0, reverseWinding: true),
             CreateTexturePayload("outer-floor"));
+        BootstrapParsedSurface highOuterFloorSurface = CreateBootstrapParsedSurface(
+            "high-outer-floor",
+            BootstrapParsedSurfaceSemantic.OuterFloor,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 4.0, reverseWinding: true),
+            CreateTexturePayload("high-outer-floor"));
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), roofSurface.ToLegacy(), groundSurface.ToLegacy(), reversedGroundSurface.ToLegacy(), outerFloorSurface.ToLegacy()],
+            [wallSurface.ToLegacy(), roofSurface.ToLegacy(), groundSurface.ToLegacy(), reversedGroundSurface.ToLegacy(), outerFloorSurface.ToLegacy(), highOuterFloorSurface.ToLegacy()],
             origin,
             cartesian);
 
         Assert.Contains("ground", culledSurfaceIds);
-        Assert.DoesNotContain("ground-reversed", culledSurfaceIds);
-        Assert.DoesNotContain("outer-floor", culledSurfaceIds);
+        Assert.Contains("ground-reversed", culledSurfaceIds);
+        Assert.Contains("outer-floor", culledSurfaceIds);
+        Assert.DoesNotContain("high-outer-floor", culledSurfaceIds);
         Assert.DoesNotContain("roof", culledSurfaceIds);
 
         BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
             "bldg",
-            [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface],
+            [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface, highOuterFloorSurface],
             referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -301,12 +307,12 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
 
-        Assert.Equal(4, projected.Materials.Count);
+        Assert.Equal(3, projected.Materials.Count);
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
-        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "high-outer-floor");
     }
-
     [Fact]
     public void ProjectCityObjectKeepsNonBuildingDownwardHorizontalGroundSurface()
     {
@@ -365,6 +371,11 @@ public sealed class LocalCityGmlObjectProjectionTests
             BootstrapParsedSurfaceSemantic.Unknown,
             CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("lod1-bottom"));
+        BootstrapParsedSurface reversedBottomSurface = CreateBootstrapParsedSurface(
+            "lod1-bottom-reversed",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 6.0, reverseWinding: true),
+            CreateTexturePayload("lod1-bottom-reversed"));
         BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
             "lod1-roof",
             BootstrapParsedSurfaceSemantic.Unknown,
@@ -372,17 +383,18 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateTexturePayload("lod1-roof"));
         BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
             "bldg",
-            [wallSurface, bottomSurface, roofSurface],
+            [wallSurface, bottomSurface, reversedBottomSurface, roofSurface],
             referenceSystem,
             lodLevel: 1);
 
         HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjectionForTest(
             "bldg",
-            [wallSurface.ToLegacy(), bottomSurface.ToLegacy(), roofSurface.ToLegacy()],
+            [wallSurface.ToLegacy(), bottomSurface.ToLegacy(), reversedBottomSurface.ToLegacy(), roofSurface.ToLegacy()],
             origin,
             cartesian);
 
         Assert.Contains("lod1-bottom", culledSurfaceIds);
+        Assert.Contains("lod1-bottom-reversed", culledSurfaceIds);
         Assert.DoesNotContain("lod1-roof", culledSurfaceIds);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -394,10 +406,10 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal(2, projected.Materials.Count);
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom-reversed");
         Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-roof");
         Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-wall");
     }
-
     [Fact]
     public void ProjectCityObjectKeepsHighDownwardHorizontalBuildingSurfaceOutsideBottomBand()
     {

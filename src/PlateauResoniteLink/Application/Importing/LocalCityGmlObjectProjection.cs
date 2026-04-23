@@ -2689,11 +2689,16 @@ internal static partial class LocalCityGmlObjectProjection
         double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
 
         return candidates
-            .Where(static info => info.IsDownwardNearHorizontal)
+            .Where(static info => IsBottomBandCullCandidate(info))
             .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
             .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
             .Select(static info => info.Surface.PolygonId)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static bool IsBottomBandCullCandidate(SurfaceProjectionInfo info)
+    {
+        return info.IsNearHorizontal;
     }
 
     private static bool IsDownwardNearHorizontalSurface(
@@ -2731,18 +2736,18 @@ internal static partial class LocalCityGmlObjectProjection
             .ToArray();
         if (positions.Length == 0)
         {
-            return new SurfaceProjectionInfo(surface, null, null, false);
+            return new SurfaceProjectionInfo(surface, null, null, false, false);
         }
 
         Float3? normal = ComputePolygonNormal(positions);
-        bool isDownwardNearHorizontal = normal is not null
-            && Math.Abs(normal.Y) >= 0.98
-            && normal.Y <= -0.98;
+        bool isNearHorizontal = normal is not null && Math.Abs(normal.Y) >= 0.98;
+        bool isDownwardNearHorizontal = isNearHorizontal && normal is not null && normal.Y <= -0.98;
 
         return new SurfaceProjectionInfo(
             surface,
             positions.Min(static position => position.Y),
             positions.Max(static position => position.Y),
+            isNearHorizontal,
             isDownwardNearHorizontal);
     }
 
@@ -2790,6 +2795,7 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface Surface,
         double? MinimumY,
         double? MaximumY,
+        bool IsNearHorizontal,
         bool IsDownwardNearHorizontal);
 
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
@@ -3832,9 +3838,16 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+            cityObject.PackageName,
+            cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
+            cityObjectOrigin.ToLegacy(),
+            cityObjectCartesian);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
