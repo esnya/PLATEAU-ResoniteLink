@@ -45,14 +45,27 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
-    public void ToInternalCityObjectSetsFallbackRoofStrategyForSharedBundledRoofMesh()
+    public void ToInternalCityObjectPreservesFallbackRoofClassification()
     {
         ImportedCityObject cityObject = CreateImportedRoofOnlyBuilding(
-            CreateRoofMaterialBinding("roof", [0]));
+            CreateRoofMaterialBinding("roof", [0]),
+            ImportedCityObjectClassification.FallbackRoofBuilding);
 
         ResoniteConstructionCityObject mapped = SceneImportContractMapper.ToInternal(cityObject);
 
         Assert.True(mapped.UsesFallbackRoofStrategy);
+    }
+
+    [Fact]
+    public void ToInternalCityObjectDoesNotInferFallbackRoofStrategyFromMaterialShape()
+    {
+        ImportedCityObject cityObject = CreateImportedRoofOnlyBuilding(
+            CreateRoofMaterialBinding("roof", [0]),
+            ImportedCityObjectClassification.Default);
+
+        ResoniteConstructionCityObject mapped = SceneImportContractMapper.ToInternal(cityObject);
+
+        Assert.False(mapped.UsesFallbackRoofStrategy);
     }
 
     [Fact]
@@ -94,14 +107,17 @@ public sealed class SceneImportContractMapperTests
                     Family: BundledDefaultMaterialFamilies.Facade,
                     ReuseScope: MaterialReuseScope.Shared,
                     BundledVariantIndex: 0),
-            ]);
+            ],
+            Classification: ImportedCityObjectClassification.Default);
 
         ResoniteConstructionCityObject mapped = SceneImportContractMapper.ToInternal(cityObject);
 
         Assert.False(mapped.UsesFallbackRoofStrategy);
     }
 
-    private static ImportedCityObject CreateImportedRoofOnlyBuilding(MaterialBinding material)
+    private static ImportedCityObject CreateImportedRoofOnlyBuilding(
+        MaterialBinding material,
+        ImportedCityObjectClassification classification)
     {
         return new ImportedCityObject(
             ObjectKey: "building",
@@ -119,7 +135,8 @@ public sealed class SceneImportContractMapperTests
                 [
                     new MeshSubmesh(0, material.MaterialKey, [0, 1, 2]),
                 ]),
-            Materials: [material]);
+            Materials: [material],
+            Classification: classification);
     }
 
     private static MaterialBinding CreateRoofMaterialBinding(string materialKey, IReadOnlyList<int> submeshIndices)

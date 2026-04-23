@@ -1247,6 +1247,13 @@ internal static partial class LocalCityGmlObjectProjection
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
+        ImportedCityObjectClassification classification =
+            cityObject.LodLevel == 1
+            && string.Equals(cityObject.PackageName, "bldg", StringComparison.OrdinalIgnoreCase)
+            && materialGroups.Length == 1
+            && IsFallbackRoofMaterialGroup(materialGroups[0], materialGroups.Length)
+                ? ImportedCityObjectClassification.FallbackRoofBuilding
+                : ImportedCityObjectClassification.Default;
 
         for (int materialIndex = 0; materialIndex < materialGroups.Length; materialIndex++)
         {
@@ -1291,7 +1298,8 @@ internal static partial class LocalCityGmlObjectProjection
             Materials: materials,
             SourceObjectKey: cityObject.SourceIdentity,
             SourceUnitKey: cityObject.SourceUnitIdentity,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
+            SourceFileRelativePath: cityObject.SourceFileRelativePath,
+            Classification: classification);
     }
 
     private static GeodeticPoint GetCityObjectOrigin(ParsedCityObject cityObject)

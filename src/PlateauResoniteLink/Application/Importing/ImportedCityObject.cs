@@ -3,6 +3,12 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
 
+public enum ImportedCityObjectClassification
+{
+    Default = 0,
+    FallbackRoofBuilding = 1,
+}
+
 public sealed record ImportedCityObject(
     string ObjectKey,
     string DisplayName,
@@ -15,7 +21,8 @@ public sealed record ImportedCityObject(
     bool CollisionEnabled = true,
     string? SourceObjectKey = null,
     string? SourceUnitKey = null,
-    string? SourceFileRelativePath = null)
+    string? SourceFileRelativePath = null,
+    ImportedCityObjectClassification Classification = ImportedCityObjectClassification.Default)
 {
     public ImportedCityObject(
         string ObjectKey,
@@ -29,7 +36,8 @@ public sealed record ImportedCityObject(
         bool CollisionEnabled = true,
         string? SourceObjectKey = null,
         string? SourceUnitKey = null,
-        string? SourceFileRelativePath = null)
+        string? SourceFileRelativePath = null,
+        ImportedCityObjectClassification Classification = ImportedCityObjectClassification.Default)
         : this(
             ObjectKey,
             DisplayName,
@@ -42,7 +50,8 @@ public sealed record ImportedCityObject(
             CollisionEnabled,
             SourceObjectKey,
             SourceUnitKey,
-            SourceFileRelativePath)
+            SourceFileRelativePath,
+            Classification)
     {
     }
 

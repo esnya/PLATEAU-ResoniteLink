@@ -1,9 +1,7 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
-using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
@@ -11,7 +9,7 @@ internal static class SceneImportContractMapper
 {
     internal static ResoniteMaterialBinding[] ToInternal(IReadOnlyList<MaterialBinding> bindings)
     {
-        ArgumentNullException.ThrowIfNull(bindings);
+        global::System.ArgumentNullException.ThrowIfNull(bindings);
         return bindings.Select(ToInternal).ToArray();
     }
 
@@ -32,7 +30,7 @@ internal static class SceneImportContractMapper
                 cityObject.SourceObjectKey,
                 cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath,
-                DetermineFallbackRoofStrategy(cityObject)),
+                cityObject.Classification == ImportedCityObjectClassification.FallbackRoofBuilding),
             HeightMapGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
@@ -55,30 +53,8 @@ internal static class SceneImportContractMapper
                 cityObject.SourceUnitKey,
                 cityObject.SourceFileRelativePath,
                 false),
-            _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
+            _ => throw new global::System.InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
-    }
-
-    private static bool DetermineFallbackRoofStrategy(ImportedCityObject cityObject)
-    {
-        if (!string.Equals(cityObject.PackageName, "bldg", StringComparison.OrdinalIgnoreCase)
-            || cityObject.Geometry is not TriangleMeshGeometry triangleMesh
-            || cityObject.Materials.Count != 1)
-        {
-            return false;
-        }
-
-        MaterialBinding material = cityObject.Materials[0];
-        return material.SubmeshIndices.Count == triangleMesh.Mesh.Submeshes.Count
-            && material.SubmeshIndices.OrderBy(static index => index).SequenceEqual(
-                triangleMesh.Mesh.Submeshes.Select(static submesh => submesh.Index))
-            && material.ReuseScope == MaterialReuseScope.Shared
-            && material.MaterialType == MaterialType.Standard
-            && material.TexturePayload is null
-            && material.TerrainOverlay is null
-            && material.TextureSourceKind == TextureSourceKind.Bundled
-            && string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal)
-            && material.Projection == MaterialProjection.Triplanar;
     }
 
     private static ResoniteTransform ToInternal(Transform3D transform)

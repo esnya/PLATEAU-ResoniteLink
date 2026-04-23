@@ -443,6 +443,19 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Single(baker.FlushAll());
     }
 
+    [Fact]
+    public void TryBufferKeepsUnclassifiedRoofOnlyBuildingsInNormalBakePath()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+
+        bool buffered = baker.TryBuffer(
+            CreateTriangleBuilding("roof-only", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof")),
+            out _);
+
+        Assert.True(buffered);
+        Assert.Single(baker.FlushAll());
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,
