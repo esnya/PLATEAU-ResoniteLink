@@ -209,22 +209,8 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 
     private static bool UsesFallbackRoofMaterial(ResoniteConstructionCityObject cityObject)
     {
-        if (cityObject.Materials.Count != 1)
-        {
-            return false;
-        }
-
-        ResoniteMaterialBinding material = cityObject.Materials[0];
-        return material.SubmeshIndices.Count == cityObject.Mesh.Submeshes.Count
-            && material.SubmeshIndices.OrderBy(static index => index).SequenceEqual(
-                cityObject.Mesh.Submeshes.Select(static submesh => submesh.Index))
-            && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
-            && material.MaterialType == ResoniteMaterialType.Standard
-            && material.AssetScope == ResoniteMaterialAssetScope.Common
-            && material.TexturePayload is null
-            && material.TerrainOverlay is null
-            && string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal)
-            && material.Projection == ResoniteMaterialProjection.Triplanar;
+        return cityObject.Materials.Any(static material =>
+            material.MaterialKey.Contains(FallbackRoofMaterialKeySuffix, StringComparison.Ordinal));
     }
 
     private static CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
@@ -262,11 +248,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     {
         material = ResoniteDynamicMaterialUvNormalizer.NormalizeMaterialBinding(material);
         return ResoniteSceneMaterialConventions.NormalizeBatchGroupedMaterialBinding(material);
-    }
-    private static bool UsesFallbackRoofMaterial(ResoniteConstructionCityObject cityObject)
-    {
-        return cityObject.Materials.Any(static material =>
-            material.MaterialKey.Contains(FallbackRoofMaterialKeySuffix, StringComparison.Ordinal));
     }
     private ResoniteConstructionCityObject FlushCell(CellKey cellKey)
     {
