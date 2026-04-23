@@ -2,11 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using PlateauResoniteLink;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -19,8 +18,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
     internal const int DefaultMaxBufferedCells = 8;
 
     private readonly double cellSizeMeters;
-    private readonly int maxCityObjectsPerBatch;
-    private readonly int maxVerticesPerBatch;
     private readonly int maxBufferedCells;
     private readonly Dictionary<CellKey, CellBuffer> buffers = [];
     private readonly Dictionary<CellKey, int> flushSequenceByCell = [];
@@ -48,8 +45,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxBufferedCells);
 
         this.cellSizeMeters = cellSizeMeters;
-        this.maxCityObjectsPerBatch = maxCityObjectsPerBatch;
-        this.maxVerticesPerBatch = maxVerticesPerBatch;
         this.maxBufferedCells = maxBufferedCells;
     }
 
@@ -181,13 +176,6 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         BakedInputCityObjectCount++;
 
         List<ResoniteConstructionCityObject> readyCityObjects = [];
-        bool exceededCityObjectBudget = cityObject.SourceFileRelativePath is null
-            && buffer.CityObjects.Count > maxCityObjectsPerBatch;
-        if (exceededCityObjectBudget || buffer.VertexCount > maxVerticesPerBatch)
-        {
-            readyCityObjects.Add(FlushCell(cellKey));
-        }
-
         while (buffers.Count > maxBufferedCells)
         {
             CellKey overflowCellKey = GetOldestBufferedCellKey(excluding: cellKey);
@@ -207,15 +195,27 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 
     private static CellKey CreateCellKey(ResoniteConstructionCityObject cityObject)
     {
-        string scopeIdentity = cityObject.SourceFileRelativePath
-            ?? cityObject.SourceUnitKey
-            ?? cityObject.SourceObjectKey
-            ?? cityObject.SlotKey;
+        string scopeKey;
+        if (!string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath))
+        {
+            scopeKey = cityObject.SourceFileRelativePath!;
+        }
+        else if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
+        {
+            scopeKey = cityObject.SourceUnitKey!;
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Fixed-cell bake candidate '{cityObject.DisplayName}' did not provide source scope. "
+                + "Source-owned batching requires SourceFileRelativePath or SourceUnitKey.");
+        }
+
         return new CellKey(
             cityObject.ActualMeshCode,
-            cityObject.PackageName,
+            cityObject.PackageName.ToLowerInvariant(),
             cityObject.LodLevel,
-            scopeIdentity,
+            scopeKey,
             CellX: 0,
             CellZ: 0);
     }
@@ -373,10 +373,11 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 
         ValidateBakedMesh(buffer.CityObjects, vertices, submeshes, materials, cellKey);
 
+        string batchSlotKey = CreateBatchSlotKey(cellKey, flushSequence);
         BakedOutputCityObjectCount++;
         return new ResoniteConstructionCityObject(
-            SlotKey: CreateBatchSlotKey(cellKey, flushSequence),
-            DisplayName: CreateBatchDisplayName(cellKey, flushSequence),
+            SlotKey: batchSlotKey,
+            DisplayName: CreateBatchDisplayName(cellKey, flushSequence, batchSlotKey),
             PackageName: cellKey.PackageName,
             ActualMeshCode: cellKey.ActualMeshCode,
             LodLevel: cellKey.LodLevel,
@@ -646,35 +647,32 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 
     private static string CreateBatchSlotKey(CellKey cellKey, int flushSequence)
     {
-        string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string sourceUnitToken = CreateSourceUnitToken(cellKey.ScopeIdentity);
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"meshbake_{cellKey.PackageName}_{cellKey.ActualMeshCode}_{sourceUnitToken}_{lodToken}_{cellKey.CellX}_{cellKey.CellZ}_{flushSequence:D4}");
+        return StableOpaqueId.Create(
+            "meshbake",
+            builder =>
+            {
+                AddCellIdentity(builder, cellKey);
+                builder.Add(flushSequence);
+            });
     }
 
-    private static string CreateBatchDisplayName(CellKey cellKey, int flushSequence)
+    private static string CreateBatchDisplayName(CellKey cellKey, int flushSequence, string batchSlotKey)
     {
         string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string sourceUnitToken = CreateSourceUnitToken(cellKey.ScopeIdentity);
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"MeshBake {cellKey.PackageName} LOD{lodToken} {sourceUnitToken} #{flushSequence + 1}");
+            $"MeshBake {cellKey.PackageName} LOD{lodToken} #{flushSequence + 1} [{batchSlotKey}]");
     }
 
     private static string CreateBatchSourceObjectKey(CellKey cellKey, int flushSequence)
     {
-        string lodToken = cellKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string sourceUnitToken = CreateSourceUnitToken(cellKey.ScopeIdentity);
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"meshbake:{cellKey.ActualMeshCode}:{cellKey.PackageName}:{sourceUnitToken}:{lodToken}:{cellKey.CellX}:{cellKey.CellZ}:{flushSequence:D4}");
-    }
-
-    private static string CreateSourceUnitToken(string sourceUnitKey)
-    {
-        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sourceUnitKey));
-        return Convert.ToHexString(bytes.AsSpan(0, 6)).ToLowerInvariant();
+        return StableOpaqueId.Create(
+            "meshobj",
+            builder =>
+            {
+                AddCellIdentity(builder, cellKey);
+                builder.Add(flushSequence);
+            });
     }
 
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
@@ -704,9 +702,19 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
-        string ScopeIdentity,
+        string ScopeKey,
         int CellX,
         int CellZ);
+
+    private static void AddCellIdentity(StableOpaqueId.Builder builder, CellKey cellKey)
+    {
+        builder.Add(cellKey.ActualMeshCode);
+        builder.Add(cellKey.PackageName.ToLowerInvariant());
+        builder.Add(cellKey.LodLevel);
+        builder.Add(cellKey.ScopeKey);
+        builder.Add(cellKey.CellX);
+        builder.Add(cellKey.CellZ);
+    }
 
     private sealed record MaterialIdentity(
         string MaterialKey,
@@ -780,7 +788,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 return compare;
             }
 
-            compare = string.CompareOrdinal(x.ScopeIdentity, y.ScopeIdentity);
+            compare = string.CompareOrdinal(x.ScopeKey, y.ScopeKey);
             if (compare != 0)
             {
                 return compare;

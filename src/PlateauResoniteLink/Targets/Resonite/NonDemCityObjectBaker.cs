@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -581,12 +579,16 @@ internal sealed class NonDemCityObjectBaker(
             : CreateBatchSlotKey(sourceUnitKey, batchIndex);
         string displayName = preservePrimaryIdentity
             ? firstCityObject.DisplayName
-            : CreateBatchDisplayName(sourceUnitKey, batchIndex);
+            : CreateBatchDisplayName(sourceUnitKey, batchIndex, slotKey);
         string? sourceObjectKey = preservePrimaryIdentity
             ? firstCityObject.SourceObjectKey
             : CreateBatchSourceObjectKey(sourceUnitKey, batchIndex);
-        string? sourceUnitKeyValue = sourceUnitKey.SourceUnitKey ?? firstCityObject.SourceUnitKey;
-        string? sourceFileRelativePath = sourceUnitKey.SourceFileRelativePath ?? firstCityObject.SourceFileRelativePath;
+        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(firstCityObject.SourceFileRelativePath)
+            ? null
+            : sourceUnitKey.CityGmlScopeKey;
+        string? sourceUnitKeyValue = sourceFileRelativePath is null
+            ? sourceUnitKey.CityGmlScopeKey
+            : null;
 
         ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
         List<ResoniteMeshVertex> vertices = [];
@@ -603,7 +605,14 @@ internal sealed class NonDemCityObjectBaker(
                 AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
             }
 
-            string atlasMaterialKey = string.Create(CultureInfo.InvariantCulture, $"{slotKey}_atlas");
+            string atlasMaterialKey = StableOpaqueId.Create(
+                "atlasmat",
+                builder =>
+                {
+                    builder.Add(slotKey);
+                    AddBatchIdentity(builder, sourceUnitKey);
+                    builder.Add(batchIndex);
+                });
             submeshes.Add(new ResoniteMeshSubmesh(0, atlasMaterialKey, atlasTriangleIndices));
             materials.Add(
                 new ResoniteMaterialBinding(
@@ -1148,71 +1157,63 @@ internal sealed class NonDemCityObjectBaker(
         NonDemCityObjectBakePolicy policy)
     {
         string context = policy.Name;
-        string? sourceFileRelativePath = cityObject.SourceFileRelativePath;
-        string? sourceUnitKey = cityObject.SourceUnitKey;
-        string batchScopeIdentity = sourceFileRelativePath
-            ?? sourceUnitKey
-            ?? string.Create(
-                CultureInfo.InvariantCulture,
-                $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}");
-        string sourceUnitIdentity = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{batchScopeIdentity}");
+        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
+        string? sourceUnitKey = string.IsNullOrWhiteSpace(cityObject.SourceUnitKey) ? null : cityObject.SourceUnitKey;
+        string? cityGmlScopeKey = sourceFileRelativePath ?? sourceUnitKey;
+        if (cityGmlScopeKey is null)
+        {
+            throw new InvalidOperationException(
+                $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
+                + "Source-owned batching requires SourceFileRelativePath or SourceUnitKey.");
+        }
 
         return new SourceUnitBatchKey(
             cityObject.ActualMeshCode,
-            cityObject.PackageName,
+            cityObject.PackageName.ToLowerInvariant(),
             cityObject.LodLevel,
-            sourceUnitIdentity,
             context,
-            SourceUnitKey: sourceUnitKey,
-            SourceFileRelativePath: sourceFileRelativePath);
+            CityGmlScopeKey: cityGmlScopeKey);
     }
 
     private static string CreateBatchSlotKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string policyToken = CreatePolicyContextToken(sourceUnitKey.PolicyContext);
-        string sourceToken = CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity);
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlasbake_{sourceUnitKey.PackageName}_{sourceUnitKey.ActualMeshCode}_{policyToken}_{sourceToken}_{lodToken}_{batchIndex:D4}");
+        return StableOpaqueId.Create(
+            "atlasbake",
+            builder =>
+            {
+                AddBatchIdentity(builder, sourceUnitKey);
+                builder.Add(batchIndex);
+            });
     }
 
-    private static string CreateBatchDisplayName(SourceUnitBatchKey sourceUnitKey, int batchIndex)
+    private static string CreateBatchDisplayName(SourceUnitBatchKey sourceUnitKey, int batchIndex, string batchSlotKey)
     {
         string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceUnitKey.PackageName} LOD{lodToken} {CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)} #{batchIndex + 1}");
+            $"AtlasBake {sourceUnitKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
     }
 
     private static string CreateBatchSourceObjectKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlasbake:{sourceUnitKey.ActualMeshCode}:{sourceUnitKey.PackageName}:{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}:{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}:{lodToken}:{batchIndex:D4}");
+        return StableOpaqueId.Create(
+            "atlasobj",
+            builder =>
+            {
+                AddBatchIdentity(builder, sourceUnitKey);
+                builder.Add(batchIndex);
+            });
     }
 
     private static string CreateAtlasTextureIdentity(SourceUnitBatchKey sourceUnitKey, int batchIndex)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"atlas-batch-{sourceUnitKey.ActualMeshCode}-{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{sourceUnitKey.PackageName}-{lodToken}-{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}-{batchIndex:D4}");
-    }
-
-    private static string CreatePolicyContextToken(string policyContext)
-    {
-        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(policyContext));
-        return Convert.ToHexString(bytes.AsSpan(0, 4)).ToLowerInvariant();
-    }
-
-    private static string CreateSourceUnitToken(string sourceUnitKey)
-    {
-        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sourceUnitKey));
-        return Convert.ToHexString(bytes.AsSpan(0, 6)).ToLowerInvariant();
+        return StableOpaqueId.Create(
+            "atlastex",
+            builder =>
+            {
+                AddBatchIdentity(builder, sourceUnitKey);
+                builder.Add(batchIndex);
+            });
     }
 
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
@@ -1723,10 +1724,17 @@ internal sealed class NonDemCityObjectBaker(
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
-        string BatchScopeIdentity,
         string PolicyContext,
-        string? SourceUnitKey,
-        string? SourceFileRelativePath);
+        string CityGmlScopeKey);
+
+    private static void AddBatchIdentity(StableOpaqueId.Builder builder, SourceUnitBatchKey sourceUnitKey)
+    {
+        builder.Add(sourceUnitKey.ActualMeshCode);
+        builder.Add(sourceUnitKey.PackageName.ToLowerInvariant());
+        builder.Add(sourceUnitKey.LodLevel);
+        builder.Add(sourceUnitKey.PolicyContext);
+        builder.Add(sourceUnitKey.CityGmlScopeKey);
+    }
 
     private readonly record struct PreservedMaterialGroupingKey(
         string MaterialKey,
@@ -1771,7 +1779,13 @@ internal sealed class NonDemCityObjectBaker(
                 return compare;
             }
 
-            return string.CompareOrdinal(x.BatchScopeIdentity, y.BatchScopeIdentity);
+            compare = string.CompareOrdinal(x.CityGmlScopeKey, y.CityGmlScopeKey);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return 0;
         }
     }
 

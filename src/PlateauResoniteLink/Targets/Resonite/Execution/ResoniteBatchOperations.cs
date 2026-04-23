@@ -39,8 +39,8 @@ internal static class ResoniteBatchOperations
         ArgumentException.ThrowIfNullOrWhiteSpace(batchScopeToken);
 
         return new PendingBatchSlot(
-            new BatchTemporarySlotId($"{prefix}_{batchScopeToken}"),
-            new BatchTemporaryMessageId($"{prefix}_message_{batchScopeToken}"),
+            CreateTemporarySlotId(prefix, batchScopeToken),
+            CreateTemporaryMessageId(prefix, batchScopeToken),
             slotName);
     }
 
@@ -54,8 +54,8 @@ internal static class ResoniteBatchOperations
         ArgumentException.ThrowIfNullOrWhiteSpace(batchScopeToken);
 
         return new PendingBatchComponent(
-            new BatchTemporaryComponentId($"{prefix}_{batchScopeToken}"),
-            new BatchTemporaryMessageId($"{prefix}_message_{batchScopeToken}"),
+            CreateTemporaryComponentId(prefix, batchScopeToken),
+            CreateTemporaryMessageId(prefix, batchScopeToken),
             componentType);
     }
 
@@ -128,27 +128,63 @@ internal static class ResoniteBatchOperations
 
         private BatchTemporarySlotId AllocateSlotId(string prefix)
         {
-            return new BatchTemporarySlotId(
-                string.Create(
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    $"{prefix}_{batchScopeToken}_{++nextEntityId}"));
+            return CreateTemporarySlotId(prefix, batchScopeToken, ++nextEntityId);
         }
 
         private BatchTemporaryComponentId AllocateComponentId(string prefix)
         {
-            return new BatchTemporaryComponentId(
-                string.Create(
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    $"{prefix}_{batchScopeToken}_{++nextEntityId}"));
+            return CreateTemporaryComponentId(prefix, batchScopeToken, ++nextEntityId);
         }
 
         private BatchTemporaryMessageId AllocateMessageId(string prefix)
         {
-            return new BatchTemporaryMessageId(
-                string.Create(
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    $"{prefix}_{batchScopeToken}_{++nextMessageId}"));
+            return CreateTemporaryMessageId(prefix, batchScopeToken, ++nextMessageId);
         }
+    }
+
+    private static BatchTemporarySlotId CreateTemporarySlotId(
+        string prefix,
+        string batchScopeToken,
+        int? sequence = null)
+    {
+        return new BatchTemporarySlotId(
+            StableOpaqueId.Create(
+                prefix,
+                builder =>
+                {
+                    builder.Add(batchScopeToken);
+                    builder.Add(sequence);
+                }));
+    }
+
+    private static BatchTemporaryComponentId CreateTemporaryComponentId(
+        string prefix,
+        string batchScopeToken,
+        int? sequence = null)
+    {
+        return new BatchTemporaryComponentId(
+            StableOpaqueId.Create(
+                prefix,
+                builder =>
+                {
+                    builder.Add(batchScopeToken);
+                    builder.Add(sequence);
+                }));
+    }
+
+    private static BatchTemporaryMessageId CreateTemporaryMessageId(
+        string prefix,
+        string batchScopeToken,
+        int? sequence = null)
+    {
+        return new BatchTemporaryMessageId(
+            StableOpaqueId.Create(
+                string.Concat(prefix, "-message"),
+                builder =>
+                {
+                    builder.Add(batchScopeToken);
+                    builder.Add(sequence);
+                }));
     }
 
     public static AddSlot CreateAddSlotOperation(

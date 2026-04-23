@@ -136,7 +136,7 @@ internal sealed class TerrainTextureAssetGenerator(
         if (composedTexture is null)
         {
             throw new HttpRequestException(
-                $"Terrain texture generation failed for '{terrainTextureOverlay.SourceIdentityKey}'.");
+                $"Terrain texture generation failed for sources [{DescribeTerrainTextureSources(terrainTextureOverlay.Sources)}].");
         }
 
         if (HasTransparentPixels(composedTexture)
@@ -144,7 +144,7 @@ internal sealed class TerrainTextureAssetGenerator(
         {
             composedTexture.Dispose();
             throw new HttpRequestException(
-                $"Terrain texture generation left uncovered tile-backed pixels for '{terrainTextureOverlay.SourceIdentityKey}'.");
+                $"Terrain texture generation left uncovered tile-backed pixels for sources [{DescribeTerrainTextureSources(terrainTextureOverlay.Sources)}].");
         }
 
         using (composedTexture)
@@ -253,7 +253,7 @@ internal sealed class TerrainTextureAssetGenerator(
         int maxTextureSize,
         string identity,
         TerrainTextureSource usedSource,
-        IReadOnlyList<TerrainTextureSource> usedSources)
+        List<TerrainTextureSource> usedSources)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
         using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
@@ -364,15 +364,24 @@ internal sealed class TerrainTextureAssetGenerator(
 
     private static string CreateOverlayIdentity(
         TerrainTextureOverlay terrainTextureOverlay,
-        IReadOnlyList<TerrainTextureSource> usedSources)
+        List<TerrainTextureSource> usedSources)
     {
-        return string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"terrain-overlay/{terrainTextureOverlay.PackageName}/{string.Join("|then|", usedSources.Select(static source => source.IdentityKey))}/"
-            + $"{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######},"
-            + $"{terrainTextureOverlay.GeographicBounds.MaxLatitude:0.######},"
-            + $"{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######},"
-            + $"{terrainTextureOverlay.GeographicBounds.MaxLongitude:0.######}");
+        return StableOpaqueId.Create(
+            "terrain-overlay",
+            builder =>
+            {
+                builder.Add(terrainTextureOverlay.PackageName.ToLowerInvariant());
+                builder.Add(usedSources.Count);
+                foreach (TerrainTextureSource source in usedSources)
+                {
+                    builder.Add(source.IdentityKey);
+                }
+
+                builder.Add(terrainTextureOverlay.GeographicBounds.MinLatitude);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLatitude);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MinLongitude);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLongitude);
+            });
     }
 
     private static Image<Rgba32> ResizeSourceImage(Image<Rgba32> image, int width, int height)
@@ -453,6 +462,18 @@ internal sealed class TerrainTextureAssetGenerator(
         }
 
         return filledAny;
+    }
+
+    private static string DescribeTerrainTextureSources(IEnumerable<TerrainTextureSource> sources)
+    {
+        return string.Join(
+            ", ",
+            sources.Select(static source => source switch
+            {
+                TerrainTextureTileSource tileSource => $"tile:{tileSource.ZoomLevel}:{tileSource.UrlTemplate}",
+                TerrainTextureGeoReferencedRasterSource rasterSource => $"georaster:{rasterSource.SourcePath}",
+                _ => source.GetType().Name,
+            }));
     }
 
     private async Task<Image<Rgba32>?> TryDownloadTileAsync(

@@ -76,9 +76,9 @@ internal sealed record PlannedSceneObjectEmission(
     PlannedRenderer Renderer,
     PlannedCollider Collider);
 
-internal readonly record struct BatchPlanSlotLocator(string Value);
+internal readonly record struct BatchPlanSlotLocator(int Value);
 
-internal readonly record struct BatchPlanComponentLocator(string Value);
+internal readonly record struct BatchPlanComponentLocator(int Value);
 
 internal readonly record struct PlannedSlotTargetReference
 {
@@ -104,7 +104,6 @@ internal readonly record struct PlannedSlotTargetReference
 
     public static PlannedSlotTargetReference PlannedSlot(BatchPlanSlotLocator locator)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
         return new PlannedSlotTargetReference(null, locator);
     }
 }
@@ -145,13 +144,11 @@ internal readonly record struct PlannedWorldElementReference
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
         return new PlannedWorldElementReference(null, null, locator, null);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
         return new PlannedWorldElementReference(null, null, null, locator);
     }
 }

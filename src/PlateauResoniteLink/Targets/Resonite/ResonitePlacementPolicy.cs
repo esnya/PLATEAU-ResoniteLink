@@ -82,7 +82,9 @@ internal static class ResonitePlacementPolicy
             return cityObject.SourceUnitKey!;
         }
 
-        return cityObject.SlotKey;
+        throw new InvalidOperationException(
+            $"City object '{cityObject.DisplayName}' did not provide CityGML scope metadata. "
+            + "Source-owned hierarchy requires SourceFileRelativePath or SourceUnitKey.");
     }
 
     public static string ResolveCityGmlScopeKey(ResoniteConstructionCityObject cityObject)
@@ -97,7 +99,9 @@ internal static class ResonitePlacementPolicy
             return cityObject.SourceUnitKey!;
         }
 
-        return cityObject.SlotKey;
+        throw new InvalidOperationException(
+            $"City object '{cityObject.DisplayName}' did not provide CityGML scope metadata. "
+            + "Source-owned hierarchy requires SourceFileRelativePath or SourceUnitKey.");
     }
 
     public static string ResolveRequiredSourceFileRootMeshCode(string cityGmlSlotName, string actualMeshCode)

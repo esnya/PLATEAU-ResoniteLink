@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal static class NonDemBatching
@@ -27,20 +25,12 @@ internal static class NonDemBatching
         ArgumentNullException.ThrowIfNull(cityObject);
         ArgumentNullException.ThrowIfNull(policy);
 
-        string sourceUnitKey = cityObject.SourceUnitKey ?? string.Empty;
-        string sourceFileRelativePath = cityObject.SourceFileRelativePath ?? string.Empty;
-        string sourceUnitIdentity = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceUnitKey}|{sourceFileRelativePath}");
-
         return new NonDemSourceUnitBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
-            sourceUnitIdentity,
             policy.Name,
-            cityObject.SourceUnitKey,
-            cityObject.SourceFileRelativePath);
+            ResolveScopePath(cityObject));
     }
 
     internal static bool CanBufferCityObjectMaterials(
@@ -147,7 +137,8 @@ internal static class NonDemBatching
             return cityObject.SourceUnitKey!;
         }
 
-        return cityObject.ObjectKey;
+        throw new InvalidOperationException(
+            $"Buffered city object '{cityObject.PackageName}/{cityObject.ObjectKey}' must provide SourceFileRelativePath or SourceUnitKey before non-DEM bake.");
     }
 
     private static bool IsAtlasBakeCandidate(MaterialBinding material)
@@ -235,10 +226,8 @@ internal readonly record struct NonDemSourceUnitBatchKey(
     string ActualMeshCode,
     string PackageName,
     int? LodLevel,
-    string BatchScopeIdentity,
     string PolicyContext,
-    string? SourceUnitKey,
-    string? SourceFileRelativePath);
+    string CityGmlScopeKey);
 
 internal enum NonDemBatchMaterialCategory
 {

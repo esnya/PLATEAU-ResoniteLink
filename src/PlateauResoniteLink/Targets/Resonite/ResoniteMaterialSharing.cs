@@ -40,17 +40,28 @@ public static class ResoniteMaterialSharing
         ResoniteFloat2? textureOffset,
         ResoniteMaterialDepthOffset? depthOffset)
     {
-        string scaleToken = CreateFloat2Token(textureScale);
-        string offsetToken = CreateFloat2Token(textureOffset);
-        string depthToken = CreateDepthToken(depthOffset);
-        return $"generic|{projection}|scale:{scaleToken}|offset:{offsetToken}|depth:{depthToken}";
+        return StableOpaqueId.Create(
+            "shared-generic",
+            builder =>
+            {
+                builder.Add(ProjectionToken(projection));
+                AddFloat2(builder, textureScale);
+                AddFloat2(builder, textureOffset);
+                AddDepth(builder, depthOffset);
+            });
     }
 
     public static string CreateCanonicalVertexColorCommonMaterialKey(
         ResoniteMaterialProjection projection,
         ResoniteMaterialDepthOffset? depthOffset)
     {
-        return $"vertex-color|{projection}|depth:{CreateDepthToken(depthOffset)}";
+        return StableOpaqueId.Create(
+            "shared-vertex",
+            builder =>
+            {
+                builder.Add(ProjectionToken(projection));
+                AddDepth(builder, depthOffset);
+            });
     }
 
     public static bool IsWhiteBaseColor(ResoniteColor color)
@@ -61,21 +72,25 @@ public static class ResoniteMaterialSharing
             && Math.Abs(color.A - 1.0) < 1e-9;
     }
 
-    private static string CreateFloat2Token(ResoniteFloat2? value)
+    private static void AddFloat2(StableOpaqueId.Builder builder, ResoniteFloat2? value)
     {
-        return value is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{value.X:0.######}x{value.Y:0.######}");
+        builder.AddRounded(value?.X);
+        builder.AddRounded(value?.Y);
     }
 
-    private static string CreateDepthToken(ResoniteMaterialDepthOffset? value)
+    private static void AddDepth(StableOpaqueId.Builder builder, ResoniteMaterialDepthOffset? value)
     {
-        return value is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{value.Factor:0.######}x{value.Units:0.######}");
+        builder.AddRounded(value?.Factor);
+        builder.AddRounded(value?.Units);
+    }
+
+    private static string ProjectionToken(ResoniteMaterialProjection projection)
+    {
+        return projection switch
+        {
+            ResoniteMaterialProjection.Uv => "uv",
+            ResoniteMaterialProjection.Triplanar => "triplanar",
+            _ => projection.ToString().ToLowerInvariant(),
+        };
     }
 }

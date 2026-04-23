@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,11 +19,11 @@ internal sealed class ResoniteSharedSlotIndex(
     SceneAnchor? initialSceneAnchor,
     Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
 {
-    private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache = new();
-    private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> runScopedSourceFileRootCache = new();
+    private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
+    private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
     private readonly AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> canonicalParentScopeCache = new();
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, CreatedSlot> sharedSlotIndex = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<SharedSlotIndexKey, CreatedSlot> sharedSlotIndex = new();
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
     public SceneAnchor? SceneAnchor { get; private set; } = initialSceneAnchor;
 
@@ -185,7 +184,7 @@ internal sealed class ResoniteSharedSlotIndex(
         CancellationToken cancellationToken)
     {
         return await sharedSlotCache.GetOrCreateAsync(
-            (parent.Value, slotName),
+            new SharedSlotIndexKey(parent.Value, slotName),
             ct => GetOrCreateSharedChildSlotCoreAsync(client, parent, slotName, position, rotation, ct),
             cancellationToken);
     }
@@ -198,7 +197,7 @@ internal sealed class ResoniteSharedSlotIndex(
         CancellationToken cancellationToken)
     {
         return await runScopedSourceFileRootCache.GetOrCreateAsync(
-            (parent.Value, slotName),
+            new SharedSlotIndexKey(parent.Value, slotName),
             async ct =>
             {
                 CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, null, ct);
@@ -245,7 +244,7 @@ internal sealed class ResoniteSharedSlotIndex(
         {
             if (!string.IsNullOrWhiteSpace(child.ID) && !string.IsNullOrWhiteSpace(child.Name?.Value))
             {
-                sharedSlotIndex[CreateSharedSlotIndexKey(slot.ID!, child.Name!.Value)] = new CreatedSlot(new ResoniteSlotLocator(child.ID!), child.Name.Value);
+                sharedSlotIndex[new SharedSlotIndexKey(slot.ID!, child.Name!.Value)] = new CreatedSlot(new ResoniteSlotLocator(child.ID!), child.Name.Value);
             }
 
             IndexObservedSlotSnapshot(child);
@@ -254,14 +253,14 @@ internal sealed class ResoniteSharedSlotIndex(
 
     private CreatedSlot? TryGetIndexedSharedChildSlot(ResoniteSlotLocator parent, string slotName)
     {
-        return sharedSlotIndex.TryGetValue(CreateSharedSlotIndexKey(parent.Value, slotName), out CreatedSlot createdSlot)
+        return sharedSlotIndex.TryGetValue(new SharedSlotIndexKey(parent.Value, slotName), out CreatedSlot createdSlot)
             ? createdSlot
             : null;
     }
 
     private CreatedSlot IndexCreatedSharedSlot(ResoniteSlotLocator parent, CreatedSlot createdSlot, ResoniteFloat3? position = null)
     {
-        sharedSlotIndex[CreateSharedSlotIndexKey(parent.Value, createdSlot.SlotName)] = createdSlot;
+        sharedSlotIndex[new SharedSlotIndexKey(parent.Value, createdSlot.SlotName)] = createdSlot;
         observedSlotSnapshotsById[createdSlot.Locator.Value] = new Slot
         {
             ID = createdSlot.Locator.Value,
@@ -321,11 +320,6 @@ internal sealed class ResoniteSharedSlotIndex(
         return true;
     }
 
-    private static string CreateSharedSlotIndexKey(string parentId, string slotName)
-    {
-        return string.Create(CultureInfo.InvariantCulture, $"{parentId}\n{slotName}");
-    }
-
     private static Field_float3 CreateFloat3(ResoniteFloat3 value)
     {
         return new Field_float3
@@ -366,4 +360,8 @@ internal sealed class ResoniteSharedSlotIndex(
         string CityGmlScopeKey,
         string RootMeshCode,
         int? LodLevel);
+
+    private readonly record struct SharedSlotIndexKey(
+        string ParentSlotId,
+        string SlotName);
 }

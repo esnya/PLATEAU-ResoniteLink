@@ -131,8 +131,16 @@ internal static partial class LocalCityGmlObjectProjection
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
-        string sourceUnitIdentity = SanitizeIdentifier(relativeSourceFile);
-        string sourceIdentity = SanitizeIdentifier($"{relativeSourceFile}_{objectId}");
+        string sourceUnitIdentity = StableOpaqueId.Create(
+            "srcunit",
+            builder => builder.Add(relativeSourceFile));
+        string sourceIdentity = StableOpaqueId.Create(
+            "srcobj",
+            builder =>
+            {
+                builder.Add(relativeSourceFile);
+                builder.Add(objectId);
+            });
         return new ParsedCityObject(
             slotKey,
             displayName!,
@@ -1560,7 +1568,13 @@ internal static partial class LocalCityGmlObjectProjection
             ? null
             : cityObject with
             {
-                SourceIdentity = $"{cityObject.SourceIdentity}_road_marking",
+                SourceIdentity = StableOpaqueId.Create(
+                    "srcobj",
+                    builder =>
+                    {
+                        builder.Add(cityObject.SourceIdentity);
+                        builder.Add("road_marking");
+                    }),
                 SlotKey = $"{cityObject.SlotKey}_road_marking",
                 DisplayName = $"{cityObject.DisplayName} Marking",
                 Surfaces = markingSurfaces.ToArray(),
@@ -2483,31 +2497,28 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba color,
         Float2? textureOffset = null)
     {
-        string colorKey = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{color.R:0.######},{color.G:0.######},{color.B:0.######},{color.A:0.######}");
-        string depthOffsetKey = depthOffset is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{depthOffset.Factor:0.######},{depthOffset.Units:0.######}");
-        string textureScaleKey = textureScale is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{textureScale.X:0.######},{textureScale.Y:0.######}");
-        string textureOffsetKey = textureOffset is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{textureOffset.X:0.######},{textureOffset.Y:0.######}");
-        string familyKey = string.IsNullOrWhiteSpace(family)
-            ? "none"
-            : family.ToLowerInvariant();
-
-        string materialTypeKey = materialType.ToString().ToLowerInvariant();
-        if (terrainOverlay is not null)
-        {
-            return $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|terrain-overlay:{CreateTerrainOverlayToken(terrainOverlay)}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}";
-        }
-
-        return texturePayload is null
-            ? $"type:{materialTypeKey}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}"
-            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePayload.Identity ?? "payload"}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}";
+        return StableOpaqueId.Create(
+            "material",
+            builder =>
+            {
+                builder.AddEnum(materialType);
+                builder.AddEnum(projection);
+                builder.Add(terrainOverlay is not null);
+                builder.Add(terrainOverlay is null ? null : CreateTerrainOverlayToken(terrainOverlay));
+                builder.Add(texturePayload?.Identity);
+                builder.AddEnum(textureSourceKind);
+                builder.Add(string.IsNullOrWhiteSpace(family) ? null : family.ToLowerInvariant());
+                builder.AddRounded(depthOffset?.Factor);
+                builder.AddRounded(depthOffset?.Units);
+                builder.AddRounded(textureScale?.X);
+                builder.AddRounded(textureScale?.Y);
+                builder.AddRounded(textureOffset?.X);
+                builder.AddRounded(textureOffset?.Y);
+                builder.AddRounded(color.R);
+                builder.AddRounded(color.G);
+                builder.AddRounded(color.B);
+                builder.AddRounded(color.A);
+            });
     }
 
     private static string CreateBindingMaterialKey(
@@ -2521,19 +2532,18 @@ internal static partial class LocalCityGmlObjectProjection
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
-            string scaleToken = textureScale is null
-                ? "none"
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
-            string offsetToken = textureOffset is null || (Math.Abs(textureOffset.X) < 1e-9 && Math.Abs(textureOffset.Y) < 1e-9)
-                ? "none"
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{textureOffset.X:0.######}x{textureOffset.Y:0.######}");
-            return string.Create(
-                CultureInfo.InvariantCulture,
-                $"common|{family}|variant:{variantIndex}|{material.Projection}|scale:{scaleToken}|offset:{offsetToken}");
+            return StableOpaqueId.Create(
+                "common",
+                builder =>
+                {
+                    builder.Add(family);
+                    builder.Add(variantIndex);
+                    builder.Add(ProjectionToken(material.Projection));
+                    builder.AddRounded(textureScale?.X);
+                    builder.AddRounded(textureScale?.Y);
+                    builder.AddRounded(textureOffset?.X);
+                    builder.AddRounded(textureOffset?.Y);
+                });
         }
 
         return CreateMaterialKey(
@@ -2551,13 +2561,27 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainOverlay)
     {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{terrainOverlay.PackageName.ToLowerInvariant()}|{terrainOverlay.SourceIdentityKey}|"
-            + $"{terrainOverlay.GeographicBounds.MinLatitude:0.######},"
-            + $"{terrainOverlay.GeographicBounds.MaxLatitude:0.######},"
-            + $"{terrainOverlay.GeographicBounds.MinLongitude:0.######},"
-            + $"{terrainOverlay.GeographicBounds.MaxLongitude:0.######}");
+        return StableOpaqueId.Create(
+            "terrain-overlay",
+            builder =>
+            {
+                builder.Add(terrainOverlay.PackageName.ToLowerInvariant());
+                builder.Add(terrainOverlay.SourceIdentityKey);
+                builder.Add(terrainOverlay.GeographicBounds.MinLatitude);
+                builder.Add(terrainOverlay.GeographicBounds.MaxLatitude);
+                builder.Add(terrainOverlay.GeographicBounds.MinLongitude);
+                builder.Add(terrainOverlay.GeographicBounds.MaxLongitude);
+            });
+    }
+
+    private static string ProjectionToken(MaterialProjection projection)
+    {
+        return projection switch
+        {
+            MaterialProjection.Uv => "uv",
+            MaterialProjection.Triplanar => "triplanar",
+            _ => projection.ToString().ToLowerInvariant(),
+        };
     }
 
     private static bool ShouldPreferUvProjection(

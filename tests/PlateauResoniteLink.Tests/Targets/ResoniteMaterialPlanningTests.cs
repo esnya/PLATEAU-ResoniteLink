@@ -9,6 +9,7 @@ using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Tests.Targets;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class ResoniteMaterialPlanningTests
 {
     [Fact]
@@ -119,5 +120,84 @@ public sealed class ResoniteMaterialPlanningTests
 
         Assert.Equal(new ResoniteFloat2(0.5, 0.25), effectiveMaterial.TextureScale);
         Assert.Null(effectiveMaterial.TextureOffset);
+    }
+
+    [Fact]
+    public void CreateDedicatedMaterialIdentity_VariesByPackageIndexAndMaterialKey()
+    {
+        MaterialIdentity baseline = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-a");
+        MaterialIdentity repeatedBaseline = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-a");
+        MaterialIdentity differentPackage = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("tran", 0, "material-a");
+        MaterialIdentity differentIndex = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 1, "material-a");
+        MaterialIdentity differentKey = ResoniteMaterialPlanning.CreateDedicatedMaterialIdentity("bldg", 0, "material-b");
+
+        Assert.Equal(baseline, repeatedBaseline);
+        Assert.NotEqual(baseline, differentPackage);
+        Assert.NotEqual(baseline, differentIndex);
+        Assert.NotEqual(baseline, differentKey);
+    }
+
+    [Fact]
+    public async Task PlanMainTextureOverrideAsync_VariesIdentityByMaterialAndTexture()
+    {
+        using SceneBuilderRecordingClient client = new();
+        ResoniteMaterialBinding firstMaterial = new(
+            MaterialKey: "material-a",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], identity: "payload-a"),
+            TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+        ResoniteMaterialBinding secondMaterial = firstMaterial with
+        {
+            MaterialKey = "material-b",
+        };
+
+        PlannedTextureAsset? firstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+            client,
+            firstMaterial,
+            new Dictionary<string, ResoniteTextureImport>
+            {
+                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+            },
+            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
+            CancellationToken.None);
+        PlannedTextureAsset? repeatedFirstOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+            client,
+            firstMaterial,
+            new Dictionary<string, ResoniteTextureImport>
+            {
+                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+            },
+            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
+            CancellationToken.None);
+        PlannedTextureAsset? secondOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+            client,
+            secondMaterial,
+            new Dictionary<string, ResoniteTextureImport>
+            {
+                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+            },
+            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
+            CancellationToken.None);
+        PlannedTextureAsset? thirdOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
+            client,
+            firstMaterial,
+            new Dictionary<string, ResoniteTextureImport>
+            {
+                ["payload-a"] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-b"),
+            },
+            new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
+            CancellationToken.None);
+
+        Assert.NotNull(firstOverride);
+        Assert.NotNull(repeatedFirstOverride);
+        Assert.NotNull(secondOverride);
+        Assert.NotNull(thirdOverride);
+        Assert.Equal(firstOverride!.Identity, repeatedFirstOverride!.Identity);
+        Assert.NotEqual(firstOverride!.Identity, secondOverride!.Identity);
+        Assert.NotEqual(firstOverride.Identity, thirdOverride!.Identity);
     }
 }

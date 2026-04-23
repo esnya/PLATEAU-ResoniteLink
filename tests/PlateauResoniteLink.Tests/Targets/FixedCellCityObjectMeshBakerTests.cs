@@ -60,18 +60,32 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncEmitsReadyCityObjectWhenBatchLimitIsExceeded()
+    public void FlushAllTreatsPackageNameCaseVariantsAsTheSameCell()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("lower", x: 10.0, z: 10.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "common.gml"), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("upper", x: 18.0, z: 12.0, sourceUnitKey: "unit-b", sourceFileRelativePath: "common.gml") with { PackageName = "BLDG" }, out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        Assert.Equal(6, baked.Mesh.Vertices.Count);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncKeepsAuthoritativeSourceFileBufferedPastObjectBudget()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 1, maxVerticesPerBatch: 1000);
 
-        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(CreateTriangleBuilding("first", x: 10.0, z: 10.0, sourceUnitKey: "unit-a", sourceFileRelativePath: null));
-        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(CreateTriangleBuilding("second", x: 11.0, z: 10.0, sourceUnitKey: "unit-a", sourceFileRelativePath: null));
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(CreateTriangleBuilding("first", x: 10.0, z: 10.0, sourceUnitKey: "unit-a", sourceFileRelativePath: "common.gml"));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(CreateTriangleBuilding("second", x: 11.0, z: 10.0, sourceUnitKey: "unit-b", sourceFileRelativePath: "common.gml"));
 
         Assert.True(first.Buffered);
         Assert.Empty(first.ReadyCityObjects);
         Assert.True(second.Buffered);
-        Assert.Single(second.ReadyCityObjects);
-        Assert.Empty(await baker.FlushAllAsync());
+        Assert.Empty(second.ReadyCityObjects);
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal("common.gml", baked.SourceFileRelativePath);
+        Assert.Null(baked.SourceUnitKey);
     }
 
     [Fact]
@@ -443,10 +457,43 @@ public sealed class FixedCellCityObjectMeshBakerTests
 
         Assert.Single(baked.Mesh.Submeshes);
         ResoniteMaterialBinding material = Assert.Single(baked.Materials);
-        Assert.Equal("common|roof|variant:2|Triplanar|scale:0.344828x0.344828|offset:none", material.MaterialKey);
+        Assert.NotEqual("roof-a", material.MaterialKey);
+        Assert.NotEqual("roof-b", material.MaterialKey);
         Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
         Assert.Equal(2, material.BundledVariantIndex);
+    }
+
+    [Fact]
+    public void FlushAllNormalizesEquivalentBundledFamilyMaterialsToTheSameKey()
+    {
+        FixedCellCityObjectMeshBaker firstBaker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        FixedCellCityObjectMeshBaker secondBaker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        Assert.True(firstBaker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-a")), out _));
+        Assert.True(secondBaker.TryBuffer(CreateTriangleBuilding("roof-b", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-b")), out _));
+
+        string firstKey = Assert.Single(Assert.Single(firstBaker.FlushAll()).Materials).MaterialKey;
+        string secondKey = Assert.Single(Assert.Single(secondBaker.FlushAll()).Materials).MaterialKey;
+
+        Assert.Equal(firstKey, secondKey);
+    }
+
+    [Fact]
+    public void FlushAllDoesNotMergeScaleDistinctBundledFamilyMaterials()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        ResoniteMaterialBinding scaledRoof = CreateBundledRoofMaterial("roof-b") with
+        {
+            TextureScale = new ResoniteFloat2(9.0, 9.0),
+        };
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-a", 10.0, 12.0, "unit-a", "common.gml", CreateBundledRoofMaterial("roof-a")), out _));
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("roof-b", 18.0, 20.0, "unit-b", "common.gml", scaledRoof), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        Assert.Equal(2, baked.Mesh.Submeshes.Count);
+        Assert.Equal(2, baked.Materials.Count);
+        Assert.NotEqual(baked.Materials[0].MaterialKey, baked.Materials[1].MaterialKey);
     }
 
     private static ResoniteConstructionCityObject CreateTriangleBuilding(

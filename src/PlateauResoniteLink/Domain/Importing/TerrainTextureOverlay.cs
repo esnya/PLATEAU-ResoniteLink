@@ -20,9 +20,13 @@ public sealed record TerrainTextureTileSource(string UrlTemplate, int ZoomLevel)
         : throw new ArgumentOutOfRangeException(nameof(ZoomLevel));
 
     public override string IdentityKey =>
-        string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"tile|{ZoomLevel}|{UrlTemplate}");
+        StableOpaqueId.Create(
+            "tile",
+            builder =>
+            {
+                builder.Add(ZoomLevel);
+                builder.Add(UrlTemplate);
+            });
 }
 
 public sealed record GeoReferencedRasterMetadata(
@@ -36,11 +40,18 @@ public sealed record GeoReferencedRasterMetadata(
         && PixelHeightMeters > 0.0;
 
     public string IdentityKey =>
-        string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"{CoordinateSystemIdentifier ?? "unknown"}|{PixelWidthMeters:R}|{PixelHeightMeters:R}|"
-            + $"{GeographicBounds.MinLatitude:R}|{GeographicBounds.MaxLatitude:R}|"
-            + $"{GeographicBounds.MinLongitude:R}|{GeographicBounds.MaxLongitude:R}");
+        StableOpaqueId.Create(
+            "georaster-meta",
+            builder =>
+            {
+                builder.Add(CoordinateSystemIdentifier);
+                builder.Add(PixelWidthMeters);
+                builder.Add(PixelHeightMeters);
+                builder.Add(GeographicBounds.MinLatitude);
+                builder.Add(GeographicBounds.MaxLatitude);
+                builder.Add(GeographicBounds.MinLongitude);
+                builder.Add(GeographicBounds.MaxLongitude);
+            });
 }
 
 public sealed record TerrainTextureGeoReferencedRasterSource(
@@ -54,9 +65,13 @@ public sealed record TerrainTextureGeoReferencedRasterSource(
     public GeoReferencedRasterMetadata? Metadata { get; init; } = Metadata;
 
     public override string IdentityKey =>
-        string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"georaster|{SourcePath}|{Metadata?.IdentityKey ?? "unresolved"}");
+        StableOpaqueId.Create(
+            "georaster",
+            builder =>
+            {
+                builder.Add(SourcePath);
+                builder.Add(Metadata?.IdentityKey);
+            });
 }
 
 public sealed record TerrainTextureOverlay
@@ -70,7 +85,7 @@ public sealed record TerrainTextureOverlay
     {
         this.PackageName = string.IsNullOrWhiteSpace(PackageName)
             ? throw new ArgumentException("Terrain texture package name must be provided.", nameof(PackageName))
-            : PackageName;
+            : PackageName.ToLowerInvariant();
         this.GeographicBounds = GeographicBounds;
         this.MaxTextureSize = MaxTextureSize > 0
             ? MaxTextureSize
@@ -139,9 +154,16 @@ public sealed record TerrainTextureOverlay
     public int? FallbackZoomLevel => GetFallbackTileSource()?.ZoomLevel;
 
     public string SourceIdentityKey =>
-        string.Join(
-            "|then|",
-            Sources.Select(static source => source.IdentityKey));
+        StableOpaqueId.Create(
+            "terrain-sources",
+            builder =>
+            {
+                builder.Add(Sources.Count);
+                foreach (TerrainTextureSource source in Sources)
+                {
+                    builder.Add(source.IdentityKey);
+                }
+            });
 
     public TerrainTextureTileSource GetRequiredPrimaryTileSource() => GetRequiredTileSource(PrimarySource);
 

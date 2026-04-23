@@ -127,6 +127,28 @@ public sealed class ResonitePlacementPolicyTests
         Assert.NotEqual(slotNames["udx/bldg/a/sample.gml"], slotNames["udx/dem/b/sample.gml"]);
     }
 
+    [Fact]
+    public void ResolveCityGmlScopeKey_ThrowsWhenSourceScopeMetadataIsMissing()
+    {
+        PlateauResoniteLink.Targets.Resonite.ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "slot-a",
+            DisplayName: "slot-a",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new PlateauResoniteLink.Targets.Resonite.ResoniteImportedMesh([], []),
+            Materials: [],
+            SourceObjectKey: "source-a",
+            SourceUnitKey: null,
+            SourceFileRelativePath: null);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveCityGmlScopeKey(cityObject));
+
+        Assert.Contains("SourceFileRelativePath or SourceUnitKey", exception.Message, StringComparison.Ordinal);
+    }
+
     private static PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
     {
         if (PlateauResoniteLink.Domain.Importing.PlateauMeshCode.TryGetGeodeticCenter(

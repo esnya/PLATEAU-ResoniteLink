@@ -282,19 +282,18 @@ internal static class ResoniteSceneMaterialConventions
         ResoniteFloat2? textureScale,
         ResoniteFloat2? textureOffset)
     {
-        string scaleToken = textureScale is null
-            ? "none"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
-        string offsetToken = IsZeroTextureOffset(textureOffset)
-            ? "none"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{textureOffset!.X:0.######}x{textureOffset.Y:0.######}");
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"common|{family}|variant:{bundledVariantIndex}|{projection}|scale:{scaleToken}|offset:{offsetToken}");
+        return StableOpaqueId.Create(
+            "common",
+            builder =>
+            {
+                builder.Add(family);
+                builder.Add(bundledVariantIndex);
+                builder.Add(ProjectionToken(projection));
+                builder.AddRounded(textureScale?.X);
+                builder.AddRounded(textureScale?.Y);
+                builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.X);
+                builder.AddRounded(IsZeroTextureOffset(textureOffset) ? null : textureOffset?.Y);
+            });
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -459,19 +458,34 @@ internal static class ResoniteSceneMaterialConventions
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
-        string source = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{terrainTextureOverlay.PackageName}|{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######}|{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######}");
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"terrain-overlay-{Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant()}");
+        return StableOpaqueId.Create(
+            "terrain-overlay",
+            builder =>
+            {
+                builder.Add(terrainTextureOverlay.PackageName.ToLowerInvariant());
+                builder.Add(terrainTextureOverlay.SourceIdentityKey);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MinLatitude);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLatitude);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MinLongitude);
+                builder.Add(terrainTextureOverlay.GeographicBounds.MaxLongitude);
+            },
+            hexLength: 16);
     }
 
     private static string ComputeShortStableHash(string text)
     {
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant();
+    }
+
+    private static string ProjectionToken(ResoniteMaterialProjection projection)
+    {
+        return projection switch
+        {
+            ResoniteMaterialProjection.Uv => "uv",
+            ResoniteMaterialProjection.Triplanar => "triplanar",
+            _ => projection.ToString().ToLowerInvariant(),
+        };
     }
 
     private static bool IsWhiteBaseColor(ResoniteColor color)

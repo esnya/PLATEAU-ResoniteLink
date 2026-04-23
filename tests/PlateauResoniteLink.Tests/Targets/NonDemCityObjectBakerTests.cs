@@ -27,13 +27,26 @@ public sealed class NonDemCityObjectBakerTests
         Assert.Single(cityObject.Materials);
         Assert.Single(cityObject.Mesh.Submeshes);
         Assert.Equal(6, cityObject.Mesh.Vertices.Count);
-        Assert.Equal("unit-a", cityObject.SourceUnitKey);
+        Assert.Equal("unit-a.gml", cityObject.SourceFileRelativePath);
+        Assert.Null(cityObject.SourceUnitKey);
         ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
         Assert.Equal(ResoniteTexturePayloadFormat.RawRgba32, atlasPayload.Format);
         Assert.NotNull(atlasPayload.Width);
         Assert.NotNull(atlasPayload.Height);
         Assert.InRange(atlasPayload.Width!.Value, 1, 32);
         Assert.InRange(atlasPayload.Height!.Value, 1, 32);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncTreatsPackageNameCaseVariantsAsTheSameBatch()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 4, 4), 2, "unit-a") with { PackageName = "BLDG" });
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+
+        Assert.Equal(6, cityObject.Mesh.Vertices.Count);
     }
 
     [Fact]
@@ -554,8 +567,27 @@ public sealed class NonDemCityObjectBakerTests
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
         Assert.Equal(2, baked.Count);
-        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-a" && cityObject.SourceFileRelativePath == "unit-a.gml");
-        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b" && cityObject.SourceFileRelativePath == "unit-b.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey is null && cityObject.SourceFileRelativePath == "unit-a.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey is null && cityObject.SourceFileRelativePath == "unit-b.gml");
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncMergesSameSourceFileAcrossDifferentSourceUnits()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+        {
+            SourceFileRelativePath = "common.gml",
+        });
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-b") with
+        {
+            SourceFileRelativePath = "common.gml",
+        });
+
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+
+        Assert.Equal("common.gml", baked.SourceFileRelativePath);
+        Assert.Null(baked.SourceUnitKey);
     }
 
     [Fact]

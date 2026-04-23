@@ -54,7 +54,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForCommonMaterial_UsesStableSharedDiscriminators()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common|facade|variant:0|Uv|scale:0.166667x0.166667|offset:0x0.083333",
+            MaterialKey: "common-facade-uv",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -72,14 +72,14 @@ public sealed class ResoniteSceneMaterialConventionsTests
 
         Assert.StartsWith("shared_uv_variant_0_", slotName, StringComparison.Ordinal);
         Assert.DoesNotContain(' ', slotName);
-        Assert.DoesNotContain("common|facade|variant:0", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain(material.MaterialKey, slotName, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CreateMaterialSlotName_ForCommonMaterialWithNonDefaultScale_AddsScaleDiscriminator()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "common|facade|variant:0|Uv|scale:0.5x0.5|offset:none",
+            MaterialKey: "common-facade-uv-scaled",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -153,7 +153,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForGenericSharedMaterial_UsesOnlyRenderingDiscriminators()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic|Uv|scale:1x1|offset:0.25x0.75|depth:none",
+            MaterialKey: "generic-shared-offset",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -176,7 +176,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForGenericSharedMaterial_OmitsExplicitZeroOffset()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "generic|Uv|scale:none|offset:0x0|depth:none",
+            MaterialKey: "generic-shared-zero-offset",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -199,11 +199,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateCommonMaterialSlotLookupNames_ForIdentityGenericCommonMaterial_UsesCanonicalNameOnly()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                textureScale: null,
-                textureOffset: null,
-                depthOffset: null),
+            MaterialKey: "generic-shared-identity",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -226,11 +222,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateCommonMaterialSlotLookupNames_ForIdentityScaleGenericOffsetMaterial_UsesCanonicalNameOnly()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                textureScale: null,
-                textureOffset: new ResoniteFloat2(0.25, 0.75),
-                depthOffset: new ResoniteMaterialDepthOffset(2.0, 3.0)),
+            MaterialKey: "generic-shared-offset-depth",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,
@@ -253,9 +245,7 @@ public sealed class ResoniteSceneMaterialConventionsTests
     public void CreateMaterialSlotName_ForVertexColorCommonMaterial_UsesVertexColorName()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                depthOffset: null),
+            MaterialKey: "vertex-color-shared",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.VertexColor,
             TexturePayload: null,
@@ -302,7 +292,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.True(normalized);
         Assert.Equal("generic", familySlotName);
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
-        Assert.Equal("generic|Uv|scale:none|offset:none|depth:none", normalizedMaterial.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                normalizedMaterial.Projection,
+                normalizedMaterial.TextureScale,
+                normalizedMaterial.TextureOffset,
+                normalizedMaterial.DepthOffset),
+            normalizedMaterial.MaterialKey);
         Assert.Null(normalizedMaterial.TerrainOverlay);
         Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), normalizedMaterial.BaseColor);
     }
@@ -333,7 +329,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
         Assert.Null(normalizedMaterial.TextureScale);
         Assert.Null(normalizedMaterial.TextureOffset);
-        Assert.Equal("generic|Uv|scale:none|offset:none|depth:none", normalizedMaterial.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                normalizedMaterial.Projection,
+                normalizedMaterial.TextureScale,
+                normalizedMaterial.TextureOffset,
+                normalizedMaterial.DepthOffset),
+            normalizedMaterial.MaterialKey);
     }
 
     [Fact]
@@ -358,7 +360,11 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.True(normalized);
         Assert.Equal("vertex-color", familySlotName);
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
-        Assert.Equal("vertex-color|Uv|depth:none", normalizedMaterial.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                normalizedMaterial.Projection,
+                normalizedMaterial.DepthOffset),
+            normalizedMaterial.MaterialKey);
         Assert.Equal(ResoniteMaterialType.VertexColor, normalizedMaterial.MaterialType);
     }
 
@@ -636,7 +642,13 @@ public sealed class ResoniteSceneMaterialConventionsTests
         Assert.Equal(ResoniteMaterialAssetScope.Common, normalizedMaterial.AssetScope);
         Assert.Equal(new ResoniteFloat2(0.5, 0.25), normalizedMaterial.TextureScale);
         Assert.Equal(new ResoniteFloat2(0.125, 0.375), normalizedMaterial.TextureOffset);
-        Assert.Equal("generic|Uv|scale:0.5x0.25|offset:0.125x0.375|depth:none", normalizedMaterial.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                normalizedMaterial.Projection,
+                normalizedMaterial.TextureScale,
+                normalizedMaterial.TextureOffset,
+                normalizedMaterial.DepthOffset),
+            normalizedMaterial.MaterialKey);
     }
 
     private static ResoniteFloat2 FacadeDefaultTilesPerMeter()
@@ -644,4 +656,5 @@ public sealed class ResoniteSceneMaterialConventionsTests
         ScalarPair value = BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue;
         return new ResoniteFloat2(value.X, value.Y);
     }
+
 }

@@ -158,7 +158,16 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         };
         return textureUri is null
             ? null
-            : new PlannedTextureAsset(new TextureIdentity($"main-texture-override:{textureIdentity}"), textureUri);
+            : new PlannedTextureAsset(
+                new TextureIdentity(
+                    StableOpaqueId.Create(
+                        "main-tex-override",
+                        builder =>
+                        {
+                            builder.Add(material.MaterialKey);
+                            builder.Add(textureIdentity);
+                        })),
+                textureUri);
     }
 
     public static async Task<CreatedMaterialAsset> EmitCommonMaterialAsync(
@@ -338,9 +347,14 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         string materialKey)
     {
         return new MaterialIdentity(
-            string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"dedicated|{packageName}|{materialIndex}|{materialKey}"));
+            StableOpaqueId.Create(
+                "dedicated",
+                builder =>
+                {
+                    builder.Add(packageName.ToLowerInvariant());
+                    builder.Add(materialIndex);
+                    builder.Add(materialKey);
+                }));
     }
 
     public static ResoniteMaterialBinding ResolveTerrainTextureCanvasMaterial(

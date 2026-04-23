@@ -71,7 +71,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "dem-overlay-source");
+            SourceObjectKey: "dem-overlay-source",
+            SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
@@ -196,7 +197,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "dem-overlay-current-source");
+            SourceObjectKey: "dem-overlay-current-source",
+            SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
@@ -261,7 +263,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     DepthOffset: null,
                     SubmeshIndices: [0]),
             ],
-            SourceObjectKey: "heightmap-source");
+            SourceObjectKey: "heightmap-source",
+            SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
 
@@ -350,7 +353,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "heightmap-overlay-source");
+            SourceObjectKey: "heightmap-overlay-source",
+            SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,

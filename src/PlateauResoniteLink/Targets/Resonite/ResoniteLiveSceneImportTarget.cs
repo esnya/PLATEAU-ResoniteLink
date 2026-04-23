@@ -1386,17 +1386,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return state.Runtime.ElapsedTotalSeconds;
     }
 
-    private static string CreateDispatchDependencyKey(ResoniteConstructionCityObject cityObject)
-    {
-        string objectIdentity = cityObject.SourceObjectKey ?? cityObject.SlotKey;
-        string lodKey = cityObject.LodLevel.HasValue
-            ? cityObject.LodLevel.Value.ToString(CultureInfo.InvariantCulture)
-            : "none";
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{lodKey}|{objectIdentity}");
-    }
-
     private static void ValidateTriangleMeshBindings(
         ResoniteConstructionCityObject cityObject,
         ResoniteImportedMesh mesh)
@@ -1736,7 +1725,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             if (!runState.Materials.CommonMaterialCreationTasks.TryGetCompleted(materialKey, out CreatedMaterialAsset existingMaterialAsset))
             {
                 throw new InvalidOperationException(
-                    $"Bootstrap did not resolve shared/common material '{materialKey}' before runtime emission.");
+                    $"Bootstrap did not resolve shared/common material ({ResoniteMaterialComponentPolicy.DescribeForDiagnostics(sourceMaterial)}) before runtime emission.");
             }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
@@ -2065,9 +2054,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         PreparedGeometryAssetBatch preparedGeometryBatch)
     {
         GeometryIdentity identity = new(
-            string.Create(
-                CultureInfo.InvariantCulture,
-                $"{cityObject.PackageName}|{cityObject.SlotKey}|{preparedGeometryBatch.MeshAssetSlotName}"));
+            StableOpaqueId.Create(
+                "geometry",
+                builder =>
+                {
+                    builder.Add(cityObject.PackageName);
+                    builder.Add(cityObject.SlotKey);
+                    builder.Add(preparedGeometryBatch.MeshAssetSlotName);
+                }));
 
         return preparedGeometryBatch switch
         {

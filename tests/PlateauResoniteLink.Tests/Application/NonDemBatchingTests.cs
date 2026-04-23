@@ -42,7 +42,7 @@ public sealed class NonDemBatchingTests
     }
 
     [Fact]
-    public void CreateSourceUnitBatchKeyUsesImportedCityObjectIdentityFields()
+    public void CreateSourceUnitBatchKeyUsesCanonicalSourceScope()
     {
         ImportedCityObject cityObject = CreateCityObject(
             objectKey: "building-01",
@@ -55,11 +55,39 @@ public sealed class NonDemBatchingTests
         Assert.Equal("bldg", batchKey.PackageName);
         Assert.Equal(2, batchKey.LodLevel);
         Assert.Equal("default", batchKey.PolicyContext);
-        Assert.Equal("source-unit", batchKey.SourceUnitKey);
-        Assert.Equal("udx/bldg/53394525/building.gml", batchKey.SourceFileRelativePath);
-        Assert.Equal(
-            "53394525|bldg|2|source-unit|udx/bldg/53394525/building.gml",
-            batchKey.BatchScopeIdentity);
+        Assert.Equal("udx/bldg/53394525/building.gml", batchKey.CityGmlScopeKey);
+    }
+
+    [Fact]
+    public void CreateSourceUnitBatchKeyTreatsSameSourceFileAsTheSameCanonicalScope()
+    {
+        ImportedCityObject firstCityObject = CreateCityObject(
+            objectKey: "building-01",
+            sourceUnitKey: "source-unit-a",
+            sourceFileRelativePath: "udx/bldg/53394525/building.gml");
+        ImportedCityObject secondCityObject = CreateCityObject(
+            objectKey: "building-02",
+            sourceUnitKey: "source-unit-b",
+            sourceFileRelativePath: "udx/bldg/53394525/building.gml");
+
+        NonDemSourceUnitBatchKey firstBatchKey = NonDemBatching.CreateSourceUnitBatchKey(firstCityObject, DefaultPolicy);
+        NonDemSourceUnitBatchKey secondBatchKey = NonDemBatching.CreateSourceUnitBatchKey(secondCityObject, DefaultPolicy);
+
+        Assert.Equal(firstBatchKey, secondBatchKey);
+    }
+
+    [Fact]
+    public void CreateSourceUnitBatchKeyThrowsWhenSourceScopeIsMissing()
+    {
+        ImportedCityObject cityObject = CreateCityObject(
+            objectKey: "building-01",
+            sourceUnitKey: null,
+            sourceFileRelativePath: null);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => NonDemBatching.CreateSourceUnitBatchKey(cityObject, DefaultPolicy));
+
+        Assert.Contains("SourceFileRelativePath or SourceUnitKey", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

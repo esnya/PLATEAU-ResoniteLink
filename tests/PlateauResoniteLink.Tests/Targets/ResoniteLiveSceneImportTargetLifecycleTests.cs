@@ -277,6 +277,8 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             "Bootstrap did not resolve shared/common material",
             exception.Message,
             StringComparison.Ordinal);
+        Assert.Contains("family=Facade", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("projection=Uv", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
