@@ -1260,9 +1260,13 @@ internal static partial class LocalCityGmlObjectProjection
         {
             IGrouping<string, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
-            double facadeFloorHeightMeters = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+            FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
+                cityObject.PackageName,
+                cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
                 cityObject.FloorsAboveGround,
-                cityObject.MeasuredHeightMeters);
+                cityObject.MeasuredHeightMeters,
+                cityObjectOrigin.ToLegacy(),
+                cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
                          .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
@@ -1275,7 +1279,7 @@ internal static partial class LocalCityGmlObjectProjection
                     cityObjectCartesian,
                     globalOriginPoint.ToLegacy(),
                     globalCartesian,
-                    facadeFloorHeightMeters,
+                    facadeUvProjectionContext,
                     demTerrainTextureOverlay,
                     demUvProjection,
                     vertices,
@@ -1782,7 +1786,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
-        double facadeFloorHeightMeters,
+        FacadeUvProjectionContext? facadeUvProjectionContext,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         DemUvProjection? demUvProjection,
         List<MeshVertex> vertices,
@@ -1800,7 +1804,7 @@ internal static partial class LocalCityGmlObjectProjection
                     packageName,
                     cityObjectOrigin,
                     cityObjectCartesian,
-                    facadeFloorHeightMeters)
+                    facadeUvProjectionContext)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateSurfaceTessellatedRings(
             surface,
@@ -2100,7 +2104,7 @@ internal static partial class LocalCityGmlObjectProjection
         string packageName,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
-        double facadeFloorHeightMeters)
+        FacadeUvProjectionContext? facadeUvProjectionContext)
     {
         Float3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
@@ -2124,11 +2128,15 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         double uvScale = PlateauPackageCatalog.IsBuildingPackage(packageName)
-            ? 1.0 / facadeFloorHeightMeters
+            ? 1.0 / Math.Max(facadeUvProjectionContext?.FloorHeightMeters ?? FacadeMaterialUvScaling.FloorSquareMeters, 1e-6)
             : 1.0;
+        double vOffset = PlateauPackageCatalog.IsBuildingPackage(packageName)
+            ? -((facadeUvProjectionContext?.MinimumY ?? positions.Min(static position => position.Y)) * uvScale)
+            : 0.0;
         return new SurfaceUvProjection(
             Scale(surfaceAxes.AxisU, uvScale),
-            Scale(surfaceAxes.AxisV, uvScale));
+            Scale(surfaceAxes.AxisV, uvScale),
+            vOffset);
     }
 
     private static Float2 CreateGeneratedSurfaceUv(
@@ -2139,7 +2147,7 @@ internal static partial class LocalCityGmlObjectProjection
     {
         Float3 position = CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian);
         double u = Dot(position, projection.AxisU);
-        double v = Dot(position, projection.AxisV);
+        double v = Dot(position, projection.AxisV) + projection.OffsetV;
         return new Float2(u, v);
     }
 
@@ -2736,6 +2744,46 @@ internal static partial class LocalCityGmlObjectProjection
             positions.Min(static position => position.Y),
             positions.Max(static position => position.Y),
             isDownwardNearHorizontal);
+    }
+
+    private static FacadeUvProjectionContext? TryCreateFacadeUvProjectionContext(
+        string packageName,
+        IEnumerable<ParsedSurface> surfaces,
+        int? floorsAboveGround,
+        double? measuredHeightMeters,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(packageName))
+        {
+            return null;
+        }
+
+        SurfaceProjectionInfo[] surfaceInfos = surfaces
+            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
+            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
+            .ToArray();
+        if (surfaceInfos.Length == 0)
+        {
+            return null;
+        }
+
+        double minimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
+        double maximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
+        int floorCount = FacadeMaterialUvScaling.ResolveFloorCount(
+            floorsAboveGround,
+            measuredHeightMeters,
+            geometryHeightMeters);
+        double floorHeightMeters = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+            floorsAboveGround,
+            measuredHeightMeters,
+            geometryHeightMeters);
+
+        return new FacadeUvProjectionContext(
+            minimumY,
+            floorHeightMeters,
+            floorCount);
     }
 
     private readonly record struct SurfaceProjectionInfo(
@@ -4650,7 +4698,13 @@ internal static partial class LocalCityGmlObjectProjection
 
     private sealed record SurfaceUvProjection(
         Float3 AxisU,
-        Float3 AxisV);
+        Float3 AxisV,
+        double OffsetV);
+
+    private readonly record struct FacadeUvProjectionContext(
+        double MinimumY,
+        double FloorHeightMeters,
+        int FloorCount);
 
     private readonly record struct DemUvProjection(
         double West,

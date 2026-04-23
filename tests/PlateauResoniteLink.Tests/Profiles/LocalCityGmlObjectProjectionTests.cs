@@ -160,6 +160,65 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void EstimateFloorHeightMeters_UsesGeometryHeightToAlignExactStoreyCount()
+    {
+        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+            floorsAboveGround: 2,
+            measuredHeightMeters: 11.8,
+            geometryHeightMeters: 7.0);
+
+        Assert.Equal(3.5, estimated, 6);
+    }
+
+    [Fact]
+    public void EstimateFloorHeightMeters_UsesGeometryHeightConsistentlyWhenStoreyMetadataIsMissing()
+    {
+        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+            floorsAboveGround: null,
+            measuredHeightMeters: 11.8,
+            geometryHeightMeters: 7.0);
+
+        Assert.Equal(3.5, estimated, 6);
+    }
+
+    [Fact]
+    public void GeneratedFacadeUvProjection_AlignsVerticalPhaseToBuildingBottomAndTop()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        double longitudeDelta = 7.0 / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
+        LocalCityGmlObjectProjection.GeodeticPoint[] wallVertices =
+        [
+            origin,
+            new(origin.Latitude, origin.Longitude + longitudeDelta, 2.0),
+            new(origin.Latitude, origin.Longitude + longitudeDelta, 9.0),
+            new(origin.Latitude, origin.Longitude, 9.0),
+        ];
+        LocalCityGmlObjectProjection.ParsedSurface wallSurface = CreateParsedSurface(
+            "wall",
+            LocalCityGmlObjectProjection.ParsedSurfaceSemantic.Wall,
+            [.. wallVertices, wallVertices[0]]);
+
+        object projection = CreateGeneratedSurfaceUvProjectionForTest(
+            wallSurface,
+            "bldg",
+            origin,
+            cartesian,
+            minimumY: 0.0,
+            floorHeightMeters: 3.5);
+        Float2 uvBottom = CreateGeneratedSurfaceUvForTest(origin, origin, cartesian, projection);
+        Float2 uvTop = CreateGeneratedSurfaceUvForTest(wallVertices[3], origin, cartesian, projection);
+
+        Assert.Equal(0.0, uvBottom.Y, 6);
+        Assert.Equal(2.0, uvTop.Y, 6);
+    }
+
+    [Fact]
     public void SharedBundledFacadeBindingKey_UsesCanonicalScaleAndTreatsExplicitZeroOffsetAsNone()
     {
         ResolvedMaterial material = new(
@@ -1337,13 +1396,27 @@ public sealed class LocalCityGmlObjectProjectionTests
         LocalCityGmlObjectProjection.ParsedSurface surface,
         string packageName,
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
-        GeographicLib.LocalCartesian cartesian)
+        GeographicLib.LocalCartesian cartesian,
+        double minimumY = 0.0,
+        double? floorHeightMeters = null)
     {
         MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
                 "CreateGeneratedSurfaceUvProjection",
                 BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUvProjection.");
-        return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian, FacadeMaterialUvScaling.FloorSquareMeters])!
+        Type contextType = typeof(LocalCityGmlObjectProjection).GetNestedType(
+                "FacadeUvProjectionContext",
+                BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Failed to resolve FacadeUvProjectionContext.");
+        object? context = string.Equals(packageName, "bldg", StringComparison.Ordinal)
+            || string.Equals(packageName, "ubld", StringComparison.Ordinal)
+                ? Activator.CreateInstance(
+                    contextType,
+                    minimumY,
+                    floorHeightMeters ?? FacadeMaterialUvScaling.FloorSquareMeters,
+                    1)
+                : null;
+        return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian, context])!
             ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
     }
 

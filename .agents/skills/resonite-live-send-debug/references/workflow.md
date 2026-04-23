@@ -197,3 +197,129 @@ Direct `dotnet` execution rebuilds the session tool script or CLI on demand. Fre
   Resolve one exact direct child under `Root`, then remove that slot. This is convenience for operator workflow, not a semantic cleanup API.
 - `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset <dataset> --mesh-code <mesh> --citygml-source <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --resonitelink-connections <n>`
   Launch one direct live send with explicit logs under `runtime/windows/resonite`.
+
+## Visual Review Procedure
+
+Use this section when the question depends on the rendered image rather than on
+slot metadata alone. This procedure is viewpoint-oriented and is intended to be
+used together with the zero-base capture path from
+`C:\Users\esnya\.codex\skills\resonite-visual-eval\SKILL.md`.
+
+Keep the capture target narrow. Do not default to the dataset root for visual
+judgment when the regression is object-local.
+
+### Preconditions
+
+- Complete one live send and keep the resulting dataset root in place.
+- Resolve a representative target slot first.
+  Prefer one `AtlasBake` or `MeshBake` slot that clearly exhibits the suspected
+  issue over the dataset root.
+- If the chosen slot produces trivial bounds, switch to explicit
+  `BoundsMin` / `BoundsMax` around the intended object cluster.
+
+### View 1: Oblique Overview
+
+Use this first to confirm subject visibility and gross proportion.
+
+- Recommended target:
+  one representative `AtlasBake` building slot or a tight explicit bounds box
+  around a small building plus one neighboring taller building.
+- Recommended starting direction:
+  `ViewDirection = 0,-0.8,-0.6`
+- Recommended framing:
+  keep the full building height in frame and include sky plus ground reference.
+- Use this view to judge:
+  - whether the object is visible and not occluded
+  - whether facade repetition is obviously too dense for the apparent number of floors
+  - whether the building top and bottom align with texture top and bottom at a coarse level
+  - whether a smaller building is being rendered with an implausible floor count
+
+### View 2: Facade Front Close-Up
+
+Use this to review floor count, vertical phase, and gray-wall collapse on a
+single facade.
+
+- Recommended target:
+  one facade-bearing `AtlasBake` or `MeshBake` slot whose wall is close to
+  front-facing from the current world orientation.
+- Recommended framing:
+  fill most of the frame with one wall plane. Keep the building top and bottom
+  edges visible when possible.
+- Prefer a front or slight-oblique view over a steep angle so the facade pattern
+  can be counted visually.
+- Use this view to judge:
+  - whether windows or facade bands repeat once per floor rather than multiple times per floor
+  - whether the facade top edge lines up with the texture top edge
+  - whether the facade bottom edge lines up with the texture bottom edge
+  - whether any facade area has collapsed to a flat gray or near-uniform wall
+  - whether different bundled facade variants preserve their intended aspect ratio
+
+If the top and bottom cannot both fit while preserving readability, capture two
+close-ups of the same wall:
+
+- one biased toward the roofline
+- one biased toward the ground line
+
+Treat those as one review pair for the same object.
+
+### View 3: Side or Corner Mid Shot
+
+Use this to separate texture-phase problems from silhouette or proportion
+problems.
+
+- Recommended framing:
+  capture one building corner so two facade planes are visible at once.
+- Use this view to judge:
+  - whether repetition density stays consistent across adjoining facade planes
+  - whether the vertical phase stays aligned across the visible corner
+  - whether horizontal scaling preserves the material aspect ratio instead of forcing boundary fit
+
+### View 4: Underside / Bottom-Face Check
+
+Use this only when validating bottom-face removal.
+
+- Recommended target:
+  the same representative building slot used above, or a smaller isolated
+  building if the underside is easier to inspect there.
+- Recommended framing:
+  move below the object footprint and tilt upward enough to see the underside
+  without losing the silhouette.
+- Use this view to judge:
+  - whether a large horizontal bottom cap is still present
+  - whether only expected side walls remain visible from below
+  - whether the apparent underside comes from an actual bottom face rather than
+    from deep facade recesses or roof overhangs
+
+If the render shows mostly sky or loses the subject, tighten bounds instead of
+moving farther away.
+
+### Review Order
+
+For facade regressions, use this fixed order:
+
+1. Oblique Overview
+2. Facade Front Close-Up
+3. Side or Corner Mid Shot
+
+Add Underside / Bottom-Face Check only when validating bottom-face removal.
+
+### Reporting Template
+
+Record each capture with:
+
+- target slot id or explicit bounds
+- view label
+- camera pose
+- rendered image path
+- observed facts
+- likely interpretation
+- still-unconfirmed items
+
+Separate image facts from interpretation. For example:
+
+- fact:
+  the small foreground building shows about five visible facade rows
+- interpretation:
+  this likely exceeds the intended one-to-two above-ground floors
+- unconfirmed:
+  exact CityGML `storeysAboveGround` for that object was not checked yet
