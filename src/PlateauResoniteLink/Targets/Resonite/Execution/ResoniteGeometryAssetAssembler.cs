@@ -25,6 +25,7 @@ internal interface IResoniteGeometryAssetAssembler
         string heightMapAssetSlotName,
         string displayName,
         ResoniteHeightMapGridGeometry geometry,
+        bool includeBorderSkirtFallback,
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
@@ -59,6 +60,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         string heightMapAssetSlotName,
         string displayName,
         ResoniteHeightMapGridGeometry geometry,
+        bool includeBorderSkirtFallback,
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
@@ -77,15 +79,17 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
         progressReporter?.Invoke($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
 
-        PreparedTriangleMeshAssetBatch[] visualFallbackAssets = await PrepareBorderSkirtFallbackAssetsAsync(
-            importClient,
-            heightMapAssetSlotName,
-            displayName,
-            geometry,
-            uvScale,
-            uvOffset,
-            progressReporter,
-            cancellationToken);
+        PreparedTriangleMeshAssetBatch[] visualFallbackAssets = includeBorderSkirtFallback
+            ? await PrepareBorderSkirtFallbackAssetsAsync(
+                importClient,
+                heightMapAssetSlotName,
+                displayName,
+                geometry,
+                uvScale,
+                uvOffset,
+                progressReporter,
+                cancellationToken)
+            : [];
 
         return new PreparedHeightMapGridAssetBatch(
             meshAssetSlotName,
@@ -192,7 +196,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
 
             topLeft = topLeft with { Normal = new ResoniteFloat3(0.0, outwardY, 0.0) };
             topRight = topRight with { Normal = new ResoniteFloat3(0.0, outwardY, 0.0) };
-            AppendQuad(vertices, indices, topLeft, topRight, bottomLeft, bottomRight, outwardY < 0.0);
+            AppendQuad(vertices, indices, topLeft, topRight, bottomLeft, bottomRight, outwardY > 0.0);
         }
     }
 

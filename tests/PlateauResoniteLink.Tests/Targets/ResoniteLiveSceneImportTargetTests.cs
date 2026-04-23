@@ -323,6 +323,57 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
+    public async Task BuildAsyncDoesNotCreateBorderSkirtFallbackForNonDemHeightMap()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["bldg"],
+            sourceFiles:
+            [
+                $"udx/bldg/533945/plateau_{DatasetName}_bldg_533945.gml",
+            ]);
+        ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "heightmap-building",
+            DisplayName: "HeightMap Building",
+            PackageName: "bldg",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Geometry: new ResoniteHeightMapGridGeometry(
+                Width: 2,
+                Height: 2,
+                Size: new ResoniteFloat2(10.0, 10.0),
+                MinHeight: 0.0,
+                MaxHeight: 3.0,
+                HeightSamples: [0.0, 1.0, 2.0, 3.0]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "heightmap-building-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceObjectKey: "heightmap-building-source");
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+
+        Assert.Empty(client.ImportedMeshes);
+        Assert.DoesNotContain(
+            client.ComponentsById.Values,
+            static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task BuildAsyncAppliesTerrainOverlayUvTransformToGridMeshInsteadOfMaterial()
     {
         using TemporaryDirectory datasetDirectory = new();

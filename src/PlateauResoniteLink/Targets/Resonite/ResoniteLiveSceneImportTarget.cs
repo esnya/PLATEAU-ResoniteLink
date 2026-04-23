@@ -1908,6 +1908,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     CreateHeightMapAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     heightMap.Geometry,
+                    ShouldIncludeHeightMapBorderSkirtFallback(cityObject),
                     heightMap.HeightTextureImport,
                     ResolveHeightMapGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
                     ResolveHeightMapGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
@@ -1928,6 +1929,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         };
 
         return new PlannedGeometryPreparation(geometryAsset, visualFallbackGeometryAssets);
+    }
+
+    private static bool ShouldIncludeHeightMapBorderSkirtFallback(ResoniteConstructionCityObject cityObject)
+    {
+        return string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
+            && cityObject.Geometry is ResoniteHeightMapGridGeometry
+            && cityObject.Materials.Count == 1;
     }
 
     private static ResoniteRawHdrTextureImport PrepareHeightMapTexture(ResoniteHeightMapGridGeometry geometry)
