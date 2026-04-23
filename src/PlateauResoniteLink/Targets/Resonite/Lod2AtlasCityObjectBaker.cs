@@ -19,8 +19,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
     IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
-    int maxBufferedSourceUnits = 32,
-    int maxBufferedCityObjectsPerSourceUnit = 256,
     ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
@@ -29,8 +27,6 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
     private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
-    private readonly int maxBufferedSourceUnitsForCompatibility = maxBufferedSourceUnits;
-    private readonly int maxBufferedCityObjectsPerSourceUnitForCompatibility = maxBufferedCityObjectsPerSourceUnit;
     private readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> bakePolicies = bakePolicies
         ?? Lod2AtlasCityObjectBakePolicies.DefaultPolicies;
 
@@ -51,19 +47,17 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
     }
 
-    public async ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
+    public ValueTask<BufferedCityObjectBufferResult> TryBufferAsync(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
-        _ = maxBufferedSourceUnitsForCompatibility;
-        _ = maxBufferedCityObjectsPerSourceUnitForCompatibility;
 
         Lod2AtlasCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
         if (policy is null)
         {
-            return new BufferedCityObjectBufferResult(Buffered: false, []);
+            return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
         }
 
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
@@ -78,7 +72,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
         bufferedCityObjects.Add(bufferedCityObject);
         BakedInputCityObjectCount++;
-        return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
+        return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
 
     public async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushAllAsync(
@@ -707,7 +701,11 @@ internal sealed class Lod2AtlasCityObjectBaker(
             atlasRect.Height,
             (int)Math.Round(atlasWidth),
             (int)Math.Round(atlasHeight));
-        return TextureUvRect.Remap(sourceUv, uvBounds, atlasUvRect);
+        ScalarPair remapped = TextureUvRect.RemapValue(
+            new ScalarPair(sourceUv.X, sourceUv.Y),
+            uvBounds,
+            atlasUvRect);
+        return new ResoniteFloat2(remapped.X, remapped.Y);
     }
 
     private static ResoniteFloat3 ComputeBakeOrigin(IReadOnlyList<CityObjectBakeCandidate> candidates)
@@ -1209,7 +1207,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             for (int x = 0; x < targetWidth; x++)
             {
                 double normalizedU = (x + 0.5) / targetWidth;
-                ResoniteFloat2 sourceUv = uvBounds.Denormalize(normalizedU, normalizedV);
+                ScalarPair sourceUv = uvBounds.DenormalizeValue(normalizedU, normalizedV);
                 bakedImage[x, y] = SampleWrappedPixelBilinear(sourceImage, sourceUv.X, sourceUv.Y);
             }
         }

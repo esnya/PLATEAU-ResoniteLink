@@ -468,7 +468,9 @@ public sealed class FixedCellCityObjectMeshBakerTests
             Projection: ResoniteMaterialProjection.Triplanar,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: BundledDefaultMaterialProfiles.RoofingTiles012ATilesPerMeter,
+            TextureScale: new ResoniteFloat2(
+                BundledDefaultMaterialProfiles.RoofingTiles012ATilesPerMeterValue.X,
+                BundledDefaultMaterialProfiles.RoofingTiles012ATilesPerMeterValue.Y),
             Family: BundledDefaultMaterialFamilies.Roof,
             AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 2);

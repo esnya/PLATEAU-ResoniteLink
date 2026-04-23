@@ -23,15 +23,14 @@ internal sealed class LocalCityGmlGeometryProjector(
         Func<BootstrapParsedCityObject, bool>? predicate = null)
     {
         return LocalCityGmlObjectProjection.ProjectCityObjects(
-                sourceFile.ToLegacy(),
-                referenceSystem.ToLegacy(),
-                globalOriginPoint.ToLegacy(),
-                globalCartesian,
-                demTerrainTextureOverlays,
-                requestedMeshAreas,
-                terrainHeightSampler: null,
-                request,
-                materialResolver,
-                predicate is null ? null : cityObject => predicate(BootstrapParsedCityObject.FromLegacy(cityObject)));
+            sourceFile,
+            referenceSystem,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlays,
+            requestedMeshAreas,
+            request,
+            materialResolver,
+            predicate);
     }
 }

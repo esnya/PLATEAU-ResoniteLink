@@ -4,7 +4,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Cli;
 
-public sealed record BuildCommandOptions(
+public sealed record ImportCommandOptions(
     PlateauImportRequest Request,
     string WorkRoot,
     Uri? ResoniteLinkUri,

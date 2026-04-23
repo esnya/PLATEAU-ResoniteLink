@@ -17,9 +17,6 @@ namespace PlateauResoniteLink.Tests.Profiles;
 [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "Test names describe contract cases.")]
 public sealed class LocalCityGmlConstructionSourceStreamingTests
 {
-    private static readonly ICityGmlCommonMaterialEnumerator CommonMaterialEnumerator =
-        new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver());
-
     [Fact]
     public async Task ReadCityObjectsAsync_UsesStreamingPipelineWithoutInvokingCachedParseTask()
     {
@@ -74,7 +71,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             [CreateParsedCityObject("dem", "terrain", "Terrain", referenceSystem, lodLevel: 1)],
             beforeYield: demReleaseSignal.Task);
 
-        LocalCityGmlDocumentReadResult readResult = new(
+        LocalCityGmlBootstrapSnapshot readResult = new(
             new LocalCityGmlDocumentSet(
                 new EmptyDatasetContentSource(),
                 [
@@ -117,7 +114,6 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             request,
             readResult,
             geometryProjector,
-            CommonMaterialEnumerator,
             new StubDemTextureSourcePolicy());
         List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
@@ -223,7 +219,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                 new LicenseMetadata(false, string.Empty, string.Empty, string.Empty),
                 []),
             GeodeticOrigin: new GeodeticOrigin(globalOriginPoint.Latitude, globalOriginPoint.Longitude, globalOriginPoint.Altitude));
-        LocalCityGmlDocumentReadResult readResult = new(
+        LocalCityGmlBootstrapSnapshot readResult = new(
             new LocalCityGmlDocumentSet(
                 new EmptyDatasetContentSource(),
                 sourceFilePipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
@@ -239,22 +235,11 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             request,
             readResult,
             new RecordingGeometryProjector(),
-            CommonMaterialEnumerator,
             new StubDemTextureSourcePolicy());
     }
 
     private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy
     {
-        public Task<ResolvedDemTextureSources> ResolveAsync(
-            PlateauImportRequest request,
-            IReadOnlyList<string> requestedMeshCodes,
-            CancellationToken cancellationToken = default)
-        {
-            _ = request;
-            _ = requestedMeshCodes;
-            return Task.FromResult(new ResolvedDemTextureSources([]));
-        }
-
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
@@ -294,7 +279,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
             BootstrapParsedSurfaceSemantic.Ground,
             exteriorRing,
             [],
-            new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: null);
 
         return new BootstrapParsedCityObject(
@@ -347,7 +332,7 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
                     cityObject.PackageName,
                     cityObject.ActualMeshCode,
                     cityObject.LodLevel,
-                    new Transform3d(new Float3(0.0, 0.0, 0.0)),
+                    new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     new TriangleMeshGeometry(
                         new ImportedMesh(
                             [
@@ -372,6 +357,8 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
 
         public bool FileExists(string relativePath) => false;
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
+
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             throw new FileNotFoundException(relativePath);
@@ -386,3 +373,4 @@ public sealed class LocalCityGmlConstructionSourceStreamingTests
         }
     }
 }
+

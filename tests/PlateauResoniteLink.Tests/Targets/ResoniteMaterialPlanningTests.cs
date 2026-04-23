@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
+using PlateauResoniteLink.Transport.ResoniteLink;
 namespace PlateauResoniteLink.Tests.Targets;
 
 public sealed class ResoniteMaterialPlanningTests
@@ -14,7 +15,7 @@ public sealed class ResoniteMaterialPlanningTests
     public async Task PlanCommonMaterialAssetAsyncImportsMetallicCompanionTextureWithLinearProfile()
     {
         using SceneBuilderRecordingClient client = new();
-        ResoniteMaterialPlanning planning = new();
+        ResoniteMaterialPlanning planning = new(new BundledDefaultMaterialAssetStore());
         ResoniteMaterialBinding material = new(
             MaterialKey: "facade-common",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
@@ -27,7 +28,10 @@ public sealed class ResoniteMaterialPlanningTests
             Family: BundledDefaultMaterialFamilies.Facade,
             AssetScope: ResoniteMaterialAssetScope.Common,
             BundledVariantIndex: 0);
-        _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        _ = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
         string metallicPath = textureSet?.MetallicPath
             ?? throw new InvalidOperationException("Expected facade bundled material to provide a metallic companion texture.");
 

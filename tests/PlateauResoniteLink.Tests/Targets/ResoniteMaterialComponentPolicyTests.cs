@@ -218,7 +218,10 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Family: BundledDefaultMaterialFamilies.Facade,
             BundledVariantIndex: 0);
 
-        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
@@ -243,7 +246,10 @@ public sealed class ResoniteMaterialComponentPolicyTests
             Family: BundledDefaultMaterialFamilies.CityFurniture,
             BundledVariantIndex: 0);
 
-        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(material, out BundledDefaultMaterialTextureSet? textureSet);
+        bool resolved = ResoniteMaterialComponentPolicy.TryGetBundledCompanionTextureSet(
+            new BundledDefaultMaterialAssetStore(),
+            material,
+            out BundledDefaultMaterialTextureSet? textureSet);
 
         Assert.True(resolved);
         Assert.NotNull(textureSet);
@@ -258,7 +264,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
 
-        bool resolved = BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath);
+        bool resolved = new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out string absolutePath);
 
         Assert.True(resolved);
         Assert.EndsWith("Plaster002_2K-JPG_Color.jpg", absolutePath, StringComparison.Ordinal);
@@ -269,7 +275,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void BundledDefaultCityFurnitureAlbedoStaysNearNeutralWhite()
     {
         string logicalPath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.CityFurniture, 0);
-        Assert.True(BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath));
+        Assert.True(new BundledDefaultMaterialAssetStore().TryGetAbsolutePath(logicalPath, out string absolutePath));
 
         using Image<Rgba32> image = Image.Load<Rgba32>(absolutePath);
         double totalR = 0.0;

@@ -4,10 +4,10 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IImportedSceneSourceComposer
+internal interface IImportedSceneSourceComposer
 {
     IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         Action<string>? progressReporter = null);
 }

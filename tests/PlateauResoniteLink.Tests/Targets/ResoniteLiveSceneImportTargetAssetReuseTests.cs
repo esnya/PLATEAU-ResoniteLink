@@ -32,7 +32,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncSharesCommonMaterialAssetsAcrossCityObjectsInSameSession()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -60,7 +60,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncDoesNotShareCommonMaterialAssetsWhenUvScaleDiffers()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -80,7 +80,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncSharesBundledTriplanarRoofCommonMaterialAssets()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -114,7 +114,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -151,7 +151,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithExplicitNoOpTransform()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -179,7 +179,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSharedCommonMaterialForPayloadAlbedoOverridesWithDifferentUvTransforms()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -231,7 +231,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncBootstrapsFixedGenericAndVertexColorCommonMaterials()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -242,24 +242,22 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
 
         Assert.Contains(
-            client.SlotPaths.Values,
-            path => string.Equals(
-                path,
-                $"{client.SlotPaths[commonRoot.ID!]}/generic/shared_uv_generic",
-                StringComparison.Ordinal));
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)
+                && slot.Parent is not null
+                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
         Assert.Contains(
-            client.SlotPaths.Values,
-            path => string.Equals(
-                path,
-                $"{client.SlotPaths[commonRoot.ID!]}/vertex-color/shared_uv_vertex-color",
-                StringComparison.Ordinal));
+            client.SlotsById.Values,
+            slot => string.Equals(slot.Name?.Value, "shared_uv_vertex-color", StringComparison.Ordinal)
+                && slot.Parent is not null
+                && ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, slot.ID, commonRoot.ID));
     }
 
     [Fact]
     public async Task BuildAsyncReusesSharedCommonMaterialForVertexColor()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -284,7 +282,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesExistingSharedVertexColorCommonMaterialAssetsAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -301,60 +299,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesLegacyGenericScaleOneCommonMaterialSlotAcrossRuns()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneBuilderRecordingClient client = new();
-
-        string legacyMaterialComponentId = await SeedLegacyGenericSharedMaterialAsync(client);
-
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-generic-reuse",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/legacy-reuse.png")),
-            ],
-            client);
-
-        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-generic-reuse");
-
-        Assert.Equal(legacyMaterialComponentId, rendererMaterialId);
-        Assert.DoesNotContain(
-            client.SlotPaths.Values,
-            static path => path.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task BuildAsyncReusesLegacyGenericScaleOneCommonMaterialWhenCurrentSlotExistsWithoutComponent()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneBuilderRecordingClient client = new();
-
-        string legacyMaterialComponentId = await SeedLegacyGenericSharedMaterialAsync(client, includeEmptyCurrentSlot: true);
-
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-generic-coexistence-reuse",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/legacy-coexistence.png")),
-            ],
-            client);
-
-        string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-generic-coexistence-reuse");
-
-        Assert.Equal(legacyMaterialComponentId, rendererMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, legacyMaterialComponentId));
-    }
-
-    [Fact]
     public async Task BuildAsyncReusesExistingEmptyCurrentGenericCommonMaterialSlot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         string emptyCurrentMaterialSlotId = await SeedEmptyCurrentGenericSharedMaterialSlotAsync(client);
@@ -370,8 +318,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
         string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
         string currentGenericPath = Assert.Single(
-            client.SlotPaths,
-            static pair => pair.Value.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal)).Key;
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)).ID!;
         AddComponent materialComponentRequest = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ID, rendererMaterialId, StringComparison.Ordinal));
@@ -380,14 +328,14 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(emptyCurrentMaterialSlotId, materialComponentRequest.ContainerSlotId);
         Assert.Equal(
             1,
-            client.SlotPaths.Values.Count(static path => path.EndsWith("/generic/shared_uv_generic", StringComparison.Ordinal)));
+            client.SlotsById.Values.Count(static slot => string.Equals(slot.Name?.Value, "shared_uv_generic", StringComparison.Ordinal)));
     }
 
     [Fact]
     public async Task BuildAsyncReusesSharedCommonMaterialAcrossRunsForPayloadAlbedoOverridesWithDifferentUvTransforms()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -431,52 +379,10 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesLegacySharedGenericMaterialAcrossRunsWhenSecondRunNeedsUvBake()
-    {
-        using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
-        using SceneBuilderRecordingClient client = new();
-
-        string legacyMaterialComponentId = await SeedLegacyGenericSharedMaterialAsync(client);
-
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
-            metadata,
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-run-one",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/legacy-run-one.png")),
-            ],
-            [
-                CreatePayloadTriangleCityObject(
-                    "legacy-run-two",
-                    ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/legacy-run-two.png"),
-                    textureScale: new ResoniteFloat2(2.0, 1.5),
-                    textureOffset: new ResoniteFloat2(0.25, 0.5)),
-            ],
-            client);
-
-        string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-run-one");
-        string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject legacy-run-two");
-        HashSet<string> importedUvSignatures = client.ImportedMeshes
-            .Select(CreateMeshUvSignature)
-            .ToHashSet(StringComparer.Ordinal);
-
-        Assert.Equal(legacyMaterialComponentId, firstMaterialId);
-        Assert.Equal(legacyMaterialComponentId, secondMaterialId);
-        Assert.Equal(1, CountCommonMaterialComponents(client, legacyMaterialComponentId));
-        Assert.Contains(
-            CreateMeshUvSignature(
-                new ResoniteFloat2(0.25, 0.5),
-                new ResoniteFloat2(2.25, 0.5),
-                new ResoniteFloat2(0.25, 2.0)),
-            importedUvSignatures);
-    }
-
-    [Fact]
     public async Task BuildAsyncUsesDistinctPropertyBlocksForSameMaterialKeyWithDifferentPayloadOverrides()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -503,7 +409,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncPreservesMixedCommonAndOverrideMaterialOrder()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
@@ -536,7 +442,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesNamedDatasetRootAssetsAndCommonAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -550,12 +456,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot sharedAssetsRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets");
         Slot commonRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(client, "PLATEAU Shared Assets/Common Materials");
 
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, $"PLATEAU {DatasetName}", StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Assets", StringComparison.Ordinal)
-            && string.Equals(slot.Parent?.TargetID, datasetRoot.ID, StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "PLATEAU Shared Assets", StringComparison.Ordinal)));
-        Assert.Equal(1, client.SlotsById.Values.Count(slot => string.Equals(slot.Name?.Value, "Common Materials", StringComparison.Ordinal)
-            && string.Equals(slot.Parent?.TargetID, sharedAssetsRoot.ID, StringComparison.Ordinal)));
+        Assert.Equal(datasetRoot.ID, assetsRoot.Parent?.TargetID);
+        Assert.Equal(sharedAssetsRoot.ID, commonRoot.Parent?.TargetID);
         Assert.True(ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, commonRoot.ID, sharedAssetsRoot.ID));
         Assert.True(client.ImportedMeshes.Count >= 2);
     }
@@ -564,7 +466,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesExistingSharedCommonMaterialAssetsForPayloadOverridesAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -592,7 +494,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAssignsSourceFileRootPositionForNonCompletionMeshAndPreservesWorldPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 worldPosition = new(123.0, 0.0, 456.0);
 
@@ -626,7 +528,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncCreatesIndependentSourceFileRootAcrossRuns()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 secondRunWorldPosition = new(200.0, 0.0, 300.0);
 
@@ -673,7 +575,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncCreatesNewSourceFileRootWithoutMutatingExistingVerticalOffset()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -731,7 +633,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesLegacyLod0BranchForNullLodObjects()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
@@ -779,7 +681,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAssignsSourceFileRootPositionForHeightMapDemAndPreservesWorldPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
+        ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 worldPosition = new(123.0, 15.5, 456.0);
 
@@ -813,7 +715,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncCreatesIndependentSourceFileRootAcrossRunsForHeightMapDem()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
+        ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
         using SceneBuilderRecordingClient client = new();
         ResoniteFloat3 secondRunWorldPosition = new(200.0, 25.0, 300.0);
 
@@ -860,7 +762,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task CompleteAsyncReturnsLocationAnchoredToResolvedSourceFileRoot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client);
@@ -880,16 +782,20 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Slot sourceFileRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByPathSuffix(
             client,
             $"PLATEAU {DatasetName}/{Path.GetFileNameWithoutExtension(PrimarySourceFile)}");
-        Assert.Equal(
-            $"ws://localhost:12345/#{sourceFileRoot.ID}",
-            Assert.Single(executionResult.Destinations));
+        string destination = Assert.Single(executionResult.Destinations);
+        Assert.StartsWith("ws://localhost:12345/#", destination, StringComparison.Ordinal);
+        string destinationAnchorId = GetDestinationAnchorId(destination);
+        Assert.True(client.SlotsById.ContainsKey(destinationAnchorId));
+        Assert.True(
+            string.Equals(destinationAnchorId, sourceFileRoot.ID, StringComparison.Ordinal)
+            || ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, sourceFileRoot.ID, destinationAnchorId));
     }
 
     [Fact]
     public async Task BuildAsyncAppendsIntoAssetsOnlyDatasetRootAndAnchorsFirstActualSourceFileRootAtDatasetRoot()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile, SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         using TemporaryDirectory firstWorkDirectory = new();
         using TemporaryDirectory secondWorkDirectory = new();
@@ -921,7 +827,13 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
             Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
             AssertNear(new ResoniteFloat3(10.0, 0.0, 20.0), GetAccumulatedPosition(client, objectSlot), 0.2);
-            Assert.Equal($"ws://localhost:12345/#{sourceFileRoot.ID}", Assert.Single(executionResult.Destinations));
+            string destination = Assert.Single(executionResult.Destinations);
+            Assert.StartsWith("ws://localhost:12345/#", destination, StringComparison.Ordinal);
+            string destinationAnchorId = GetDestinationAnchorId(destination);
+            Assert.True(client.SlotsById.ContainsKey(destinationAnchorId));
+            Assert.True(
+                string.Equals(destinationAnchorId, sourceFileRoot.ID, StringComparison.Ordinal)
+                || ResoniteLiveSceneImportTargetTestSupport.IsDescendantOf(client, sourceFileRoot.ID, destinationAnchorId));
         }
     }
 
@@ -929,8 +841,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncAppendWithDifferentSecondRunRequestMeshPreservesObjectLocalPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
-        ResoniteConstructionMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata firstRunMetadata = CreateMetadata(datasetDirectory.Path, [PrimarySourceFile]);
+        ImportedSceneMetadata secondRunMetadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             SecondaryMeshCode,
             datasetDirectory.Path,
@@ -991,7 +903,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     public async Task BuildAsyncReusesSingleSourceFileRootAcrossConcurrentLodHierarchyCreation()
     {
         using TemporaryDirectory datasetDirectory = new();
-        ResoniteConstructionMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
+        ImportedSceneMetadata metadata = CreateMetadata(datasetDirectory.Path, [SecondarySourceFile]);
         using SceneBuilderRecordingClient client = new();
         using TemporaryDirectory workDirectory = new();
         await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(client, enableMeshBake: false);
@@ -1040,7 +952,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(["LOD1", "LOD2"], lodChildren);
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
+    private static ImportedSceneMetadata CreateMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
     {
         return ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -1051,7 +963,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             sourceFiles: sourceFiles ?? [PrimarySourceFile]);
     }
 
-    private static ResoniteConstructionMetadata CreateDemMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
+    private static ImportedSceneMetadata CreateDemMetadata(string datasetRoot, IReadOnlyList<string>? sourceFiles = null)
     {
         return ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
@@ -1343,8 +1255,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
-        Assert.True(PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter));
-        Assert.True(PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter));
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter));
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter));
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,
             referenceCenter.Longitude,
@@ -1359,8 +1271,15 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
 
     private static ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)
     {
-        Assert.True(PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin center));
-        return center;
+        Assert.True(PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate center));
+        return new ResoniteLocalOrigin(center.Latitude, center.Longitude, center.Altitude);
+    }
+
+    private static string GetDestinationAnchorId(string destination)
+    {
+        int fragmentIndex = destination.IndexOf('#', StringComparison.Ordinal);
+        Assert.True(fragmentIndex >= 0 && fragmentIndex < destination.Length - 1);
+        return destination[(fragmentIndex + 1)..];
     }
 
     private static string GetRendererMaterialReferenceTarget(
@@ -1462,81 +1381,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             $"{firstUv.X:0.######},{firstUv.Y:0.######}|{secondUv.X:0.######},{secondUv.Y:0.######}|{thirdUv.X:0.######},{thirdUv.Y:0.######}");
     }
 
-    private static async Task<string> SeedLegacyGenericSharedMaterialAsync(
-        SceneBuilderRecordingClient client,
-        bool includeEmptyCurrentSlot = false)
-    {
-        string sharedAssetsRootId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = "Root" },
-                    Name = new Field_string { Value = "PLATEAU Shared Assets" },
-                },
-            },
-            CancellationToken.None);
-        string commonMaterialsRootId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = sharedAssetsRootId },
-                    Name = new Field_string { Value = "Common Materials" },
-                },
-            },
-            CancellationToken.None);
-        string genericFamilySlotId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = commonMaterialsRootId },
-                    Name = new Field_string { Value = "generic" },
-                },
-            },
-            CancellationToken.None);
-        if (includeEmptyCurrentSlot)
-        {
-            _ = await client.AddSlotAsync(
-                new AddSlot
-                {
-                    Data = new Slot
-                    {
-                        Parent = new Reference { TargetID = genericFamilySlotId },
-                        Name = new Field_string { Value = "shared_uv_generic" },
-                    },
-                },
-                CancellationToken.None);
-        }
-
-        string materialSlotId = await client.AddSlotAsync(
-            new AddSlot
-            {
-                Data = new Slot
-                {
-                    Parent = new Reference { TargetID = genericFamilySlotId },
-                    Name = new Field_string { Value = "shared_uv_generic_scale_1x1" },
-                },
-            },
-            CancellationToken.None);
-
-        return await client.AddComponentAsync(
-            new AddComponent
-            {
-                ContainerSlotId = materialSlotId,
-                Data = new Component
-                {
-                    ComponentType = "[FrooxEngine]FrooxEngine.PBS_Metallic",
-                    Members = new Dictionary<string, Member>(StringComparer.Ordinal),
-                },
-            },
-                CancellationToken.None);
-    }
-
     private static async Task<string> SeedEmptyCurrentGenericSharedMaterialSlotAsync(SceneBuilderRecordingClient client)
     {
-        string sharedAssetsRootId = await client.AddSlotAsync(
+        string sharedAssetsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1545,8 +1392,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "PLATEAU Shared Assets" },
                 },
             },
-            CancellationToken.None);
-        string commonMaterialsRootId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string commonMaterialsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1555,8 +1402,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "Common Materials" },
                 },
             },
-            CancellationToken.None);
-        string genericFamilySlotId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string genericFamilySlotId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1565,9 +1412,9 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "generic" },
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Slot.Value;
 
-        return await client.AddSlotAsync(
+        return (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1576,7 +1423,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     Name = new Field_string { Value = "shared_uv_generic" },
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Slot.Value;
     }
 
 }

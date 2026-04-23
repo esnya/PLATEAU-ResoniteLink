@@ -19,9 +19,9 @@ public sealed class PlateauMeshCodeTests
     }
 
     [Fact]
-    public void TryGetCenterReturnsExpectedCenterForValidThirdLevelMesh()
+    public void TryGetGeodeticCenterReturnsExpectedCenterForValidThirdLevelMesh()
     {
-        bool parsed = PlateauMeshCode.TryGetCenter("53394525", out ResoniteLocalOrigin center);
+        bool parsed = PlateauMeshCode.TryGetGeodeticCenter("53394525", out GeodeticCoordinate center);
 
         Assert.True(parsed);
         Assert.Equal(35.6875, center.Latitude, 9);

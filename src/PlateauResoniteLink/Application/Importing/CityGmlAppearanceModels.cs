@@ -2,15 +2,13 @@ using System.Collections.Generic;
 
 using System.Xml.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed record CityGmlMaterialAttributes(
-    ResoniteColor DiffuseColor,
+    ColorRgba DiffuseColor,
     double? AmbientIntensity,
-    ResoniteColor? EmissiveColor,
-    ResoniteColor? SpecularColor,
+    ColorRgba? EmissiveColor,
+    ColorRgba? SpecularColor,
     double? Shininess,
     double? Transparency);
 
@@ -19,22 +17,22 @@ internal sealed record CityGmlParameterizedTexture(
     string? MimeType,
     string? TextureType,
     string? WrapMode,
-    ResoniteColor? BorderColor,
-    IReadOnlyDictionary<string, IReadOnlyList<ResoniteFloat2>> RingCoordinates);
+    ColorRgba? BorderColor,
+    IReadOnlyDictionary<string, IReadOnlyList<Float2>> RingCoordinates);
 
 internal sealed record CityGmlGeoreferencedTexture(
     string? ResolvedTexturePath,
     string? MimeType,
     string? TextureType,
     string? WrapMode,
-    ResoniteColor? BorderColor,
+    ColorRgba? BorderColor,
     string? ReferencePoint,
     string? Orientation);
 
 internal sealed record CityGmlResolvedAppearance(
-    ResoniteColor BaseColor,
-    ResoniteTexturePayload? TexturePayload,
-    IReadOnlyDictionary<string, IReadOnlyList<ResoniteFloat2>>? RingUvsByRingId,
+    ColorRgba BaseColor,
+    TexturePayload? TexturePayload,
+    IReadOnlyDictionary<string, IReadOnlyList<Float2>>? RingUvsByRingId,
     CityGmlMaterialAttributes? MaterialAttributes = null,
     CityGmlParameterizedTexture? ParameterizedTexture = null,
     CityGmlGeoreferencedTexture? GeoreferencedTexture = null);

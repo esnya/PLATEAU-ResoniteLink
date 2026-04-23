@@ -119,7 +119,7 @@ public sealed class ResoniteLinkClientTests
 
         await transport.ImportTextureStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Task<string> addSlotTask = ((IResoniteLinkClient)client).AddSlotAsync(
+        Task<ResoniteTransportSlotCreationResult> addSlotTask = ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -143,9 +143,9 @@ public sealed class ResoniteLinkClientTests
         transport.AllowImportTextureCompletion.TrySetResult();
 
         await importTask;
-        string slotId = await addSlotTask;
+        ResoniteTransportSlotCreationResult slot = await addSlotTask;
 
-        Assert.Equal("srv_slot_1", slotId);
+        Assert.Equal(new ResoniteTransportSlotLocator("srv_slot_1"), slot.Slot);
         Assert.Equal(1, transport.ImportTextureRawCallCount);
         Assert.Equal(1, transport.AddSlotCallCount);
     }

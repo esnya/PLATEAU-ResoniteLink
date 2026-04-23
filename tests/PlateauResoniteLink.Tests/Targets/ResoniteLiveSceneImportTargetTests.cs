@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -37,7 +38,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TerrainTextureAssetGenerator terrainTextureGenerator = new(httpClient, disablePersistentCache: true);
         TerrainTextureOverlay overlay = CreatePaddedCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
         TerrainTextureLayoutPlan layout = TerrainTextureLayoutPlanner.Create(overlay.GeographicBounds, overlay.ZoomLevel);
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -46,8 +47,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             sourceFiles:
             [
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ],
-            terrainTextureOverlays: [overlay]);
+            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "dem-overlay-object",
             DisplayName: "DEM Overlay Object",
@@ -117,18 +117,15 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 && string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
         Assert.False(sharedMaterial.Members.ContainsKey("AlbedoTexture"));
 
-        Component overrideTextureComponent = Assert.Single(
-            client.AddedComponents,
-            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && string.Equals(request.ContainerSlotId, Assert.Single(client.AddedComponents, static component => string.Equals(component.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal)).ContainerSlotId, StringComparison.Ordinal)).Data;
-        Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", overrideTextureComponent.ComponentType);
         string overrideTextureReferenceId = Assert.IsType<Reference>(plannedPropertyBlock.Data.Members["Texture"]).TargetID;
-        _ = Assert.Single(
+        AddComponent overrideTextureOperation = Assert.Single(
             client.Batches
                 .SelectMany(static operations => operations)
                 .OfType<AddComponent>(),
             operation => string.Equals(operation.Data.ID, overrideTextureReferenceId, StringComparison.Ordinal)
                 && string.Equals(operation.Data.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
+        Component overrideTextureComponent = overrideTextureOperation.Data;
+        Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", overrideTextureComponent.ComponentType);
         Field_Uri textureUrl = Assert.IsType<Field_Uri>(overrideTextureComponent.Members["URL"]);
         Assert.StartsWith("resdb:///texture/", textureUrl.Value.ToString(), StringComparison.Ordinal);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(overrideTextureComponent.Members["WrapModeU"]).Value);
@@ -143,7 +140,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncReusesLegacyTerrainOverlayGenericCommonMaterialSlotWithIdentityScaleOffset()
+    public async Task BuildAsyncReusesExistingTerrainOverlayGenericCommonMaterialComponent()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -163,7 +160,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.125, 0.375)));
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -172,25 +169,24 @@ public sealed class ResoniteLiveSceneImportTargetTests
             sourceFiles:
             [
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ],
-            terrainTextureOverlays: [overlay]);
-        string legacyMaterialComponentId = await SeedCommonMaterialComponentAsync(
+            ]);
+        SeededCommonMaterialComponent seededCommonMaterial = await SeedCommonMaterialComponentAsync(
             client,
             familySlotName: "generic",
             materialSlotName: "shared_uv_generic",
             componentType: "[FrooxEngine]FrooxEngine.PBS_Metallic");
         ResoniteConstructionCityObject cityObject = new(
-            SlotKey: "dem-overlay-legacy-object",
-            DisplayName: "DEM Overlay Legacy Object",
+            SlotKey: "dem-overlay-current-object",
+            DisplayName: "DEM Overlay Current Object",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-legacy-material"),
+            Mesh: ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("dem-overlay-current-material"),
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dem-overlay-legacy-material",
+                    MaterialKey: "dem-overlay-current-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,
@@ -200,7 +196,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     SubmeshIndices: [0],
                     TerrainOverlay: overlay),
             ],
-            SourceObjectKey: "dem-overlay-legacy-source");
+            SourceObjectKey: "dem-overlay-current-source");
 
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
@@ -211,14 +207,17 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component meshRenderer = Assert.Single(
             client.AddedComponents,
             request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal)
-                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "DEM Overlay Legacy Object", StringComparison.Ordinal))
+                && string.Equals(client.SlotsById[request.ContainerSlotId].Name?.Value, "DEM Overlay Current Object", StringComparison.Ordinal))
             .Data;
         string sharedMaterialId = Assert.IsType<Reference>(Assert.Single(Assert.IsType<SyncList>(meshRenderer.Members["Materials"]).Elements)).TargetID;
 
-        Assert.Equal(legacyMaterialComponentId, sharedMaterialId);
-        Assert.DoesNotContain(
-            client.SlotPaths.Values,
-            static path => path.EndsWith("/generic/shared_uv_generic_offset_0.125x0.375", StringComparison.Ordinal));
+        AddComponent commonMaterialRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.PBS_Metallic", StringComparison.Ordinal)
+                && client.SlotPaths[request.ContainerSlotId].Contains("PLATEAU Shared Assets/Common Materials/", StringComparison.Ordinal));
+
+        Assert.Equal(seededCommonMaterial.ComponentId, sharedMaterialId);
+        Assert.Equal(seededCommonMaterial.MaterialSlotId, commonMaterialRequest.ContainerSlotId);
     }
 
     [Fact]
@@ -226,7 +225,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -312,7 +311,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     "terrain-overlay/generated-heightmap"),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.125, 0.375)));
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -321,8 +320,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             sourceFiles:
             [
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
-            ],
-            terrainTextureOverlays: [overlay]);
+            ]);
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "heightmap-overlay-terrain",
             DisplayName: "HeightMap Overlay Terrain",
@@ -382,7 +380,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -550,7 +548,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -603,7 +601,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -651,7 +649,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -705,7 +703,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -759,7 +757,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -819,8 +817,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[commonMaterialContainerSlotId],
             StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.Y, textureScale.Value.y, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].x, 6);
         Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].y, 6);
         Assert.Equal(6.5f, importedMesh.AccessUV_2D(0)[1].x, 6);
@@ -835,7 +833,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
         string sourceFile = $"udx/bldg/{MeshCode}/plateau_{DatasetName}_bldg_{MeshCode}.gml";
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -894,8 +892,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             "PLATEAU Shared Assets/Common Materials/",
             client.SlotPaths[materialRequest.ContainerSlotId],
             StringComparison.Ordinal);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.X, textureScale.Value.x, 6);
-        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter.Y, textureScale.Value.y, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
+        Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, textureOffset.Value.x, 6);
         Assert.Equal(0.0f, textureOffset.Value.y, 6);
         Assert.Equal(1.625f, importedMesh.AccessUV_2D(0)[0].x, 6);
@@ -911,7 +909,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -955,7 +953,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1008,7 +1006,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1063,7 +1061,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1107,7 +1105,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
-        ResoniteConstructionMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
             datasetDirectory.Path,
@@ -1188,13 +1186,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.False((slot.Tag?.Value ?? string.Empty).StartsWith("plan:", StringComparison.Ordinal));
     }
 
-    private static async Task<string> SeedCommonMaterialComponentAsync(
+    private static async Task<SeededCommonMaterialComponent> SeedCommonMaterialComponentAsync(
         SceneBuilderRecordingClient client,
         string familySlotName,
         string materialSlotName,
         string componentType)
     {
-        string sharedAssetsRootId = await client.AddSlotAsync(
+        string sharedAssetsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1203,8 +1201,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = "PLATEAU Shared Assets" },
                 },
             },
-            CancellationToken.None);
-        string commonMaterialsRootId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string commonMaterialsRootId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1213,8 +1211,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = "Common Materials" },
                 },
             },
-            CancellationToken.None);
-        string familySlotId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string familySlotId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1223,8 +1221,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = familySlotName },
                 },
             },
-            CancellationToken.None);
-        string materialSlotId = await client.AddSlotAsync(
+            CancellationToken.None)).Slot.Value;
+        string materialSlotId = (await client.AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -1233,9 +1231,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Name = new Field_string { Value = materialSlotName },
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Slot.Value;
 
-        return await client.AddComponentAsync(
+        string componentId = (await client.AddComponentAsync(
             new AddComponent
             {
                 ContainerSlotId = materialSlotId,
@@ -1245,8 +1243,14 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     Members = new Dictionary<string, Member>(StringComparer.Ordinal),
                 },
             },
-            CancellationToken.None);
+            CancellationToken.None)).Component.Value;
+
+        return new SeededCommonMaterialComponent(componentId, materialSlotId);
     }
+
+    private sealed record SeededCommonMaterialComponent(
+        string ComponentId,
+        string MaterialSlotId);
 
     private static void AssertNoPlannedReferences(IEnumerable<Member> members)
     {

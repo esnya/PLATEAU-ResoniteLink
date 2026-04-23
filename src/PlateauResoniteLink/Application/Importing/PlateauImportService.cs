@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,23 +12,23 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class PlateauImportService(
-    ISceneImportTarget sceneBuilder,
+internal sealed class PlateauImportService(
+    ISceneSink sceneSink,
     IPlateauDatasetSourceResolver datasetSourceResolver,
-    ICityGmlDocumentReader documentReader,
     IImportedSceneSourceFactory constructionSourceFactory,
+    CommonMaterialCatalog commonMaterialCatalog,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy,
     Action<string>? progressReporter = null)
 {
-    private readonly ISceneImportTarget sceneBuilder =
-        sceneBuilder ?? throw new ArgumentNullException(nameof(sceneBuilder));
+    private readonly ISceneSink sceneSink =
+        sceneSink ?? throw new ArgumentNullException(nameof(sceneSink));
     private readonly IPlateauDatasetSourceResolver datasetSourceResolver =
         datasetSourceResolver ?? throw new ArgumentNullException(nameof(datasetSourceResolver));
-    private readonly ICityGmlDocumentReader documentReader =
-        documentReader ?? throw new ArgumentNullException(nameof(documentReader));
     private readonly Action<string>? progressReporter = progressReporter;
     private readonly IImportedSceneSourceFactory constructionSourceFactory =
         constructionSourceFactory ?? throw new ArgumentNullException(nameof(constructionSourceFactory));
+    private readonly CommonMaterialCatalog commonMaterialCatalog =
+        commonMaterialCatalog ?? throw new ArgumentNullException(nameof(commonMaterialCatalog));
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy =
         archiveFileLayoutPolicy ?? throw new ArgumentNullException(nameof(archiveFileLayoutPolicy));
 
@@ -41,28 +42,21 @@ public sealed class PlateauImportService(
         ValidatedPlateauImportRequest validatedRequest = PlateauImportRequestValidator.NormalizeAndValidateOrThrow(request);
         PlateauImportRequest normalizedRequest = validatedRequest.ToImportRequest();
         string datasetWorkRoot = archiveFileLayoutPolicy.ResolveDatasetRoot(workRoot, validatedRequest.Dataset);
-
-        PlateauImportRequest resolvedRequest =
-            (await datasetSourceResolver.ResolveAsync(validatedRequest, datasetWorkRoot, cancellationToken)).ToImportRequest();
-        ReportProgress(
-            PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
+        ExceptionDispatchInfo? failure = null;
 
         try
         {
-            Stopwatch setupStopwatch = Stopwatch.StartNew();
-            LocalCityGmlDocumentReadResult readResult = await documentReader.ReadAsync(
-                resolvedRequest,
-                progressReporter,
-                cancellationToken);
-            LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
-            setupStopwatch.Stop();
+            PlateauImportRequest resolvedRequest =
+                (await datasetSourceResolver.ResolveAsync(
+                    validatedRequest,
+                    datasetWorkRoot,
+                    cancellationToken)).ToImportRequest();
             ReportProgress(
-                PlateauLog.Info("import", $"Setup discovery completed in {setupStopwatch.Elapsed.TotalSeconds:F3}s."));
+                PlateauLog.Debug("import", $"Resolved dataset source for '{resolvedRequest.Dataset}' mesh '{resolvedRequest.MeshCode}'."));
 
             Stopwatch sourceStopwatch = Stopwatch.StartNew();
             IImportedSceneSource source = await constructionSourceFactory.CreateAsync(
                 resolvedRequest,
-                readResult,
                 progressReporter,
                 cancellationToken);
             sourceStopwatch.Stop();
@@ -70,7 +64,7 @@ public sealed class PlateauImportService(
                 PlateauLog.Debug("import", $"Prepared construction source in {sourceStopwatch.Elapsed.TotalSeconds:F3}s."));
 
             ImportedSceneMetadata metadata = source.Metadata;
-            IReadOnlyList<MaterialBinding> commonMaterials = CommonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);
+            IReadOnlyList<MaterialBinding> commonMaterials = commonMaterialCatalog.CreateForPackages(metadata.SourceDataset.PackageNames);
             ReportProgress(
                 PlateauLog.Info(
                     "import",
@@ -80,7 +74,7 @@ public sealed class PlateauImportService(
                 normalizedRequest,
                 resolvedRequest,
                 metadata,
-                documentSet.DatasetSource.SourcePath,
+                resolvedRequest.LocalSourcePath!,
                 datasetWorkRoot,
                 commonMaterials);
             ReportProgress(
@@ -100,7 +94,7 @@ public sealed class PlateauImportService(
 
             int sourceCityObjectCount = 1;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
-            SceneImportExecutionResult executionResult = await sceneBuilder.ExecuteAsync(
+            SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
                 ReadImportedCityObjectsAsync(
                     cityObjectEnumerator.Current,
@@ -130,9 +124,22 @@ public sealed class PlateauImportService(
                 executionResult.Destinations,
                 CreateDataSourceUsages(metadata, executionResult));
         }
+        catch (Exception exception)
+        {
+            failure = ExceptionDispatchInfo.Capture(exception);
+            throw;
+        }
         finally
         {
-            await sceneBuilder.DisposeAsync();
+            try
+            {
+                await sceneSink.DisposeAsync();
+            }
+#pragma warning disable CA1031
+            catch when (failure is not null)
+            {
+            }
+#pragma warning restore CA1031
         }
     }
 

@@ -7,18 +7,16 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class LocalCityGmlConstructionComposer(
     ICityGmlGeometryProjector geometryProjector,
-    ICityGmlCommonMaterialEnumerator commonMaterialEnumerator,
     IDemTextureSourcePolicy demTextureSourcePolicy) : IImportedSceneSourceComposer
 {
     private readonly ICityGmlGeometryProjector geometryProjector = geometryProjector;
-    private readonly ICityGmlCommonMaterialEnumerator commonMaterialEnumerator = commonMaterialEnumerator;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy = demTextureSourcePolicy;
     private const string PlateauLicenseName = "PLATEAU Open Data Terms";
     private const string PlateauLicenseUrl = "https://www.mlit.go.jp/plateau/site-policy/";
 
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -33,7 +31,6 @@ internal sealed class LocalCityGmlConstructionComposer(
             SourceDataset: new PlateauSourceDataset(
                 PackageNames: documentSet.PackageNames.ToArray(),
                 SourceFiles: documentSet.RelativeSourceFiles.ToArray(),
-                TerrainTextureOverlays: documentSet.TerrainTextureOverlays.ToArray(),
                 SelectedMeshCodes: documentSet.SelectedMeshCodes),
             Attribution: CreateAttribution(request),
             GeodeticOrigin: new GeodeticOrigin(
@@ -46,7 +43,6 @@ internal sealed class LocalCityGmlConstructionComposer(
             request,
             readResult,
             geometryProjector,
-            commonMaterialEnumerator,
             demTextureSourcePolicy,
             progressReporter);
     }

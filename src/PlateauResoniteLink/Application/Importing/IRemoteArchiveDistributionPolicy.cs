@@ -2,7 +2,7 @@ using System;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public interface IRemoteArchiveDistributionPolicy
+internal interface IRemoteArchiveDistributionPolicy
 {
     bool IsSupportedArchivePath(string path);
     string GetArchiveFileName(Uri archiveUri);

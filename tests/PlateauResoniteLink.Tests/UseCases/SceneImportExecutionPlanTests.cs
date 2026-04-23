@@ -31,8 +31,8 @@ public sealed class SceneImportExecutionPlanTests
             resolvedRequest,
             new SceneBuildRequest(CreateMetadata(resolvedRequest), "resolved-source", workRoot, []));
 
-        Assert.Same(normalizedRequest, plan.NormalizedRequest);
-        Assert.Same(resolvedRequest, plan.ResolvedRequest);
+        Assert.Equal(normalizedRequest, plan.NormalizedRequest);
+        Assert.Equal(resolvedRequest, plan.ResolvedRequest);
         Assert.Equal(resolvedRequest.LocalSourcePath, plan.SceneBuildRequest.Metadata.Request.LocalSourcePath);
     }
 
@@ -133,7 +133,7 @@ public sealed class SceneImportExecutionPlanTests
             SchemaVersion: "3.0",
             SceneName: "stub",
             Request: request,
-            SourceDataset: new PlateauSourceDataset(["bldg"], [], [], ["53394525"]),
+            SourceDataset: new PlateauSourceDataset(["bldg"], [], ["53394525"]),
             Attribution: new Attribution(
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid/license"),
                 []),

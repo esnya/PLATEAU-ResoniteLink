@@ -9,17 +9,12 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
+internal sealed class CkanPlateauDatasetSourceResolver : IPlateauDatasetSourceResolver
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient httpClient;
     private readonly IRemoteArchiveDistributionPolicy remoteArchiveDistributionPolicy;
     private readonly IArchiveFileLayoutPolicy archiveFileLayoutPolicy;
-
-    public CkanPlateauDatasetSourceResolver(HttpClient httpClient)
-        : this(httpClient, new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy())
-    {
-    }
 
     public CkanPlateauDatasetSourceResolver(
         HttpClient httpClient,

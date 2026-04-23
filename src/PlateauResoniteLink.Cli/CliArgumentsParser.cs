@@ -16,11 +16,11 @@ public static class CliArgumentsParser
         PlateauResoniteLink CLI
 
         Usage:
-          plateau-resonitelink build --dataset <dataset> --mesh-code <mesh-code> [options]
+          plateau-resonitelink import --dataset <dataset> --mesh-code <mesh-code> [options]
           plateau-resonitelink search --citygml-source <path> --mesh-code <mesh-code> [options]
           plateau-resonitelink stats --citygml-source <path> [options]
 
-        Build options:
+        Import options:
           --dataset <value>      Required. PLATEAU dataset identifier.
           --mesh-code <value>    Required. PLATEAU mesh code or regex to construct in Resonite.
           --packages <csv>       Optional. Comma-separated PLATEAU package names. Default: dem,bldg,brid,frn,tran,rwy,trk,tun,ubld,unf,veg.
@@ -48,8 +48,8 @@ public static class CliArgumentsParser
                                 Optional. Override the persistent terrain tile cache root.
           --disable-terrain-tile-cache
                                 Optional. Disable persistent terrain tile caching across runs.
-          --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and build live in Resonite.
-          --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink builds.
+          --resonitelink-port    Required unless --resonitelink-url is used. Connect to ws://localhost:<port>/ and import live into Resonite.
+          --resonitelink-url     Required unless --resonitelink-port is used. Absolute ws:// or wss:// endpoint for live ResoniteLink imports.
           --resonitelink-connections <count>
                                 Optional. Parallel ResoniteLink connection count for live sends. Default: 4.
           --memory-profile <small|large>
@@ -79,14 +79,14 @@ public static class CliArgumentsParser
 
         return args[0].ToLowerInvariant() switch
         {
-            "build" => ParseBuild(args),
+            "import" => ParseImport(args),
             "search" => ParseSearch(args),
             "stats" => ParseStats(args),
             _ => CliParseResult.Failure($"Unknown command '{args[0]}'."),
         };
     }
 
-    private static CliParseResult ParseBuild(string[] args)
+    private static CliParseResult ParseImport(string[] args)
     {
         string? dataset = null;
         string? meshCode = null;
@@ -390,7 +390,7 @@ public static class CliArgumentsParser
         }
 
         return CliParseResult.Success(
-            new BuildCommandOptions(
+            new ImportCommandOptions(
                 request,
                 workRoot,
                 resoniteLinkUri,

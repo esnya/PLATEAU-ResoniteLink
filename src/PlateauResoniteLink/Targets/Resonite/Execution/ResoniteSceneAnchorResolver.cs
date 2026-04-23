@@ -16,17 +16,16 @@ internal interface IResoniteSceneAnchorResolver
 {
     Task<SceneAnchor> ResolveAsync(
         IResoniteLinkClient client,
-        string datasetRootSlotId,
+        ResoniteSlotLocator datasetRootSlot,
         string completionMeshCode,
-        bool datasetRootExisted,
         CancellationToken cancellationToken);
 }
 
 internal readonly record struct SceneAnchor(
-    string LocationSlotId,
+    ResoniteSlotLocator LocationSlot,
     string MeshCode,
     ResoniteFloat3 Position,
-    string? ReferenceSourceFileRootId);
+    ResoniteSlotLocator? ReferenceSourceFileRoot);
 
 internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 {
@@ -34,19 +33,18 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 
     public async Task<SceneAnchor> ResolveAsync(
         IResoniteLinkClient client,
-        string datasetRootSlotId,
+        ResoniteSlotLocator datasetRootSlot,
         string completionMeshCode,
-        bool datasetRootExisted,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(client);
-        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRootSlotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(datasetRootSlot.Value);
         ArgumentException.ThrowIfNullOrWhiteSpace(completionMeshCode);
 
-        await WaitForSlotAvailableAsync(client, datasetRootSlotId, cancellationToken);
+        await WaitForSlotAvailableAsync(client, datasetRootSlot, cancellationToken);
         ResoniteSceneSlotSnapshot datasetRootSnapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
             client,
-            datasetRootSlotId,
+            datasetRootSlot,
             1,
             cancellationToken);
         Slot[] sourceFileRoots = datasetRootSnapshot.Root?.Children?
@@ -60,10 +58,10 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         if (completionSourceFileRoot is not null)
         {
             return new SceneAnchor(
-                completionSourceFileRoot.ID ?? datasetRootSlotId,
+                new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value),
                 completionMeshCode,
                 GetSlotPositionOrDefault(completionSourceFileRoot),
-                completionSourceFileRoot.ID);
+                new ResoniteSlotLocator(completionSourceFileRoot.ID ?? datasetRootSlot.Value));
         }
 
         (Slot Slot, string MeshCode) referenceSourceFileRoot = sourceFileRoots
@@ -77,38 +75,38 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
         if (referenceSourceFileRoot.Slot is not null)
         {
             return new SceneAnchor(
-                referenceSourceFileRoot.Slot.ID ?? datasetRootSlotId,
+                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value),
                 completionMeshCode,
                 Add(
                     GetSlotPositionOrDefault(referenceSourceFileRoot.Slot),
                     ComputeMeshCodeOffset(referenceSourceFileRoot.MeshCode, completionMeshCode)),
-                referenceSourceFileRoot.Slot.ID);
+                new ResoniteSlotLocator(referenceSourceFileRoot.Slot.ID ?? datasetRootSlot.Value));
         }
 
         return new SceneAnchor(
-            datasetRootSlotId,
+            datasetRootSlot,
             completionMeshCode,
             GetSlotPositionOrDefault(datasetRootSnapshot.Root ?? throw new InvalidOperationException("Dataset root snapshot did not include a root slot.")),
-            ReferenceSourceFileRootId: null);
+            ReferenceSourceFileRoot: null);
     }
 
     private static async Task WaitForSlotAvailableAsync(
         IResoniteLinkClient client,
-        string slotId,
+        ResoniteSlotLocator slot,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(slotId, RootSlotId, StringComparison.Ordinal))
+        if (string.Equals(slot.Value, RootSlotId, StringComparison.Ordinal))
         {
             return;
         }
 
-        Slot? slot = await client.GetSlotAsync(slotId, 0, cancellationToken);
-        if (slot is not null)
+        Slot? existingSlot = await client.GetSlotAsync(new ResoniteTransportSlotLocator(slot.Value), 0, cancellationToken);
+        if (existingSlot is not null)
         {
             return;
         }
 
-        throw new InvalidOperationException($"ResoniteLink did not surface slot '{slotId}' on the initial probe.");
+        throw new InvalidOperationException($"ResoniteLink did not surface slot '{slot.Value}' on the initial probe.");
     }
 
     private static ResoniteFloat3 GetSlotPositionOrDefault(Slot slot)
@@ -123,8 +121,8 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
 
     private static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
-            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter)
+            || !PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter))
         {
             return new ResoniteFloat3(0.0, 0.0, 0.0);
         }
@@ -133,8 +131,8 @@ internal sealed class ResoniteSceneAnchorResolver : IResoniteSceneAnchorResolver
     }
 
     private static ResoniteFloat3 ComputeOriginOffset(
-        ResoniteLocalOrigin referenceCenter,
-        ResoniteLocalOrigin currentCenter)
+        GeodeticCoordinate referenceCenter,
+        GeodeticCoordinate currentCenter)
     {
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,

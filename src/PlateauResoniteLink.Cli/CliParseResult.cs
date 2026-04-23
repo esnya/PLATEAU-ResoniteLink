@@ -5,7 +5,7 @@ public sealed record CliParseResult(
     string? Error,
     bool ShowHelp)
 {
-    public BuildCommandOptions? Options => Command as BuildCommandOptions;
+    public ImportCommandOptions? Options => Command as ImportCommandOptions;
 
     public static CliParseResult Failure(string error)
     {

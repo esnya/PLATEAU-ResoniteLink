@@ -12,7 +12,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static class LocalCityGmlBootstrapPipeline
 {
-    internal static async Task<LocalCityGmlDocumentReadResult> ReadDocumentSetCoreAsync(
+    internal static async Task<LocalCityGmlBootstrapSnapshot> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
@@ -84,18 +84,18 @@ internal static class LocalCityGmlBootstrapPipeline
         List<string> relativeSourceFiles = sourceFilePipelines
             .Select(static pipeline => pipeline.SourceFile.RelativePath)
             .ToList();
-        ResoniteLocalOrigin? resolvedLocalOrigin =
-            LocalCityGmlObjectProjection.ResolveLocalOrigin(effectiveRequestedMeshArea);
-        if (resolvedLocalOrigin is null)
+        GeodeticCoordinate? resolvedGeodeticCenter =
+            LocalCityGmlObjectProjection.ResolveGeodeticCenter(effectiveRequestedMeshArea);
+        if (resolvedGeodeticCenter is null)
         {
             throw new PlateauImportValidationException(
                 [$"The mesh code selector '{request.MeshCode}' did not resolve a supported geographic center."]);
         }
 
-        LocalCityGmlObjectProjection.GeodeticPoint globalOriginPoint = new(
-            resolvedLocalOrigin.Latitude,
-            resolvedLocalOrigin.Longitude,
-            0.0);
+        GeodeticPoint globalOriginPoint = new(
+            resolvedGeodeticCenter.Latitude,
+            resolvedGeodeticCenter.Longitude,
+            resolvedGeodeticCenter.Altitude);
 
         totalStopwatch.Stop();
         progressReporter?.Invoke(
@@ -113,10 +113,7 @@ internal static class LocalCityGmlBootstrapPipeline
             discoveryResult.SelectedMeshCodes);
         LocalCityGmlBootstrapContext bootstrapContext = new(
             sourceFilePipelines,
-            new GeodeticPoint(
-                globalOriginPoint.Latitude,
-                globalOriginPoint.Longitude,
-                globalOriginPoint.Altitude));
-        return new LocalCityGmlDocumentReadResult(documentSet, bootstrapContext);
+            globalOriginPoint);
+        return new LocalCityGmlBootstrapSnapshot(documentSet, bootstrapContext);
     }
 }

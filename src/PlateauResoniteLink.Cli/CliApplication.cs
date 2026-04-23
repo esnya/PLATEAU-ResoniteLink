@@ -63,7 +63,7 @@ public sealed class CliApplication
         {
             switch (parseResult.Command)
             {
-                case BuildCommandOptions options:
+                case ImportCommandOptions options:
                     {
                         Action<string> reporter = CreateReporter(options.VerboseLogging);
                         PlateauImportService effectiveImportService = importServiceFactory.Create(options, reporter);

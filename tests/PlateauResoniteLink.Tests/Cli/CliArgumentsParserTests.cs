@@ -8,11 +8,11 @@ namespace PlateauResoniteLink.Tests.Cli;
 public sealed class CliArgumentsParserTests
 {
     [Fact]
-    public void ParseParsesLocalBuildCommand()
+    public void ParseParsesLocalImportCommand()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau",
@@ -32,11 +32,28 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseParsesRemoteBuildCommandAndOptionalGeoTiffSource()
+    public void ParseRejectsLegacyBuildCommandToken()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
                 "build",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+            ]);
+
+        Assert.Equal("Unknown command 'build'.", result.Error);
+        Assert.False(result.ShowHelp);
+        Assert.Null(result.Options);
+    }
+
+    [Fact]
+    public void ParseParsesRemoteImportCommandAndOptionalGeoTiffSource()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "https://example.invalid/plateau.zip",
@@ -56,7 +73,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--resonitelink-port", "12345",
@@ -70,7 +87,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--source", "local",
@@ -85,7 +102,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--server-url", "https://example.invalid/plateau.zip",
@@ -100,7 +117,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau",
@@ -117,7 +134,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "5339452[56]",
                 "--citygml-source", "/data/plateau",
@@ -133,7 +150,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau",
@@ -185,7 +202,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau",
@@ -204,6 +221,22 @@ public sealed class CliArgumentsParserTests
     [Fact]
     public void HelpTextDocumentsUnifiedSourceOptions()
     {
+        Assert.Contains(
+            "plateau-resonitelink import --dataset <dataset> --mesh-code <mesh-code> [options]",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Import options:",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "plateau-resonitelink build --dataset <dataset> --mesh-code <mesh-code> [options]",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Build options:",
+            CliArgumentsParser.HelpText,
+            StringComparison.Ordinal);
         Assert.Contains("--citygml-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.Contains("--geotiff-source <path-or-url>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
         Assert.DoesNotContain("--local-source-path <path>", CliArgumentsParser.HelpText, StringComparison.Ordinal);
@@ -216,7 +249,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau.zip",
@@ -245,7 +278,7 @@ public sealed class CliArgumentsParserTests
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
-                "build",
+                "import",
                 "--dataset", "tokyo23ku",
                 "--tile", "53394525",
             ]);

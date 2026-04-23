@@ -21,18 +21,19 @@ public sealed class CliApplicationTests
 {
     private static readonly HttpClient SharedDatasetSourceResolverHttpClient = new();
 
-    private static PlateauImportService CreateImportService(ISceneImportTarget sceneBuilder)
+    private static PlateauImportService CreateImportService(ISceneSink sceneImportSink)
     {
         LocalCityGmlDocumentReader documentReader = CreateDocumentReader();
         return new PlateauImportService(
-            sceneBuilder,
-            new CkanPlateauDatasetSourceResolver(SharedDatasetSourceResolverHttpClient),
-            documentReader,
+            sceneImportSink,
+            new CkanPlateauDatasetSourceResolver(
+                SharedDatasetSourceResolverHttpClient,
+                new RemoteArchiveDistributionPolicy(),
+                new ArchiveFileLayoutPolicy()),
             new LocalCityGmlConstructionSourceFactory(
                 documentReader,
                 new LocalCityGmlConstructionComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
                     new LocalCityGmlDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                             new DefaultPlateauDatasetContentSourceFactory(
@@ -43,6 +44,7 @@ public sealed class CliApplicationTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy())))),
+            new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
     }
 
@@ -65,13 +67,13 @@ public sealed class CliApplicationTests
     }
 
     [Fact]
-    public async Task RunAsyncWritesLiveCompletionForValidBuildCommand()
+    public async Task RunAsyncWritesLiveCompletionForValidImportCommand()
     {
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubSceneBuilder sceneBuilder = new();
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(sceneBuilder));
+        StubImportSink importSink = new();
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(importSink));
 
         CliApplication application = new(
             standardOutput,
@@ -81,7 +83,7 @@ public sealed class CliApplicationTests
 
         int exitCode = await application.RunAsync(
             [
-                "build",
+                "import",
                 "--dataset",
                 "tokyo23ku",
                 "--mesh-code",
@@ -93,7 +95,7 @@ public sealed class CliApplicationTests
             ]);
 
         Assert.Equal(0, exitCode);
-        Assert.Equal(2, sceneBuilder.CityObjects.Count);
+        Assert.Equal(2, importSink.CityObjects.Count);
         Assert.Contains("Resonite import completed.", standardOutput.ToString());
         Assert.Contains("World: PLATEAU tokyo23ku 53394525", standardOutput.ToString());
         Assert.Contains("Resonite location: stub://resonite/location", standardOutput.ToString());
@@ -118,7 +120,7 @@ public sealed class CliApplicationTests
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
-            BuildLiveArgs(fixturePath));
+            BuildImportArgs(fixturePath));
 
         Assert.Equal(1, exitCode);
         Assert.Contains("Import failed: Unexpected transport failure.", standardError.ToString());
@@ -131,7 +133,7 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
 
         CliApplication application = new(
             standardOutput,
@@ -140,10 +142,10 @@ public sealed class CliApplicationTests
             CreateDatasetInspectionService());
 
         int exitCode = await application.RunAsync(
-            BuildLiveArgs(fixturePath));
+            BuildImportArgs(fixturePath));
 
         Assert.Equal(0, exitCode);
-        BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
         Assert.Equal(CliTestData.DocumentedDefaultPackageNames, capturedOptions.Request.PackageNames);
         Assert.Equal(PlateauImportMemoryProfile.Large, capturedOptions.MemoryProfile);
         Assert.Equal(string.Empty, standardError.ToString());
@@ -156,7 +158,7 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
 
         CliApplication application = new(
             standardOutput,
@@ -166,12 +168,12 @@ public sealed class CliApplicationTests
 
         int exitCode = await application.RunAsync(
             [
-                ..BuildLiveArgs(fixturePath),
+                ..BuildImportArgs(fixturePath),
                 "--no-mesh-bake",
             ]);
 
         Assert.Equal(0, exitCode);
-        BuildCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
+        ImportCommandOptions capturedOptions = Assert.Single(importServiceFactory.CapturedOptions);
         Assert.False(capturedOptions.EnableMeshBake);
     }
 
@@ -181,7 +183,7 @@ public sealed class CliApplicationTests
         using StringWriter standardOutput = new();
         using StringWriter standardError = new();
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubSceneBuilder()));
+        StubImportServiceFactory importServiceFactory = new(_ => CreateImportService(new StubImportSink()));
 
         CliApplication application = new(
             standardOutput,
@@ -191,7 +193,7 @@ public sealed class CliApplicationTests
 
         int exitCode = await application.RunAsync(
             [
-                ..BuildLiveArgs(fixturePath),
+                ..BuildImportArgs(fixturePath),
                 "--resonitelink-connections",
                 "4",
             ]);
@@ -220,16 +222,16 @@ public sealed class CliApplicationTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => application.RunAsync(
-                BuildLiveArgs(fixturePath),
+                BuildImportArgs(fixturePath),
                 cancellationTokenSource.Token));
     }
 
-    private static string[] BuildLiveArgs(string fixturePath)
+    private static string[] BuildImportArgs(string fixturePath)
     {
-        return CliTestData.BuildLocalBuildArgs(fixturePath);
+        return CliTestData.BuildLocalImportArgs(fixturePath);
     }
 
-    private sealed class StubSceneBuilder : ISceneImportTarget
+    private sealed class StubImportSink : ISceneSink
     {
         public List<ImportedCityObject> CityObjects { get; } = [];
 
@@ -262,12 +264,12 @@ public sealed class CliApplicationTests
         }
     }
 
-    private sealed class StubImportServiceFactory(Func<BuildCommandOptions, PlateauImportService> createImportService)
+    private sealed class StubImportServiceFactory(Func<ImportCommandOptions, PlateauImportService> createImportService)
         : IImportServiceFactory
     {
-        public List<BuildCommandOptions> CapturedOptions { get; } = [];
+        public List<ImportCommandOptions> CapturedOptions { get; } = [];
 
-        public PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter)
+        public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
         {
             CapturedOptions.Add(options);
             return createImportService(options);

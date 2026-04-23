@@ -4,7 +4,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class LocalCityGmlDocumentSet
+internal sealed class LocalCityGmlDocumentSet
 {
     internal LocalCityGmlDocumentSet(
         IPlateauDatasetContentSource datasetSource,
@@ -29,15 +29,4 @@ public sealed class LocalCityGmlDocumentSet
     public IReadOnlyList<TerrainTextureOverlay> TerrainTextureOverlays { get; }
 
     public IReadOnlyList<string> SelectedMeshCodes { get; }
-
-    internal LocalCityGmlDocumentSet WithTerrainTextureOverlays(
-        IReadOnlyList<TerrainTextureOverlay> terrainTextureOverlays)
-    {
-        return new LocalCityGmlDocumentSet(
-            DatasetSource,
-            RelativeSourceFiles,
-            PackageNames,
-            terrainTextureOverlays,
-            SelectedMeshCodes);
-    }
 }

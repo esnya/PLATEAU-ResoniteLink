@@ -26,28 +26,29 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
 
     public Task<IImportedSceneSource> CreateAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ArgumentNullException.ThrowIfNull(readResult);
-        return CreateResolvedCoreAsync(request, readResult, progressReporter, cancellationToken);
+        return CreateResolvedCoreAsync(request, progressReporter, cancellationToken);
     }
 
     private async Task<IImportedSceneSource> CreateResolvedCoreAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
+        LocalCityGmlBootstrapSnapshot readResult = await documentReader.ReadAsync(
+            request,
+            progressReporter,
+            cancellationToken);
         await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
         return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter));
     }
 
     private async Task ValidateDemTextureSourceAsync(
         PlateauImportRequest request,
-        LocalCityGmlDocumentReadResult readResult,
+        LocalCityGmlBootstrapSnapshot readResult,
         CancellationToken cancellationToken)
     {
         if (request.DemTextureSource is null
@@ -56,7 +57,8 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             return;
         }
 
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await readResult.ResolveRequestedDemOverlayRegionsAsync(
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await LocalCityGmlDemOverlayRegionResolver.ResolveAsync(
+            readResult.BootstrapContext,
             readResult.DocumentSet.SelectedMeshCodes,
             cancellationToken);
 

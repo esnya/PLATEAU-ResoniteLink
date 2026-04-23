@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,19 +16,18 @@ public sealed class ImportServiceFactoryTests
     public async Task CreateBuildsRunScopedServicesAndPassesTargetOptionsThrough()
     {
         StubPlateauDatasetSourceResolverFactory datasetResolverFactory = new();
-        StubSceneImportTargetFactory sceneImportTargetFactory = new();
-        StubCityGmlDocumentReader documentReader = new();
+        StubSceneSinkFactory sceneImportTargetFactory = new();
         StubConstructionSourceFactory constructionSourceFactory = new();
         IArchiveFileLayoutPolicy archiveFileLayoutPolicy = new ArchiveFileLayoutPolicy();
         DefaultImportServiceFactory factory = new(
             datasetResolverFactory,
             sceneImportTargetFactory,
-            documentReader,
             constructionSourceFactory,
+            new CommonMaterialCatalog(),
             archiveFileLayoutPolicy);
 
-        BuildCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
-        BuildCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);
+        ImportCommandOptions firstOptions = CreateOptions("53394525", enableMeshBake: true);
+        ImportCommandOptions secondOptions = CreateOptions("53394526", enableMeshBake: false);
 
         PlateauImportService firstService = factory.Create(firstOptions, progressReporter: null);
         PlateauImportService secondService = factory.Create(secondOptions, progressReporter: null);
@@ -45,11 +43,10 @@ public sealed class ImportServiceFactoryTests
         Assert.Equal("PLATEAU tokyo23ku 53394525", firstResult.Metadata.SceneName);
         Assert.Equal("PLATEAU tokyo23ku 53394526", secondResult.Metadata.SceneName);
         Assert.True(sceneImportTargetFactory.CreatedTargets.All(static target => target.DisposeCallCount == 1));
-        Assert.Equal(2, documentReader.ReadCallCount);
-        Assert.Equal(2, constructionSourceFactory.CreateWithDocumentSetCallCount);
+        Assert.Equal(2, constructionSourceFactory.CreateCallCount);
     }
 
-    private static BuildCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
+    private static ImportCommandOptions CreateOptions(string meshCode, bool enableMeshBake)
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
@@ -58,7 +55,7 @@ public sealed class ImportServiceFactoryTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDataset"),
             ServerUri: null);
 
-        return new BuildCommandOptions(
+        return new ImportCommandOptions(
             request,
             "local",
             new Uri("ws://localhost:12345/"),
@@ -94,21 +91,21 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubSceneImportTargetFactory : ISceneImportTargetFactory
+    private sealed class StubSceneSinkFactory : ISceneSinkFactory
     {
-        public List<BuildCommandOptions> CapturedOptions { get; } = [];
-        public List<StubSceneImportTarget> CreatedTargets { get; } = [];
+        public List<ImportCommandOptions> CapturedOptions { get; } = [];
+        public List<StubSceneImportSink> CreatedTargets { get; } = [];
 
-        public ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter)
+        public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
         {
             CapturedOptions.Add(options);
-            StubSceneImportTarget target = new();
+            StubSceneImportSink target = new();
             CreatedTargets.Add(target);
             return target;
         }
     }
 
-    private sealed class StubSceneImportTarget : ISceneImportTarget
+    private sealed class StubSceneImportSink : ISceneSink
     {
         public int DisposeCallCount { get; private set; }
 
@@ -133,47 +130,22 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubCityGmlDocumentReader : ICityGmlDocumentReader
-    {
-        public int ReadCallCount { get; private set; }
-
-        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
-            PlateauImportRequest request,
-            Action<string>? progressReporter = null,
-            CancellationToken cancellationToken = default)
-        {
-            ReadCallCount++;
-            return Task.FromResult(new LocalCityGmlDocumentReadResult(
-                new LocalCityGmlDocumentSet(
-                    new StubDatasetContentSource(request.LocalSourcePath!),
-                    [],
-                    ["bldg"],
-                    [],
-                    ["53394525"]),
-                new LocalCityGmlBootstrapContext(
-                    [],
-                    new GeodeticPoint(35.0, 139.0, 0.0))));
-        }
-    }
-
     private sealed class StubConstructionSourceFactory : IImportedSceneSourceFactory
     {
-        public int CreateWithDocumentSetCallCount { get; private set; }
+        public int CreateCallCount { get; private set; }
 
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
-            CreateWithDocumentSetCallCount++;
-            _ = readResult;
+            CreateCallCount++;
 
             ImportedSceneMetadata metadata = new(
                 "3.0",
                 $"PLATEAU {request.Dataset} {request.MeshCode}",
                 request,
-                new PlateauSourceDataset(["bldg"], [], [], []),
+                new PlateauSourceDataset(["bldg"], [], []),
                 new Attribution(
                     new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                     []),
@@ -187,12 +159,6 @@ public sealed class ImportServiceFactoryTests
     {
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
-        [Obsolete]
-        public IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(CancellationToken cancellationToken = default)
-        {
-            return AsyncEnumerable.Empty<MaterialBinding>();
-        }
-
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -202,7 +168,7 @@ public sealed class ImportServiceFactoryTests
                 "bldg",
                 "53394525",
                 1,
-                new Transform3d(new Float3(0, 0, 0)),
+                new Transform3D(new Float3(0, 0, 0)),
                 new TriangleMeshGeometry(new ImportedMesh(
                     [
                         new MeshVertex(new Float3(0, 0, 0), new Float3(0, 1, 0), new Float2(0, 0)),
@@ -228,32 +194,4 @@ public sealed class ImportServiceFactoryTests
         }
     }
 
-    private sealed class StubDatasetContentSource(string sourcePath) : IPlateauDatasetContentSource
-    {
-        public string SourcePath { get; } = sourcePath;
-
-        public IReadOnlyList<string> EnumerateFiles()
-        {
-            return [];
-        }
-
-        public bool FileExists(string relativePath)
-        {
-            return false;
-        }
-
-        public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<string> EnsureLocalFileAsync(
-            string relativePath,
-            string outputRoot,
-            CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-    }
 }
-

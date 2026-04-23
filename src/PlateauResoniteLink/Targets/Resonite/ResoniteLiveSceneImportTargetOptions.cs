@@ -1,14 +1,12 @@
 using System;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Targets.Resonite;
 
-public sealed record ResoniteLiveSceneImportTargetOptions(
+internal sealed record ResoniteLiveSceneImportTargetOptions(
     Uri Endpoint,
     int ConnectionCount,
     bool EnableSendMetrics,
-    PlateauImportMemoryProfile MemoryProfile,
+    ResoniteImportMemoryProfile MemoryProfile,
     bool EnableMeshBake,
     string? TerrainTileCacheRoot,
     bool DisableTerrainTileCache,

@@ -10,7 +10,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResoniteMaterialComponentPolicy
 {
-    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = BundledDefaultMaterialTiling.DefaultTilesPerMeter;
+    private static readonly ResoniteFloat2 DefaultTriplanarTextureScale = new(
+        BundledDefaultMaterialTiling.DefaultTilesPerMeterValue.X,
+        BundledDefaultMaterialTiling.DefaultTilesPerMeterValue.Y);
     private const float DefaultWireframeThickness = 0.01f;
     private const double DefaultWireframeFillOpacity = 0.08;
 
@@ -146,9 +148,11 @@ internal static class ResoniteMaterialComponentPolicy
     }
 
     public static bool TryGetBundledCompanionTextureSet(
+        BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
         ResoniteMaterialBinding material,
         out BundledDefaultMaterialTextureSet? textureSet)
     {
+        ArgumentNullException.ThrowIfNull(bundledDefaultMaterialAssetStore);
         ArgumentNullException.ThrowIfNull(material);
 
         textureSet = null;
@@ -171,19 +175,23 @@ internal static class ResoniteMaterialComponentPolicy
         string baseStem = stem[..^"_Color".Length];
 
         textureSet = new BundledDefaultMaterialTextureSet(
-            TryResolveBundledTexture(directory, $"{baseStem}_Emission", ".jpg", ".png"),
-            TryResolveBundledTexture(directory, $"{baseStem}_Height", ".jpg", ".png"),
-            TryResolveBundledTexture(directory, $"{baseStem}_Metallic", ".png", ".jpg"),
-            TryResolveBundledTexture(directory, $"{baseStem}_NormalGL", ".jpg", ".png"));
+            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Emission", ".jpg", ".png"),
+            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Height", ".jpg", ".png"),
+            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_Metallic", ".png", ".jpg"),
+            TryResolveBundledTexture(bundledDefaultMaterialAssetStore, directory, $"{baseStem}_NormalGL", ".jpg", ".png"));
         return true;
     }
 
-    private static string? TryResolveBundledTexture(string directory, string baseFileName, params string[] extensions)
+    private static string? TryResolveBundledTexture(
+        BundledDefaultMaterialAssetStore bundledDefaultMaterialAssetStore,
+        string directory,
+        string baseFileName,
+        params string[] extensions)
     {
         foreach (string extension in extensions)
         {
             string logicalPath = $"{directory}/{baseFileName}{extension}";
-            if (BundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath))
+            if (bundledDefaultMaterialAssetStore.TryGetAbsolutePath(logicalPath, out string absolutePath))
             {
                 return absolutePath;
             }

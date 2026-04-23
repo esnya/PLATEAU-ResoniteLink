@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
@@ -19,7 +19,7 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
     public async Task BeginAndBuildPreservesCityObjectHeightWithoutDatasetLift()
     {
         string fixturePath = TestData.GetFixturePath("LocalPlateauDataset");
-        ResoniteConstructionMetadata metadata = CreateMetadata(fixturePath, "53394525");
+        ImportedSceneMetadata metadata = CreateMetadata(fixturePath, "53394525");
         ResoniteConstructionCityObject cityObject = CreateMeshCityObject(
             displayName: "Height Test Building",
             actualMeshCode: "53394525",
@@ -36,7 +36,7 @@ public sealed class ResoniteLiveSceneImportTargetYOffsetTests
         Assert.Equal(15.5, GetSlotY(objectSlot));
     }
 
-    private static ResoniteConstructionMetadata CreateMetadata(
+    private static ImportedSceneMetadata CreateMetadata(
         string fixturePath,
         string meshCode,
         IReadOnlyList<string>? requestedMeshCodes = null)

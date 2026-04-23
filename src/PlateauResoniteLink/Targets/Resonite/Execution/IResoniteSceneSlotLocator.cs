@@ -24,12 +24,12 @@ internal sealed class ResoniteSceneSlotLocator : IResoniteSceneSlotLocator
     {
         ResoniteSceneSlotSnapshot snapshot = await ResoniteSceneSlotSnapshot.CreateAsync(
             client,
-            RootSlotId,
+            ResoniteSlotLocator.Root,
             1,
             cancellationToken);
         ResoniteSceneChildLookupResult lookup = snapshot.GetUniqueChildLookupResult(slotName, RootSlotId);
         return lookup.State == ResoniteSceneChildLookupState.FoundWithId
-            ? new CreatedSlot(lookup.SlotId!, slotName)
+            ? new CreatedSlot(new ResoniteSlotLocator(lookup.Slot!.ID!), slotName)
             : null;
     }
 }

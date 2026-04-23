@@ -94,7 +94,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
                     Semantic: BootstrapParsedSurfaceSemantic.Ground,
                     ExteriorRing: new BootstrapParsedRing("ring", vertices, null),
                     InteriorRings: [],
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,
                     UsesGeneratedDemTexture: false),
             ],

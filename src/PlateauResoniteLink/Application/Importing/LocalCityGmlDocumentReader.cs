@@ -6,7 +6,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
+internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
 {
     private readonly IPlateauDatasetContentSourceFactory datasetContentSourceFactory;
     private readonly ICityGmlAppearanceStoreFactory appearanceStoreFactory;
@@ -22,7 +22,7 @@ public sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         this.lodSelector = lodSelector;
     }
 
-    public async Task<LocalCityGmlDocumentReadResult> ReadAsync(
+    public async Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)

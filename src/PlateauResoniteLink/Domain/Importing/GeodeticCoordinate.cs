@@ -1,6 +1,6 @@
 namespace PlateauResoniteLink.Domain.Importing;
 
-public sealed record ResoniteLocalOrigin(
+public record GeodeticCoordinate(
     double Latitude,
     double Longitude,
     double Altitude);

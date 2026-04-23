@@ -9,12 +9,11 @@ internal static class ResoniteLinkTransportSessionFactory
         int connectionCount,
         ResoniteLinkSendDiagnostics diagnostics,
         Action<string>? progressReporter,
-        Func<IResoniteLinkClient>? baseClientFactory = null)
+        Func<IResoniteLinkClient> baseClientFactory)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         ArgumentNullException.ThrowIfNull(diagnostics);
-
-        baseClientFactory ??= static () => new ResoniteLinkClient();
+        ArgumentNullException.ThrowIfNull(baseClientFactory);
 
         IResoniteLinkClient CreateConfiguredClient()
         {

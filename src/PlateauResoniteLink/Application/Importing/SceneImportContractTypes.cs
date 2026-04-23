@@ -52,7 +52,7 @@ public sealed record ColorRgba(
     double B,
     double A);
 
-public sealed record Transform3d(
+public sealed record Transform3D(
     Float3 Position,
     Quaternion? Rotation = null);
 

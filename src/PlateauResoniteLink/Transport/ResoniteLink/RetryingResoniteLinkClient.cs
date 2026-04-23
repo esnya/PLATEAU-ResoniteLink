@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Logging;
-using PlateauResoniteLink.Targets.Resonite;
 
 using ResoniteLink;
 
@@ -104,7 +103,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             CreateBatchOperationDescriptor);
     }
 
-    public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+    public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.AddComponentAsync(state, ct),
@@ -114,7 +113,7 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             static state => CreateComponentOperationDescriptor(state.Data));
     }
 
-    public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+    public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.AddSlotAsync(state, ct),
@@ -124,24 +123,24 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
             static state => CreateSlotOperationDescriptor(state.Data));
     }
 
-    public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+    public Task<Component?> GetComponentAsync(ResoniteTransportComponentLocator component, CancellationToken cancellationToken)
     {
         return ExecuteWithReconnectAsync(
             static (client, state, ct) => client.GetComponentAsync(state, ct),
-            componentId,
+            component,
             "GetComponent",
             cancellationToken,
-            static state => $"component '{state}'");
+            static state => $"component '{state.Value}'");
     }
 
-    public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+    public Task<Slot?> GetSlotAsync(ResoniteTransportSlotLocator slot, int depth, CancellationToken cancellationToken)
     {
         return ExecuteWithReconnectAsync(
-            static (client, state, ct) => client.GetSlotAsync(state.SlotId, state.Depth, ct),
-            (SlotId: slotId, Depth: depth),
+            static (client, state, ct) => client.GetSlotAsync(state.Slot, state.Depth, ct),
+            (Slot: slot, Depth: depth),
             "GetSlot",
             cancellationToken,
-            static state => $"slot '{state.SlotId}'");
+            static state => $"slot '{state.Slot.Value}'");
     }
 
     public Task<Uri> ImportMeshAsync(ImportMeshRawData request, CancellationToken cancellationToken)
@@ -156,22 +155,23 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
 
     public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
     {
-        return ExecuteMeasuredWithoutReconnectAsync(
+        return ExecuteMeasuredWithReconnectAsync(
             static (client, state, ct) => client.ImportTextureAsync(state, ct),
             textureImport,
             "ImportTexture",
             cancellationToken,
-            static _ => null);
+            static _ => null,
+            retryAfterFatalProtocolFailure: true);
     }
 
-    public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+    public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
     {
         return ExecuteWithoutReconnectAsync(
             static (client, state, ct) => client.UpdateComponentAsync(state, ct),
             request,
             "UpdateComponent",
             cancellationToken,
-            static state => CreateComponentOperationDescriptor(state.Data));
+            static state => $"component '{state.Component.Value}'");
     }
 
     private async Task ExecuteWithReconnectAsync<TState>(
@@ -273,6 +273,32 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         return result;
     }
 
+    private async Task<TResult> ExecuteMeasuredWithReconnectAsync<TState, TResult>(
+        Func<IResoniteLinkClient, TState, CancellationToken, Task<TResult>> operation,
+        TState state,
+        string operationName,
+        CancellationToken cancellationToken,
+        Func<TState, string?>? occupancyDescriptorProvider = null,
+        bool retryAfterFatalProtocolFailure = false)
+    {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        TResult result = await ExecuteWithReconnectAsync(
+            operation,
+            state,
+            operationName,
+            cancellationToken,
+            occupancyDescriptorProvider,
+            retryAfterFatalProtocolFailure);
+        stopwatch.Stop();
+
+        reporter?.Invoke(
+            PlateauLog.Debug(
+                "live",
+                $"ResoniteLink {operationName} completed in {stopwatch.Elapsed.TotalSeconds:F3}s."));
+
+        return result;
+    }
+
     private static string? CreateSlotOperationDescriptor(Slot? slot)
     {
         if (!string.IsNullOrWhiteSpace(slot?.Name?.Value))
@@ -316,7 +342,8 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
         TState state,
         string operationName,
         CancellationToken cancellationToken,
-        Func<TState, string?>? occupancyDescriptorProvider = null)
+        Func<TState, string?>? occupancyDescriptorProvider = null,
+        bool retryAfterFatalProtocolFailure = false)
     {
         Exception? lastException = null;
         string? occupancyDescriptor = occupancyDescriptorProvider?.Invoke(state);
@@ -340,6 +367,17 @@ internal sealed class RetryingResoniteLinkClient : IResoniteLinkClient
                 if (ShouldRetireClientAfterFailure(exception))
                 {
                     await ReplaceClientAfterFatalFailureAsync(observedClient, operationName, cancellationToken);
+
+                    if (retryAfterFatalProtocolFailure && attempt < AttemptLimit)
+                    {
+                        reporter?.Invoke(
+                            PlateauLog.Warning(
+                                "live",
+                                $"ResoniteLink {operationName} failed on attempt {attempt}/{AttemptLimit}. "
+                                + $"Prepared a fresh client after a fatal protocol failure and will retry. Reason: {exception.Message}"));
+                        continue;
+                    }
+
                     reporter?.Invoke(
                         PlateauLog.Warning(
                             "live",

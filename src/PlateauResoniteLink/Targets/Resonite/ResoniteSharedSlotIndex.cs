@@ -5,7 +5,6 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
 
@@ -19,7 +18,7 @@ internal sealed class ResoniteSharedSlotIndex(
     ResoniteLocalOrigin requestLocalOrigin,
     IReadOnlyDictionary<string, string> cityGmlSlotNamesByRelativePath,
     SceneAnchor? initialSceneAnchor,
-    Func<IResoniteLinkClient, string, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
+    Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
 {
     private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<(string ParentSlotId, string SlotName), CreatedSlot> runScopedSourceFileRootCache = new();
@@ -38,10 +37,10 @@ internal sealed class ResoniteSharedSlotIndex(
         }
         else
         {
-            IndexCreatedSharedSlot("Root", bootstrapState.DatasetRootSlot);
+            IndexCreatedSharedSlot(ResoniteSlotLocator.Root, bootstrapState.DatasetRootSlot);
         }
 
-        IndexCreatedSharedSlot(bootstrapState.DatasetRootSlot.SlotId, bootstrapState.DatasetAssetsRootSlot);
+        IndexCreatedSharedSlot(bootstrapState.DatasetRootSlot.Locator, bootstrapState.DatasetAssetsRootSlot);
     }
 
     public Task<ObjectSlotHierarchy> CreateObjectHierarchyTask(
@@ -77,11 +76,11 @@ internal sealed class ResoniteSharedSlotIndex(
 
     public Task<CreatedSlot> GetOrCreateSharedChildSlotAsync(
         IResoniteLinkClient client,
-        string parentId,
+        ResoniteSlotLocator parent,
         string slotName,
         CancellationToken cancellationToken)
     {
-        return GetOrCreateSharedChildSlotByIdAsync(client, parentId, slotName, null, null, cancellationToken);
+        return GetOrCreateSharedChildSlotByIdAsync(client, parent, slotName, null, null, cancellationToken);
     }
 
     private async Task<ObjectSlotHierarchy> CreateObjectHierarchyWithLinkedCancellationAsync(
@@ -109,8 +108,6 @@ internal sealed class ResoniteSharedSlotIndex(
             ct => CreateCanonicalParentScopeAsync(client, cityGmlSlotName, rootMeshCode, cityObject.LodLevel, ct),
             cancellationToken);
         ResoniteFloat3 plannedRootPosition = ResolvePlannedRootPosition(rootMeshCode);
-        ResoniteFloat3 resolvedRootPosition = TryGetObservedSlotPosition(parentScope.CityGmlSlot.SlotId) ?? plannedRootPosition;
-
         return new ObjectSlotHierarchy(
             parentScope.AssetLodSlot,
             parentScope.LodSlot,
@@ -118,7 +115,7 @@ internal sealed class ResoniteSharedSlotIndex(
             ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
                 requestLocalOrigin,
                 rootMeshCode,
-                TryGetObservedSlotPosition(parentScope.CityGmlSlot.SlotId),
+                TryGetObservedSlotPosition(parentScope.CityGmlSlot.Locator),
                 cityObject.Transform.Position),
             cityObject.Transform.Rotation);
     }
@@ -134,26 +131,26 @@ internal sealed class ResoniteSharedSlotIndex(
         ResoniteFloat3 rootPosition = ResolvePlannedRootPosition(rootMeshCode);
         CreatedSlot cityGmlSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
-            datasetRootSlot.SlotId,
+            datasetRootSlot.Locator,
             cityGmlSlotName,
             rootPosition,
             cancellationToken);
         CreatedSlot assetCityGmlSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
-            datasetAssetsRootSlot.SlotId,
+            datasetAssetsRootSlot.Locator,
             cityGmlSlotName,
             null,
             cancellationToken);
         CreatedSlot lodSlot = await GetOrCreateSharedChildSlotByIdAsync(
             client,
-            cityGmlSlot.SlotId,
+            cityGmlSlot.Locator,
             lodSlotName,
             null,
             null,
             cancellationToken);
         CreatedSlot assetLodSlot = await GetOrCreateSharedChildSlotByIdAsync(
             client,
-            assetCityGmlSlot.SlotId,
+            assetCityGmlSlot.Locator,
             lodSlotName,
             null,
             null,
@@ -161,14 +158,14 @@ internal sealed class ResoniteSharedSlotIndex(
 
         if (SceneAnchor is { } anchor
             && (string.Equals(anchor.MeshCode, rootMeshCode, StringComparison.Ordinal)
-                || string.IsNullOrWhiteSpace(anchor.ReferenceSourceFileRootId)))
+                || anchor.ReferenceSourceFileRoot is null))
         {
             SceneAnchor = anchor with
             {
-                LocationSlotId = cityGmlSlot.SlotId,
+                LocationSlot = cityGmlSlot.Locator,
                 MeshCode = rootMeshCode,
                 Position = rootPosition,
-                ReferenceSourceFileRootId = cityGmlSlot.SlotId,
+                ReferenceSourceFileRoot = cityGmlSlot.Locator,
             };
         }
 
@@ -181,54 +178,54 @@ internal sealed class ResoniteSharedSlotIndex(
 
     private async Task<CreatedSlot> GetOrCreateSharedChildSlotByIdAsync(
         IResoniteLinkClient client,
-        string parentId,
+        ResoniteSlotLocator parent,
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
         return await sharedSlotCache.GetOrCreateAsync(
-            (parentId, slotName),
-            ct => GetOrCreateSharedChildSlotCoreAsync(client, parentId, slotName, position, rotation, ct),
+            (parent.Value, slotName),
+            ct => GetOrCreateSharedChildSlotCoreAsync(client, parent, slotName, position, rotation, ct),
             cancellationToken);
     }
 
     private async Task<CreatedSlot> GetOrCreateRunScopedSourceFileRootAsync(
         IResoniteLinkClient client,
-        string parentId,
+        ResoniteSlotLocator parent,
         string slotName,
         ResoniteFloat3? position,
         CancellationToken cancellationToken)
     {
         return await runScopedSourceFileRootCache.GetOrCreateAsync(
-            (parentId, slotName),
+            (parent.Value, slotName),
             async ct =>
             {
-                CreatedSlot createdSlot = await createSlotAsync(client, parentId, slotName, position, null, ct);
-                createdSlotIds[createdSlot.SlotId] = 0;
-                return IndexCreatedSharedSlot(parentId, createdSlot, position);
+                CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, null, ct);
+                createdSlotIds[createdSlot.Locator.Value] = 0;
+                return IndexCreatedSharedSlot(parent, createdSlot, position);
             },
             cancellationToken);
     }
 
     private async Task<CreatedSlot> GetOrCreateSharedChildSlotCoreAsync(
         IResoniteLinkClient client,
-        string parentId,
+        ResoniteSlotLocator parent,
         string slotName,
         ResoniteFloat3? position,
         ResoniteFloatQ? rotation,
         CancellationToken cancellationToken)
     {
-        CreatedSlot? indexedSlot = TryGetIndexedSharedChildSlot(parentId, slotName);
+        CreatedSlot? indexedSlot = TryGetIndexedSharedChildSlot(parent, slotName);
         if (indexedSlot is not null)
         {
-            createdSlotIds[indexedSlot.Value.SlotId] = 0;
+            createdSlotIds[indexedSlot.Value.Locator.Value] = 0;
             return indexedSlot.Value;
         }
 
-        CreatedSlot createdSlot = await createSlotAsync(client, parentId, slotName, position, rotation, cancellationToken);
-        createdSlotIds[createdSlot.SlotId] = 0;
-        return IndexCreatedSharedSlot(parentId, createdSlot, position);
+        CreatedSlot createdSlot = await createSlotAsync(client, parent, slotName, position, rotation, cancellationToken);
+        createdSlotIds[createdSlot.Locator.Value] = 0;
+        return IndexCreatedSharedSlot(parent, createdSlot, position);
     }
 
     private void IndexObservedSlotSnapshot(Slot slot)
@@ -248,37 +245,37 @@ internal sealed class ResoniteSharedSlotIndex(
         {
             if (!string.IsNullOrWhiteSpace(child.ID) && !string.IsNullOrWhiteSpace(child.Name?.Value))
             {
-                sharedSlotIndex[CreateSharedSlotIndexKey(slot.ID!, child.Name!.Value)] = new CreatedSlot(child.ID!, child.Name.Value);
+                sharedSlotIndex[CreateSharedSlotIndexKey(slot.ID!, child.Name!.Value)] = new CreatedSlot(new ResoniteSlotLocator(child.ID!), child.Name.Value);
             }
 
             IndexObservedSlotSnapshot(child);
         }
     }
 
-    private CreatedSlot? TryGetIndexedSharedChildSlot(string parentId, string slotName)
+    private CreatedSlot? TryGetIndexedSharedChildSlot(ResoniteSlotLocator parent, string slotName)
     {
-        return sharedSlotIndex.TryGetValue(CreateSharedSlotIndexKey(parentId, slotName), out CreatedSlot createdSlot)
+        return sharedSlotIndex.TryGetValue(CreateSharedSlotIndexKey(parent.Value, slotName), out CreatedSlot createdSlot)
             ? createdSlot
             : null;
     }
 
-    private CreatedSlot IndexCreatedSharedSlot(string parentId, CreatedSlot createdSlot, ResoniteFloat3? position = null)
+    private CreatedSlot IndexCreatedSharedSlot(ResoniteSlotLocator parent, CreatedSlot createdSlot, ResoniteFloat3? position = null)
     {
-        sharedSlotIndex[CreateSharedSlotIndexKey(parentId, createdSlot.SlotName)] = createdSlot;
-        observedSlotSnapshotsById[createdSlot.SlotId] = new Slot
+        sharedSlotIndex[CreateSharedSlotIndexKey(parent.Value, createdSlot.SlotName)] = createdSlot;
+        observedSlotSnapshotsById[createdSlot.Locator.Value] = new Slot
         {
-            ID = createdSlot.SlotId,
+            ID = createdSlot.Locator.Value,
             Name = new Field_string { Value = createdSlot.SlotName },
-            Parent = new Reference { TargetID = parentId },
+            Parent = new Reference { TargetID = parent.Value },
             Position = position is null ? null : CreateFloat3(position),
         };
         return createdSlot;
     }
 
-    private ResoniteFloat3? TryGetObservedSlotPosition(string slotId)
+    private ResoniteFloat3? TryGetObservedSlotPosition(ResoniteSlotLocator slot)
     {
-        if (!observedSlotSnapshotsById.TryGetValue(slotId, out Slot? slot)
-            || slot.Position is not Field_float3 position)
+        if (!observedSlotSnapshotsById.TryGetValue(slot.Value, out Slot? observedSlot)
+            || observedSlot.Position is not Field_float3 position)
         {
             return null;
         }
@@ -308,8 +305,8 @@ internal sealed class ResoniteSharedSlotIndex(
         out ResoniteFloat3 position)
     {
         position = new ResoniteFloat3(0.0, 0.0, 0.0);
-        if (string.IsNullOrWhiteSpace(anchor.ReferenceSourceFileRootId)
-            || !observedSlotSnapshotsById.TryGetValue(anchor.ReferenceSourceFileRootId, out Slot? referenceSlot)
+        if (anchor.ReferenceSourceFileRoot is not ResoniteSlotLocator referenceSourceFileRoot
+            || !observedSlotSnapshotsById.TryGetValue(referenceSourceFileRoot.Value, out Slot? referenceSlot)
             || !ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(referenceSlot.Name?.Value ?? string.Empty, out string referenceMeshCode))
         {
             return false;

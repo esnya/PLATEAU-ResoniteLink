@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
+
+using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
 
 using ResoniteLink;
 
@@ -82,7 +84,7 @@ public sealed class RetryingResoniteLinkClientTests
                 },
                 CancellationToken.None));
 
-        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
+        ResoniteTransportSlotCreationResult createdSlot = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -99,7 +101,7 @@ public sealed class RetryingResoniteLinkClientTests
             },
             CancellationToken.None);
 
-        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.Equal(new TransportSlotLocator("srv_slot_1"), createdSlot.Slot);
         Assert.True(firstClient.IsDisposed);
         Assert.Equal(1, firstClient.ImportMeshCallCount);
         Assert.Equal(2, createdClientCount);
@@ -107,6 +109,74 @@ public sealed class RetryingResoniteLinkClientTests
         Assert.Contains(
             progressMessages,
             static message => message.Contains("retired the active client", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportTextureAsyncReconnectsAndRetriesAfterFailure()
+    {
+        int createdClientCount = 0;
+        List<string> progressMessages = [];
+        using StubReconnectableClient firstClient = new(failImportTexture: true);
+        using StubReconnectableClient secondClient = new();
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            },
+            progressMessages.Add);
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        Uri importedTexture = await client.ImportTextureAsync(
+            new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 4]),
+            CancellationToken.None);
+
+        Assert.Equal(new Uri("resdb:///texture/ok", UriKind.Absolute), importedTexture);
+        Assert.Equal(1, firstClient.ImportTextureCallCount);
+        Assert.Equal(1, secondClient.ImportTextureCallCount);
+        Assert.Equal(2, createdClientCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("Reconnecting before retry", StringComparison.Ordinal));
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("Reconnected ResoniteLink client", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ImportTextureAsyncRetriesAfterFatalProtocolFailure()
+    {
+        int createdClientCount = 0;
+        List<string> progressMessages = [];
+        using StubReconnectableClient firstClient = new(importTextureExceptionMessage: "ResoniteLink import texture returned a null response.");
+        using StubReconnectableClient secondClient = new();
+
+        using RetryingResoniteLinkClient client = new(
+            () =>
+            {
+                createdClientCount++;
+                return createdClientCount == 1 ? firstClient : secondClient;
+            },
+            progressMessages.Add);
+
+        await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
+        Uri importedTexture = await client.ImportTextureAsync(
+            new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [1, 2, 3, 4]),
+            CancellationToken.None);
+
+        Assert.Equal(new Uri("resdb:///texture/ok", UriKind.Absolute), importedTexture);
+        Assert.Equal(1, firstClient.ImportTextureCallCount);
+        Assert.Equal(1, secondClient.ImportTextureCallCount);
+        Assert.Equal(2, createdClientCount);
+        Assert.Equal(1, secondClient.ConnectCallCount);
+        Assert.Contains(
+            progressMessages,
+            static message => message.Contains("Prepared a fresh client after a fatal protocol failure and will retry", StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            progressMessages,
+            static message => message.Contains("failed without retry", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -126,7 +196,7 @@ public sealed class RetryingResoniteLinkClientTests
             progressMessages.Add);
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        Slot? result = await client.GetSlotAsync("slot-id", 0, CancellationToken.None);
+        Slot? result = await client.GetSlotAsync(new TransportSlotLocator("slot-id"), 0, CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("slot-id", result!.ID);
@@ -197,7 +267,7 @@ public sealed class RetryingResoniteLinkClientTests
         using RetryingResoniteLinkClient client = new(() => innerClient);
 
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
-        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
+        ResoniteTransportSlotCreationResult createdSlot = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -215,7 +285,7 @@ public sealed class RetryingResoniteLinkClientTests
             },
             CancellationToken.None);
 
-        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.Equal(new TransportSlotLocator("srv_slot_1"), createdSlot.Slot);
     }
 
     [Fact]
@@ -243,7 +313,7 @@ public sealed class RetryingResoniteLinkClientTests
             CancellationToken.None);
         await firstClient.ImportMeshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Task<Slot?> getSlotTask = client.GetSlotAsync("slot-id", 0, CancellationToken.None);
+        Task<Slot?> getSlotTask = client.GetSlotAsync(new TransportSlotLocator("slot-id"), 0, CancellationToken.None);
 
         Slot? slot = await getSlotTask.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.NotNull(slot);
@@ -273,9 +343,9 @@ public sealed class RetryingResoniteLinkClientTests
         await client.ConnectAsync(new Uri("ws://localhost:12345/"), CancellationToken.None);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => client.GetSlotAsync("slot-id", 0, CancellationToken.None));
+            () => client.GetSlotAsync(new TransportSlotLocator("slot-id"), 0, CancellationToken.None));
 
-        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
+        ResoniteTransportSlotCreationResult createdSlot = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -293,7 +363,7 @@ public sealed class RetryingResoniteLinkClientTests
             },
             CancellationToken.None);
 
-        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.Equal(new TransportSlotLocator("srv_slot_1"), createdSlot.Slot);
         Assert.False(firstClient.IsDisposed);
         Assert.Equal(1, firstClient.ConnectCallCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
@@ -324,7 +394,7 @@ public sealed class RetryingResoniteLinkClientTests
                 },
                 CancellationToken.None));
 
-        string createdSlotId = await ((IResoniteLinkClient)client).AddSlotAsync(
+        ResoniteTransportSlotCreationResult createdSlot = await ((IResoniteLinkClient)client).AddSlotAsync(
             new AddSlot
             {
                 Data = new Slot
@@ -341,7 +411,7 @@ public sealed class RetryingResoniteLinkClientTests
             },
             CancellationToken.None);
 
-        Assert.Equal("srv_slot_1", createdSlotId);
+        Assert.Equal(new TransportSlotLocator("srv_slot_1"), createdSlot.Slot);
         Assert.Equal(2, createdClientCount);
         Assert.Equal(1, secondClient.ConnectCallCount);
         Assert.Equal(1, firstClient.ConnectCallCount);
@@ -394,7 +464,7 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.CompletedTask;
         }
 
-        public async Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public async Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             AddComponentStarted.TrySetResult();
@@ -403,10 +473,11 @@ public sealed class RetryingResoniteLinkClientTests
                 await AllowAddComponentCompletion.Task.WaitAsync(cancellationToken);
             }
 
-            return $"srv_component_{Interlocked.Increment(ref nextComponentId)}";
+            return new ResoniteTransportComponentCreationResult(
+                new TransportComponentLocator($"srv_component_{Interlocked.Increment(ref nextComponentId)}"));
         }
 
-        public async Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public async Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             AddSlotStarted.TrySetResult();
@@ -415,7 +486,8 @@ public sealed class RetryingResoniteLinkClientTests
                 await AllowAddSlotCompletion.Task.WaitAsync(cancellationToken);
             }
 
-            return $"srv_slot_{Interlocked.Increment(ref nextSlotId)}";
+            return new ResoniteTransportSlotCreationResult(
+                new TransportSlotLocator($"srv_slot_{Interlocked.Increment(ref nextSlotId)}"));
         }
 
         public async Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -436,18 +508,18 @@ public sealed class RetryingResoniteLinkClientTests
             };
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Component?>(null);
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Slot?>(new Slot
             {
-                ID = slotId,
+                ID = slot.Value,
             });
         }
 
@@ -469,7 +541,7 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
@@ -481,7 +553,9 @@ public sealed class RetryingResoniteLinkClientTests
         bool failImportMesh = false,
         bool failGetSlot = false,
         bool failConnect = false,
-        string? importMeshExceptionMessage = null) : IResoniteLinkClient
+        bool failImportTexture = false,
+        string? importMeshExceptionMessage = null,
+        string? importTextureExceptionMessage = null) : IResoniteLinkClient
     {
         private int nextComponentId;
         private int nextSlotId;
@@ -489,6 +563,8 @@ public sealed class RetryingResoniteLinkClientTests
         public int ConnectCallCount { get; private set; }
 
         public int ImportMeshCallCount { get; private set; }
+
+        public int ImportTextureCallCount { get; private set; }
 
         public int GetSlotCallCount { get; private set; }
 
@@ -511,16 +587,20 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.CompletedTask;
         }
 
-        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult($"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+            return Task.FromResult(
+                new ResoniteTransportComponentCreationResult(
+                    new TransportComponentLocator($"srv_component_{Interlocked.Increment(ref nextComponentId)}")));
         }
 
-        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            return Task.FromResult(
+                new ResoniteTransportSlotCreationResult(
+                    new TransportSlotLocator($"srv_slot_{Interlocked.Increment(ref nextSlotId)}")));
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -535,13 +615,13 @@ public sealed class RetryingResoniteLinkClientTests
             });
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Component?>(null);
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             GetSlotCallCount++;
@@ -552,7 +632,7 @@ public sealed class RetryingResoniteLinkClientTests
 
             return Task.FromResult<Slot?>(new Slot
             {
-                ID = slotId,
+                ID = slot.Value,
             });
         }
 
@@ -571,10 +651,16 @@ public sealed class RetryingResoniteLinkClientTests
         public Task<Uri> ImportTextureAsync(ResoniteTextureImport textureImport, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ImportTextureCallCount++;
+            if (failImportTexture || importTextureExceptionMessage is not null)
+            {
+                throw new InvalidOperationException(importTextureExceptionMessage ?? "Simulated texture import failure.");
+            }
+
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
@@ -645,18 +731,22 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.CompletedTask;
         }
 
-        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult($"srv_component_{Interlocked.Increment(ref nextComponentId)}");
+            return Task.FromResult(
+                new ResoniteTransportComponentCreationResult(
+                    new TransportComponentLocator($"srv_component_{Interlocked.Increment(ref nextComponentId)}")));
         }
 
-        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             AddSlotCallCount++;
             AddSlotStartedAfterImportCompleted = AllowImportMeshCompletion.Task.IsCompleted;
-            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            return Task.FromResult(
+                new ResoniteTransportSlotCreationResult(
+                    new TransportSlotLocator($"srv_slot_{Interlocked.Increment(ref nextSlotId)}")));
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -671,13 +761,13 @@ public sealed class RetryingResoniteLinkClientTests
             });
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Component?>(null);
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Slot?>(null);
@@ -698,7 +788,7 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
@@ -756,16 +846,18 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.CompletedTask;
         }
 
-        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult("srv_component_1");
+            return Task.FromResult(new ResoniteTransportComponentCreationResult(new TransportComponentLocator("srv_component_1")));
         }
 
-        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            return Task.FromResult(
+                new ResoniteTransportSlotCreationResult(
+                    new TransportSlotLocator($"srv_slot_{Interlocked.Increment(ref nextSlotId)}")));
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -780,13 +872,13 @@ public sealed class RetryingResoniteLinkClientTests
             });
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult<Component?>(null);
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (failGetSlot)
@@ -796,7 +888,7 @@ public sealed class RetryingResoniteLinkClientTests
 
             return Task.FromResult<Slot?>(new Slot
             {
-                ID = slotId,
+                ID = slot.Value,
             });
         }
 
@@ -816,10 +908,12 @@ public sealed class RetryingResoniteLinkClientTests
             return Task.FromResult(new Uri("resdb:///texture/ok", UriKind.Absolute));
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
     }
 }
+
+

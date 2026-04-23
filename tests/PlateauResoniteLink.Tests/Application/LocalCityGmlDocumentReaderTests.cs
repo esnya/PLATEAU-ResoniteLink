@@ -23,7 +23,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector());
 
-        LocalCityGmlDocumentReadResult readResult = await reader.ReadAsync(
+        LocalCityGmlBootstrapSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -53,7 +53,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector());
 
-        LocalCityGmlDocumentReadResult readResult = await reader.ReadAsync(
+        LocalCityGmlBootstrapSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -98,6 +98,11 @@ public sealed class LocalCityGmlDocumentReaderTests
             return files.Contains(relativePath, StringComparer.Ordinal);
         }
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
+        }
+
         public ValueTask<Stream> OpenReadAsync(
             string relativePath,
             CancellationToken cancellationToken = default)
@@ -115,3 +120,4 @@ public sealed class LocalCityGmlDocumentReaderTests
         }
     }
 }
+

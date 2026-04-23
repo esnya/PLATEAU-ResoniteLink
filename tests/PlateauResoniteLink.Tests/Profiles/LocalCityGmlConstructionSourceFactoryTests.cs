@@ -29,14 +29,14 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             LocalSourcePath: "/tmp/plateau",
             ServerUri: null);
 
-        IImportedSceneSource result = await factory.CreateAsync(request, reader.ReadResult, progressReporter);
+        IImportedSceneSource result = await factory.CreateAsync(request, progressReporter);
 
         Assert.Same(expectedSource, result);
-        Assert.Null(reader.LastRequest);
-        Assert.Null(reader.LastProgressReporter);
-        Assert.Same(request, composer.LastRequest);
-        Assert.Same(reader.ReadResult, composer.LastReadResult);
+        Assert.Equal(request, reader.LastRequest);
+        Assert.Same(progressReporter, reader.LastProgressReporter);
+        Assert.Equal(request, composer.LastRequest);
         Assert.Same(progressReporter, composer.LastProgressReporter);
+        Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Null(demTextureSourcePolicy.LastRequest);
     }
 
@@ -55,7 +55,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 ]),
         ];
         RecordingDocumentReader reader = new(
-            new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlBootstrapSnapshot(
                 new LocalCityGmlDocumentSet(
                     new EmptyDatasetContentSource(),
                     ["udx/dem/53394525/terrain.gml"],
@@ -76,7 +76,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem"],
             ServerUri: null);
 
-        _ = await factory.CreateAsync(request, reader.ReadResult);
+        _ = await factory.CreateAsync(request);
 
         Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(reader.ReadResult.DocumentSet.TerrainTextureOverlays);
@@ -89,7 +89,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     public async Task CreateAsyncValidatesExplicitDemSourceBeforeCompositionWithoutMutatingReadResult()
     {
         RecordingDocumentReader reader = new(
-            new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlBootstrapSnapshot(
                 new LocalCityGmlDocumentSet(
                     new EmptyDatasetContentSource(),
                     [
@@ -112,9 +112,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        _ = await factory.CreateAsync(request, reader.ReadResult);
+        _ = await factory.CreateAsync(request);
 
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525", "53394526"], demTextureSourcePolicy.LastOverlayRegionIdentities);
         Assert.Same(reader.ReadResult, composer.LastReadResult);
         Assert.Empty(composer.LastReadResult!.DocumentSet.TerrainTextureOverlays);
@@ -145,7 +145,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                         TimeSpan.Zero));
             });
         RecordingDocumentReader reader = new(
-            new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlBootstrapSnapshot(
                 new LocalCityGmlDocumentSet(
                     new EmptyDatasetContentSource(),
                     [
@@ -168,10 +168,10 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             PackageNames: ["dem", "bldg"],
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
-        _ = await factory.CreateAsync(request, reader.ReadResult);
+        _ = await factory.CreateAsync(request);
 
         Assert.Equal(1, parseCount);
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
@@ -179,7 +179,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     public async Task CreateAsyncFailsBeforeCompositionWhenExplicitDemTextureSourceIsInvalid()
     {
         RecordingDocumentReader reader = new(
-            new LocalCityGmlDocumentReadResult(
+            new LocalCityGmlBootstrapSnapshot(
                 new LocalCityGmlDocumentSet(
                     new EmptyDatasetContentSource(),
                     ["udx/dem/53394525/terrain.gml"],
@@ -202,19 +202,19 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             DemTextureSource: DatasetLocation.Local("C:\\ortho"));
 
         PlateauImportValidationException exception = await Assert.ThrowsAsync<PlateauImportValidationException>(
-            () => factory.CreateAsync(request, reader.ReadResult));
+            () => factory.CreateAsync(request));
 
         Assert.Equal(["invalid GeoTIFF source"], exception.Errors);
         Assert.Null(composer.LastReadResult);
-        Assert.Same(request, demTextureSourcePolicy.LastRequest);
+        Assert.Equal(request, demTextureSourcePolicy.LastRequest);
         Assert.Equal(["53394525"], demTextureSourcePolicy.LastOverlayRegionIdentities);
     }
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
-        public RecordingDocumentReader(LocalCityGmlDocumentReadResult? readResult = null)
+        public RecordingDocumentReader(LocalCityGmlBootstrapSnapshot? readResult = null)
         {
-            ReadResult = readResult ?? new LocalCityGmlDocumentReadResult(
+            ReadResult = readResult ?? new LocalCityGmlBootstrapSnapshot(
                 new LocalCityGmlDocumentSet(
                     new EmptyDatasetContentSource(),
                     [],
@@ -230,9 +230,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public Action<string>? LastProgressReporter { get; private set; }
 
-        public LocalCityGmlDocumentReadResult ReadResult { get; }
+        public LocalCityGmlBootstrapSnapshot ReadResult { get; }
 
-        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
+        public Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -249,13 +249,13 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
+        public LocalCityGmlBootstrapSnapshot? LastReadResult { get; private set; }
 
         public Action<string>? LastProgressReporter { get; private set; }
 
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
+            LocalCityGmlBootstrapSnapshot readResult,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;
@@ -276,7 +276,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: "/tmp/plateau",
                 ServerUri: null),
-            SourceDataset: new PlateauSourceDataset([], [], [], []),
+            SourceDataset: new PlateauSourceDataset([], [], []),
             Attribution: new Attribution(
                 new LicenseMetadata(
                     RequireCredit: true,
@@ -285,13 +285,6 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     LicenseUrl: "https://example.invalid"),
                 []),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
-
-        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
 
         public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -330,7 +323,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                         ],
                         UVs: null),
                     InteriorRings: [],
-                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    BaseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0),
                     TexturePayload: null,
                     UsesGeneratedDemTexture: true),
             ],
@@ -358,6 +351,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         public bool FileExists(string relativePath)
         {
             return false;
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
         }
 
         public ValueTask<Stream> OpenReadAsync(
@@ -407,3 +405,4 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 }
+

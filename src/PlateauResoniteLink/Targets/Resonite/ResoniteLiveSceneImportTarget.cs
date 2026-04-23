@@ -19,7 +19,7 @@ using ResoniteLink;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
+public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 {
     private const int MaxQueuedCityObjects = 4;
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
@@ -78,7 +78,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
 
     internal ILiveSendClientSession ClientSession => ClientSessionInternal;
 
-    internal PlateauImportMemoryProfile MemoryProfile { get; }
+    internal ResoniteImportMemoryProfile MemoryProfile { get; }
 
     public async Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
@@ -89,7 +89,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         ArgumentNullException.ThrowIfNull(cityObjects);
         if (Interlocked.Exchange(ref executionClaimed, 1) != 0)
         {
-            throw new InvalidOperationException("A live scene build run is already active on this live scene import target instance.");
+            throw new InvalidOperationException("A live scene import run is already active on this live scene import target instance.");
         }
         bool completedSuccessfully = false;
         LiveSendRunState? state = null;
@@ -98,11 +98,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         {
             SceneBuildRequest request = plan.SceneBuildRequest;
             state = await CreateRunStateAsync(
-                CreateBootstrapInfo(request),
+                CreateSceneBootstrapInfo(request),
                 request.WorkRoot,
                 request.CommonMaterials,
                 plan.NormalizedRequest,
-                SceneImportContractMapper.ToInternal(plan.SceneBuildRequest.Metadata).LocalOrigin,
+                CreateLocalOrigin(plan.SceneBuildRequest.Metadata.GeodeticOrigin),
                 cancellationToken);
 
             await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
@@ -135,7 +135,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     }
 
     private async Task<LiveSendRunState> CreateRunStateAsync(
-        SceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneBootstrapInfo bootstrapInfo,
         string workRoot,
         IReadOnlyList<MaterialBinding> commonMaterials,
         PlateauImportRequest normalizedRequest,
@@ -160,9 +160,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Connecting ResoniteLink connection pool to {endpoint} "
                 + $"with {connectionCount} available routed connection(s)."));
-        ResoniteMaterialBinding[] internalCommonMaterials = commonMaterials
-            .Select(SceneImportContractMapper.ToInternal)
-            .ToArray();
+        ResoniteMaterialBinding[] internalCommonMaterials = SceneImportContractMapper.ToInternal(commonMaterials);
         await ClientSessionInternal.EnsureConnectedAsync(
             new LiveSendConnectionRequest(
                 normalizedRequest.Dataset,
@@ -213,9 +211,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 + $"(dataset_root={bootstrapState.DatasetRootSlot.SlotName}, assets_root={bootstrapState.DatasetAssetsRootSlot.SlotName}, "
                 + $"common_root={bootstrapState.CommonAssetsRootSlot.SlotName}, "
                 + $"dataset_root_existed={bootstrapState.DatasetRootExisted}, "
-                + $"location_slot='{bootstrapState.SceneAnchor.LocationSlotId}', "
+                + $"location_slot='{bootstrapState.SceneAnchor.LocationSlot.Value}', "
                 + $"anchor_mesh='{bootstrapState.SceneAnchor.MeshCode}', "
-                + $"anchor_source_file_root='{bootstrapState.SceneAnchor.ReferenceSourceFileRootId ?? "<pending>"}')."));
+                + $"anchor_source_file_root='{bootstrapState.SceneAnchor.ReferenceSourceFileRoot?.Value ?? "<pending>"}')."));
         foreach ((string materialKey, CreatedMaterialAsset materialAsset) in bootstrapState.CommonMaterialAssetsByKey)
         {
             materials.CommonMaterialCreationTasks.Remember(materialKey, materialAsset);
@@ -300,7 +298,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
     }
 
     private LiveSendRunPlan CreateRunPlan(
-        SceneBootstrapInfo bootstrapInfo,
+        ResoniteSceneBootstrapInfo bootstrapInfo,
         string resolvedWorkRoot,
         ResoniteLocalOrigin requestLocalOrigin)
     {
@@ -408,7 +406,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         CancellationToken cancellationToken)
     {
         Stopwatch laneClientStopwatch = Stopwatch.StartNew();
-        SceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
+        ResoniteSceneBootstrapInfo bootstrapInfo = state.Context.Plan.BootstrapInfo;
         if (laneIndex == 0)
         {
             ReportProgress(
@@ -563,7 +561,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 "live",
                 $"Send summary: attempted={state.Progress.AttemptedCityObjectCount} sent={state.Progress.ProcessedCityObjectCount} failed={state.Progress.FailedCityObjectCount}."));
 
-        return [$"{endpoint}#{state.Placement.SceneAnchor?.LocationSlotId ?? context.DatasetRootSlot.SlotId}"];
+        return [$"{endpoint}#{state.Placement.SceneAnchor?.LocationSlot.Value ?? context.DatasetRootSlot.Locator.Value}"];
     }
 
     public async ValueTask DisposeAsync()
@@ -1409,7 +1407,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             {
                 ResoniteMeshVertex sourceVertex = triangleMesh.Mesh.Vertices[sourceIndex];
                 ResoniteFloat2 adjustedUv = generatedTextureBySubmeshIndex.TryGetValue(submesh.Index, out GeneratedTerrainTexture? generatedTexture)
-                    ? TextureUvRect.Remap(sourceVertex.UV0, TextureUvRect.Identity, generatedTexture.OccupiedUvRect)
+                    ? CreateResoniteFloat2(TextureUvRect.RemapValue(
+                        new ScalarPair(sourceVertex.UV0.X, sourceVertex.UV0.Y),
+                        TextureUvRect.Identity,
+                        generatedTexture.OccupiedUvRect))
                     : sourceVertex.UV0;
                 adjustedVertices.Add(sourceVertex with { UV0 = adjustedUv });
                 adjustedIndices.Add(adjustedVertices.Count - 1);
@@ -1438,6 +1439,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         };
     }
 
+    private static ResoniteFloat2 CreateResoniteFloat2(ScalarPair value) => new(value.X, value.Y);
+
     private static ResoniteFloat2? ResolveHeightMapGridUvScale(
         ResoniteConstructionCityObject cityObject,
         ResoniteHeightMapGridGeometry geometry,
@@ -1447,7 +1450,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             cityObject,
             geometry,
             preparedTerrainTextureDataByOverlay);
-        return terrainTextureRect?.Scale;
+        return terrainTextureRect is null
+            ? null
+            : new ResoniteFloat2(terrainTextureRect.Value.ScaleValue.X, terrainTextureRect.Value.ScaleValue.Y);
     }
 
     private static ResoniteFloat2? ResolveHeightMapGridUvOffset(
@@ -1459,7 +1464,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             cityObject,
             geometry,
             preparedTerrainTextureDataByOverlay);
-        return terrainTextureRect?.Offset;
+        return terrainTextureRect is null
+            ? null
+            : new ResoniteFloat2(terrainTextureRect.Value.OffsetValue.X, terrainTextureRect.Value.OffsetValue.Y);
     }
 
     private static TextureUvRect? ResolveHeightMapTerrainTextureRect(
@@ -1468,9 +1475,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
         TextureUvRect objectRect = geometry.UvScale is not null || geometry.UvOffset is not null
-            ? TextureUvRect.FromScaleOffset(
-                geometry.UvScale ?? new ResoniteFloat2(1.0, 1.0),
-                geometry.UvOffset ?? new ResoniteFloat2(0.0, 0.0))
+            ? TextureUvRect.FromScaleOffsetValue(
+                geometry.UvScale is null ? new ScalarPair(1.0, 1.0) : new ScalarPair(geometry.UvScale.X, geometry.UvScale.Y),
+                geometry.UvOffset is null ? new ScalarPair(0.0, 0.0) : new ScalarPair(geometry.UvOffset.X, geometry.UvOffset.Y))
             : TextureUvRect.Identity;
 
         TerrainTextureOverlay? overlay = cityObject.Materials
@@ -1612,7 +1619,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             }
             PlannedReusableMaterialAsset sharedMaterialAsset = new(
                 new MaterialIdentity(materialKey),
-                existingMaterialAsset.MaterialComponentId);
+                existingMaterialAsset.MaterialComponent);
             PlannedTextureAsset? mainTextureOverride = await ResoniteMaterialPlanning.PlanMainTextureOverrideAsync(
                 client,
                 sourceMaterial,
@@ -1727,22 +1734,22 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             useCommonMaterialAssets: true);
         IReadOnlyList<string> lookupNames = ResoniteSceneMaterialConventions.CreateCommonMaterialSlotLookupNames(
             normalizedSharedMaterial);
-        (CreatedSlot? reusableSlot, string? existingComponentId) = await TryFindReusableCommonMaterialSlotAsync(
+        (CreatedSlot? reusableSlot, ResoniteComponentLocator? existingComponent) = await TryFindReusableCommonMaterialSlotAsync(
             client,
             familySlot,
             lookupNames,
             materialComponentType,
             cancellationToken);
-        if (!string.IsNullOrWhiteSpace(existingComponentId))
+        if (existingComponent is not null)
         {
-            return new CreatedMaterialAsset(existingComponentId, null);
+            return new CreatedMaterialAsset(existingComponent.Value, null);
         }
 
         PlannedDedicatedMaterialAsset plannedMaterial = await materialPlanning.PlanCommonMaterialAssetAsync(
             client,
             normalizedSharedMaterial,
             cancellationToken);
-        Func<IResoniteLinkClient, string, string, CancellationToken, Task<CreatedSlot>> getOrCreateMaterialSlotAsync =
+        Func<IResoniteLinkClient, ResoniteSlotLocator, string, CancellationToken, Task<CreatedSlot>> getOrCreateMaterialSlotAsync =
             reusableSlot is null
                 ? state.Placement.GetOrCreateSharedChildSlotAsync
                 : (_, _, _, _) => Task.FromResult(reusableSlot.Value);
@@ -1750,7 +1757,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         return await ResoniteMaterialPlanning.EmitCommonMaterialAsync(
             client,
             plannedMaterial,
-            familySlot.SlotId,
+            familySlot.Locator,
             materialSlotName,
             getOrCreateMaterialSlotAsync,
             ResoniteMaterialPlanning.CreateComponentAsync,
@@ -1764,29 +1771,29 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         CancellationToken cancellationToken)
     {
         Slot? commonRootSnapshot = await client.GetSlotAsync(
-            state.Context.CommonAssetsRootSlot.SlotId,
+            new ResoniteTransportSlotLocator(state.Context.CommonAssetsRootSlot.Locator.Value),
             1,
             cancellationToken);
         if (commonRootSnapshot is not null)
         {
             ResoniteSceneChildLookupResult lookup = new ResoniteSceneSlotSnapshot(commonRootSnapshot)
-                .GetUniqueChildLookupResult(familySlotName, state.Context.CommonAssetsRootSlot.SlotId);
+                .GetUniqueChildLookupResult(familySlotName, state.Context.CommonAssetsRootSlot.Locator.Value);
             if (lookup.State == ResoniteSceneChildLookupState.FoundWithId && lookup.Slot is not null)
             {
                 return new CreatedSlot(
-                    lookup.Slot.ID ?? throw new InvalidOperationException("Common material family slot did not expose an ID."),
+                    new ResoniteSlotLocator(lookup.Slot.ID ?? throw new InvalidOperationException("Common material family slot did not expose an ID.")),
                     lookup.Slot.Name?.Value ?? familySlotName);
             }
         }
 
         return await state.Placement.GetOrCreateSharedChildSlotAsync(
             client,
-            state.Context.CommonAssetsRootSlot.SlotId,
+            state.Context.CommonAssetsRootSlot.Locator,
             familySlotName,
             cancellationToken);
     }
 
-    private static async Task<(CreatedSlot? ReusableSlot, string? ExistingComponentId)> TryFindReusableCommonMaterialSlotAsync(
+    private static async Task<(CreatedSlot? ReusableSlot, ResoniteComponentLocator? ExistingComponent)> TryFindReusableCommonMaterialSlotAsync(
         IResoniteLinkClient client,
         CreatedSlot familySlot,
         IReadOnlyList<string> lookupNames,
@@ -1798,7 +1805,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
             return (null, null);
         }
 
-        Slot? familySlotSnapshot = await client.GetSlotAsync(familySlot.SlotId, 1, cancellationToken);
+        Slot? familySlotSnapshot = await client.GetSlotAsync(new ResoniteTransportSlotLocator(familySlot.Locator.Value), 1, cancellationToken);
         if (familySlotSnapshot is null)
         {
             return (null, null);
@@ -1808,7 +1815,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         CreatedSlot? reusableSlotWithoutComponent = null;
         foreach (string materialSlotName in lookupNames.Where(static name => !string.IsNullOrWhiteSpace(name)))
         {
-            ResoniteSceneChildLookupResult materialLookup = familySlotView.GetUniqueChildLookupResult(materialSlotName, familySlot.SlotId);
+            ResoniteSceneChildLookupResult materialLookup = familySlotView.GetUniqueChildLookupResult(materialSlotName, familySlot.Locator.Value);
             if (materialLookup.State != ResoniteSceneChildLookupState.FoundWithId || materialLookup.Slot is null)
             {
                 continue;
@@ -1820,11 +1827,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
                 .Select(static component => component.ID)
                 .FirstOrDefault(static id => !string.IsNullOrWhiteSpace(id));
             CreatedSlot reusableSlot = new(
-                materialLookup.SlotId!,
+                new ResoniteSlotLocator(materialLookup.Slot.ID!),
                 materialLookup.Slot.Name?.Value ?? materialSlotName);
             if (!string.IsNullOrWhiteSpace(existingComponentId))
             {
-                return (reusableSlot, existingComponentId);
+                return (reusableSlot, new ResoniteComponentLocator(existingComponentId));
             }
 
             reusableSlotWithoutComponent ??= reusableSlot;
@@ -2009,31 +2016,26 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneImportTarget
         return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
     }
 
-    private static BatchPlanEntityId CreateBatchPlanEntityId(string suffix)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
-        return new BatchPlanEntityId($"plan:{suffix}");
-    }
-
-    private static SceneBootstrapInfo CreateBootstrapInfo(SceneBuildRequest request)
+    private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneBuildRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return new SceneBootstrapInfo(
+        return new ResoniteSceneBootstrapInfo(
             request.Metadata.Request.Dataset,
             request.Metadata.Request.MeshCode,
-            request.ResolvedSourcePath
-                ?? request.Metadata.Request.LocalSourcePath
-                ?? string.Empty,
-            request.Metadata.SourceDataset.PackageNames,
             request.Metadata.SourceDataset.SourceFiles,
             request.Metadata.SourceDataset.SelectedMeshCodes ?? [],
-            new LicenseAttributionMetadata(
+            new ResoniteLicenseAttributionMetadata(
                 request.Metadata.Attribution.DatasetLicense.RequireCredit,
                 request.Metadata.Attribution.DatasetLicense.CreditText,
                 request.Metadata.Attribution.DatasetLicense.LicenseName,
-                request.Metadata.Attribution.DatasetLicense.LicenseUrl),
-            []);
+                request.Metadata.Attribution.DatasetLicense.LicenseUrl));
+    }
+
+    private static ResoniteLocalOrigin CreateLocalOrigin(GeodeticOrigin origin)
+    {
+        ArgumentNullException.ThrowIfNull(origin);
+        return new ResoniteLocalOrigin(origin.Latitude, origin.Longitude, origin.Altitude);
     }
 
     internal sealed record QueuedCityObject(

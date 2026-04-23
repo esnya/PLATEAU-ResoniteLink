@@ -107,7 +107,7 @@ internal static class ResonitePlacementPolicy
             return meshCode;
         }
 
-        if (PlateauMeshCode.TryGetCenter(actualMeshCode, out _))
+        if (PlateauMeshCode.TryGetGeodeticCenter(actualMeshCode, out _))
         {
             return actualMeshCode;
         }
@@ -129,12 +129,14 @@ internal static class ResonitePlacementPolicy
         ResoniteFloat3? observedRootPosition,
         ResoniteFloat3 cityObjectPosition)
     {
-        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
         {
             return cityObjectPosition;
         }
 
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
         ResoniteFloat3 rootPosition = new(
             rootOffsetFromRequest.X,
             observedRootPosition?.Y ?? rootOffsetFromRequest.Y,
@@ -147,12 +149,14 @@ internal static class ResonitePlacementPolicy
         string rootMeshCode,
         double? observedRootHeight = null)
     {
-        if (!PlateauMeshCode.TryGetCenter(rootMeshCode, out ResoniteLocalOrigin rootMeshCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
         {
             return new ResoniteFloat3(0.0, observedRootHeight ?? 0.0, 0.0);
         }
 
-        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(requestOrigin, rootMeshCenter);
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
         return new ResoniteFloat3(
             rootOffsetFromRequest.X,
             observedRootHeight ?? rootOffsetFromRequest.Y,
@@ -171,8 +175,8 @@ internal static class ResonitePlacementPolicy
 
     public static ResoniteFloat3 ComputeMeshCodeOffset(string referenceMeshCode, string meshCode)
     {
-        if (!PlateauMeshCode.TryGetCenter(referenceMeshCode, out ResoniteLocalOrigin referenceCenter)
-            || !PlateauMeshCode.TryGetCenter(meshCode, out ResoniteLocalOrigin currentCenter))
+        if (!PlateauMeshCode.TryGetGeodeticCenter(referenceMeshCode, out GeodeticCoordinate referenceCenter)
+            || !PlateauMeshCode.TryGetGeodeticCenter(meshCode, out GeodeticCoordinate currentCenter))
         {
             return new ResoniteFloat3(0.0, 0.0, 0.0);
         }
@@ -181,6 +185,13 @@ internal static class ResonitePlacementPolicy
     }
 
     public static ResoniteFloat3 ComputeOriginOffset(ResoniteLocalOrigin referenceCenter, ResoniteLocalOrigin currentCenter)
+    {
+        return ComputeOriginOffset(
+            new GeodeticCoordinate(referenceCenter.Latitude, referenceCenter.Longitude, referenceCenter.Altitude),
+            new GeodeticCoordinate(currentCenter.Latitude, currentCenter.Longitude, currentCenter.Altitude));
+    }
+
+    public static ResoniteFloat3 ComputeOriginOffset(GeodeticCoordinate referenceCenter, GeodeticCoordinate currentCenter)
     {
         LocalCartesian cartesian = new(
             referenceCenter.Latitude,

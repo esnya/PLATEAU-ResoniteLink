@@ -5,14 +5,15 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-public static class PlateauImportServiceCollectionExtensions
+internal static class PlateauImportServiceCollectionExtensions
 {
-    public static IServiceCollection AddPlateauCityGmlImportServices(this IServiceCollection services)
+    internal static IServiceCollection AddLocalCityGmlImportServices(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IArchiveFileLayoutPolicy, ArchiveFileLayoutPolicy>();
         services.TryAddSingleton<IRemoteArchiveDistributionPolicy, RemoteArchiveDistributionPolicy>();
+        services.TryAddSingleton<CommonMaterialCatalog>();
         services.TryAddSingleton<IPlateauDatasetContentSourceFactory, DefaultPlateauDatasetContentSourceFactory>();
         services.TryAddSingleton<IDemTerrainGeoReferencedRasterCatalogFactory, DefaultDemTerrainGeoReferencedRasterCatalogFactory>();
         services.TryAddSingleton<IDemTextureSourcePolicy, LocalCityGmlDemTextureSourcePolicy>();
@@ -20,11 +21,9 @@ public static class PlateauImportServiceCollectionExtensions
         services.TryAddSingleton<ICityGmlLodSelector, CityGmlLodSelector>();
         services.TryAddSingleton<IDefaultMaterialResolver, DefaultMaterialResolver>();
         services.TryAddSingleton<ICityGmlGeometryProjector, LocalCityGmlGeometryProjector>();
-        services.TryAddSingleton<ICityGmlCommonMaterialEnumerator, LocalCityGmlCommonMaterialEnumerator>();
         services.TryAddSingleton<IImportedSceneSourceComposer>(provider =>
             new LocalCityGmlConstructionComposer(
                 provider.GetRequiredService<ICityGmlGeometryProjector>(),
-                provider.GetRequiredService<ICityGmlCommonMaterialEnumerator>(),
                 provider.GetRequiredService<IDemTextureSourcePolicy>()));
         services.TryAddSingleton<ICityGmlDocumentReader>(provider =>
             new LocalCityGmlDocumentReader(

@@ -10,8 +10,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 using PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
-
 namespace PlateauResoniteLink.Cli;
 
 internal static class CliHostFactory
@@ -42,13 +42,13 @@ internal static class CliServiceCollectionExtensions
         services.AddHttpClient(CliHostFactory.PlateauDatasetResolverHttpClientName);
         services.AddHttpClient(CliHostFactory.TerrainTextureAssetsHttpClientName);
 
-        services.AddPlateauCityGmlImportServices();
+        services.AddLocalCityGmlImportServices();
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
         services.AddSingleton<IImportServiceFactory, DefaultImportServiceFactory>();
         services.AddSingleton<IPlateauDatasetSourceResolverFactory, DefaultPlateauDatasetSourceResolverFactory>();
-        services.AddSingleton<ISceneImportTargetFactory, DefaultSceneImportTargetFactory>();
+        services.AddSingleton<ISceneSinkFactory, DefaultSceneSinkFactory>();
         services.AddSingleton<CliApplication>(_ => new CliApplication(
             standardOutput,
             standardError,
@@ -61,7 +61,7 @@ internal static class CliServiceCollectionExtensions
 
 internal interface IImportServiceFactory
 {
-    PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter);
+    PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
 internal interface IPlateauDatasetSourceResolverFactory
@@ -69,31 +69,31 @@ internal interface IPlateauDatasetSourceResolverFactory
     IPlateauDatasetSourceResolver Create();
 }
 
-internal interface ISceneImportTargetFactory
+internal interface ISceneSinkFactory
 {
-    ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter);
+    ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter);
 }
 
 internal sealed class DefaultImportServiceFactory(
     IPlateauDatasetSourceResolverFactory datasetSourceResolverFactory,
-    ISceneImportTargetFactory sceneImportTargetFactory,
-    ICityGmlDocumentReader documentReader,
+    ISceneSinkFactory sceneSinkFactory,
     IImportedSceneSourceFactory constructionSourceFactory,
+    CommonMaterialCatalog commonMaterialCatalog,
     IArchiveFileLayoutPolicy archiveFileLayoutPolicy) : IImportServiceFactory
 {
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
         "Reliability",
         "CA2000:Dispose objects before losing scope",
         Justification = "PlateauImportService owns the target lifetime and disposes it after each execution.")]
-    public PlateauImportService Create(BuildCommandOptions options, Action<string>? progressReporter)
+    public PlateauImportService Create(ImportCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         return new PlateauImportService(
-            sceneImportTargetFactory.Create(options, progressReporter),
+            sceneSinkFactory.Create(options, progressReporter),
             datasetSourceResolverFactory.Create(),
-            documentReader,
             constructionSourceFactory,
+            commonMaterialCatalog,
             archiveFileLayoutPolicy,
             progressReporter);
     }
@@ -114,12 +114,12 @@ internal sealed class DefaultPlateauDatasetSourceResolverFactory(
     }
 }
 
-internal sealed class DefaultSceneImportTargetFactory(
+internal sealed class DefaultSceneSinkFactory(
     IHttpClientFactory httpClientFactory,
     IServiceScopeFactory serviceScopeFactory)
-    : ISceneImportTargetFactory
+    : ISceneSinkFactory
 {
-    public ISceneImportTarget Create(BuildCommandOptions options, Action<string>? progressReporter)
+    public ISceneSink Create(ImportCommandOptions options, Action<string>? progressReporter)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -130,7 +130,12 @@ internal sealed class DefaultSceneImportTargetFactory(
                 options.ResoniteLinkUri!,
                 options.ResoniteLinkConnectionCount,
                 options.EnableSendMetrics,
-                options.MemoryProfile,
+                options.MemoryProfile switch
+                {
+                    PlateauImportMemoryProfile.Small => ResoniteImportMemoryProfile.Small,
+                    PlateauImportMemoryProfile.Large => ResoniteImportMemoryProfile.Large,
+                    _ => throw new ArgumentOutOfRangeException(nameof(options), options.MemoryProfile, "Unsupported memory profile."),
+                },
                 options.EnableMeshBake,
                 options.TerrainTileCacheRoot,
                 options.DisableTerrainTileCache,
@@ -140,7 +145,7 @@ internal sealed class DefaultSceneImportTargetFactory(
             ResoniteLiveSceneImportTarget target = targetFactory.CreateTarget(
                 targetOptions,
                 httpClientFactory.CreateClient(CliHostFactory.TerrainTextureAssetsHttpClientName));
-            return new ScopedSceneImportTarget(scope, target);
+            return new ScopedSceneSink(scope, target);
         }
         catch
         {
@@ -150,9 +155,9 @@ internal sealed class DefaultSceneImportTargetFactory(
     }
 }
 
-internal sealed class ScopedSceneImportTarget(
+internal sealed class ScopedSceneSink(
     AsyncServiceScope scope,
-    ISceneImportTarget inner) : ISceneImportTarget
+    ISceneSink inner) : ISceneSink
 {
     public Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,

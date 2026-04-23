@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Transport.ResoniteLink;
+
+using TransportComponentLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportComponentLocator;
+using TransportSlotLocator = PlateauResoniteLink.Transport.ResoniteLink.ResoniteTransportSlotLocator;
 
 using ResoniteLink;
 
@@ -250,16 +252,18 @@ public sealed class LiveSendClientSessionTests
             Disposed = true;
         }
 
-        public Task<string> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportComponentCreationResult> AddComponentAsync(AddComponent request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<string> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
+        public Task<ResoniteTransportSlotCreationResult> AddSlotAsync(AddSlot request, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             AddSlotCallCount++;
-            return Task.FromResult($"srv_slot_{Interlocked.Increment(ref nextSlotId)}");
+            return Task.FromResult(
+                new ResoniteTransportSlotCreationResult(
+                    new TransportSlotLocator($"srv_slot_{Interlocked.Increment(ref nextSlotId)}")));
         }
 
         public Task<BatchResponse> RunDataModelOperationBatchAsync(
@@ -275,12 +279,12 @@ public sealed class LiveSendClientSessionTests
             });
         }
 
-        public Task<Component?> GetComponentAsync(string componentId, CancellationToken cancellationToken)
+        public Task<Component?> GetComponentAsync(TransportComponentLocator component, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<Slot?> GetSlotAsync(string slotId, int depth, CancellationToken cancellationToken)
+        public Task<Slot?> GetSlotAsync(TransportSlotLocator slot, int depth, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
@@ -295,9 +299,13 @@ public sealed class LiveSendClientSessionTests
             throw new NotSupportedException();
         }
 
-        public Task UpdateComponentAsync(UpdateComponent request, CancellationToken cancellationToken)
+        public Task UpdateComponentAsync(ResoniteComponentUpdate request, CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
     }
 }
+
+
+
+

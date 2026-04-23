@@ -17,11 +17,11 @@ internal static class CliTestData
         "veg",
     ];
 
-    public static string[] BuildLocalBuildArgs(string fixturePath)
+    public static string[] BuildLocalImportArgs(string fixturePath)
     {
         return
         [
-            "build",
+            "import",
             "--dataset",
             "tokyo23ku",
             "--mesh-code",

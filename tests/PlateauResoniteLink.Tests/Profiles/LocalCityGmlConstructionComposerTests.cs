@@ -36,13 +36,12 @@ public sealed class LocalCityGmlConstructionComposerTests
             ["bldg", "dem"],
             [overlay],
             ["53394525"]);
-        LocalCityGmlDocumentReadResult readResult = new(
+        LocalCityGmlBootstrapSnapshot readResult = new(
             documentSet,
             new LocalCityGmlBootstrapContext([], new GeodeticPoint(35.0, 139.0, 12.5)));
 
         LocalCityGmlConstructionComposer composer = new(
             new ThrowingGeometryProjector(),
-            new LocalCityGmlCommonMaterialEnumerator(new DefaultMaterialResolver()),
             new StubDemTextureSourcePolicy());
 
         IImportedSceneSource source = composer.Compose(request, readResult);
@@ -104,6 +103,11 @@ public sealed class LocalCityGmlConstructionComposerTests
             return false;
         }
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
+        }
+
         public ValueTask<Stream> OpenReadAsync(
             string relativePath,
             CancellationToken cancellationToken = default)
@@ -124,16 +128,6 @@ public sealed class LocalCityGmlConstructionComposerTests
     {
         public Task<ResolvedDemTextureSources> ResolveAsync(
             PlateauImportRequest request,
-            IReadOnlyList<string> requestedMeshCodes,
-            CancellationToken cancellationToken = default)
-        {
-            _ = request;
-            _ = requestedMeshCodes;
-            return Task.FromResult(new ResolvedDemTextureSources([]));
-        }
-
-        public Task<ResolvedDemTextureSources> ResolveAsync(
-            PlateauImportRequest request,
             IReadOnlyList<DemTerrainOverlayRegion> overlayRegions,
             CancellationToken cancellationToken = default)
         {
@@ -150,3 +144,4 @@ public sealed class LocalCityGmlConstructionComposerTests
         }
     }
 }
+

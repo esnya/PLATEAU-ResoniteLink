@@ -1,14 +1,12 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using PlateauResoniteLink.Domain.Importing;
-
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed record BootstrapParsedRing(
     string RingId,
     GeodeticPoint[] Vertices,
-    IReadOnlyList<ResoniteFloat2>? UVs)
+    IReadOnlyList<Float2>? UVs)
 {
     internal LocalCityGmlObjectProjection.ParsedRing ToLegacy()
     {
@@ -43,8 +41,8 @@ internal sealed record BootstrapParsedSurface(
     BootstrapParsedSurfaceSemantic Semantic,
     BootstrapParsedRing ExteriorRing,
     BootstrapParsedRing[] InteriorRings,
-    ResoniteColor BaseColor,
-    ResoniteTexturePayload? TexturePayload,
+    ColorRgba BaseColor,
+    TexturePayload? TexturePayload,
     bool UsesGeneratedDemTexture = false)
 {
     public IEnumerable<GeodeticPoint> Vertices =>
@@ -69,7 +67,7 @@ internal sealed record BootstrapParsedSurface(
             (BootstrapParsedSurfaceSemantic)surface.Semantic,
             BootstrapParsedRing.FromLegacy(surface.ExteriorRing),
             surface.InteriorRings.Select(BootstrapParsedRing.FromLegacy).ToArray(),
-            surface.BaseColor,
+            new ColorRgba(surface.BaseColor.R, surface.BaseColor.G, surface.BaseColor.B, surface.BaseColor.A),
             surface.TexturePayload,
             surface.UsesGeneratedDemTexture);
     }

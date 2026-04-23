@@ -14,13 +14,13 @@ namespace PlateauResoniteLink.Tests.UseCases;
 public sealed class PlateauImportServiceCollectionExtensionsTests
 {
     [Fact]
-    public async Task AddPlateauCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReadResult()
+    public async Task AddLocalCityGmlImportServicesUsesCustomComposerWhenFactoryCreatesSourceFromReader()
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             Source: DatasetLocation.Local(TestData.GetFixturePath("LocalPlateauDataset")));
-        LocalCityGmlDocumentReadResult expectedReadResult = new(
+        LocalCityGmlBootstrapSnapshot expectedReadResult = new(
             new LocalCityGmlDocumentSet(
                 new StubDatasetContentSource(request.LocalSourcePath!),
                 [],
@@ -36,61 +36,61 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
             .AddSingleton<IImportedSceneSourceComposer>(composer)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
         IImportedSceneSourceFactory factory = provider.GetRequiredService<IImportedSceneSourceFactory>();
 
-        IImportedSceneSource source = await factory.CreateAsync(request, expectedReadResult);
+        IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Same(expectedSource, source);
-        Assert.Null(reader.LastRequest);
+        Assert.Same(request, reader.LastRequest);
         Assert.Same(request, composer.LastRequest);
         Assert.Same(expectedReadResult, composer.LastReadResult);
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomDatasetContentSourceFactory()
+    public void AddLocalCityGmlImportServicesPreservesCustomDatasetContentSourceFactory()
     {
         CustomPlateauDatasetContentSourceFactory factory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IPlateauDatasetContentSourceFactory>(factory)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(factory, provider.GetRequiredService<IPlateauDatasetContentSourceFactory>());
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomDocumentReader()
+    public void AddLocalCityGmlImportServicesPreservesCustomDocumentReader()
     {
         CustomCityGmlDocumentReader reader = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<ICityGmlDocumentReader>(reader)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(reader, provider.GetRequiredService<ICityGmlDocumentReader>());
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomConstructionSourceFactory()
+    public void AddLocalCityGmlImportServicesPreservesCustomConstructionSourceFactory()
     {
         CustomConstructionSourceFactory factory = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IImportedSceneSourceFactory>(factory)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(factory, provider.GetRequiredService<IImportedSceneSourceFactory>());
     }
 
     [Fact]
-    public void AddPlateauCityGmlImportServicesPreservesCustomDemTextureSourcePolicy()
+    public void AddLocalCityGmlImportServicesPreservesCustomDemTextureSourcePolicy()
     {
         CustomDemTextureSourcePolicy policy = new();
         ServiceProvider provider = new ServiceCollection()
             .AddSingleton<IDemTextureSourcePolicy>(policy)
-            .AddPlateauCityGmlImportServices()
+            .AddLocalCityGmlImportServices()
             .BuildServiceProvider();
 
         Assert.Same(policy, provider.GetRequiredService<IDemTextureSourcePolicy>());
@@ -106,11 +106,11 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 
-    private sealed class CustomCityGmlDocumentReader(LocalCityGmlDocumentReadResult? readResult = null) : ICityGmlDocumentReader
+    private sealed class CustomCityGmlDocumentReader(LocalCityGmlBootstrapSnapshot? readResult = null) : ICityGmlDocumentReader
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public Task<LocalCityGmlDocumentReadResult> ReadAsync(
+        public Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -124,10 +124,10 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public Task<IImportedSceneSource> CreateAsync(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
         {
+            _ = request;
             throw new NotSupportedException();
         }
     }
@@ -153,11 +153,11 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
     {
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlDocumentReadResult? LastReadResult { get; private set; }
+        public LocalCityGmlBootstrapSnapshot? LastReadResult { get; private set; }
 
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlDocumentReadResult readResult,
+            LocalCityGmlBootstrapSnapshot readResult,
             Action<string>? progressReporter = null)
         {
             LastRequest = request;
@@ -173,6 +173,8 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public IReadOnlyList<string> EnumerateFiles() => [];
 
         public bool FileExists(string relativePath) => false;
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath) => null;
 
         public ValueTask<Stream> OpenReadAsync(string relativePath, CancellationToken cancellationToken = default)
         {
@@ -194,7 +196,7 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             "3.0",
             "stub",
             new PlateauImportRequest("stub", "53394525", DatasetLocation.Local("/tmp")),
-            new PlateauSourceDataset([], [], [], []),
+            new PlateauSourceDataset([], [], []),
             new Attribution(
                 new LicenseMetadata(true, "credit", "license", "https://example.invalid"),
                 []),
@@ -206,14 +208,6 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
             await Task.CompletedTask;
             yield break;
         }
-
-        public async IAsyncEnumerable<MaterialBinding> ReadCommonMaterialsAsync(
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            await Task.CompletedTask;
-            yield break;
-        }
     }
 }
-
 

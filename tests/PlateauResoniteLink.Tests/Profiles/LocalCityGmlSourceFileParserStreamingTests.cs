@@ -252,6 +252,11 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
             return true;
         }
 
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
+        }
+
         [System.Diagnostics.CodeAnalysis.SuppressMessage(
             "Reliability",
             "CA2000:Dispose objects before losing scope",
@@ -290,6 +295,11 @@ public sealed class LocalCityGmlSourceFileParserStreamingTests
         public bool FileExists(string relativePath)
         {
             return true;
+        }
+
+        public string? ResolveRelativePath(string baseRelativePath, string candidatePath)
+        {
+            return null;
         }
 
         [SuppressMessage(
