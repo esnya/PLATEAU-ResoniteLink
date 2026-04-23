@@ -148,18 +148,10 @@ internal sealed class ResoniteMaterialPlanning : IResoniteMaterialPlanning
         }
 
         Uri? textureUri = await ImportOptionalTextureAsync(importClient, textureImport, cancellationToken);
-        string textureIdentity = textureImport switch
-        {
-            ResoniteRawTextureImport rawTexture when !string.IsNullOrWhiteSpace(rawTexture.Identity) => rawTexture.Identity!,
-            _ => material.MaterialKey,
-        };
         return textureUri is null
             ? null
             : new PlannedTextureAsset(
-                new TextureIdentity(
-                    string.Create(
-                        CultureInfo.InvariantCulture,
-                        $"main-tex-override-{material.MaterialKey}-{textureIdentity}")),
+                new TextureIdentity("main"),
                 textureUri);
     }
 

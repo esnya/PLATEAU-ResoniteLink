@@ -389,11 +389,9 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         {
             cancellationToken.ThrowIfCancellationRequested();
             ImportedCityObject importedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(ToImportedCityObject(cityObject));
-            string scopeKey = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
-            string scopePath = importedCityObject.SourceFileRelativePath ?? scopeKey;
+            string sourceFileRelativePath = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
             yield return new ImportedObjectUnit(
-                scopeKey,
-                scopePath,
+                sourceFileRelativePath,
                 importedCityObject.PackageName,
                 importedCityObject.LodLevel,
                 [importedCityObject],

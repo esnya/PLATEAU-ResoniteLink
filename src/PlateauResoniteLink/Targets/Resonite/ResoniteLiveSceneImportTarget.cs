@@ -270,7 +270,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             Progress = progress,
             Materials = materials,
             Placement = placement,
-            ImportedTextureUriCache = new AsyncCompletedResultCache<TextureImportCacheKey, Uri>(),
             Runtime = runtime,
             GsiFallbackLicenseGate = new SemaphoreSlim(1, 1),
             DemSourceUseCounts = new ConcurrentDictionary<string, int>(StringComparer.Ordinal),
@@ -308,7 +307,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             bootstrapInfo,
             resolvedWorkRoot,
             requestLocalOrigin,
-            ResonitePlacementPolicy.CreateCityGmlSlotNamesByRelativePath(bootstrapInfo.SourceFiles),
+            ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(bootstrapInfo.SourceFiles),
             resourceBudget,
             new LiveSendQueuePlan(
                 connectionCount,

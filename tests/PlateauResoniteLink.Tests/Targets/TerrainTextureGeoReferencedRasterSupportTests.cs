@@ -278,12 +278,12 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             texture.TextureImport.Width,
             texture.TextureImport.Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
-        Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
         Assert.IsType<TerrainTextureGeoReferencedRasterSource>(texture.UsedSource);
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncDistinguishesIdentityAcrossTileRasterAndMixedSources()
+    public async Task EnsureTextureAsyncDistinguishesTextureContentAcrossTileRasterAndMixedSources()
     {
         using TemporaryDirectory workDirectory = new();
         string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
@@ -335,9 +335,9 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture rasterOnlyTexture = await generator.EnsureTextureAsync(rasterOnlyOverlay, CancellationToken.None);
         GeneratedTerrainTexture mixedTexture = await generator.EnsureTextureAsync(mixedOverlay, CancellationToken.None);
 
-        Assert.NotEqual(tileOnlyTexture.TextureImport.Identity, rasterOnlyTexture.TextureImport.Identity);
-        Assert.NotEqual(tileOnlyTexture.TextureImport.Identity, mixedTexture.TextureImport.Identity);
-        Assert.NotEqual(rasterOnlyTexture.TextureImport.Identity, mixedTexture.TextureImport.Identity);
+        Assert.NotEqual(tileOnlyTexture.TextureImport.RawRgba32Bytes, rasterOnlyTexture.TextureImport.RawRgba32Bytes);
+        Assert.NotEqual(tileOnlyTexture.TextureImport.RawRgba32Bytes, mixedTexture.TextureImport.RawRgba32Bytes);
+        Assert.NotEqual(rasterOnlyTexture.TextureImport.RawRgba32Bytes, mixedTexture.TextureImport.RawRgba32Bytes);
         Assert.Single(rasterOnlyTexture.UsedSources ?? []);
         Assert.Equal(2, (mixedTexture.UsedSources ?? []).Count);
     }
@@ -486,7 +486,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.Equal(
             new Rgba32(12, 34, 56, 255),
             outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
-        Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
         Assert.Contains(texture.UsedSources ?? [], static source => source is TerrainTextureGeoReferencedRasterSource);
         Assert.Contains(
             texture.UsedSources ?? [],
@@ -516,7 +516,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(4, handler.RequestCount);
-        Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
     }
 

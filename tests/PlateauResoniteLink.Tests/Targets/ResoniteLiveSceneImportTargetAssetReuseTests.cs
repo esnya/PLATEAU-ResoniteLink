@@ -10,6 +10,7 @@ using GeographicLib;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
+using PlateauResoniteLink.Transport.ResoniteLink;
 
 using ResoniteLink;
 
@@ -147,8 +148,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(firstMaterialId, secondMaterialId);
         Assert.Contains(firstMaterialId, commonMaterialIds);
         Assert.NotEqual(firstPropertyBlockId, secondPropertyBlockId);
-        Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/albedo-one.png");
-        Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/albedo-two.png");
+        Assert.Contains(client.ImportedRawTextures, static texture => IsSolidColorTexture(texture, 255, 0, 0));
+        Assert.Contains(client.ImportedRawTextures, static texture => IsSolidColorTexture(texture, 0, 255, 0));
     }
 
     [Fact]
@@ -446,7 +447,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Contains(materialIds[1], commonMaterialIds);
         Assert.Null(propertyBlockIds[0]);
         Assert.NotNull(propertyBlockIds[1]);
-        Assert.Contains(client.ImportedRawTextures, static texture => texture.Identity == "textures/mixed-albedo.png");
+        Assert.Contains(client.ImportedRawTextures, static texture => IsSolidColorTexture(texture, 255, 0, 0));
     }
 
     [Fact]
@@ -1384,6 +1385,14 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
             $"{firstUv.X:0.######},{firstUv.Y:0.######}|{secondUv.X:0.######},{secondUv.Y:0.######}|{thirdUv.X:0.######},{thirdUv.Y:0.######}");
+    }
+
+    private static bool IsSolidColorTexture(ResoniteRawTextureImport texture, byte r, byte g, byte b)
+    {
+        byte[] expectedPixel = [r, g, b, 255];
+        return texture.Width == 2
+            && texture.Height == 2
+            && texture.RawRgba32Bytes.Chunk(4).All(pixel => pixel.SequenceEqual(expectedPixel));
     }
 
     private static async Task<string> SeedEmptyCurrentGenericSharedMaterialSlotAsync(SceneBuilderRecordingClient client)

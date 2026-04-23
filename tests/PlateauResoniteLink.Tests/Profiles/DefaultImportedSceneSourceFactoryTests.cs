@@ -312,7 +312,7 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            yield return new ImportedObjectUnit("stub", "stub", "bldg", null, []);
+            yield return new ImportedObjectUnit("stub.gml", "bldg", null, []);
             await Task.CompletedTask;
         }
     }

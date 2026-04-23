@@ -357,8 +357,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/bootstrap-generic"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 overlay.PrimarySource));
@@ -504,8 +503,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/gsi-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 new TerrainTextureTileSource(
@@ -583,8 +581,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/mixed-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 gsiFallbackSource,
@@ -659,8 +656,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/ortho-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 new TerrainTextureTileSource(
@@ -726,8 +722,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/raster-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 rasterSource));
@@ -890,11 +885,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         {
             ImportedCityObject importedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(
                 ResoniteLiveSceneImportTargetTestSupport.ToImportedCityObject(cityObject));
-            string scopeKey = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
-            string scopePath = importedCityObject.SourceFileRelativePath ?? scopeKey;
+            string sourceFileRelativePath = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
             yield return new ImportedObjectUnit(
-                scopeKey,
-                scopePath,
+                sourceFileRelativePath,
                 importedCityObject.PackageName,
                 importedCityObject.LodLevel,
                 [importedCityObject],

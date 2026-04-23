@@ -117,10 +117,10 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
-    public void CreateCityGmlSlotNamesByRelativePath_AddsStableHashForDuplicateFileStem()
+    public void CreateSourceFileSlotNamesByRelativePath_AddsStableHashForDuplicateFileStem()
     {
         IReadOnlyDictionary<string, string> slotNames =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateCityGmlSlotNamesByRelativePath(DuplicateStemPaths);
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(DuplicateStemPaths);
 
         Assert.Equal(2, slotNames.Count);
         Assert.All(slotNames.Values, static value => Assert.StartsWith("sample_", value, StringComparison.Ordinal));
@@ -128,7 +128,7 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
-    public void ResolveCityGmlScopeKey_ThrowsWhenSourceScopeMetadataIsMissing()
+    public void ResolveSourceFileRelativePath_ThrowsWhenSourceFileMetadataIsMissing()
     {
         PlateauResoniteLink.Targets.Resonite.ResoniteConstructionCityObject cityObject = new(
             SlotKey: "slot-a",
@@ -142,7 +142,7 @@ public sealed class ResonitePlacementPolicyTests
             SourceFileRelativePath: null);
 
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
-            () => PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveCityGmlScopeKey(cityObject));
+            () => PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject));
 
         Assert.Contains("SourceFileRelativePath", exception.Message, StringComparison.Ordinal);
     }

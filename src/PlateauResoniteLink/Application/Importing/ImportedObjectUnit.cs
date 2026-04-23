@@ -4,8 +4,7 @@ using System.Collections.Generic;
 namespace PlateauResoniteLink.Application.Importing;
 
 public sealed record ImportedObjectUnitDescriptor(
-    string ScopeKey,
-    string ScopePath,
+    string SourceFileRelativePath,
     string PackageName,
     int? LodLevel,
     string? MatchedMeshCode = null);
@@ -32,16 +31,14 @@ public sealed record ImportedObjectUnit
     public IReadOnlyList<ImportedCityObject> CityObjects { get; init; }
 
     public ImportedObjectUnit(
-        string scopeKey,
-        string scopePath,
+        string sourceFileRelativePath,
         string packageName,
         int? lodLevel,
         IReadOnlyList<ImportedCityObject> cityObjects,
         string? matchedMeshCode = null)
         : this(
             new ImportedObjectUnitDescriptor(
-                scopeKey,
-                scopePath,
+                sourceFileRelativePath,
                 packageName,
                 lodLevel,
                 matchedMeshCode),

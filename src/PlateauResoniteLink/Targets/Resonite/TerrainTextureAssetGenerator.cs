@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -154,7 +153,6 @@ internal sealed class TerrainTextureAssetGenerator(
             GeneratedTerrainTexture generatedTexture = CreateGeneratedTexture(
                 composedTexture,
                 terrainTextureOverlay.MaxTextureSize,
-                CreateOverlayIdentity(terrainTextureOverlay, usedSources),
                 terrainTextureSource,
                 usedSources);
             return new CachedTerrainTexture(generatedTexture, terrainTextureSource);
@@ -252,21 +250,20 @@ internal sealed class TerrainTextureAssetGenerator(
     private static GeneratedTerrainTexture CreateGeneratedTexture(
         Image<Rgba32> image,
         int maxTextureSize,
-        string identity,
         TerrainTextureSource usedSource,
         List<TerrainTextureSource> usedSources)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextureSize);
         using Image<Rgba32> opaqueImage = CreateOpaqueGroundImage(image);
 
-        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, identity, usedSource, usedSources, out GeneratedTerrainTexture? generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(opaqueImage, maxTextureSize, usedSource, usedSources, out GeneratedTerrainTexture? generatedTexture))
         {
             return generatedTexture!;
         }
 
         int fallbackMaxTextureSize = RoundDownToPowerOfTwo(maxTextureSize);
         using Image<Rgba32> resizedImage = ResizeToMaxTextureSize(opaqueImage, fallbackMaxTextureSize);
-        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, identity, usedSource, usedSources, out generatedTexture))
+        if (TryCreatePowerOfTwoCanvasTexture(resizedImage, fallbackMaxTextureSize, usedSource, usedSources, out generatedTexture))
         {
             return generatedTexture!;
         }
@@ -278,7 +275,6 @@ internal sealed class TerrainTextureAssetGenerator(
     private static bool TryCreatePowerOfTwoCanvasTexture(
         Image<Rgba32> image,
         int maxTextureSize,
-        string identity,
         TerrainTextureSource usedSource,
         IReadOnlyList<TerrainTextureSource> usedSources,
         out GeneratedTerrainTexture? generatedTexture)
@@ -306,7 +302,7 @@ internal sealed class TerrainTextureAssetGenerator(
             canvasWidth,
             canvasHeight);
         generatedTexture = new GeneratedTerrainTexture(
-            CreateRawTextureImport(canvasImage, identity),
+            CreateRawTextureImport(canvasImage),
             occupiedUvRect,
             usedSource,
             usedSources.Distinct().ToArray());
@@ -361,26 +357,6 @@ internal sealed class TerrainTextureAssetGenerator(
         }
 
         return rounded;
-    }
-
-    private static string CreateOverlayIdentity(
-        TerrainTextureOverlay terrainTextureOverlay,
-        List<TerrainTextureSource> usedSources)
-    {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"terrain-overlay-{terrainTextureOverlay.PackageName.ToLowerInvariant()}-sources-{string.Join("|", usedSources.Select(static source => source.IdentityKey))}-bounds-{FormatBounds(terrainTextureOverlay.GeographicBounds)}");
-    }
-
-    private static string FormatBounds(GeographicRectangle bounds) =>
-        string.Create(
-            CultureInfo.InvariantCulture,
-            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
-
-    private static string FormatRounded(double value)
-    {
-        double normalized = value == 0.0 ? 0.0 : value;
-        return normalized.ToString("G17", CultureInfo.InvariantCulture);
     }
 
     private static Image<Rgba32> ResizeSourceImage(Image<Rgba32> image, int width, int height)
@@ -586,7 +562,7 @@ internal sealed class TerrainTextureAssetGenerator(
         return await Image.LoadAsync<Rgba32>(stream, cancellationToken);
     }
 
-    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image, string identity)
+    private static ResoniteRawTextureImport CreateRawTextureImport(Image<Rgba32> image)
     {
         byte[] rawBytes = new byte[image.Width * image.Height * 4];
         image.CopyPixelDataTo(rawBytes);
@@ -594,8 +570,7 @@ internal sealed class TerrainTextureAssetGenerator(
             image.Width,
             image.Height,
             "sRGB",
-            rawBytes,
-            identity);
+            rawBytes);
     }
 
     private sealed record CachedTerrainTexture(

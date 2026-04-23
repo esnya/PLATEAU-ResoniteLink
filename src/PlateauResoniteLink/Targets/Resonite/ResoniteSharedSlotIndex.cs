@@ -15,13 +15,13 @@ internal sealed class ResoniteSharedSlotIndex(
     CreatedSlot datasetRootSlot,
     CreatedSlot datasetAssetsRootSlot,
     ResoniteLocalOrigin requestLocalOrigin,
-    IReadOnlyDictionary<string, string> cityGmlSlotNamesByRelativePath,
+    IReadOnlyDictionary<string, string> sourceFileSlotNamesByRelativePath,
     SceneAnchor? initialSceneAnchor,
     Func<IResoniteLinkClient, ResoniteSlotLocator, string, ResoniteFloat3?, ResoniteFloatQ?, CancellationToken, Task<CreatedSlot>> createSlotAsync)
 {
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> sharedSlotCache = new();
     private readonly AsyncCompletedResultCache<SharedSlotIndexKey, CreatedSlot> runScopedSourceFileRootCache = new();
-    private readonly AsyncCompletedResultCache<CanonicalParentScopeKey, CanonicalParentScope> canonicalParentScopeCache = new();
+    private readonly AsyncCompletedResultCache<CanonicalParentSourceFile, CanonicalParentScope> canonicalParentScopeCache = new();
     private readonly ConcurrentDictionary<string, byte> createdSlotIds = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<SharedSlotIndexKey, CreatedSlot> sharedSlotIndex = new();
     private readonly ConcurrentDictionary<string, Slot> observedSlotSnapshotsById = new(StringComparer.Ordinal);
@@ -99,12 +99,12 @@ internal sealed class ResoniteSharedSlotIndex(
         ResoniteConstructionCityObject cityObject,
         CancellationToken cancellationToken)
     {
-        string cityGmlScopeKey = ResonitePlacementPolicy.ResolveCityGmlScopeKey(cityObject);
-        string cityGmlSlotName = ResonitePlacementPolicy.ResolveCityGmlSlotName(cityObject, cityGmlScopeKey, cityGmlSlotNamesByRelativePath);
-        string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(cityGmlSlotName, cityObject.ActualMeshCode);
+        string sourceFileRelativePath = ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject);
+        string sourceFileSlotName = ResonitePlacementPolicy.ResolveSourceFileSlotName(cityObject, sourceFileRelativePath, sourceFileSlotNamesByRelativePath);
+        string rootMeshCode = ResonitePlacementPolicy.ResolveRequiredSourceFileRootMeshCode(sourceFileSlotName, cityObject.ActualMeshCode);
         CanonicalParentScope parentScope = await canonicalParentScopeCache.GetOrCreateAsync(
-            new CanonicalParentScopeKey(cityGmlScopeKey, rootMeshCode, cityObject.LodLevel),
-            ct => CreateCanonicalParentScopeAsync(client, cityGmlSlotName, rootMeshCode, cityObject.LodLevel, ct),
+            new CanonicalParentSourceFile(sourceFileRelativePath, rootMeshCode, cityObject.LodLevel),
+            ct => CreateCanonicalParentScopeAsync(client, sourceFileSlotName, rootMeshCode, cityObject.LodLevel, ct),
             cancellationToken);
         ResoniteFloat3 plannedRootPosition = ResolvePlannedRootPosition(rootMeshCode);
         return new ObjectSlotHierarchy(
@@ -114,42 +114,42 @@ internal sealed class ResoniteSharedSlotIndex(
             ResonitePlacementPolicy.ResolveCityObjectLocalPosition(
                 requestLocalOrigin,
                 rootMeshCode,
-                TryGetObservedSlotPosition(parentScope.CityGmlSlot.Locator),
+                TryGetObservedSlotPosition(parentScope.SourceFileSlot.Locator),
                 cityObject.Transform.Position),
             cityObject.Transform.Rotation);
     }
 
     private async Task<CanonicalParentScope> CreateCanonicalParentScopeAsync(
         IResoniteLinkClient client,
-        string cityGmlSlotName,
+        string sourceFileSlotName,
         string rootMeshCode,
         int? lodLevel,
         CancellationToken cancellationToken)
     {
         string lodSlotName = ResonitePlacementPolicy.FormatLodSlotName(lodLevel);
         ResoniteFloat3 rootPosition = ResolvePlannedRootPosition(rootMeshCode);
-        CreatedSlot cityGmlSlot = await GetOrCreateRunScopedSourceFileRootAsync(
+        CreatedSlot sourceFileSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
             datasetRootSlot.Locator,
-            cityGmlSlotName,
+            sourceFileSlotName,
             rootPosition,
             cancellationToken);
-        CreatedSlot assetCityGmlSlot = await GetOrCreateRunScopedSourceFileRootAsync(
+        CreatedSlot assetSourceFileSlot = await GetOrCreateRunScopedSourceFileRootAsync(
             client,
             datasetAssetsRootSlot.Locator,
-            cityGmlSlotName,
+            sourceFileSlotName,
             null,
             cancellationToken);
         CreatedSlot lodSlot = await GetOrCreateSharedChildSlotByIdAsync(
             client,
-            cityGmlSlot.Locator,
+            sourceFileSlot.Locator,
             lodSlotName,
             null,
             null,
             cancellationToken);
         CreatedSlot assetLodSlot = await GetOrCreateSharedChildSlotByIdAsync(
             client,
-            assetCityGmlSlot.Locator,
+            assetSourceFileSlot.Locator,
             lodSlotName,
             null,
             null,
@@ -161,16 +161,16 @@ internal sealed class ResoniteSharedSlotIndex(
         {
             SceneAnchor = anchor with
             {
-                LocationSlot = cityGmlSlot.Locator,
+                LocationSlot = sourceFileSlot.Locator,
                 MeshCode = rootMeshCode,
                 Position = rootPosition,
-                ReferenceSourceFileRoot = cityGmlSlot.Locator,
+                ReferenceSourceFileRoot = sourceFileSlot.Locator,
             };
         }
 
         return new CanonicalParentScope(
-            cityGmlSlot,
-            assetCityGmlSlot,
+            sourceFileSlot,
+            assetSourceFileSlot,
             lodSlot,
             assetLodSlot);
     }
@@ -351,13 +351,13 @@ internal sealed class ResoniteSharedSlotIndex(
         ResoniteFloatQ? CityObjectRotation);
 
     private sealed record CanonicalParentScope(
-        CreatedSlot CityGmlSlot,
-        CreatedSlot AssetCityGmlSlot,
+        CreatedSlot SourceFileSlot,
+        CreatedSlot AssetSourceFileSlot,
         CreatedSlot LodSlot,
         CreatedSlot AssetLodSlot);
 
-    private readonly record struct CanonicalParentScopeKey(
-        string CityGmlScopeKey,
+    private readonly record struct CanonicalParentSourceFile(
+        string SourceFileRelativePath,
         string RootMeshCode,
         int? LodLevel);
 

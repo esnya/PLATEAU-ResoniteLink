@@ -52,11 +52,6 @@ internal sealed class CommonMaterialAssetCache
     public required IReadOnlySet<string> BootstrapKnownMaterialKeys { get; init; }
 }
 
-internal readonly record struct TextureImportCacheKey(
-    string Kind,
-    string Identity,
-    string? ColorProfile = null);
-
 internal sealed record LiveSendRunPlan(
     ResoniteSceneBootstrapInfo BootstrapInfo,
     string ResolvedWorkRoot,
@@ -86,8 +81,6 @@ internal sealed class LiveSendRunState
     public required CommonMaterialAssetCache Materials { get; init; }
 
     public required ResoniteSharedSlotIndex Placement { get; init; }
-
-    public required AsyncCompletedResultCache<TextureImportCacheKey, Uri> ImportedTextureUriCache { get; init; }
 
     public required LiveSendExecutionRuntime Runtime { get; init; }
 

@@ -164,7 +164,6 @@ public sealed class ImportServiceFactoryTests
         {
             yield return new ImportedObjectUnit(
                 "object-1.gml",
-                "object-1.gml",
                 "bldg",
                 1,
                 [

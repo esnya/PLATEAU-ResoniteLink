@@ -544,8 +544,7 @@ public sealed class PlateauImportServiceTests
             }
 
             yield return new ImportedObjectUnit(
-                "test-scope",
-                "test-scope",
+                "test-source.gml",
                 "bldg",
                 1,
                 cityObjects);

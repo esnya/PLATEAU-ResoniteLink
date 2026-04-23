@@ -259,8 +259,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
             }
 
             yield return new ImportedObjectUnit(
-                scopeKey: sourceFile.SourceFile.RelativePath,
-                scopePath: sourceFile.SourceFile.RelativePath,
+                sourceFileRelativePath: sourceFile.SourceFile.RelativePath,
                 packageName: sourceFile.SourceFile.PackageName,
                 lodLevel: lodLevel,
                 cityObjects: cityObjects.ToArray(),

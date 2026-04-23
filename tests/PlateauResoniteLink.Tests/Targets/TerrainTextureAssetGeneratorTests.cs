@@ -34,8 +34,6 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Same(firstTexture, secondTexture);
-        Assert.False(string.IsNullOrWhiteSpace(firstTexture.TextureImport.Identity));
-        Assert.Equal(firstTexture.TextureImport.Identity, secondTexture.TextureImport.Identity);
         Assert.Equal(
             new ScalarPair(
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
@@ -206,17 +204,18 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, secondHandler.RequestCount);
-        Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
         using FakeMapTileHandler thirdHandler = new();
         using HttpClient thirdClient = new(thirdHandler);
         TerrainTextureAssetGenerator thirdGenerator = new(thirdClient, cacheRoot.Path);
         GeneratedTerrainTexture repeatedTexture = await thirdGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Equal(texture.TextureImport.Identity, repeatedTexture.TextureImport.Identity);
+        Assert.Equal(texture.TextureImport.Width, repeatedTexture.TextureImport.Width);
+        Assert.Equal(texture.TextureImport.Height, repeatedTexture.TextureImport.Height);
+        Assert.Equal(texture.TextureImport.RawRgba32Bytes, repeatedTexture.TextureImport.RawRgba32Bytes);
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncChangesIdentityWhenTileSourceChanges()
+    public async Task EnsureTextureAsyncCreatesSeparateTextureWhenTileSourceChanges()
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
@@ -227,11 +226,11 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(firstOverlay, CancellationToken.None);
         GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
 
-        Assert.NotEqual(firstTexture.TextureImport.Identity, secondTexture.TextureImport.Identity);
+        Assert.NotSame(firstTexture, secondTexture);
     }
 
     [Fact]
-    public async Task EnsureTextureAsyncChangesIdentityWhenGeographicBoundsChange()
+    public async Task EnsureTextureAsyncCreatesSeparateTextureWhenGeographicBoundsChange()
     {
         using FakeMapTileHandler handler = new();
         using HttpClient httpClient = new(handler);
@@ -249,7 +248,8 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(firstOverlay, CancellationToken.None);
         GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
 
-        Assert.NotEqual(firstTexture.TextureImport.Identity, secondTexture.TextureImport.Identity);
+        Assert.NotSame(firstTexture, secondTexture);
+        Assert.NotEqual(firstTexture.TextureImport.Height, secondTexture.TextureImport.Height);
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(firstOverlay, CancellationToken.None);
         GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
 
-        Assert.NotEqual(firstTexture.TextureImport.Identity, secondTexture.TextureImport.Identity);
+        Assert.NotSame(firstTexture, secondTexture);
     }
 
     [Fact]
@@ -419,7 +419,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
         Assert.Contains(("primary.example", 2), handler.HostZoomRequests);
         Assert.Contains(("primary.example", 1), handler.HostZoomRequests);
@@ -473,7 +473,7 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
         Assert.Contains(
             texture.UsedSources ?? [],
             static source => source is TerrainTextureTileSource tileSource

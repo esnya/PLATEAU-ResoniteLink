@@ -11,8 +11,7 @@ public sealed class ImportedObjectUnitTests
     {
         ArgumentException exception = Assert.Throws<ArgumentException>(
             () => new ImportedObjectUnit(
-                "scope",
-                "scope",
+                "source.gml",
                 "bldg",
                 1,
                 []));

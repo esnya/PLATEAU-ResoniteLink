@@ -21,35 +21,31 @@ internal static class ResoniteTextureImportFactory
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
 
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(absolutePath, cancellationToken);
-        return CreateRawFromImage(image, colorProfile, absolutePath);
+        return CreateRawFromImage(image, colorProfile);
     }
 
     public static async Task<ResoniteRawTextureImport> CreateRawFromStreamAsync(
         Stream stream,
-        string identity,
         string colorProfile = ResoniteTextureColorProfiles.Srgb,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
-        ArgumentException.ThrowIfNullOrWhiteSpace(identity);
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
 
         using Image<Rgba32> image = await Image.LoadAsync<Rgba32>(stream, cancellationToken);
-        return CreateRawFromImage(image, colorProfile, identity);
+        return CreateRawFromImage(image, colorProfile);
     }
 
     public static ResoniteRawTextureImport CreateRawFromImage(
         Image<Rgba32> image,
-        string colorProfile = ResoniteTextureColorProfiles.Srgb,
-        string? identity = null)
+        string colorProfile = ResoniteTextureColorProfiles.Srgb)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentException.ThrowIfNullOrWhiteSpace(colorProfile);
 
         return CreateRawFromImageCore(
             image,
-            colorProfile,
-            identity ?? Guid.NewGuid().ToString("N"));
+            colorProfile);
     }
 
     public static ResoniteRawTextureImport CreateRawFromPayload(ResoniteTexturePayload payload)
@@ -94,8 +90,7 @@ internal static class ResoniteTextureImportFactory
             payload.Width.Value,
             payload.Height.Value,
             payload.ColorProfile,
-            payload.BinaryPayload.AsSpan().ToArray(),
-            payload.Identity);
+            payload.BinaryPayload.AsSpan().ToArray());
     }
 
     private static ResoniteRawTextureImport CreateRawFromEncodedPayload(ResoniteTexturePayload payload)
@@ -104,14 +99,12 @@ internal static class ResoniteTextureImportFactory
         using Image<Rgba32> image = Image.Load<Rgba32>(stream);
         return CreateRawFromImageCore(
             image,
-            payload.ColorProfile ?? ResoniteTextureColorProfiles.Srgb,
-            payload.Identity ?? Guid.NewGuid().ToString("N"));
+            payload.ColorProfile ?? ResoniteTextureColorProfiles.Srgb);
     }
 
     private static ResoniteRawTextureImport CreateRawFromImageCore(
         Image<Rgba32> image,
-        string colorProfile,
-        string identity)
+        string colorProfile)
     {
         byte[] rawBytes = new byte[image.Width * image.Height * 4];
         image.CopyPixelDataTo(rawBytes);
@@ -119,7 +112,6 @@ internal static class ResoniteTextureImportFactory
             image.Width,
             image.Height,
             colorProfile,
-            rawBytes,
-            identity);
+            rawBytes);
     }
 }

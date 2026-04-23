@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -33,17 +34,20 @@ public sealed class ResoniteMaterialPlanningTests
             new BundledDefaultMaterialAssetStore(),
             material,
             out BundledDefaultMaterialTextureSet? textureSet);
-        string metallicPath = textureSet?.MetallicPath
-            ?? throw new InvalidOperationException("Expected facade bundled material to provide a metallic companion texture.");
+        Assert.NotNull(textureSet?.MetallicPath);
 
         PlannedDedicatedMaterialAsset plannedAsset = await planning.PlanCommonMaterialAssetAsync(
             client,
             material,
             CancellationToken.None);
 
-        ResoniteRawTextureImport metallicTexture = Assert.Single(
-            client.ImportedRawTextures,
-            texture => string.Equals(texture.Identity, metallicPath, StringComparison.Ordinal));
+        PlannedTextureAsset metallicAsset = Assert.Single(
+            plannedAsset.Textures,
+            texture => string.Equals(texture.Identity.Value, "metallic", StringComparison.Ordinal));
+        int metallicImportIndex = int.Parse(
+            metallicAsset.AssetUri.Segments[^1].TrimEnd('/'),
+            CultureInfo.InvariantCulture);
+        ResoniteRawTextureImport metallicTexture = client.ImportedRawTextures[metallicImportIndex];
         Assert.Equal(ResoniteTextureColorProfiles.Linear, metallicTexture.ColorProfile);
         Assert.Contains(
             plannedAsset.Textures,
@@ -74,7 +78,7 @@ public sealed class ResoniteMaterialPlanningTests
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4], "terrain"),
+                new ResoniteRawTextureImport(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0)),
         };
@@ -109,7 +113,7 @@ public sealed class ResoniteMaterialPlanningTests
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextures = new()
         {
             [overlay] = new GeneratedTerrainTexture(
-                new ResoniteRawTextureImport(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4], "terrain"),
+                new ResoniteRawTextureImport(512, 256, ResoniteTextureColorProfiles.Srgb, new byte[512 * 256 * 4]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.0, 0.0)),
         };
@@ -138,7 +142,7 @@ public sealed class ResoniteMaterialPlanningTests
     }
 
     [Fact]
-    public async Task PlanMainTextureOverrideAsync_VariesIdentityByMaterialAndTexture()
+    public async Task PlanMainTextureOverrideAsync_UsesRoleIdentityWithoutTextureImportIdentity()
     {
         using SceneBuilderRecordingClient client = new();
         ResoniteMaterialBinding firstMaterial = new(
@@ -160,7 +164,7 @@ public sealed class ResoniteMaterialPlanningTests
             firstMaterial,
             new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
@@ -169,7 +173,7 @@ public sealed class ResoniteMaterialPlanningTests
             firstMaterial,
             new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
@@ -178,7 +182,7 @@ public sealed class ResoniteMaterialPlanningTests
             secondMaterial,
             new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                [secondMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-a"),
+                [secondMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
@@ -187,7 +191,7 @@ public sealed class ResoniteMaterialPlanningTests
             firstMaterial,
             new Dictionary<ResoniteTexturePayload, ResoniteTextureImport>
             {
-                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255], "texture-b"),
+                [firstMaterial.TexturePayload!] = new ResoniteRawTextureImport(1, 1, ResoniteTextureColorProfiles.Srgb, [255, 255, 255, 255]),
             },
             new Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture>(),
             CancellationToken.None);
@@ -196,8 +200,10 @@ public sealed class ResoniteMaterialPlanningTests
         Assert.NotNull(repeatedFirstOverride);
         Assert.NotNull(secondOverride);
         Assert.NotNull(thirdOverride);
-        Assert.Equal(firstOverride!.Identity, repeatedFirstOverride!.Identity);
-        Assert.NotEqual(firstOverride!.Identity, secondOverride!.Identity);
-        Assert.NotEqual(firstOverride.Identity, thirdOverride!.Identity);
+        Assert.Equal(new TextureIdentity("main"), firstOverride!.Identity);
+        Assert.Equal(firstOverride.Identity, repeatedFirstOverride!.Identity);
+        Assert.Equal(firstOverride.Identity, secondOverride!.Identity);
+        Assert.Equal(firstOverride.Identity, thirdOverride!.Identity);
+        Assert.NotEqual(firstOverride.AssetUri, repeatedFirstOverride.AssetUri);
     }
 }

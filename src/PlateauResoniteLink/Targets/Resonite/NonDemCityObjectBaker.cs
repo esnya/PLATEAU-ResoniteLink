@@ -583,7 +583,7 @@ internal sealed class NonDemCityObjectBaker(
             : CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
         string? sourceFileRelativePath = string.IsNullOrWhiteSpace(firstCityObject.SourceFileRelativePath)
             ? null
-            : sourceFileKey.CityGmlScopeKey;
+            : sourceFileKey.SourceFileRelativePath;
 
         ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
         List<ResoniteMeshVertex> vertices = [];
@@ -1144,8 +1144,7 @@ internal sealed class NonDemCityObjectBaker(
     {
         string context = policy.Name;
         string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
-        string? cityGmlScopeKey = sourceFileRelativePath;
-        if (cityGmlScopeKey is null)
+        if (sourceFileRelativePath is null)
         {
             throw new InvalidOperationException(
                 $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
@@ -1157,7 +1156,7 @@ internal sealed class NonDemCityObjectBaker(
             cityObject.PackageName.ToLowerInvariant(),
             cityObject.LodLevel,
             context,
-            CityGmlScopeKey: cityGmlScopeKey);
+            SourceFileRelativePath: sourceFileRelativePath);
     }
 
     private static string CreateBatchSlotKey(SourceFileBatchKey sourceFileKey, int batchIndex)
@@ -1165,7 +1164,7 @@ internal sealed class NonDemCityObjectBaker(
         string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.CityGmlScopeKey)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
+            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
     }
 
     private static string CreateBatchDisplayName(SourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
@@ -1180,7 +1179,7 @@ internal sealed class NonDemCityObjectBaker(
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlastex-{sourceFileKey.CityGmlScopeKey}-{batchIndex + 1}");
+            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
     }
 
     private static string CreateAtlasMaterialKey(SourceFileBatchKey sourceFileKey, int batchIndex, string slotKey)
@@ -1699,7 +1698,7 @@ internal sealed class NonDemCityObjectBaker(
         string PackageName,
         int? LodLevel,
         string PolicyContext,
-        string CityGmlScopeKey);
+        string SourceFileRelativePath);
 
     private readonly record struct PreservedMaterialGroupingKey(
         string MaterialKey,
@@ -1744,7 +1743,7 @@ internal sealed class NonDemCityObjectBaker(
                 return compare;
             }
 
-            compare = string.CompareOrdinal(x.CityGmlScopeKey, y.CityGmlScopeKey);
+            compare = string.CompareOrdinal(x.SourceFileRelativePath, y.SourceFileRelativePath);
             if (compare != 0)
             {
                 return compare;

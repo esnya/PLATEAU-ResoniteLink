@@ -156,8 +156,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    $"terrain-overlay/{requestedOverlay.PackageName}/{requestedOverlay.ZoomLevel}/generated"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.125, 0.375)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
@@ -307,8 +306,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/generated-heightmap"),
+                    new byte[16]),
                 new ResoniteFloat2(0.5, 0.25),
                 new ResoniteFloat2(0.125, 0.375)));
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
