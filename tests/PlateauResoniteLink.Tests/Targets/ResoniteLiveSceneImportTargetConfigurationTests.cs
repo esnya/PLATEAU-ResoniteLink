@@ -333,6 +333,40 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 }));
     }
 
+    [Theory]
+    [InlineData(ResoniteImportMemoryProfile.Small, 32, 33, 1024)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 63, 64, 1024)]
+    public async Task BufferedCityObjectBakerFactoryKeepsVertexBudgetedNonDemObjectsBufferedUntilExplicitFlush(
+        ResoniteImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount,
+        int vertexCount)
+    {
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                noFlushCount,
+                index => CreateDenseTriangleBuilding(
+                    $"dense-budget-{index}",
+                    vertexCount,
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: $"unit-{index}",
+                    sourceFileRelativePath: null)));
+        Assert.True(
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateDenseTriangleBuilding(
+                    $"dense-budget-{index}",
+                    vertexCount,
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: $"unit-{index}",
+                    sourceFileRelativePath: null)) > 0);
+    }
+
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
