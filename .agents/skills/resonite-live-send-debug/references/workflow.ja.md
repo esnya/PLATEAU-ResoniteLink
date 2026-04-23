@@ -4,14 +4,44 @@
 
 この file は repo-local live-send skill の単一 operational guide surface です。fixture value、comparison worksheet、version-scoped runtime note は `SKILL.md` に重複させず、ここに集約します。
 
+## Fixture Catalog
+
+これらの fixture は役割が違います。入れ替え可能な default 群として扱いません。
+
+- Lightweight default:
+  Matsumoto `plateau-20202-matsumoto-shi-2020`
+  の `54372778` と `54372788`。
+  fast end-to-end check と lightweight standard whole test に使います。
+  `LOD3` building、`frn`、`tran`、その他の richer package mix は含みません。
+- Standard GeoTIFF whole-test fixture:
+  Higashimurayama `plateau-13213-higashimurayama-shi-2020`
+  の base `53395325`、append `53395326`。
+  local CityGML archive `source-archive-5039b16c4b1c.zip`
+  と local GeoTIFF archive `source-ortho-cc68652cc45c.7z`
+  を使います。
+  reliable な GeoTIFF-backed mixed-mode whole test に使います。
+  実質 `LOD2` のみで、`LOD3`、`frn`、`tran` は含みません。
+- Expanded-coverage building/material fixture:
+  Yokohama mesh `53391530`。
+  richer な building/material stress が必要なときに使います。
+  `LOD3` building、standalone 4K texture のような heavier asset、`frn`、`tran`、`brid` を含みます。
+- Expanded-coverage non-building / texture-strategy fixture:
+  Sendai `plateau-04100-sendai-shi-2024` の mesh `57403710`。
+  broader な non-building coverage が必要なときに使います。
+  `LOD3` building はありませんが、`LOD3` の `frn` / `tran` と、uniform / single-color texture case を多く含みます。
+
 ## Defaults
 
-- task で別 fixture が必要でない限り、run ごとに default live fixture をランダムに 1 つ選びます:
-  `plateau-20202-matsumoto-shi-2020` の mesh `54372778` / `54372788`、または current operator evidence で解決した GeoTIFF 付き mesh を使う `plateau-13213-higashimurayama-shi-2020` です。
-- removal や send の前に、どちらの fixture branch を選んだかを run note に記録します。
-- `frn` または city-furniture validation のときだけ Yokohama mesh `53391530` に切り替えます。
-- これらの default は selector であり、cache path の保証ではありません。removal や send の前に actual resolved local source path を確認します。
-- destructive step の前に、requested dataset root が local に存在し、requested mesh が current local evidence または fixture で support されていることを確認します。
+- Default fixture selection は 3 層で考えます:
+  - lightweight default:
+    Matsumoto
+  - standard whole test:
+    Matsumoto mixed-mode と Higashimurayama mixed-mode with GeoTIFF
+  - expanded coverage:
+    broader な LOD/package/material coverage が必要なときだけ Yokohama または Sendai
+- send 前に、選んだ fixture と test class を run note に記録します。
+- fixture 名は selector であり、cache path の保証ではありません。send 前に actual resolved local source path を確認します。
+- destructive step の前に、requested dataset root が local に存在し、requested mesh が current fixture evidence で support されていることを確認します。
 
 ## Agent Guardrails
 
@@ -25,6 +55,8 @@
 - public operator surface は direct `dotnet` command に限定します。.ps1 wrapper、project-based session tool、cross-environment bridge guidance は再導入しません。
 - `dump-slot --root-child-name` と `remove-slot --root-child-name` は `Root` 直下の exact direct child だけを解決します。0 件は fail、複数件も mutate せず fail にします。
 - ResoniteLink が `localhost` を使う場合は、sender、listener、headless を同一 environment で動かします。その前提は skill 内で吸収せず、run note に明記します。
+- 別 dataset root を既定で clean しません。同じ dataset root を clean base から rerun する場合だけ cleanup を default にします。
+- standard whole test では dump を毎段で取るのを既定にしません。required dump は final post-append slot dump だけです。pre-send / post-removal dump は cleanup-sensitive rerun や contamination check 用の escalation artifact として扱います。
 - clean base から resend するつもりの run では、removal の直後に pre-send root dump を取り、その dump に stale dataset content が残っていれば contaminated run と扱います。
 
 ## Headless Launcher Path Guide
@@ -54,6 +86,15 @@ comparison run 間でこれらの事実を固定するか、明示的に更新�
 - launched PID
 - launched CLI binary path と last write time
 
+## Artifact Expectations By Test Class
+
+- Standard whole test:
+  base と append の command log を保持し、final post-append slot dump を取ります。
+- Cleanup-sensitive rerun:
+  同じ dataset root に対する cleanup proof と pre-send dump を追加します。
+- Expanded-coverage exploratory run:
+  その問いに必要な場合だけ追加 dump を取ります。
+
 disposable な headless validation では、次の operator sequence を優先します。
 
 1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --resonitelink-port 19001`
@@ -64,16 +105,44 @@ disposable な headless validation では、次の operator sequence を優先�
 6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/after-send.json`
 7. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
 
-固定 Matsumoto `54372778 -> 54372788` の base/append validation を `19001` で行うときは、direct command をこの順で実行します。
+## Standard Whole Tests
 
-1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
-2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
-3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
-4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-base-heightmap-after-send.json`
-5. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372788 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
-6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
+Yokohama や Sendai に行く前の default full live verification set として、次の 2 つを使います。
 
-world に `PLATEAU Shared Assets` や `Common Materials` のような stale root が追加で残っている場合は、root dump を見て exact な slot ID または exact な root-child name を選び、`remove-slot` で 1 つずつ除去します。それらの name を stable API とみなしません。
+### Matsumoto Mixed-Mode Whole Test
+
+Matsumoto は lightweight な mixed-mode baseline に使います。
+canonical direction は `base=mesh`、`append=heightmap` です。
+inverse direction も明示的に必要なら有効ですが、default worksheet ではありません。
+
+1. world に `PLATEAU plateau-20202-matsumoto-shi-2020` が既にあり、この run を clean Matsumoto base から始める必要がある場合だけ:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
+2. step 1 を実行した場合だけ:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode mesh --resonitelink-port 19001 --resonitelink-connections 1`
+4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372788 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
+
+### Higashimurayama Mixed-Mode Whole Test
+
+Higashimurayama は standard GeoTIFF-backed mixed-mode whole test に使います。
+canonical direction は `base=heightmap`、`append=mesh` です。
+inverse direction も明示的に必要なら有効ですが、default worksheet ではありません。
+
+1. world に `PLATEAU plateau-13213-higashimurayama-shi-2020` が既にあり、この run を clean Higashimurayama base から始める必要がある場合だけ:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-13213-higashimurayama-shi-2020"`
+2. step 1 を実行した場合だけ:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-post-removal-pre-send.json`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395325 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
+4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395326 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --dem-terrain-mode mesh --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-append-mesh-after-send.json`
+
+## Cleanup Escalation
+
+- clean するのは clean base から rerun する dataset root だけです。
+- unrelated dataset root は既定で clean しません。
+- world に `PLATEAU Shared Assets` や `Common Materials` のような stale root が残っている場合は、root dump を見て exact な slot ID または exact な root-child name を選び、`remove-slot` で 1 つずつ除去します。
+- それらの name を stable API とみなしません。
 
 ## Component Type Discovery
 

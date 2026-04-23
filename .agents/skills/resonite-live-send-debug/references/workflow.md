@@ -4,14 +4,43 @@ Use this guide after `SKILL.md` triggers.
 
 This file is the single operational guide surface for the repo-local live-send skill. Keep fixture values, comparison worksheets, and version-scoped runtime notes here instead of duplicating them in `SKILL.md`.
 
+## Fixture Catalog
+
+Use these fixtures deliberately. They are not interchangeable.
+
+- Lightweight default:
+  Matsumoto `plateau-20202-matsumoto-shi-2020`
+  with `54372778` and `54372788`.
+  Use this for fast end-to-end checks and the lightweight standard whole test.
+  It does not cover `LOD3` buildings, `frn`, `tran`, or similarly rich package mixes.
+- Standard GeoTIFF whole-test fixture:
+  Higashimurayama `plateau-13213-higashimurayama-shi-2020`
+  with base `53395325` and append `53395326`,
+  using local CityGML archive `source-archive-5039b16c4b1c.zip`
+  and local GeoTIFF archive `source-ortho-cc68652cc45c.7z`.
+  Use this for reliable GeoTIFF-backed mixed-mode whole tests.
+  It is effectively `LOD2`-only and does not cover `LOD3`, `frn`, or `tran`.
+- Expanded-coverage building/material fixture:
+  Yokohama mesh `53391530`.
+  Use this when richer building/material stress is needed.
+  It includes `LOD3` buildings, heavier texture cases such as standalone 4K textures, and package coverage including `frn`, `tran`, and `brid`.
+- Expanded-coverage non-building / texture-strategy fixture:
+  Sendai `plateau-04100-sendai-shi-2024` with mesh `57403710`.
+  Use this when broader non-building coverage is needed.
+  It has no `LOD3` buildings, but it does include `frn` / `tran` at `LOD3` and many uniform or single-color texture cases.
+
 ## Defaults
 
-- Randomly choose one default live fixture before each run unless the task needs a different fixture:
-  `plateau-20202-matsumoto-shi-2020` with meshes `54372778` / `54372788`, or `plateau-13213-higashimurayama-shi-2020` with a GeoTIFF-backed mesh resolved from current operator evidence.
-- Record which fixture branch was chosen for the run notes before removal or send.
-- Switch to Yokohama mesh `53391530` only for `frn` or city-furniture validation.
-- Treat those defaults as selectors, not as a promise about cache paths. Confirm the actual resolved local source path before removal or send.
-- Before destructive steps, confirm that the requested dataset root exists locally and that the requested mesh is supported by current local evidence or fixtures.
+- Default fixture selection has three layers:
+  - lightweight default:
+    Matsumoto
+  - standard whole test:
+    Matsumoto mixed-mode plus Higashimurayama mixed-mode with GeoTIFF
+  - expanded coverage:
+    Yokohama or Sendai only when broader LOD/package/material coverage is needed
+- Record which fixture and test class were chosen in the run notes before send.
+- Treat fixture names as selectors, not as a promise about cache paths. Confirm the actual resolved local source path before send.
+- Before destructive steps, confirm that the requested dataset root exists locally and that the requested mesh is supported by current fixture evidence.
 
 ## Agent Guardrails
 
@@ -25,6 +54,8 @@ This file is the single operational guide surface for the repo-local live-send s
 - Use direct `dotnet` commands as the public operator surface. Do not recreate `.ps1` wrappers, a project-based session tool, or cross-environment bridge guidance.
 - `dump-slot --root-child-name` and `remove-slot --root-child-name` resolve exact direct children under `Root` only. Zero matches must fail. Multiple matches must fail without mutating the world.
 - When ResoniteLink uses `localhost`, run sender, listener, and headless in the same environment. Mention that assumption in the run notes instead of trying to bridge environments inside this skill.
+- Do not clean other dataset roots by default. Default cleanup only when rerunning the same dataset root and the run is supposed to start from a clean base.
+- For standard whole tests, do not collect dump-at-every-step by default. The required dump is the final post-append slot dump. Pre-send or post-removal dumps are escalation artifacts for cleanup-sensitive reruns or contamination checks.
 - Before any resend that is supposed to start from a clean base, capture a post-removal pre-send root dump and treat the run as contaminated if that dump still shows stale dataset content.
 
 ## Headless Launcher Path Guide
@@ -54,6 +85,15 @@ Keep these facts fixed or explicitly updated between comparison runs:
 - launched PID
 - launched CLI binary path and last write time
 
+## Artifact Expectations By Test Class
+
+- Standard whole test:
+  keep command logs for base and append, and capture the final post-append slot dump.
+- Cleanup-sensitive rerun:
+  add cleanup proof and pre-send dump(s) for the same dataset root.
+- Expanded-coverage exploratory run:
+  collect extra dumps only when the question actually needs them.
+
 For disposable headless validation, prefer this operator sequence:
 
 1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- start-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json --resonitelink-port 19001`
@@ -64,16 +104,44 @@ For disposable headless validation, prefer this operator sequence:
 6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/after-send.json`
 7. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
 
-For the fixed Matsumoto `54372778 -> 54372788` base/append validation on `19001`, run the direct commands in this order:
+## Standard Whole Tests
 
-1. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
-2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
-3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
-4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-base-heightmap-after-send.json`
-5. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372788 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
-6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
+Use the next two worksheets as the default full live verification set before reaching for Yokohama or Sendai.
 
-If the world contains additional stale roots such as `PLATEAU Shared Assets` or `Common Materials`, inspect the root dump, choose the exact slot IDs or exact root-child names intentionally, and remove them one at a time with `remove-slot`. Do not treat those names as a guaranteed stable API.
+### Matsumoto Mixed-Mode Whole Test
+
+Use Matsumoto for the lightweight mixed-mode baseline.
+The canonical direction is `base=mesh`, `append=heightmap`.
+The inverse direction is valid when explicitly needed, but it is not the default worksheet.
+
+1. If and only if the world already contains `PLATEAU plateau-20202-matsumoto-shi-2020` and this run must start from a clean Matsumoto base:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
+2. If step 1 ran:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode mesh --resonitelink-port 19001 --resonitelink-connections 1`
+4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372788 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
+
+### Higashimurayama Mixed-Mode Whole Test
+
+Use Higashimurayama for the standard GeoTIFF-backed mixed-mode whole test.
+The canonical direction is `base=heightmap`, `append=mesh`.
+The inverse direction is valid when explicitly needed, but it is not the default worksheet.
+
+1. If and only if the world already contains `PLATEAU plateau-13213-higashimurayama-shi-2020` and this run must start from a clean Higashimurayama base:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-13213-higashimurayama-shi-2020"`
+2. If step 1 ran:
+   `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-post-removal-pre-send.json`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395325 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
+4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395326 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --dem-terrain-mode mesh --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-append-mesh-after-send.json`
+
+## Cleanup Escalation
+
+- Only clean the dataset root you are about to rerun from a clean base.
+- Do not clean unrelated dataset roots by default.
+- If the world contains additional stale roots such as `PLATEAU Shared Assets` or `Common Materials`, inspect a root dump, choose the exact slot IDs or exact root-child names intentionally, and remove them one at a time with `remove-slot`.
+- Do not treat those names as a guaranteed stable API.
 
 ## Component Type Discovery
 
