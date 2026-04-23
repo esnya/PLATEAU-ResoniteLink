@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -94,13 +96,37 @@ public enum TexturePayloadFormat
     EncodedImage = 1,
 }
 
-public sealed record TexturePayload(
-    int? Width,
-    int? Height,
-    string? ColorProfile,
-    byte[] BinaryPayload,
-    string? Identity = null,
-    TexturePayloadFormat Format = TexturePayloadFormat.RawRgba32);
+public sealed record TexturePayload
+{
+    public TexturePayload(
+        int? width,
+        int? height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        string? identity = null,
+        TexturePayloadFormat format = TexturePayloadFormat.RawRgba32)
+    {
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
+        ArgumentNullException.ThrowIfNull(binaryPayload);
+        BinaryPayload = binaryPayload.ToArray();
+        Identity = identity;
+        Format = format;
+    }
+
+    public int? Width { get; init; }
+
+    public int? Height { get; init; }
+
+    public string? ColorProfile { get; init; }
+
+    public byte[] BinaryPayload { get; init; }
+
+    public string? Identity { get; init; }
+
+    public TexturePayloadFormat Format { get; init; }
+}
 
 public enum TextureSourceKind
 {

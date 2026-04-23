@@ -9,13 +9,14 @@ public sealed class SceneImportContractMapperTests
     [Fact]
     public void ToInternalMaterialBindingsPreservesNeutralContractFields()
     {
+        byte[] sourcePayloadBytes = [1, 2, 3, 4];
         MaterialBinding[] bindings =
         [
             new(
                 MaterialKey: "shared",
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
-                TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+                TexturePayload: new TexturePayload(2, 2, "sRGB", sourcePayloadBytes, "dataset:texture", TexturePayloadFormat.EncodedImage),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: new MaterialDepthOffset(-1.5, 2.5),
@@ -28,12 +29,14 @@ public sealed class SceneImportContractMapperTests
         ];
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
+        sourcePayloadBytes[0] = 99;
 
         Assert.Equal("shared", mapped.MaterialKey);
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
         Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);
         Assert.Equal(ResoniteTexturePayloadFormat.EncodedImage, mapped.TexturePayload.Format);
+        Assert.Equal<byte>([1, 2, 3, 4], mapped.TexturePayload.BinaryPayload);
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
         Assert.Equal(0.25, mapped.TextureScale!.X, 9);
@@ -91,5 +94,27 @@ public sealed class SceneImportContractMapperTests
         Assert.Equal(3, geometry.Mesh.Vertices.Count);
         Assert.Equal("shared", Assert.Single(geometry.Mesh.Submeshes).MaterialKey);
         Assert.Equal("shared", Assert.Single(mapped.Materials).MaterialKey);
+    }
+
+    [Fact]
+    public void ToContractMaterialBindingsCopiesTexturePayloadBytes()
+    {
+        ResoniteMaterialBinding[] bindings =
+        [
+            new(
+                MaterialKey: "shared",
+                BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                MaterialType: ResoniteMaterialType.Standard,
+                TexturePayload: new ResoniteTexturePayload(1, 1, "sRGB", [9, 8, 7, 6], "dataset:texture"),
+                TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                Projection: ResoniteMaterialProjection.Uv,
+                DepthOffset: null,
+                SubmeshIndices: [0]),
+        ];
+
+        MaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToContract(bindings));
+        bindings[0].TexturePayload!.BinaryPayload[0] = 42;
+
+        Assert.Equal<byte>([9, 8, 7, 6], mapped.TexturePayload!.BinaryPayload);
     }
 }
