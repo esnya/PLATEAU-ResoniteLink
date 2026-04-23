@@ -428,6 +428,17 @@ public sealed class FixedCellCityObjectMeshBakerTests
         Assert.Empty(baker.FlushAll());
     }
 
+    [Fact]
+    public void TryBufferKeepsMixedMaterialBuildingsOutOfFallbackRoofShortcut()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+
+        bool buffered = baker.TryBuffer(CreateMixedMaterialBuilding("mixed", 10.0, 12.0, "unit-a", "common.gml"), out _);
+
+        Assert.True(buffered);
+        Assert.Single(baker.FlushAll());
+    }
+
     private static ResoniteConstructionCityObject CreateTriangleBuilding(
         string slotKey,
         double x,
@@ -534,6 +545,55 @@ public sealed class FixedCellCityObjectMeshBakerTests
                 {
                     SubmeshIndices = [1],
                 },
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateMixedMaterialBuilding(
+        string slotKey,
+        double x,
+        double z,
+        string sourceUnitKey,
+        string? sourceFileRelativePath)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(3.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(2.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, "roof", [0, 1, 2]),
+                    new ResoniteMeshSubmesh(1, "facade", [3, 4, 5]),
+                ]),
+            Materials:
+            [
+                CreateBundledRoofMaterial("roof") with { SubmeshIndices = [0] },
+                new ResoniteMaterialBinding(
+                    MaterialKey: "facade",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    TextureScale: BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeter,
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    BundledVariantIndex: 0),
             ],
             SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
             SourceUnitKey: sourceUnitKey,
