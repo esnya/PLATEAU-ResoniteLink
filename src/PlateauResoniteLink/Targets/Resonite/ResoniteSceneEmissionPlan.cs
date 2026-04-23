@@ -29,6 +29,10 @@ internal sealed record PlannedHeightMapGridGeometryAsset(
     ResoniteFloat2? UvOffset = null)
     : PlannedGeometryAsset(Identity, MeshAssetSlotName);
 
+internal sealed record PlannedGeometryPreparation(
+    PlannedGeometryAsset GeometryAsset,
+    IReadOnlyList<PlannedGeometryAsset>? VisualFallbackGeometryAssets = null);
+
 internal sealed record PlannedTextureAsset(
     TextureIdentity Identity,
     Uri AssetUri);

@@ -425,6 +425,83 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 .Count());
     }
 
+    [Fact]
+    public void CreatePlannedBatchEmission_AddsVisualFallbackMeshRendererWithoutFallbackCollider()
+    {
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
+            new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
+            new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
+            "HeightMap Object",
+            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(1.0, 2.0, 3.0),
+            null);
+        PlannedReusableMaterialAsset reusableMaterial = new(
+            new MaterialIdentity("reusable"),
+            new ResoniteComponentLocator("shared-material-id"));
+        PlannedSceneObjectEmission emissionPlan = new(
+            new PlannedHeightMapGridGeometryAsset(
+                new GeometryIdentity("geom"),
+                "HeightMap Object",
+                "HeightMap Object_heightmap",
+                new ResoniteHeightMapGridGeometry(
+                    Width: 2,
+                    Height: 2,
+                    Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
+                    MinHeight: 0.0,
+                    MaxHeight: 6.0,
+                    HeightSamples: [0.0, 1.0, 2.0, 3.0]),
+                new Uri("resdb:///texture/height")),
+            [reusableMaterial],
+            new PlannedRenderer(
+                new GeometryIdentity("geom"),
+                [new PlannedDirectRendererMaterialBinding(reusableMaterial.Identity)]),
+            new PlannedCollider(
+                new GeometryIdentity("geom"),
+                true),
+            [
+                new PlannedVisualFallbackEmission(
+                    new PlannedTriangleMeshGeometryAsset(
+                        new GeometryIdentity("geom:fallback"),
+                        "HeightMap Object_heightmap_skirt",
+                        new Uri("resdb:///mesh/skirt")),
+                    new PlannedRenderer(
+                        new GeometryIdentity("geom:fallback"),
+                        [new PlannedDirectRendererMaterialBinding(reusableMaterial.Identity)])),
+            ]);
+
+        PlannedBatchEmission batchPlan = Planner.Create(objectSlots, emissionPlan);
+
+        PlannedBatchComponentEmission[] meshRenderers = batchPlan.ComponentEmissions
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .ToArray();
+        PlannedBatchComponentEmission[] meshColliders = batchPlan.ComponentEmissions
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .ToArray();
+        PlannedBatchComponentEmission[] staticMeshes = batchPlan.ComponentEmissions
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal))
+            .ToArray();
+        PlannedBatchSlotEmission fallbackAssetSlot = Assert.Single(
+            batchPlan.SlotEmissions,
+            static slot => string.Equals(slot.SlotName, "HeightMap Object_heightmap_skirt", StringComparison.Ordinal));
+
+        Assert.Equal(2, meshRenderers.Length);
+        Assert.Single(meshColliders);
+        PlannedBatchComponentEmission fallbackStaticMesh = Assert.Single(staticMeshes);
+        Assert.Equal(
+            "resdb:///mesh/skirt",
+            Assert.IsType<Field_Uri>(ToMember(fallbackStaticMesh.Members["URL"])).Value.ToString());
+        Assert.Equal(fallbackAssetSlot.Identity, AssertPlanned(fallbackStaticMesh.ContainerTarget));
+        Assert.All(
+            meshRenderers,
+            renderer =>
+            {
+                SyncList materials = Assert.IsType<SyncList>(ToMember(renderer.Members["Materials"]));
+                Assert.Equal("shared-material-id", Assert.IsType<Reference>(Assert.Single(materials.Elements)).TargetID);
+            });
+        Assert.DoesNotContain(
+            meshColliders,
+            collider => Assert.IsType<Reference>(ToMember(collider.Members["Mesh"])).TargetID == fallbackStaticMesh.Identity.Value);
+    }
+
     private static ResoniteSlotLocator AssertCanonical(PlannedSlotTargetReference target)
     {
         Assert.NotNull(target.Canonical);

@@ -221,7 +221,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncSendsHeightMapAsHdrRawTextureAndCreatesGridMesh()
+    public async Task BuildAsyncSendsHeightMapAsHdrRawTextureAndCreatesGridMeshWithBorderSkirtFallback()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -269,7 +269,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
         ImportMeshRawData importedSkirtMesh = Assert.Single(client.ImportedMeshes);
         Assert.Equal(2, importedTexture.Width);
         Assert.Equal(2, importedTexture.Height);
-        Assert.True(importedSkirtMesh.VertexCount > 0);
+        TriangleSubmeshRawData importedSkirtSubmesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(importedSkirtMesh.Submeshes));
+        Assert.Equal(16, importedSkirtMesh.VertexCount);
+        Assert.Equal(8, importedSkirtSubmesh.TriangleCount);
         float[] pixels = new float[importedTexture.RawRgbaFloatBytes.Length / sizeof(float)];
         Buffer.BlockCopy(importedTexture.RawRgbaFloatBytes, 0, pixels, 0, importedTexture.RawRgbaFloatBytes.Length);
         Assert.Equal(0.0f, pixels[0]);
@@ -287,9 +289,26 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeV"]).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(displacementTexture.Members["FilterMode"]).Value);
         Assert.False(Assert.IsType<Field_bool>(displacementTexture.Members["MipMaps"]).Value);
-        Assert.Contains(
+        Component staticMesh = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
+        Field_Uri skirtMeshUri = Assert.IsType<Field_Uri>(staticMesh.Members["URL"]);
+        Assert.Equal("resdb:///mesh/0", skirtMeshUri.Value.ToString());
+        Component[] meshRenderers = client.ComponentsById.Values
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal))
+            .ToArray();
+        Component[] meshColliders = client.ComponentsById.Values
+            .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
+            .ToArray();
+        Assert.Equal(2, meshRenderers.Length);
+        Assert.Single(meshColliders);
+        Assert.All(
+            meshRenderers,
+            renderer => Assert.Equal("HeightMap Terrain", client.SlotsById[Assert.Single(client.AddedComponents, request => string.Equals(request.Data.ID, renderer.ID, StringComparison.Ordinal)).ContainerSlotId].Name?.Value));
+        Slot skirtAssetSlot = Assert.Single(
+            client.SlotsById.Values,
+            static slot => string.Equals(slot.Name?.Value, "HeightMap Terrain_heightmap_skirt", StringComparison.Ordinal));
+        Assert.Equal(skirtAssetSlot.ID, Assert.Single(client.AddedComponents, request => string.Equals(request.Data.ID, staticMesh.ID, StringComparison.Ordinal)).ContainerSlotId);
         Assert.DoesNotContain(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));

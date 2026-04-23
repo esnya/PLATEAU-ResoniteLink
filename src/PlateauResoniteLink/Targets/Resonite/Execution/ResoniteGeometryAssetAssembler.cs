@@ -28,13 +28,81 @@ internal interface IResoniteGeometryAssetAssembler
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
+        bool includeBorderSkirtFallback,
         Action<string>? progressReporter,
         CancellationToken cancellationToken);
 }
 
 internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAssembler
 {
+    private const string HeightMapSkirtAssetSlotSuffix = "_skirt";
+    private const double HeightMapSkirtDepthMeters = 1.0;
+
     public async Task<PreparedGeometryAssetBatch> PrepareTriangleMeshAsync(
+        IResoniteLinkClient importClient,
+        string meshAssetSlotName,
+        string displayName,
+        ImportMeshRawData meshImport,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
+    {
+        return await PrepareTriangleMeshCoreAsync(
+            importClient,
+            meshAssetSlotName,
+            displayName,
+            meshImport,
+            progressReporter,
+            cancellationToken);
+    }
+
+    public async Task<PreparedGeometryAssetBatch> PrepareHeightMapGridAsync(
+        IResoniteLinkClient importClient,
+        string meshAssetSlotName,
+        string heightMapAssetSlotName,
+        string displayName,
+        ResoniteHeightMapGridGeometry geometry,
+        ResoniteRawHdrTextureImport heightTextureImport,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset,
+        bool includeBorderSkirtFallback,
+        Action<string>? progressReporter,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(importClient);
+        ArgumentException.ThrowIfNullOrWhiteSpace(meshAssetSlotName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(heightMapAssetSlotName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        ArgumentNullException.ThrowIfNull(geometry);
+        ArgumentNullException.ThrowIfNull(heightTextureImport);
+
+        progressReporter?.Invoke(
+            $"[live] HeightMap '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
+        Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
+        progressReporter?.Invoke($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
+
+        PreparedTriangleMeshAssetBatch[] visualFallbackAssets = includeBorderSkirtFallback
+            ? await PrepareBorderSkirtFallbackAssetsAsync(
+                importClient,
+                heightMapAssetSlotName,
+                displayName,
+                geometry,
+                uvScale,
+                uvOffset,
+                progressReporter,
+                cancellationToken)
+            : [];
+
+        return new PreparedHeightMapGridAssetBatch(
+            meshAssetSlotName,
+            heightMapAssetSlotName,
+            geometry,
+            textureUri,
+            uvScale,
+            uvOffset,
+            visualFallbackAssets);
+    }
+
+    private static async Task<PreparedTriangleMeshAssetBatch> PrepareTriangleMeshCoreAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string displayName,
@@ -50,29 +118,164 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         return new PreparedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
-    public async Task<PreparedGeometryAssetBatch> PrepareHeightMapGridAsync(
+    private static async Task<PreparedTriangleMeshAssetBatch[]> PrepareBorderSkirtFallbackAssetsAsync(
         IResoniteLinkClient importClient,
-        string meshAssetSlotName,
         string heightMapAssetSlotName,
         string displayName,
         ResoniteHeightMapGridGeometry geometry,
-        ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        progressReporter?.Invoke(
-            $"[live] HeightMap '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
-        Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
-        progressReporter?.Invoke($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
-        return new PreparedHeightMapGridAssetBatch(
-            meshAssetSlotName,
-            heightMapAssetSlotName,
-            geometry,
-            textureUri,
-            uvScale,
-            uvOffset);
+        ResoniteImportedMesh? skirtMesh = TryCreateHeightMapBorderSkirtMesh(geometry, uvScale, uvOffset);
+        if (skirtMesh is null)
+        {
+            return [];
+        }
+
+        ImportMeshRawData skirtMeshImport = ResoniteMeshImportFactory.Create(skirtMesh);
+        PreparedTriangleMeshAssetBatch preparedSkirtAsset = await PrepareTriangleMeshCoreAsync(
+            importClient,
+            string.Concat(heightMapAssetSlotName, HeightMapSkirtAssetSlotSuffix),
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{displayName} Border Skirt"),
+            skirtMeshImport,
+            progressReporter,
+            cancellationToken);
+        return [preparedSkirtAsset];
+    }
+
+    private static ResoniteImportedMesh? TryCreateHeightMapBorderSkirtMesh(
+        ResoniteHeightMapGridGeometry geometry,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset)
+    {
+        if (geometry.Width < 2 || geometry.Height < 2)
+        {
+            return null;
+        }
+
+        List<ResoniteMeshVertex> vertices = [];
+        List<int> indices = [];
+        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: 0, outwardZ: -1.0, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: geometry.Height - 1, outwardZ: 1.0, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtVerticalEdge(geometry, column: 0, outwardX: -1.0, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtVerticalEdge(geometry, column: geometry.Width - 1, outwardX: 1.0, uvScale, uvOffset, vertices, indices);
+
+        return vertices.Count == 0
+            ? null
+            : new ResoniteImportedMesh(
+                vertices,
+                [new ResoniteMeshSubmesh(0, "heightmap-border-skirt", indices)]);
+    }
+
+    private static void AppendHeightMapBorderSkirtHorizontalEdge(
+        ResoniteHeightMapGridGeometry geometry,
+        int row,
+        double outwardZ,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset,
+        List<ResoniteMeshVertex> vertices,
+        List<int> indices)
+    {
+        for (int column = 0; column < geometry.Width - 1; column++)
+        {
+            ResoniteMeshVertex topLeft = CreateHeightMapBorderSkirtVertex(geometry, column, row, uvScale, uvOffset);
+            ResoniteMeshVertex topRight = CreateHeightMapBorderSkirtVertex(geometry, column + 1, row, uvScale, uvOffset);
+            ResoniteMeshVertex bottomLeft = topLeft with
+            {
+                Position = new ResoniteFloat3(topLeft.Position.X, topLeft.Position.Y - HeightMapSkirtDepthMeters, topLeft.Position.Z),
+                Normal = new ResoniteFloat3(0.0, 0.0, outwardZ),
+            };
+            ResoniteMeshVertex bottomRight = topRight with
+            {
+                Position = new ResoniteFloat3(topRight.Position.X, topRight.Position.Y - HeightMapSkirtDepthMeters, topRight.Position.Z),
+                Normal = new ResoniteFloat3(0.0, 0.0, outwardZ),
+            };
+
+            topLeft = topLeft with { Normal = new ResoniteFloat3(0.0, 0.0, outwardZ) };
+            topRight = topRight with { Normal = new ResoniteFloat3(0.0, 0.0, outwardZ) };
+            AppendQuad(vertices, indices, topLeft, topRight, bottomLeft, bottomRight, outwardZ >= 0.0);
+        }
+    }
+
+    private static void AppendHeightMapBorderSkirtVerticalEdge(
+        ResoniteHeightMapGridGeometry geometry,
+        int column,
+        double outwardX,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset,
+        List<ResoniteMeshVertex> vertices,
+        List<int> indices)
+    {
+        for (int row = 0; row < geometry.Height - 1; row++)
+        {
+            ResoniteMeshVertex topNear = CreateHeightMapBorderSkirtVertex(geometry, column, row, uvScale, uvOffset);
+            ResoniteMeshVertex topFar = CreateHeightMapBorderSkirtVertex(geometry, column, row + 1, uvScale, uvOffset);
+            ResoniteMeshVertex bottomNear = topNear with
+            {
+                Position = new ResoniteFloat3(topNear.Position.X, topNear.Position.Y - HeightMapSkirtDepthMeters, topNear.Position.Z),
+                Normal = new ResoniteFloat3(outwardX, 0.0, 0.0),
+            };
+            ResoniteMeshVertex bottomFar = topFar with
+            {
+                Position = new ResoniteFloat3(topFar.Position.X, topFar.Position.Y - HeightMapSkirtDepthMeters, topFar.Position.Z),
+                Normal = new ResoniteFloat3(outwardX, 0.0, 0.0),
+            };
+
+            topNear = topNear with { Normal = new ResoniteFloat3(outwardX, 0.0, 0.0) };
+            topFar = topFar with { Normal = new ResoniteFloat3(outwardX, 0.0, 0.0) };
+            AppendQuad(vertices, indices, topNear, topFar, bottomNear, bottomFar, outwardX < 0.0);
+        }
+    }
+
+    private static ResoniteMeshVertex CreateHeightMapBorderSkirtVertex(
+        ResoniteHeightMapGridGeometry geometry,
+        int column,
+        int row,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset)
+    {
+        double x = geometry.Width == 1
+            ? 0.0
+            : (-geometry.Size.X / 2.0) + (geometry.Size.X * column / (geometry.Width - 1.0));
+        double z = geometry.Height == 1
+            ? 0.0
+            : (-geometry.Size.Y / 2.0) + (geometry.Size.Y * row / (geometry.Height - 1.0));
+        double height = geometry.HeightSamples[(row * geometry.Width) + column] - geometry.MaxHeight;
+        double baseU = geometry.Width == 1 ? 0.0 : column / (geometry.Width - 1.0);
+        double baseV = geometry.Height == 1 ? 0.0 : row / (geometry.Height - 1.0);
+
+        return new ResoniteMeshVertex(
+            new ResoniteFloat3(x, height, z),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(
+                (baseU * (uvScale?.X ?? 1.0)) + (uvOffset?.X ?? 0.0),
+                (baseV * (uvScale?.Y ?? 1.0)) + (uvOffset?.Y ?? 0.0)));
+    }
+
+    private static void AppendQuad(
+        List<ResoniteMeshVertex> vertices,
+        List<int> indices,
+        ResoniteMeshVertex topLeft,
+        ResoniteMeshVertex topRight,
+        ResoniteMeshVertex bottomLeft,
+        ResoniteMeshVertex bottomRight,
+        bool flipWinding)
+    {
+        int baseIndex = vertices.Count;
+        vertices.Add(topLeft);
+        vertices.Add(topRight);
+        vertices.Add(bottomLeft);
+        vertices.Add(bottomRight);
+
+        if (!flipWinding)
+        {
+            indices.AddRange([baseIndex, baseIndex + 2, baseIndex + 1, baseIndex + 1, baseIndex + 2, baseIndex + 3]);
+            return;
+        }
+
+        indices.AddRange([baseIndex, baseIndex + 1, baseIndex + 2, baseIndex + 1, baseIndex + 3, baseIndex + 2]);
     }
 
     internal static Dictionary<string, Member> CreateHeightMapTextureMembers(Uri assetUri)
@@ -106,4 +309,5 @@ internal sealed record PreparedHeightMapGridAssetBatch(
     ResoniteHeightMapGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale,
-    ResoniteFloat2? UvOffset) : PreparedGeometryAssetBatch(MeshAssetSlotName);
+    ResoniteFloat2? UvOffset,
+    IReadOnlyList<PreparedTriangleMeshAssetBatch>? VisualFallbackAssets = null) : PreparedGeometryAssetBatch(MeshAssetSlotName);
