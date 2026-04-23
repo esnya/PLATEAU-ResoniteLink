@@ -2116,11 +2116,8 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static ResoniteFloat2 ResolveGeneratedSurfaceUvScale(string packageName)
     {
-        return IsBuildingPackage(packageName)
-            ? new ResoniteFloat2(
-                FacadeMaterialUvScaling.ToFloorSquareUnits(1.0),
-                FacadeMaterialUvScaling.ToFloorSquareUnits(1.0))
-            : new ResoniteFloat2(1.0, 1.0);
+        _ = packageName;
+        return new ResoniteFloat2(1.0, 1.0);
     }
 
     private static Float2 CreateGeneratedSurfaceUv(

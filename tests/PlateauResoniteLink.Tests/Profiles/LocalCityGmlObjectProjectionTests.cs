@@ -98,7 +98,6 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Contains("53394525", source.Metadata.SourceDataset.SelectedMeshCodes!);
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
     }
-
     [Fact]
     public void GeneratedFacadeUvProjection_UsesWorldMeterUnitsForBuildingWalls()
     {
