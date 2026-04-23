@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
@@ -19,7 +20,11 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        DefaultImportedSceneSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         Action<string> progressReporter = _ => { };
 
         PlateauImportRequest request = new(
@@ -67,7 +72,11 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(resolvedOverlays);
-        DefaultImportedSceneSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -104,7 +113,11 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        DefaultImportedSceneSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
@@ -160,7 +173,11 @@ public sealed class DefaultImportedSceneSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        DefaultImportedSceneSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
@@ -193,7 +210,11 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             [],
             new PlateauImportValidationException(["invalid GeoTIFF source"]));
-        DefaultImportedSceneSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -256,8 +277,8 @@ public sealed class DefaultImportedSceneSourceFactoryTests
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
-            Action<string>? progressReporter = null,
-            IImportedObjectUnitOptimizer? objectUnitOptimizer = null)
+            IImportedObjectUnitOptimizer objectUnitOptimizer,
+            Action<string>? progressReporter = null)
         {
             LastRequest = request;
             LastReadResult = readResult;

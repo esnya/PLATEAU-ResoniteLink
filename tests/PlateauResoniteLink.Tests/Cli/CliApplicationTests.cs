@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Cli;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Cli;
 

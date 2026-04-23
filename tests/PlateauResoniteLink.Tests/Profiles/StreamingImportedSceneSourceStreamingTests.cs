@@ -11,6 +11,7 @@ using GeographicLib;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
@@ -114,7 +115,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             request,
             readResult,
             geometryProjector,
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy(),
+            new PassthroughImportedObjectUnitOptimizer());
         List<ImportedCityObject> yieldedObjects = [];
         Task collectTask = Task.Run(
             async () =>
@@ -235,7 +237,8 @@ public sealed class StreamingImportedSceneSourceStreamingTests
             request,
             readResult,
             new RecordingGeometryProjector(),
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy(),
+            new PassthroughImportedObjectUnitOptimizer());
     }
 
     private sealed class StubDemTextureSourcePolicy : IDemTextureSourcePolicy

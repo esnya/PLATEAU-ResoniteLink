@@ -19,12 +19,13 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
         ICityGmlDocumentReader documentReader,
         IImportedSceneSourceComposer constructionComposer,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        IImportedObjectUnitOptimizer? objectUnitOptimizer = null)
+        IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
+        ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         this.documentReader = documentReader;
         this.constructionComposer = constructionComposer;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
-        this.objectUnitOptimizer = objectUnitOptimizer ?? new PassthroughImportedObjectUnitOptimizer();
+        this.objectUnitOptimizer = objectUnitOptimizer;
     }
 
     public Task<IImportedSceneSource> CreateAsync(
@@ -46,7 +47,7 @@ internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFa
             progressReporter,
             cancellationToken);
         await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
-        return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter, objectUnitOptimizer));
+        return await Task.FromResult(constructionComposer.Compose(request, readResult, objectUnitOptimizer, progressReporter));
     }
 
     private async Task ValidateDemTextureSourceAsync(

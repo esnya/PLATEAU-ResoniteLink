@@ -27,7 +27,10 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBuffered
 
         return enableMeshBake
             ? new CompositeCityObjectBaker(
-                new NonDemCityObjectBaker(textureImageLoader, resourceBudget: resourceBudget))
+                new NonDemCityObjectBaker(
+                    textureImageLoader,
+                    bakePolicies: NonDemCityObjectBakePolicies.DefaultPolicies,
+                    resourceBudget: resourceBudget))
             : null;
     }
 }

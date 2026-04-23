@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -789,7 +790,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))))
-            .Compose(request, readResult)
+            .Compose(
+                request,
+                readResult,
+                new PassthroughImportedObjectUnitOptimizer())
             .Metadata;
 
         _ = await builder.ExecuteAsync(

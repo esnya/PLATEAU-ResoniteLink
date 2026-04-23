@@ -9,6 +9,6 @@ internal interface IImportedSceneSourceComposer
     IImportedSceneSource Compose(
         PlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
-        Action<string>? progressReporter = null,
-        IImportedObjectUnitOptimizer? objectUnitOptimizer = null);
+        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        Action<string>? progressReporter = null);
 }

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
@@ -30,7 +31,8 @@ public sealed class StreamingImportedSceneSourceTests
             request,
             CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector(),
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy(),
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -76,7 +78,8 @@ public sealed class StreamingImportedSceneSourceTests
                 ],
                 [overlay]),
             geometryProjector,
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy(),
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -117,7 +120,8 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
             geometryProjector,
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -174,7 +178,8 @@ public sealed class StreamingImportedSceneSourceTests
                         streamFactory: cancellationToken => StreamParsedCityObjects(sourceFile, referenceSystem, cancellationToken)),
                 ]),
             new TrackingGeometryProjector(),
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         await source.ReadCityObjectsAsync().ToListAsync();
 
@@ -227,7 +232,8 @@ public sealed class StreamingImportedSceneSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
             geometryProjector,
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -270,7 +276,8 @@ public sealed class StreamingImportedSceneSourceTests
                             TimeSpan.Zero))),
                 ]),
             new TrackingGeometryProjector(),
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         using CancellationTokenSource cancellationTokenSource = new();
         Task readTask = source.ReadCityObjectsAsync(cancellationTokenSource.Token).ToListAsync(cancellationTokenSource.Token).AsTask();

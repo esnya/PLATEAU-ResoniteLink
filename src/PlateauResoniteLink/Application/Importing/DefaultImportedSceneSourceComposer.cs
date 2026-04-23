@@ -17,11 +17,12 @@ internal sealed class DefaultImportedSceneSourceComposer(
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
         ImportedSceneSourceSnapshot readResult,
-        Action<string>? progressReporter = null,
-        IImportedObjectUnitOptimizer? objectUnitOptimizer = null)
+        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
         ImportedSceneSourceContext bootstrapContext = readResult.BootstrapContext;
 
@@ -45,7 +46,7 @@ internal sealed class DefaultImportedSceneSourceComposer(
             readResult,
             geometryProjector,
             demTextureSourcePolicy,
-            objectUnitOptimizer ?? new PassthroughImportedObjectUnitOptimizer(),
+            objectUnitOptimizer,
             progressReporter);
     }
 

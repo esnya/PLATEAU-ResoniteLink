@@ -2,7 +2,9 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
-namespace PlateauResoniteLink.Application.Importing;
+using PlateauResoniteLink.Application.Importing;
+
+namespace PlateauResoniteLink.Tests.Application.Importing;
 
 internal sealed class PassthroughImportedObjectUnitOptimizer : IImportedObjectUnitOptimizer
 {

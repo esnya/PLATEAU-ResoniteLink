@@ -8,6 +8,7 @@ using GeographicLib;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
@@ -44,7 +45,10 @@ public sealed class DefaultImportedSceneSourceComposerTests
             new ThrowingGeometryProjector(),
             new StubDemTextureSourcePolicy());
 
-        IImportedSceneSource source = composer.Compose(request, readResult);
+        IImportedSceneSource source = composer.Compose(
+            request,
+            readResult,
+            new PassthroughImportedObjectUnitOptimizer());
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
         Assert.Equal("PLATEAU tokyo23ku 53394525", source.Metadata.SceneName);

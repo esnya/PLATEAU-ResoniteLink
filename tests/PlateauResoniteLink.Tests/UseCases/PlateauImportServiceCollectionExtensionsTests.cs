@@ -158,8 +158,8 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
             ImportedSceneSourceSnapshot readResult,
-            Action<string>? progressReporter = null,
-            IImportedObjectUnitOptimizer? objectUnitOptimizer = null)
+            IImportedObjectUnitOptimizer objectUnitOptimizer,
+            Action<string>? progressReporter = null)
         {
             LastRequest = request;
             LastReadResult = readResult;

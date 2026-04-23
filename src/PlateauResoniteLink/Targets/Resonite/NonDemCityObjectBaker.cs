@@ -14,9 +14,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
     ResoniteTextureImageLoader textureImageLoader,
+    IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
-    IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
     ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
@@ -26,7 +26,7 @@ internal sealed class NonDemCityObjectBaker(
     private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
     private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
-        ?? NonDemCityObjectBakePolicies.DefaultPolicies;
+        ?? throw new ArgumentNullException(nameof(bakePolicies));
 
     public string Name => "AtlasBake";
 

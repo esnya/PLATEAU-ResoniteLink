@@ -37,11 +37,12 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         ImportedSceneSourceSnapshot readResult,
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        IImportedObjectUnitOptimizer? objectUnitOptimizer = null,
+        IImportedObjectUnitOptimizer objectUnitOptimizer,
         Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(readResult);
+        ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
         ImportedSceneSourceContext bootstrapContext = readResult.BootstrapContext;
         Metadata = metadata;
@@ -51,7 +52,7 @@ internal sealed class StreamingImportedSceneSource : IImportedSceneSource
         globalOriginPoint = bootstrapContext.GlobalOriginPoint;
         this.geometryProjector = geometryProjector;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
-        this.objectUnitOptimizer = objectUnitOptimizer ?? new PassthroughImportedObjectUnitOptimizer();
+        this.objectUnitOptimizer = objectUnitOptimizer;
         this.progressReporter = progressReporter;
         requestedMeshAreas = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
