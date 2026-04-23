@@ -52,7 +52,7 @@ Use the guide for:
 
 Use only these operator-facing direct commands:
 
-- `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- build ...`
+- `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import ...`
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- discover-session ...`
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ...`
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ...`

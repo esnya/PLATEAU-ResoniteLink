@@ -336,6 +336,41 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public void FlushAllKeepsSingleBufferedMeshAboveUInt16VertexRangeWhenBatchLimitAllowsIt()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 10,
+            maxVerticesPerBatch: ResoniteMeshImportFactory.MaxSupportedVertexCount);
+        Assert.True(baker.TryBuffer(CreateDenseTriangleBuilding("wide", 65_537, 10.0, 12.0, "unit-a", "common.gml"), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        Assert.Equal(65_537, baked.Mesh.Vertices.Count);
+        Assert.Single(baked.Mesh.Submeshes);
+        Assert.Equal([0, 1, 2], baked.Mesh.Submeshes[0].TriangleVertexIndices);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncFlushesWhenConfiguredVertexBudgetIsExceeded()
+    {
+        FixedCellCityObjectMeshBaker baker = new(
+            cellSizeMeters: 64.0,
+            maxCityObjectsPerBatch: 10,
+            maxVerticesPerBatch: 6);
+
+        BufferedCityObjectBufferResult first = await baker.TryBufferAsync(CreateDenseTriangleBuilding("first", 4, 10.0, 10.0, "unit-a", null));
+        BufferedCityObjectBufferResult second = await baker.TryBufferAsync(CreateDenseTriangleBuilding("second", 4, 11.0, 10.0, "unit-a", null));
+
+        Assert.True(first.Buffered);
+        Assert.Empty(first.ReadyCityObjects);
+        ResoniteConstructionCityObject flushed = Assert.Single(second.ReadyCityObjects);
+        Assert.Equal(8, flushed.Mesh.Vertices.Count);
+        Assert.Single(flushed.Mesh.Submeshes);
+        Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
     public void FlushAllPreservesConcatenatedVertexAndIndexTopology()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
@@ -445,6 +480,53 @@ public sealed class FixedCellCityObjectMeshBakerTests
                     new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
                     new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 1.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
                 ],
+                [
+                    new ResoniteMeshSubmesh(0, "shared-material", [0, 1, 2]),
+                ]),
+            Materials:
+            [
+                material,
+            ],
+            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static ResoniteConstructionCityObject CreateDenseTriangleBuilding(
+        string slotKey,
+        int vertexCount,
+        double x,
+        double z,
+        string sourceUnitKey,
+        string? sourceFileRelativePath,
+        ResoniteMaterialBinding? material = null)
+    {
+        material ??= new ResoniteMaterialBinding(
+            MaterialKey: "shared-material",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0]);
+
+        ResoniteMeshVertex[] vertices = Enumerable.Range(0, vertexCount)
+            .Select(index => new ResoniteMeshVertex(
+                new ResoniteFloat3(index, 0.0, 0.0),
+                new ResoniteFloat3(0.0, 1.0, 0.0),
+                new ResoniteFloat2(0.0, 0.0)))
+            .ToArray();
+
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 1,
+            Transform: new ResoniteTransform(new ResoniteFloat3(x, 0.0, z)),
+            Mesh: new ResoniteImportedMesh(
+                vertices,
                 [
                     new ResoniteMeshSubmesh(0, "shared-material", [0, 1, 2]),
                 ]),

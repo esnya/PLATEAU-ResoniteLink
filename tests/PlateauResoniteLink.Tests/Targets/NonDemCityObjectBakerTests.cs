@@ -11,15 +11,15 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Tests.Targets;
 
-public sealed class Lod2AtlasCityObjectBakerTests
+public sealed class NonDemCityObjectBakerTests
 {
     [Fact]
     public async Task FlushAllAsyncBakesSingleSourceUnitIntoSingleMaterialAndSubmesh()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
-        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a"));
-        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 4, 4), 2, "unit-a"));
 
         IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
 
@@ -39,7 +39,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncBakesActualUsedUvRegionInsteadOfWholeSourceTexture()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
 
         await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
             "building-one",
@@ -59,9 +59,80 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncConvertsUniformDatasetTextureToSharedVertexColorMaterial()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-uniform",
+                CreatePayload("textures/uniform-red.png", new Rgba32(255, 0, 0, 255), 8, 8),
+                0,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        Assert.Equal(ResoniteMaterialType.VertexColor, material.MaterialType);
+        Assert.Null(material.TexturePayload);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+        Assert.Equal(new ResoniteColor(1.0, 1.0, 1.0, 1.0), material.BaseColor);
+        Assert.All(cityObject.Mesh.Vertices, static vertex => Assert.Equal(new ResoniteColor(1.0, 0.0, 0.0, 1.0), vertex.Color));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsBakedUniformRegionFromNonUniformDatasetTextureAtBakedResolution()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
+            "building-nonuniform",
+            CreateStripedPayload("textures/nonuniform-red-region.png", [new Rgba32(255, 0, 0, 255), new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), new Rgba32(0, 0, 255, 255)]),
+            "unit-a",
+            new ResoniteFloat2(0.5, 1.0),
+            new ResoniteFloat2(0.0, 0.0)));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(Assert.Single(cityObject.Materials).TexturePayload);
+
+        Assert.Equal(2, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 1, 0));
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsUniformVertexColorAndNonUniformAtlasMaterialsInSameBatch()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-uniform",
+                CreatePayload("textures/uniform-red.png", new Rgba32(255, 0, 0, 255), 8, 8),
+                0,
+                "unit-a"));
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building(
+                "building-nonuniform",
+                CreateCheckerPayload("textures/nonuniform.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 0, 255, 255), 4, 4),
+                2,
+                "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal(2, cityObject.Materials.Count);
+        Assert.Equal(2, cityObject.Mesh.Submeshes.Count);
+        Assert.Contains(cityObject.Materials, static material => material.MaterialType == ResoniteMaterialType.VertexColor && material.TexturePayload is null);
+        Assert.Contains(cityObject.Materials, static material => material.MaterialType == ResoniteMaterialType.Standard && material.TexturePayload is not null);
+        Assert.Contains(cityObject.Mesh.Vertices, static vertex => vertex.Color == new ResoniteColor(1.0, 0.0, 0.0, 1.0));
+    }
+
+    [Fact]
     public async Task FlushAllAsyncRepeatsTextureContentWhenUsedUvRangeExceedsUnitSquare()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
 
         await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
             "building-one",
@@ -84,7 +155,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncPreservesDetectedBackgroundColorInTransparentTilePixels()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
 
         await AssertBufferedAsync(
             baker,
@@ -113,9 +184,9 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncKeepsCommonMaterialsAsSeparateSubmeshesWhileAtlasingDedicatedMaterials()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
-        await AssertBufferedAsync(baker, CreateMixedScopeLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), "unit-a"));
+        await AssertBufferedAsync(baker, CreateMixedScopeLod2Building("building-one", CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 4, 4), "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Equal(2, cityObject.Materials.Count);
@@ -130,7 +201,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncKeepsTintedPrescopedCommonMaterialVariantsDedicated()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
         await AssertBufferedAsync(
             baker,
@@ -155,7 +226,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncKeepsTintedPreservedBundledFamilyMaterialsDedicated()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
         await AssertBufferedAsync(
             baker,
@@ -181,7 +252,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncKeepsWhitePreservedBundledFamilyMaterialsDedicatedWhenOffsetOrDepthExists()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
             "building-transform",
             CreatePayload("textures/transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
@@ -243,21 +314,19 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncAllowsTintedPreservedBundledFamilyMaterialsWhenCommonPreservationIsDisabled()
     {
-        Lod2AtlasCityObjectBaker baker = new(
+        NonDemCityObjectBaker baker = new(
             new ResoniteTextureImageLoader(),
             maxAtlasSize: 32,
             tilePaddingPixels: 1,
             bakePolicies:
             [
-                new Lod2AtlasCityObjectBakePolicy(
+                new NonDemCityObjectBakePolicy(
                     Name: "dedicated-bundled-check",
                     CanBufferCityObject: static _ => true,
                     RequireAtlasCandidateMaterial: true,
                     PreserveVertexColorMaterials: true,
                     PreserveTexturelessMaterials: false,
-                    PreserveCommonMaterials: false,
-                    EnableGridPassThrough: false,
-                    PassThroughGridCellSizeMeters: 0),
+                    PreserveCommonMaterials: false),
             ]);
 
         await AssertBufferedAsync(
@@ -280,7 +349,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncDemotesPrescopedWhiteBundledFamilyMaterialsWhenOffsetOrDepthExists()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
         ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
             "building-prescoped-transform",
             CreatePayload("textures/prescoped-transform.png", new Rgba32(255, 0, 0, 255), 4, 4),
@@ -343,11 +412,11 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncFallsBackToOriginalCityObjectWhenSingleCandidateCannotFitAtlasBudget()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 12, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 12, tilePaddingPixels: 1);
         ResoniteConstructionCityObject oversizedCandidate = CreateMultiTextureLod2Building(
             "building-one",
-            CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 12, 12),
-            CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 12, 12),
+            CreateCheckerPayload("textures/one.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 12, 12),
+            CreateCheckerPayload("textures/two.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 0, 255, 255), 12, 12),
             "unit-a");
 
         await AssertBufferedAsync(baker, oversizedCandidate);
@@ -363,10 +432,10 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncFallsBackToNormalizedCityObjectWhenSingleCandidateCannotFitAtlasBudget()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
         ResoniteConstructionCityObject oversizedCandidate = CreateUvScaledLod2Building(
             "building-dynamic-fallback",
-            CreatePayload("textures/dynamic-fallback.png", new Rgba32(255, 0, 0, 255), 9, 3),
+            CreateCheckerPayload("textures/dynamic-fallback.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), 9, 3),
             "unit-a",
             new ResoniteFloat2(2.0, 0.5),
             new ResoniteFloat2(0.25, 0.75));
@@ -388,7 +457,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncBakesAlbedoOnlyFamilyMaterialsWithinCityObjectIntoSingleAtlasMaterial()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
 
         await AssertBufferedAsync(
             baker,
@@ -401,34 +470,83 @@ public sealed class Lod2AtlasCityObjectBakerTests
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         Assert.Single(cityObject.Materials);
         Assert.Single(cityObject.Mesh.Submeshes);
-        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
-        Assert.NotNull(atlasPayload.Width);
-        Assert.NotNull(atlasPayload.Height);
-        Assert.True(atlasPayload.Width > 0);
-        Assert.True(atlasPayload.Height > 0);
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        Assert.Equal(ResoniteMaterialType.VertexColor, material.MaterialType);
+        Assert.Null(material.TexturePayload);
 
-        HashSet<Rgba32> atlasColors = [];
-        int pixelCount = atlasPayload.Width.Value * atlasPayload.Height.Value;
-        ReadOnlySpan<byte> atlasBytes = atlasPayload.BinaryPayload.AsSpan();
-        for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++)
+        HashSet<ResoniteColor> vertexColors = cityObject.Mesh.Vertices
+            .Select(static vertex => vertex.Color)
+            .OfType<ResoniteColor>()
+            .ToHashSet();
+        Assert.Contains(new ResoniteColor(1.0, 0.0, 0.0, 1.0), vertexColors);
+        Assert.Contains(new ResoniteColor(0.0, 1.0, 0.0, 1.0), vertexColors);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsWhiteBundledFamilyMaterialsDedicatedForLod1Batches()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject source = CreateBundledFamilyPreservedLod2Building(
+            "building-lod1-roof",
+            CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a") with
         {
-            int offset = pixelIndex * 4;
-            atlasColors.Add(new Rgba32(
-                atlasBytes[offset],
-                atlasBytes[offset + 1],
-                atlasBytes[offset + 2],
-                atlasBytes[offset + 3]));
-        }
+            LodLevel = 1,
+            Materials =
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-lod1-atlas",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: CreatePayload("textures/lod1-roof.png", new Rgba32(255, 0, 0, 255), 4, 4),
+                    TextureSourceKind: ResoniteTextureSourceKind.Dataset,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-lod1-roof-0",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [1],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    BundledVariantIndex: 0),
+                new ResoniteMaterialBinding(
+                    MaterialKey: "building-lod1-roof-1",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [2],
+                    Family: BundledDefaultMaterialFamilies.Roof,
+                    BundledVariantIndex: 0),
+            ],
+        };
 
-        Assert.Contains(new Rgba32(255, 0, 0, 255), atlasColors);
-        Assert.Contains(new Rgba32(0, 255, 0, 255), atlasColors);
-        Assert.DoesNotContain(new Rgba32(0, 0, 0, 0), atlasColors);
+        await AssertBufferedAsync(baker, source);
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding[] preservedRoofMaterials = cityObject.Materials
+            .Where(static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Roof, StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Equal(3, cityObject.Materials.Count);
+        Assert.Equal(3, cityObject.Mesh.Submeshes.Count);
+        Assert.Equal(2, preservedRoofMaterials.Length);
+        Assert.All(preservedRoofMaterials, static material => Assert.Equal(ResoniteMaterialAssetScope.PresentationSlotScoped, material.AssetScope));
+        Assert.Contains(preservedRoofMaterials, static material => material.MaterialKey == "building-lod1-roof-0");
+        Assert.Contains(preservedRoofMaterials, static material => material.MaterialKey == "building-lod1-roof-1");
     }
 
     [Fact]
     public async Task FlushAllAsyncKeepsDistinctSourceUnitsInSeparateAtlasBatches()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
 
         await AssertBufferedAsync(baker, CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a"));
         await AssertBufferedAsync(baker, CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-b"));
@@ -441,13 +559,35 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncKeepsSameSourceFileInSingleAtlasBatchAcrossDifferentSourceUnits()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-one", CreatePayload("textures/one.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+            {
+                SourceFileRelativePath = "shared.gml",
+            });
+        await AssertBufferedAsync(
+            baker,
+            CreateLod2Building("building-two", CreatePayload("textures/two.png", new Rgba32(0, 255, 0, 255), 4, 4), 2, "unit-b") with
+            {
+                SourceFileRelativePath = "shared.gml",
+            });
+
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        Assert.Equal("shared.gml", baked.SourceFileRelativePath);
+    }
+
+    [Fact]
     public async Task FlushAllAsyncPacksMixedSizeTexturesIntoSingleAtlasBatch()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 16, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 16, tilePaddingPixels: 0);
 
-        await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreatePayload("textures/a.png", new Rgba32(255, 0, 0, 255), 7, 7), 0, "unit-a"));
-        await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreatePayload("textures/b.png", new Rgba32(0, 255, 0, 255), 1, 7), 2, "unit-a"));
-        await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreatePayload("textures/c.png", new Rgba32(0, 0, 255, 255), 3, 3), 4, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-a", CreateCheckerPayload("textures/a.png", new Rgba32(255, 0, 0, 255), new Rgba32(255, 255, 0, 255), 7, 7), 0, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-b", CreateCheckerPayload("textures/b.png", new Rgba32(0, 255, 0, 255), new Rgba32(0, 255, 255, 255), 1, 7), 2, "unit-a"));
+        await AssertBufferedAsync(baker, CreateLod2Building("building-c", CreateCheckerPayload("textures/c.png", new Rgba32(0, 0, 255, 255), new Rgba32(255, 0, 255, 255), 3, 3), 4, "unit-a"));
 
         ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
         ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(cityObject.Materials[0].TexturePayload);
@@ -458,7 +598,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
     [Fact]
     public async Task FlushAllAsyncFallsBackWhenSingleCandidateNeedsNonPowerOfTwoEdgeBeyondBudget()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 10, tilePaddingPixels: 0);
 
         ResoniteConstructionCityObject oversizedCandidate = CreateLod2Building(
             "building-a",
@@ -474,33 +614,84 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
-    public async Task TryBufferAsyncSkipsNonTargetCityObjectsWithoutNormalizingDynamicUvTransform()
+    public async Task TryBufferAsyncBuffersLod1NonDemCityObjectsAndNormalizesDynamicUvTransform()
     {
-        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
-        ResoniteConstructionCityObject nonTargetCityObject = CreateUvScaledLod2Building(
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject cityObject = CreateUvScaledLod2Building(
             "lod1-dynamic",
             CreatePayload("textures/lod1-dynamic.png", new Rgba32(255, 0, 0, 255), 4, 4),
             "unit-a",
             new ResoniteFloat2(2.0, 0.5),
             new ResoniteFloat2(0.25, 0.75)) with
         {
+            PackageName = "tran",
             LodLevel = 1,
         };
 
-        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(nonTargetCityObject);
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+
+        Assert.True(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(baked.Materials);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(3, baked.Mesh.Vertices.Count);
+        Assert.Equal("tran", baked.PackageName);
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncSkipsDemCityObjectsWithoutNormalizingDynamicUvTransform()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject demCityObject = CreateUvScaledLod2Building(
+            "dem-dynamic",
+            CreatePayload("textures/dem-dynamic.png", new Rgba32(255, 0, 0, 255), 4, 4),
+            "unit-a",
+            new ResoniteFloat2(2.0, 0.5),
+            new ResoniteFloat2(0.25, 0.75)) with
+        {
+            PackageName = "dem",
+            LodLevel = null,
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(demCityObject);
 
         Assert.False(result.Buffered);
         Assert.Empty(result.ReadyCityObjects);
-        Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(nonTargetCityObject.Materials).TextureScale);
-        Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(nonTargetCityObject.Materials).TextureOffset);
-        Assert.Equal(3, nonTargetCityObject.Mesh.Vertices.Count);
+        Assert.Equal(new ResoniteFloat2(2.0, 0.5), Assert.Single(demCityObject.Materials).TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.25, 0.75), Assert.Single(demCityObject.Materials).TextureOffset);
+        Assert.Equal(3, demCityObject.Mesh.Vertices.Count);
         Assert.Empty(await baker.FlushAllAsync());
+    }
+
+    [Fact]
+    public async Task TryBufferAsyncBuffersLodlessNonDemCityObjects()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+        ResoniteConstructionCityObject cityObject = CreateLod2Building(
+            "lodless-frn",
+            CreateCheckerPayload("textures/lodless-frn.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), 4, 4),
+            0,
+            "unit-a") with
+        {
+            PackageName = "frn",
+            LodLevel = null,
+        };
+
+        BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
+
+        Assert.True(result.Buffered);
+        Assert.Empty(result.ReadyCityObjects);
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+        Assert.Null(baked.LodLevel);
+        Assert.Equal("frn", baked.PackageName);
     }
 
     [Fact]
     public async Task FlushAllAsyncCapsAtlasTileSizeForSmallMemoryProfile()
     {
-        Lod2AtlasCityObjectBaker baker = new(
+        NonDemCityObjectBaker baker = new(
             new ResoniteTextureImageLoader(),
             maxAtlasSize: 2048,
             tilePaddingPixels: 0,
@@ -510,7 +701,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             baker,
             CreateLod2Building(
                 "building-large",
-                CreatePayload("textures/large.png", new Rgba32(255, 0, 0, 255), 1024, 1024),
+                CreateVerticalSplitPayload("textures/large.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 0, 255, 255), 1024, 1024),
                 0,
                 "unit-a"));
 
@@ -520,7 +711,44 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.Equal(512, atlasPayload.Height);
     }
 
-    private static async Task AssertBufferedAsync(Lod2AtlasCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
+    [Fact]
+    public async Task TryBufferAsyncAdvancesBatchIdentityAcrossRepeatedEarlyFlushesForSameSourceUnit()
+    {
+        NonDemCityObjectBaker baker = new(
+            new ResoniteTextureImageLoader(),
+            maxAtlasSize: 32,
+            tilePaddingPixels: 0,
+            maxBufferedCityObjectsPerSourceUnit: 2);
+
+        List<ResoniteConstructionCityObject> earlyBatches = [];
+        for (int index = 0; index < 6; index++)
+        {
+            BufferedCityObjectBufferResult result = await baker.TryBufferAsync(
+                CreateLod2Building(
+                    $"building-{index}",
+                    CreateCheckerPayload($"textures/repeated-{index}.png", new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255), 4, 4),
+                    index * 2,
+                    "unit-a") with
+                {
+                    SourceFileRelativePath = null,
+                });
+            if (result.ReadyCityObjects.Count > 0)
+            {
+                earlyBatches.Add(Assert.Single(result.ReadyCityObjects));
+            }
+        }
+
+        Assert.Equal(2, earlyBatches.Count);
+        ResoniteConstructionCityObject firstBatch = earlyBatches[0];
+        ResoniteConstructionCityObject secondBatch = earlyBatches[1];
+        Assert.NotEqual(firstBatch!.SlotKey, secondBatch.SlotKey);
+        Assert.NotEqual(firstBatch.SourceObjectKey, secondBatch.SourceObjectKey);
+        Assert.NotEqual(
+            Assert.IsType<ResoniteTexturePayload>(Assert.Single(firstBatch.Materials).TexturePayload).Identity,
+            Assert.IsType<ResoniteTexturePayload>(Assert.Single(secondBatch.Materials).TexturePayload).Identity);
+    }
+
+    private static async Task AssertBufferedAsync(NonDemCityObjectBaker baker, ResoniteConstructionCityObject cityObject)
     {
         BufferedCityObjectBufferResult result = await baker.TryBufferAsync(cityObject);
         Assert.True(result.Buffered);
@@ -554,6 +782,35 @@ public sealed class Lod2AtlasCityObjectBakerTests
         for (int x = 0; x < colors.Count; x++)
         {
             image[x, 0] = colors[x];
+        }
+
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private static ResoniteTexturePayload CreateCheckerPayload(string identity, Rgba32 primary, Rgba32 secondary, int width, int height)
+    {
+        using Image<Rgba32> image = new(width, height);
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                image[x, y] = ((x + y) & 1) == 0 ? primary : secondary;
+            }
+        }
+
+        return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
+    }
+
+    private static ResoniteTexturePayload CreateVerticalSplitPayload(string identity, Rgba32 left, Rgba32 right, int width, int height)
+    {
+        using Image<Rgba32> image = new(width, height);
+        int splitX = width / 2;
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                image[x, y] = x < splitX ? left : right;
+            }
         }
 
         return ResoniteTextureImportFactory.CreatePayloadFromImage(image, identity: identity);
@@ -611,6 +868,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
             SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
+
 
     private static ResoniteConstructionCityObject CreateMultiTextureLod2Building(
         string slotKey,

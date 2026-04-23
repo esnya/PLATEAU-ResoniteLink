@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -51,15 +52,64 @@ public sealed class ResoniteMeshImportFactoryTests
         Assert.Equal(0.25f, result.AccessUV_2D(0)[0].x);
         Assert.Equal(0.75f, result.AccessUV_2D(0)[0].y);
 
-        Assert.Equal(0.2f, result.Colors[0].r, 6);
-        Assert.Equal(0.4f, result.Colors[0].g, 6);
-        Assert.Equal(0.6f, result.Colors[0].b, 6);
+        Assert.Equal(ToLinear(0.2), result.Colors[0].r, 6);
+        Assert.Equal(ToLinear(0.4), result.Colors[0].g, 6);
+        Assert.Equal(ToLinear(0.6), result.Colors[0].b, 6);
         Assert.Equal(0.8f, result.Colors[0].a, 6);
 
         Assert.Equal(1.0f, result.Colors[1].r, 6);
         Assert.Equal(1.0f, result.Colors[1].g, 6);
         Assert.Equal(1.0f, result.Colors[1].b, 6);
         Assert.Equal(1.0f, result.Colors[1].a, 6);
+    }
+
+    [Fact]
+    public void CreateAcceptsTriangleIndicesBeyondUInt16Range()
+    {
+        ResoniteMeshVertex[] vertices = Enumerable.Range(0, 65_537)
+            .Select(static index => new ResoniteMeshVertex(
+                new ResoniteFloat3(index, 0.0, 0.0),
+                new ResoniteFloat3(0.0, 1.0, 0.0),
+                new ResoniteFloat2(0.0, 0.0)))
+            .ToArray();
+        vertices[0] = new ResoniteMeshVertex(
+            new ResoniteFloat3(0.0, 0.0, 0.0),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(0.0, 0.0));
+        vertices[65_535] = new ResoniteMeshVertex(
+            new ResoniteFloat3(1.0, 0.0, 0.0),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(1.0, 0.0));
+        vertices[65_536] = new ResoniteMeshVertex(
+            new ResoniteFloat3(0.0, 0.0, 1.0),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(0.0, 1.0));
+
+        ResoniteImportedMesh mesh = new(
+            Vertices: vertices,
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "wide-index", [0, 65_535, 65_536]),
+            ]);
+
+        ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);
+
+        TriangleSubmeshRawData submesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(result.Submeshes));
+        Assert.Equal(65_537, result.VertexCount);
+        Assert.Equal([0, 65_535, 65_536], submesh.Indices);
+    }
+
+    [Fact]
+    public void CreateLinearVertexColorMatchesSharedColorSpaceHelper()
+    {
+        ResoniteColor color = new(0.2, 0.4, 0.6, 0.8);
+
+        color linear = ResoniteColorSpace.CreateLinearVertexColor(color);
+
+        Assert.Equal(ToLinear(0.2), linear.r, 6);
+        Assert.Equal(ToLinear(0.4), linear.g, 6);
+        Assert.Equal(ToLinear(0.6), linear.b, 6);
+        Assert.Equal(0.8f, linear.a, 6);
     }
 
     [Fact]
@@ -231,5 +281,13 @@ public sealed class ResoniteMeshImportFactoryTests
         InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => ResoniteMeshImportFactory.Create(mesh));
 
         Assert.Contains("did not contain any submesh", exception.Message, StringComparison.Ordinal);
+    }
+
+    private static float ToLinear(double value)
+    {
+        double linear = value <= 0.04045
+            ? value / 12.92
+            : Math.Pow((value + 0.055) / 1.055, 2.4);
+        return (float)linear;
     }
 }

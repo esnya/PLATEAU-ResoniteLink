@@ -22,6 +22,7 @@ namespace PlateauResoniteLink.Application.Importing;
 
 internal static partial class LocalCityGmlObjectProjection
 {
+    private const double BuildingBottomCullBandMeters = 0.1;
     public const string DefaultDemTerrainTexturePath = DemTerrainTextureDefaults.PlateauOrthoPath;
     public const string DefaultDemTerrainTextureUrlTemplate = DemTerrainTextureDefaults.PlateauOrthoUrlTemplate;
     public const string DefaultDemTerrainTextureFallbackUrlTemplate = DemTerrainTextureDefaults.GsiFallbackUrlTemplate;
@@ -1222,7 +1223,11 @@ internal static partial class LocalCityGmlObjectProjection
             cityObjectOrigin.ToLegacy(),
             globalOriginPoint.ToLegacy(),
             globalCartesian);
-
+        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+            cityObject.PackageName,
+            cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
+            cityObjectOrigin.ToLegacy(),
+            cityObjectCartesian);
         List<MeshVertex> vertices = [];
         List<MeshSubmesh> submeshes = [];
         List<MaterialBinding> materials = [];
@@ -1234,7 +1239,9 @@ internal static partial class LocalCityGmlObjectProjection
 
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         IGrouping<string, ResolvedSurfaceMaterial>[] materialGroups = resolvedSurfaces
@@ -1243,7 +1250,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
-                    resolvedSurface.Surface.BaseColor),
+                    resolvedSurface.Surface.BaseColor,
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -2634,6 +2642,108 @@ internal static partial class LocalCityGmlObjectProjection
         return normal is not null && Math.Abs(normal.Y) >= 0.98;
     }
 
+    private static bool ShouldCullSurfaceBeforeProjection(
+        string packageName,
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(packageName))
+        {
+            return false;
+        }
+
+        return IsDownwardNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
+    }
+
+    private static HashSet<string> GetCulledSurfaceIdsBeforeProjection(
+        string packageName,
+        IEnumerable<ParsedSurface> surfaces,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(packageName))
+        {
+            return [];
+        }
+
+        SurfaceProjectionInfo[] candidates = surfaces
+            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
+            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
+            .ToArray();
+
+        if (candidates.Length == 0)
+        {
+            return [];
+        }
+
+        double objectMinimumY = candidates.Min(static info => info.MinimumY!.Value);
+        double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
+
+        return candidates
+            .Where(static info => info.IsDownwardNearHorizontal)
+            .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
+            .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
+            .Select(static info => info.Surface.PolygonId)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static bool IsDownwardNearHorizontalSurface(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (ComputeSurfaceNormal(surface, cityObjectOrigin, cityObjectCartesian) is not Float3 normal)
+        {
+            return false;
+        }
+
+        return Math.Abs(normal.Y) >= 0.98
+            && normal.Y <= -0.98;
+    }
+
+    private static Float3? ComputeSurfaceNormal(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        Float3[] positions = surface.Vertices
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        return ComputePolygonNormal(positions);
+    }
+
+    private static SurfaceProjectionInfo CreateSurfaceProjectionInfo(
+        ParsedSurface surface,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        Float3[] positions = surface.Vertices
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        if (positions.Length == 0)
+        {
+            return new SurfaceProjectionInfo(surface, null, null, false);
+        }
+
+        Float3? normal = ComputePolygonNormal(positions);
+        bool isDownwardNearHorizontal = normal is not null
+            && Math.Abs(normal.Y) >= 0.98
+            && normal.Y <= -0.98;
+
+        return new SurfaceProjectionInfo(
+            surface,
+            positions.Min(static position => position.Y),
+            positions.Max(static position => position.Y),
+            isDownwardNearHorizontal);
+    }
+
+    private readonly record struct SurfaceProjectionInfo(
+        ParsedSurface Surface,
+        double? MinimumY,
+        double? MaximumY,
+        bool IsDownwardNearHorizontal);
+
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
     {
         return surface.PolygonId.Contains("_generated_marking", StringComparison.Ordinal);
@@ -3031,9 +3141,16 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+            cityObject.PackageName,
+            cityObject.Surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3042,7 +3159,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
-                    resolvedSurface.Surface.BaseColor),
+                    resolvedSurface.Surface.BaseColor,
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3054,7 +3172,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor),
+                        representativeSurface.Surface.BaseColor,
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -3068,9 +3187,16 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+            cityObject.PackageName,
+            cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
+            cityObjectOrigin.ToLegacy(),
+            cityObjectCartesian);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3079,7 +3205,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
-                    resolvedSurface.Surface.BaseColor),
+                    resolvedSurface.Surface.BaseColor,
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3091,7 +3218,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor),
+                        representativeSurface.Surface.BaseColor,
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -3611,9 +3739,16 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+            cityObject.PackageName,
+            cityObject.Surfaces,
+            cityObjectOrigin,
+            cityObjectCartesian);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3623,7 +3758,7 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    null),
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3636,7 +3771,7 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
-                        null),
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .ToArray();
@@ -3661,7 +3796,7 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    null),
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3674,7 +3809,7 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
-                        null),
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .ToArray();

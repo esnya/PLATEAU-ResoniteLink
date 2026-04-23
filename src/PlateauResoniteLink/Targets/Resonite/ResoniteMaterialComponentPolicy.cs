@@ -238,17 +238,7 @@ internal static class ResoniteMaterialComponentPolicy
 
     public static Field_colorX CreateColorMember(ResoniteColor color)
     {
-        return new Field_colorX
-        {
-            Value = new colorX
-            {
-                r = (float)color.R,
-                g = (float)color.G,
-                b = (float)color.B,
-                a = (float)color.A,
-                Profile = "sRGB",
-            },
-        };
+        return ResoniteColorSpace.CreateSrgbColorMember(color);
     }
 }
 

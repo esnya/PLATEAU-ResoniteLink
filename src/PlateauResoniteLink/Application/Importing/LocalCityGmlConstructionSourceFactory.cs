@@ -13,15 +13,18 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
     private readonly ICityGmlDocumentReader documentReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
+    private readonly IImportedCityObjectOptimizer cityObjectOptimizer;
 
     internal LocalCityGmlConstructionSourceFactory(
         ICityGmlDocumentReader documentReader,
         IImportedSceneSourceComposer constructionComposer,
-        IDemTextureSourcePolicy demTextureSourcePolicy)
+        IDemTextureSourcePolicy demTextureSourcePolicy,
+        IImportedCityObjectOptimizer cityObjectOptimizer)
     {
         this.documentReader = documentReader;
         this.constructionComposer = constructionComposer;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
+        this.cityObjectOptimizer = cityObjectOptimizer;
     }
 
     public Task<IImportedSceneSource> CreateAsync(
@@ -43,7 +46,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             progressReporter,
             cancellationToken);
         await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
-        return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter));
+        return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter, cityObjectOptimizer));
     }
 
     private async Task ValidateDemTextureSourceAsync(
