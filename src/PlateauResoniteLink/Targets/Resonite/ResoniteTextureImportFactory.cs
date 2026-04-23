@@ -94,7 +94,7 @@ internal static class ResoniteTextureImportFactory
             payload.Width.Value,
             payload.Height.Value,
             payload.ColorProfile,
-            payload.BinaryPayload,
+            payload.BinaryPayload.AsSpan().ToArray(),
             payload.Identity);
     }
 

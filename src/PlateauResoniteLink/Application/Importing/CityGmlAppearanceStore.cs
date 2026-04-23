@@ -195,8 +195,8 @@ internal sealed class CityGmlAppearanceStore : ICityGmlAppearanceStore
             using MemoryStream encodedPayloadStream = new();
             stream.CopyTo(encodedPayloadStream);
             texturePayload = new TexturePayload(
-                Width: null,
-                Height: null,
+                null,
+                null,
                 "sRGB",
                 encodedPayloadStream.ToArray(),
                 $"dataset:{resolvedTexturePath}",

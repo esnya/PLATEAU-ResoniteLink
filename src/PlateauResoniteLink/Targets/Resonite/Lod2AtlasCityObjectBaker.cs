@@ -380,7 +380,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
             return false;
         }
 
-        tile = CreateSolidColorTile(ToColor(MultiplyPixel(uniformPixel, ToPixel(material.BaseColor))));
+        tile = CreateSolidColorTile(ToResoniteColor(MultiplyPixel(uniformPixel, ToPixel(material.BaseColor))));
         return true;
     }
 
@@ -1134,6 +1134,15 @@ internal sealed class Lod2AtlasCityObjectBaker(
             (byte)Math.Round(Math.Clamp(color.G, 0.0, 1.0) * 255.0),
             (byte)Math.Round(Math.Clamp(color.B, 0.0, 1.0) * 255.0),
             (byte)Math.Round(Math.Clamp(color.A, 0.0, 1.0) * 255.0));
+    }
+
+    private static ResoniteColor ToResoniteColor(Rgba32 color)
+    {
+        return new ResoniteColor(
+            color.R / 255.0,
+            color.G / 255.0,
+            color.B / 255.0,
+            color.A / 255.0);
     }
 
     private static SourceUnitBatchKey CreateSourceUnitKey(
