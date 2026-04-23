@@ -1,5 +1,3 @@
-using System.IO;
-
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 using PlateauResoniteLink.Targets.Resonite;
@@ -11,13 +9,14 @@ public sealed class SceneImportContractMapperTests
     [Fact]
     public void ToInternalMaterialBindingsPreservesNeutralContractFields()
     {
+        byte[] sourcePayloadBytes = [1, 2, 3, 4];
         MaterialBinding[] bindings =
         [
             new(
                 MaterialKey: "shared",
                 BaseColor: new ColorRgba(0.1, 0.2, 0.3, 0.4),
                 MaterialType: MaterialType.Standard,
-                TexturePayload: new TexturePayload(2, 2, "sRGB", [1, 2, 3, 4], "dataset:texture", TexturePayloadFormat.EncodedImage),
+                TexturePayload: new TexturePayload(2, 2, "sRGB", sourcePayloadBytes, "dataset:texture", TexturePayloadFormat.EncodedImage),
                 TextureSourceKind: TextureSourceKind.Dataset,
                 Projection: MaterialProjection.Uv,
                 DepthOffset: new MaterialDepthOffset(-1.5, 2.5),
@@ -30,13 +29,14 @@ public sealed class SceneImportContractMapperTests
         ];
 
         ResoniteMaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToInternal(bindings));
+        sourcePayloadBytes[0] = 99;
 
         Assert.Equal("shared", mapped.MaterialKey);
         Assert.Equal(0.1, mapped.BaseColor.R, 9);
         Assert.Equal(0.2, mapped.BaseColor.G, 9);
         Assert.Equal("dataset:texture", mapped.TexturePayload!.Identity);
         Assert.Equal(ResoniteTexturePayloadFormat.EncodedImage, mapped.TexturePayload.Format);
-        Assert.Equal([1, 2, 3, 4], ReadAllBytes(mapped.TexturePayload.BinaryPayload));
+        Assert.Equal<byte>([1, 2, 3, 4], mapped.TexturePayload.BinaryPayload);
         Assert.Equal(-1.5, mapped.DepthOffset!.Factor, 9);
         Assert.Equal(2.5, mapped.DepthOffset.Units, 9);
         Assert.Equal(0.25, mapped.TextureScale!.X, 9);
@@ -97,7 +97,7 @@ public sealed class SceneImportContractMapperTests
     }
 
     [Fact]
-    public void ToContractMaterialBindingsExposesFreshReadablePayloadStream()
+    public void ToContractMaterialBindingsCopiesTexturePayloadBytes()
     {
         ResoniteMaterialBinding[] bindings =
         [
@@ -113,18 +113,8 @@ public sealed class SceneImportContractMapperTests
         ];
 
         MaterialBinding mapped = Assert.Single(SceneImportContractMapper.ToContract(bindings));
+        bindings[0].TexturePayload!.BinaryPayload[0] = 42;
 
-        Assert.Equal([9, 8, 7, 6], ReadAllBytes(mapped.TexturePayload!.BinaryPayload));
-        Assert.Equal([9, 8, 7, 6], ReadAllBytes(mapped.TexturePayload.BinaryPayload));
-    }
-
-    private static byte[] ReadAllBytes(Stream stream)
-    {
-        using (stream)
-        {
-            using MemoryStream copy = new();
-            stream.CopyTo(copy);
-            return copy.ToArray();
-        }
+        Assert.Equal<byte>([9, 8, 7, 6], mapped.TexturePayload!.BinaryPayload);
     }
 }

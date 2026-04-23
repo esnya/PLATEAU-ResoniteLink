@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -410,7 +409,7 @@ public sealed class Lod2AtlasCityObjectBakerTests
 
         HashSet<Rgba32> atlasColors = [];
         int pixelCount = atlasPayload.Width.Value * atlasPayload.Height.Value;
-        byte[] atlasBytes = ReadAllBytes(atlasPayload.BinaryPayload);
+        byte[] atlasBytes = atlasPayload.BinaryPayload;
         for (int pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++)
         {
             int offset = pixelIndex * 4;
@@ -675,22 +674,12 @@ public sealed class Lod2AtlasCityObjectBakerTests
         Assert.NotNull(payload.Width);
         int width = payload.Width.Value;
         int offset = ((y * width) + x) * 4;
-        byte[] bytes = ReadAllBytes(payload.BinaryPayload);
+        byte[] bytes = payload.BinaryPayload;
         return new Rgba32(
             bytes[offset],
             bytes[offset + 1],
             bytes[offset + 2],
             bytes[offset + 3]);
-    }
-
-    private static byte[] ReadAllBytes(Stream stream)
-    {
-        using (stream)
-        {
-            using MemoryStream copy = new();
-            stream.CopyTo(copy);
-            return copy.ToArray();
-        }
     }
 
     private static ResoniteConstructionCityObject CreateLod2Building(

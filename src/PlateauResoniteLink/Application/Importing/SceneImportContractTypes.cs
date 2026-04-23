@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
 
@@ -98,84 +98,34 @@ public enum TexturePayloadFormat
 
 public sealed record TexturePayload
 {
-    private readonly byte[] binaryPayloadBytes;
-
     public TexturePayload(
-        int? Width,
-        int? Height,
-        string? ColorProfile,
-        Stream BinaryPayload,
-        string? Identity = null,
-        TexturePayloadFormat Format = TexturePayloadFormat.RawRgba32)
+        int? width,
+        int? height,
+        string? colorProfile,
+        byte[] binaryPayload,
+        string? identity = null,
+        TexturePayloadFormat format = TexturePayloadFormat.RawRgba32)
     {
-        this.Width = Width;
-        this.Height = Height;
-        this.ColorProfile = ColorProfile;
-        binaryPayloadBytes = CopyBinaryPayload(BinaryPayload);
-        this.Identity = Identity;
-        this.Format = Format;
-    }
-
-    public TexturePayload(
-        int? Width,
-        int? Height,
-        string? ColorProfile,
-        byte[] BinaryPayload,
-        string? Identity = null,
-        TexturePayloadFormat Format = TexturePayloadFormat.RawRgba32)
-        : this(Width, Height, ColorProfile, CreateBinaryPayloadStream(BinaryPayload), Identity, Format)
-    {
-    }
-
-    public int? Width { get; }
-
-    public int? Height { get; }
-
-    public string? ColorProfile { get; }
-
-    public Stream BinaryPayload => CreateBinaryPayloadStream(binaryPayloadBytes);
-
-    public string? Identity { get; }
-
-    public TexturePayloadFormat Format { get; }
-
-    internal byte[] CopyBinaryPayloadToArray() => (byte[])binaryPayloadBytes.Clone();
-
-    private static MemoryStream CreateBinaryPayloadStream(byte[] binaryPayload)
-    {
+        Width = width;
+        Height = height;
+        ColorProfile = colorProfile;
         ArgumentNullException.ThrowIfNull(binaryPayload);
-        return new MemoryStream(binaryPayload, writable: false);
+        BinaryPayload = binaryPayload.ToArray();
+        Identity = identity;
+        Format = format;
     }
 
-    private static byte[] CopyBinaryPayload(Stream binaryPayload)
-    {
-        ArgumentNullException.ThrowIfNull(binaryPayload);
-        if (!binaryPayload.CanRead)
-        {
-            throw new ArgumentException("Texture payload stream must be readable.", nameof(binaryPayload));
-        }
+    public int? Width { get; init; }
 
-        long originalPosition = 0;
-        bool restorePosition = binaryPayload.CanSeek;
-        if (restorePosition)
-        {
-            originalPosition = binaryPayload.Position;
-        }
+    public int? Height { get; init; }
 
-        try
-        {
-            using MemoryStream copy = new();
-            binaryPayload.CopyTo(copy);
-            return copy.ToArray();
-        }
-        finally
-        {
-            if (restorePosition)
-            {
-                binaryPayload.Position = originalPosition;
-            }
-        }
-    }
+    public string? ColorProfile { get; init; }
+
+    public byte[] BinaryPayload { get; init; }
+
+    public string? Identity { get; init; }
+
+    public TexturePayloadFormat Format { get; init; }
 }
 
 public enum TextureSourceKind
