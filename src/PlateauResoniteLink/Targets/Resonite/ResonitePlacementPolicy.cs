@@ -131,7 +131,10 @@ internal static class ResonitePlacementPolicy
     {
         if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
         {
-            return cityObjectPosition;
+            return new ResoniteFloat3(
+                cityObjectPosition.X,
+                cityObjectPosition.Y - (observedRootPosition?.Y ?? 0.0),
+                cityObjectPosition.Z);
         }
 
         ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
@@ -161,6 +164,65 @@ internal static class ResonitePlacementPolicy
             rootOffsetFromRequest.X,
             observedRootHeight ?? rootOffsetFromRequest.Y,
             rootOffsetFromRequest.Z);
+    }
+
+    public static ResonitePlacementCorrectionResult EvaluateRootPlacementCorrection(
+        ResoniteLocalOrigin requestOrigin,
+        string rootMeshCode,
+        double? observedRootHeight = null)
+    {
+        List<ResonitePlacementCorrectionTerm> placementTerms = [];
+        List<ResonitePlacementCorrectionTerm> postPlacementTerms = [];
+
+        if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
+        {
+            if (observedRootHeight.HasValue)
+            {
+                postPlacementTerms.Add(new ResonitePlacementCorrectionTerm(
+                    ResoniteCorrectionAxis.Y,
+                    observedRootHeight.Value,
+                    ResonitePlacementCorrectionReason.ObservedRootHeight));
+            }
+
+            return new ResonitePlacementCorrectionResult(
+                new ResoniteFloat3(0.0, observedRootHeight ?? 0.0, 0.0),
+                new ResonitePlacementCorrectionLayers(
+                    [],
+                    [],
+                    placementTerms,
+                    postPlacementTerms));
+        }
+
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
+        placementTerms.Add(new ResonitePlacementCorrectionTerm(
+            ResoniteCorrectionAxis.X,
+            rootOffsetFromRequest.X,
+            ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset));
+        placementTerms.Add(new ResonitePlacementCorrectionTerm(
+            ResoniteCorrectionAxis.Z,
+            rootOffsetFromRequest.Z,
+            ResonitePlacementCorrectionReason.RequestRelativeMeshCodeOffset));
+
+        if (observedRootHeight.HasValue)
+        {
+            postPlacementTerms.Add(new ResonitePlacementCorrectionTerm(
+                ResoniteCorrectionAxis.Y,
+                observedRootHeight.Value,
+                ResonitePlacementCorrectionReason.ObservedRootHeight));
+        }
+
+        return new ResonitePlacementCorrectionResult(
+            new ResoniteFloat3(
+            rootOffsetFromRequest.X,
+            observedRootHeight ?? rootOffsetFromRequest.Y,
+            rootOffsetFromRequest.Z),
+            new ResonitePlacementCorrectionLayers(
+                [],
+                [],
+                placementTerms,
+                postPlacementTerms));
     }
 
     public static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
