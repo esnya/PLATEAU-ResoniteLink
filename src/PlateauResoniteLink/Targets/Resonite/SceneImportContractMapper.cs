@@ -117,7 +117,7 @@ internal static class SceneImportContractMapper
             payload.Width,
             payload.Height,
             payload.ColorProfile,
-            payload.BinaryPayload,
+            payload.BinaryPayload.ToArray(),
             payload.Identity,
             (ResoniteTexturePayloadFormat)payload.Format);
     }
