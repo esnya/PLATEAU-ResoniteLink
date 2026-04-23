@@ -140,7 +140,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectCullsBuildingBottomSurfacesAcrossWindingButKeepsRoofAndWall()
+    public void ProjectCityObjectCullsOnlyDownwardFacingBuildingBottomSurfaces()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
@@ -176,8 +176,8 @@ public sealed class LocalCityGmlObjectProjectionTests
             CreateTexturePayload("outer-floor"));
 
         Assert.True(ShouldCullSurfaceBeforeProjectionForTest("bldg", groundSurface.ToLegacy(), origin, cartesian));
-        Assert.True(ShouldCullSurfaceBeforeProjectionForTest("bldg", reversedGroundSurface.ToLegacy(), origin, cartesian));
-        Assert.True(ShouldCullSurfaceBeforeProjectionForTest("bldg", outerFloorSurface.ToLegacy(), origin, cartesian));
+        Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", reversedGroundSurface.ToLegacy(), origin, cartesian));
+        Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", outerFloorSurface.ToLegacy(), origin, cartesian));
         Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", roofSurface.ToLegacy(), origin, cartesian));
         Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", wallSurface.ToLegacy(), origin, cartesian));
 
@@ -193,10 +193,10 @@ public sealed class LocalCityGmlObjectProjectionTests
             demTerrainTextureOverlay: null,
             materialResolver: new DefaultMaterialResolver());
 
-        Assert.Equal(2, projected.Materials.Count);
+        Assert.Equal(4, projected.Materials.Count);
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
-        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
     }
 
     [Fact]
@@ -229,6 +229,53 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.Single(projected.Materials);
         Assert.Equal("tran-ground", projected.Materials[0].TexturePayload?.Identity);
         Assert.NotEmpty(projected.Mesh.Vertices);
+    }
+
+    [Fact]
+    public void ProjectCityObjectKeepsBuildingLod1UnknownHorizontalSurfaces()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+            "lod1-wall",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateVerticalQuadVertices(origin, 8.0, 6.0),
+            CreateTexturePayload("lod1-wall"));
+        BootstrapParsedSurface bottomSurface = CreateBootstrapParsedSurface(
+            "lod1-bottom",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
+            CreateTexturePayload("lod1-bottom"));
+        BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
+            "lod1-roof",
+            BootstrapParsedSurfaceSemantic.Unknown,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: true),
+            CreateTexturePayload("lod1-roof"));
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [wallSurface, bottomSurface, roofSurface],
+            referenceSystem,
+            lodLevel: 1);
+
+        Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", bottomSurface.ToLegacy(), origin, cartesian));
+        Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", roofSurface.ToLegacy(), origin, cartesian));
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: null,
+            materialResolver: new DefaultMaterialResolver());
+
+        Assert.Equal(3, projected.Materials.Count);
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-bottom");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-roof");
+        Assert.Contains(projected.Materials, static material => material.TexturePayload?.Identity == "lod1-wall");
     }
 
     [Fact]
@@ -1113,14 +1160,15 @@ public sealed class LocalCityGmlObjectProjectionTests
     private static BootstrapParsedCityObject CreateBootstrapParsedCityObject(
         string packageName,
         BootstrapParsedSurface[] surfaces,
-        CoordinateReferenceSystem referenceSystem)
+        CoordinateReferenceSystem referenceSystem,
+        int? lodLevel = 1)
     {
         return new BootstrapParsedCityObject(
             SlotKey: $"{packageName}-slot",
             DisplayName: $"{packageName}-display",
             PackageName: packageName,
             ActualMeshCode: "53394525",
-            LodLevel: 1,
+            LodLevel: lodLevel,
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",

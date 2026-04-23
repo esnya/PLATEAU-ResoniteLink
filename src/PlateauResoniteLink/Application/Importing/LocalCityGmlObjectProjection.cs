@@ -1222,7 +1222,6 @@ internal static partial class LocalCityGmlObjectProjection
             cityObjectOrigin.ToLegacy(),
             globalOriginPoint.ToLegacy(),
             globalCartesian);
-
         List<MeshVertex> vertices = [];
         List<MeshSubmesh> submeshes = [];
         List<MaterialBinding> materials = [];
@@ -2618,7 +2617,16 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        return IsNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
+        Float3[] positions = surface.Vertices
+            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
+            .ToArray();
+        if (ComputePolygonNormal(positions) is not Float3 normal)
+        {
+            return false;
+        }
+
+        return Math.Abs(normal.Y) >= 0.98
+            && normal.Y <= -0.98;
     }
 
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
