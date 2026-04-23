@@ -2486,7 +2486,19 @@ internal static partial class LocalCityGmlObjectProjection
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
-            return string.Create(CultureInfo.InvariantCulture, $"common|{family}|variant:{variantIndex}|{material.Projection}");
+            string scaleToken = textureScale is null
+                ? "none"
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
+            string offsetToken = textureOffset is null || (Math.Abs(textureOffset.X) < 1e-9 && Math.Abs(textureOffset.Y) < 1e-9)
+                ? "none"
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{textureOffset.X:0.######}x{textureOffset.Y:0.######}");
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"common|{family}|variant:{variantIndex}|{material.Projection}|scale:{scaleToken}|offset:{offsetToken}");
         }
 
         return CreateMaterialKey(

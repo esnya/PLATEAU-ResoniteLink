@@ -61,8 +61,15 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Null(normalized.TextureOffset);
     }
 
-    [Fact]
-    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform()
+    [Theory]
+    [InlineData(0, 1.0 / 52.0, 1.0 / 32.5)]
+    [InlineData(1, 1.0 / 19.5, 1.0 / 19.5)]
+    [InlineData(2, 1.0 / 19.5, 1.0 / 19.5)]
+    [InlineData(3, 1.0 / 19.5, 1.0 / 19.5)]
+    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform(
+        int bundledVariantIndex,
+        double expectedScaleX,
+        double expectedScaleY)
     {
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "mixed-material-city-object",
@@ -102,7 +109,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     TextureScale: new ResoniteFloat2(1.0, 1.0),
                     TextureOffset: new ResoniteFloat2(0.0, 0.0),
                     Family: BundledDefaultMaterialFamilies.Facade,
-                    BundledVariantIndex: 0,
+                    BundledVariantIndex: bundledVariantIndex,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: "unit-a:mixed-material-city-object",
@@ -120,13 +127,13 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Equal(new ResoniteFloat2(0.0, 0.0), normalized.Mesh.Vertices[3].UV0);
         Assert.Equal(
             new ResoniteFloat2(
-                (float)(1.0 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X),
+                (float)(1.0 / expectedScaleX),
                 0.0f),
             normalized.Mesh.Vertices[4].UV0);
         Assert.Equal(
             new ResoniteFloat2(
                 0.0f,
-                (float)(1.0 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y)),
+                (float)(1.0 / expectedScaleY)),
             normalized.Mesh.Vertices[5].UV0);
     }
 

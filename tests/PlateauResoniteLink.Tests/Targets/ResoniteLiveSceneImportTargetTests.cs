@@ -812,7 +812,8 @@ public sealed class ResoniteLiveSceneImportTargetTests
             request => string.Equals(request.Data.ID, materialId, StringComparison.Ordinal)).ContainerSlotId;
         Field_float2 textureScale = Assert.IsType<Field_float2>(sharedMaterial.Members["TextureScale"]);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
-        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        float expectedUvScaleX = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvScaleY = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
 
         Assert.Contains(
             "PLATEAU Shared Assets/Common Materials/",
@@ -820,12 +821,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
             StringComparison.Ordinal);
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X, textureScale.Value.x, 6);
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[0].UV0.X, importedMesh.AccessUV_2D(0)[0].x, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[0].UV0.Y, importedMesh.AccessUV_2D(0)[0].y, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[1].UV0.X, importedMesh.AccessUV_2D(0)[1].x, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[1].UV0.Y, importedMesh.AccessUV_2D(0)[1].y, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[2].UV0.X, importedMesh.AccessUV_2D(0)[2].x, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[2].UV0.Y, importedMesh.AccessUV_2D(0)[2].y, 6);
+        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].x, 6);
+        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[0].y, 6);
+        Assert.Equal(expectedUvScaleX, importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[1].y, 6);
+        Assert.Equal(0.0f, importedMesh.AccessUV_2D(0)[2].x, 6);
+        Assert.Equal(expectedUvScaleY, importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]
@@ -888,7 +889,10 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Field_float2 textureScale = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureScale"]);
         Field_float2 textureOffset = Assert.IsType<Field_float2>(materialRequest.Data.Members["TextureOffset"]);
         ImportMeshRawData importedMesh = Assert.Single(client.ImportedMeshes);
-        ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
+        float expectedUvScaleX = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvScaleY = (float)(0.5 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
+        float expectedUvOffsetX = (float)(0.125 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X);
+        float expectedUvOffsetY = (float)(0.25 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y);
 
         Assert.Contains(
             "PLATEAU Shared Assets/Common Materials/",
@@ -898,12 +902,12 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Assert.Equal((float)BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y, textureScale.Value.y, 6);
         Assert.Equal(0.0f, textureOffset.Value.x, 6);
         Assert.Equal(0.0f, textureOffset.Value.y, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[0].UV0.X, importedMesh.AccessUV_2D(0)[0].x, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[0].UV0.Y, importedMesh.AccessUV_2D(0)[0].y, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[1].UV0.X, importedMesh.AccessUV_2D(0)[1].x, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[1].UV0.Y, importedMesh.AccessUV_2D(0)[1].y, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[2].UV0.X, importedMesh.AccessUV_2D(0)[2].x, 6);
-        Assert.Equal((float)normalizedCityObject.Mesh.Vertices[2].UV0.Y, importedMesh.AccessUV_2D(0)[2].y, 6);
+        Assert.Equal(expectedUvOffsetX, importedMesh.AccessUV_2D(0)[0].x, 6);
+        Assert.Equal(expectedUvOffsetY, importedMesh.AccessUV_2D(0)[0].y, 6);
+        Assert.Equal(expectedUvOffsetX + expectedUvScaleX, importedMesh.AccessUV_2D(0)[1].x, 6);
+        Assert.Equal(expectedUvOffsetY, importedMesh.AccessUV_2D(0)[1].y, 6);
+        Assert.Equal(expectedUvOffsetX, importedMesh.AccessUV_2D(0)[2].x, 6);
+        Assert.Equal(expectedUvOffsetY + expectedUvScaleY, importedMesh.AccessUV_2D(0)[2].y, 6);
     }
 
     [Fact]

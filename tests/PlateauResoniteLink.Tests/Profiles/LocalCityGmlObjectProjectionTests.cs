@@ -138,6 +138,30 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public void SharedBundledFacadeBindingKey_UsesCanonicalScaleAndTreatsExplicitZeroOffsetAsNone()
+    {
+        ResolvedMaterial material = new(
+            MaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind.Bundled,
+            MaterialProjection.Uv,
+            BundledDefaultMaterialFamilies.Facade,
+            TextureScale: new Float2(1.0 / 52.0, 1.0 / 32.5),
+            ReuseScope: MaterialReuseScope.Shared,
+            BundledVariantIndex: 0,
+            TextureOffset: null);
+
+        string materialKey = CreateBindingMaterialKeyForTest(
+            material,
+            depthOffset: null,
+            textureScale: material.TextureScale!,
+            color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            textureOffset: new Float2(0.0, 0.0));
+
+        Assert.Equal("common|facade|variant:0|Uv|scale:0.019231x0.030769|offset:none", materialKey);
+    }
+
+    [Fact]
     public async Task SplitParsedCityObjectPreservesNonGeneratedDemSurfacesWhenOverlaysSplit()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -987,6 +1011,21 @@ public sealed class LocalCityGmlObjectProjectionTests
             ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUvProjection.");
         return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian])!
             ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
+    }
+
+    private static string CreateBindingMaterialKeyForTest(
+        ResolvedMaterial material,
+        MaterialDepthOffset? depthOffset,
+        Float2 textureScale,
+        ColorRgba color,
+        Float2? textureOffset)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "CreateBindingMaterialKey",
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve CreateBindingMaterialKey.");
+        return (string?)method.Invoke(null, [material, depthOffset, textureScale, color, textureOffset])
+            ?? throw new InvalidOperationException("CreateBindingMaterialKey returned null.");
     }
 
     private static Float2 CreateGeneratedSurfaceUvForTest(

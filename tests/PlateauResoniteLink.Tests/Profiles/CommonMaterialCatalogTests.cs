@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -33,34 +34,39 @@ public sealed class CommonMaterialCatalogTests
     {
         IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
 
-        MaterialBinding facadeMaterial = Assert.Single(
-            materials,
-            material => material.Family == BundledDefaultMaterialFamilies.Facade
-                && material.Projection == MaterialProjection.Uv
-                && material.BundledVariantIndex == 0);
         MaterialBinding roofMaterial = Assert.Single(
             materials,
             material => material.Family == BundledDefaultMaterialFamilies.Roof
                 && material.Projection == MaterialProjection.Triplanar
                 && material.BundledVariantIndex == 0);
-        string facadeTexturePath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 0);
-        BundledDefaultMaterialProfile facadeProfile = BundledDefaultMaterialProfiles.GetProfile(facadeTexturePath);
+
+        for (int variantIndex = 0; variantIndex < BundledDefaultMaterialFamilies.FacadeVariants.Count; variantIndex++)
+        {
+            MaterialBinding facadeMaterial = Assert.Single(
+                materials,
+                material => material.Family == BundledDefaultMaterialFamilies.Facade
+                    && material.Projection == MaterialProjection.Uv
+                    && material.BundledVariantIndex == variantIndex);
+            Float2 expectedScale = ExpectedFacadeScale(variantIndex);
+
+            Assert.Equal(expectedScale, facadeMaterial.TextureScale);
+            Assert.Null(facadeMaterial.TextureOffset);
+            Assert.Equal(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"common|facade|variant:{variantIndex}|Uv|scale:{expectedScale.X:0.######}x{expectedScale.Y:0.######}|offset:none"),
+                facadeMaterial.MaterialKey);
+        }
 
         Assert.Equal(
-            new Float2(
-                facadeProfile.TextureScale.X,
-                facadeProfile.TextureScale.Y),
-            facadeMaterial.TextureScale);
-        Assert.Equal(
-            facadeProfile.TextureOffset is null
-                ? null
-                : new Float2(facadeProfile.TextureOffset.X, facadeProfile.TextureOffset.Y),
-            facadeMaterial.TextureOffset);
-        Assert.Equal(
-            new Float2(
-                BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X,
-                BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
+            new Float2(BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X, BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.Y),
             roofMaterial.TextureScale);
     }
 
+    private static Float2 ExpectedFacadeScale(int variantIndex)
+    {
+        return variantIndex == 0
+            ? new Float2(1.0 / 52.0, 1.0 / 32.5)
+            : new Float2(1.0 / 19.5, 1.0 / 19.5);
+    }
 }

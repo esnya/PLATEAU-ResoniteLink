@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Tests.Profiles;
@@ -142,6 +144,30 @@ public sealed class DefaultMaterialResolverTests
             ToContractFloat2Nullable(BundledDefaultMaterialProfiles.GetProfile(
                 BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value)).TextureOffset),
             first.TextureOffset);
+    }
+
+    [Fact]
+    public void ResolveMaterialCanReachEveryFacadeVariantWithExpectedNormalizedScale()
+    {
+        Dictionary<int, ResolvedMaterial> materialsByVariant = [];
+        for (int attempt = 0; attempt < 256 && materialsByVariant.Count < BundledDefaultMaterialFamilies.FacadeVariants.Count; attempt++)
+        {
+            string variantSelectionKey = $"bldg:uv:{attempt}";
+            ResolvedMaterial material = resolver.ResolveMaterial(
+                packageName: "bldg",
+                texturePayload: null,
+                preferUvProjection: true,
+                familyOverride: null,
+                variantSelectionKey: variantSelectionKey);
+            materialsByVariant.TryAdd(material.BundledVariantIndex!.Value, material);
+        }
+
+        Assert.Equal(BundledDefaultMaterialFamilies.FacadeVariants.Count, materialsByVariant.Count);
+        Assert.Equal(new Float2(1.0 / 52.0, 1.0 / 32.5), materialsByVariant[0].TextureScale);
+        Assert.Equal(new Float2(1.0 / 19.5, 1.0 / 19.5), materialsByVariant[1].TextureScale);
+        Assert.Equal(new Float2(1.0 / 19.5, 1.0 / 19.5), materialsByVariant[2].TextureScale);
+        Assert.Equal(new Float2(1.0 / 19.5, 1.0 / 19.5), materialsByVariant[3].TextureScale);
+        Assert.All(materialsByVariant.Values, static material => Assert.Null(material.TextureOffset));
     }
 
     private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);

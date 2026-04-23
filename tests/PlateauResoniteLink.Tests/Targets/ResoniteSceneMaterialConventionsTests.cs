@@ -98,6 +98,29 @@ public sealed class ResoniteSceneMaterialConventionsTests
     }
 
     [Fact]
+    public void CreateMaterialSlotName_ForVariantSpecificFacadeDefault_DoesNotAddScaleDiscriminator()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "common|facade|variant:1|Uv|scale:0.051282x0.051282|offset:none",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(1.0 / 19.5, 1.0 / 19.5),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            BundledVariantIndex: 1,
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        string slotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: true);
+
+        Assert.StartsWith("shared_uv_variant_1_", slotName, StringComparison.Ordinal);
+        Assert.DoesNotContain("_scale_", slotName, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CreateMaterialSlotName_ForDedicatedMaterial_KeepsDetailedIdentity()
     {
         ResoniteMaterialBinding material = new(
