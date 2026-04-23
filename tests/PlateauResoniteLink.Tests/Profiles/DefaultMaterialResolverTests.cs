@@ -163,10 +163,10 @@ public sealed class DefaultMaterialResolverTests
         }
 
         Assert.Equal(BundledDefaultMaterialFamilies.FacadeVariants.Count, materialsByVariant.Count);
-        Assert.Equal(new Float2(1.0 / 52.0, 1.0 / 32.5), materialsByVariant[0].TextureScale);
-        Assert.Equal(new Float2(1.0 / 19.5, 1.0 / 19.5), materialsByVariant[1].TextureScale);
-        Assert.Equal(new Float2(1.0 / 19.5, 1.0 / 19.5), materialsByVariant[2].TextureScale);
-        Assert.Equal(new Float2(1.0 / 19.5, 1.0 / 19.5), materialsByVariant[3].TextureScale);
+        Assert.Equal(new Float2(1.0 / 16.0, 1.0 / 10.0), materialsByVariant[0].TextureScale);
+        Assert.Equal(new Float2(1.0 / 6.0, 1.0 / 6.0), materialsByVariant[1].TextureScale);
+        Assert.Equal(new Float2(1.0 / 6.0, 1.0 / 6.0), materialsByVariant[2].TextureScale);
+        Assert.Equal(new Float2(1.0 / 6.0, 1.0 / 6.0), materialsByVariant[3].TextureScale);
         Assert.All(materialsByVariant.Values, static material => Assert.Null(material.TextureOffset));
     }
 

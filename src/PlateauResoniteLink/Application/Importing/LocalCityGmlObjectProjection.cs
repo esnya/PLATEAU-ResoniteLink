@@ -1252,6 +1252,9 @@ internal static partial class LocalCityGmlObjectProjection
         {
             IGrouping<string, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
+            double facadeFloorHeightMeters = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+                cityObject.FloorsAboveGround,
+                cityObject.MeasuredHeightMeters);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
                          .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
@@ -1264,6 +1267,7 @@ internal static partial class LocalCityGmlObjectProjection
                     cityObjectCartesian,
                     globalOriginPoint.ToLegacy(),
                     globalCartesian,
+                    facadeFloorHeightMeters,
                     demTerrainTextureOverlay,
                     demUvProjection,
                     vertices,
@@ -1770,6 +1774,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
+        double facadeFloorHeightMeters,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         DemUvProjection? demUvProjection,
         List<MeshVertex> vertices,
@@ -1786,7 +1791,8 @@ internal static partial class LocalCityGmlObjectProjection
                     surface,
                     packageName,
                     cityObjectOrigin,
-                    cityObjectCartesian)
+                    cityObjectCartesian,
+                    facadeFloorHeightMeters)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateSurfaceTessellatedRings(
             surface,
@@ -2085,7 +2091,8 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface surface,
         string packageName,
         GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
+        LocalCartesian? cityObjectCartesian,
+        double facadeFloorHeightMeters)
     {
         Float3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
@@ -2108,9 +2115,12 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
+        double uvScale = PlateauPackageCatalog.IsBuildingPackage(packageName)
+            ? 1.0 / facadeFloorHeightMeters
+            : 1.0;
         return new SurfaceUvProjection(
-            surfaceAxes.AxisU,
-            surfaceAxes.AxisV);
+            Scale(surfaceAxes.AxisU, uvScale),
+            Scale(surfaceAxes.AxisV, uvScale));
     }
 
     private static Float2 CreateGeneratedSurfaceUv(
@@ -2123,6 +2133,14 @@ internal static partial class LocalCityGmlObjectProjection
         double u = Dot(position, projection.AxisU);
         double v = Dot(position, projection.AxisV);
         return new Float2(u, v);
+    }
+
+    private static Float3 Scale(Float3 value, double scalar)
+    {
+        return new Float3(
+            value.X * scalar,
+            value.Y * scalar,
+            value.Z * scalar);
     }
 
     private static SurfaceUvAxes? TryCreateSurfaceUvAxes(Float3 normal)

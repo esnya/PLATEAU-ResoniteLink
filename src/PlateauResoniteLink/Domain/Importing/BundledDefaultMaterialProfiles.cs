@@ -52,6 +52,16 @@ public static class BundledDefaultMaterialProfiles
         return GetProfile(texturePath).TextureOffset;
     }
 
+    public static ScalarPair GetImplicitTilesPerMeterValue(string texturePath)
+    {
+        return GetProfile(texturePath).GetImplicitTextureScale();
+    }
+
+    public static ScalarPair? GetImplicitTextureOffsetValue(string texturePath)
+    {
+        return GetProfile(texturePath).GetImplicitTextureOffset();
+    }
+
     private static ScalarPair CreateTilesPerMeterValue(double widthMeters, double heightMeters)
     {
         return new ScalarPair(1.0 / widthMeters, 1.0 / heightMeters);

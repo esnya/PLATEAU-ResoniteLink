@@ -124,17 +124,21 @@ public static class ResoniteDynamicMaterialUvNormalizer
         }
 
         string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        ScalarPair implicitScaleValue = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(bundledVariantPath);
+        ScalarPair implicitScaleValue = BundledDefaultMaterialProfiles.GetImplicitTilesPerMeterValue(bundledVariantPath);
         ResoniteFloat2 implicitScale = new(implicitScaleValue.X, implicitScaleValue.Y);
         ResoniteFloat2 explicitScale = material.TextureScale ?? implicitScale;
-        ResoniteFloat2 explicitOffset = material.TextureOffset ?? new ResoniteFloat2(0.0, 0.0);
+        ScalarPair? implicitOffsetValue = BundledDefaultMaterialProfiles.GetImplicitTextureOffsetValue(bundledVariantPath);
+        ResoniteFloat2 implicitOffset = implicitOffsetValue is null
+            ? new ResoniteFloat2(0.0, 0.0)
+            : new ResoniteFloat2(implicitOffsetValue.X, implicitOffsetValue.Y);
+        ResoniteFloat2 explicitOffset = material.TextureOffset ?? implicitOffset;
         return (
             new ResoniteFloat2(
                 explicitScale.X / implicitScale.X,
                 explicitScale.Y / implicitScale.Y),
             new ResoniteFloat2(
-                explicitOffset.X / implicitScale.X,
-                explicitOffset.Y / implicitScale.Y));
+                (explicitOffset.X - implicitOffset.X) / implicitScale.X,
+                (explicitOffset.Y - implicitOffset.Y) / implicitScale.Y));
     }
 
     private static bool IsBundledFamilyMaterial(ResoniteMaterialBinding material)

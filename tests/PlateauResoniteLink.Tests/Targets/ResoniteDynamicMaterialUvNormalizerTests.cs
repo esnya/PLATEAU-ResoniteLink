@@ -62,10 +62,10 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
     }
 
     [Theory]
-    [InlineData(0, 1.0 / 52.0, 1.0 / 32.5)]
-    [InlineData(1, 1.0 / 19.5, 1.0 / 19.5)]
-    [InlineData(2, 1.0 / 19.5, 1.0 / 19.5)]
-    [InlineData(3, 1.0 / 19.5, 1.0 / 19.5)]
+    [InlineData(0, 1.0 / 16.0, 1.0 / 10.0)]
+    [InlineData(1, 1.0 / 6.0, 1.0 / 6.0)]
+    [InlineData(2, 1.0 / 6.0, 1.0 / 6.0)]
+    [InlineData(3, 1.0 / 6.0, 1.0 / 6.0)]
     public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform(
         int bundledVariantIndex,
         double expectedScaleX,

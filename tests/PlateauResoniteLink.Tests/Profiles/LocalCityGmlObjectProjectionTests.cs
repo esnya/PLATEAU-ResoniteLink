@@ -99,7 +99,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         Assert.NotEmpty(source.Metadata.SourceDataset.SourceFiles);
     }
     [Fact]
-    public void GeneratedFacadeUvProjection_UsesWorldMeterUnitsForBuildingWalls()
+    public void GeneratedFacadeUvProjection_UsesFloorUnitsForBuildingWalls()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
@@ -129,12 +129,32 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.InRange(
             Math.Abs(uvHorizontal.X - uvOrigin.X),
-            FacadeMaterialUvScaling.FloorSquareMeters - 0.05,
-            FacadeMaterialUvScaling.FloorSquareMeters + 0.05);
+            0.95,
+            1.05);
         Assert.InRange(
             Math.Abs(uvVertical.Y - uvOrigin.Y),
-            FacadeMaterialUvScaling.FloorSquareMeters - 0.05,
-            FacadeMaterialUvScaling.FloorSquareMeters + 0.05);
+            0.95,
+            1.05);
+    }
+
+    [Fact]
+    public void EstimateFloorHeightMeters_UsesMeasuredHeightPerStoreyWhenAvailable()
+    {
+        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+            floorsAboveGround: 4,
+            measuredHeightMeters: 11.8);
+
+        Assert.Equal(2.95, estimated, 6);
+    }
+
+    [Fact]
+    public void EstimateFloorHeightMeters_UsesNearestStoreyCountWhenStoreyMetadataIsMissing()
+    {
+        double estimated = FacadeMaterialUvScaling.EstimateFloorHeightMeters(
+            floorsAboveGround: null,
+            measuredHeightMeters: 10.4);
+
+        Assert.InRange(estimated, 3.45, 3.48);
     }
 
     [Fact]
@@ -146,7 +166,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             TextureSourceKind.Bundled,
             MaterialProjection.Uv,
             BundledDefaultMaterialFamilies.Facade,
-            TextureScale: new Float2(1.0 / 52.0, 1.0 / 32.5),
+            TextureScale: new Float2(1.0 / 16.0, 1.0 / 10.0),
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: 0,
             TextureOffset: null);
@@ -158,7 +178,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             textureOffset: new Float2(0.0, 0.0));
 
-        Assert.Equal("common|facade|variant:0|Uv|scale:0.019231x0.030769|offset:none", materialKey);
+        Assert.Equal("common|facade|variant:0|Uv|scale:0.0625x0.1|offset:none", materialKey);
     }
 
     [Fact]
@@ -1009,7 +1029,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 "CreateGeneratedSurfaceUvProjection",
                 BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException("Failed to resolve CreateGeneratedSurfaceUvProjection.");
-        return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian])!
+        return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian, FacadeMaterialUvScaling.FloorSquareMeters])!
             ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
     }
 

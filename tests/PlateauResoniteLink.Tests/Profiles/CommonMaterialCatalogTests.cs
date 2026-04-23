@@ -63,10 +63,22 @@ public sealed class CommonMaterialCatalogTests
             roofMaterial.TextureScale);
     }
 
+    [Fact]
+    public void BundledFacadeProfiles_DeclareFacadeFloorUnitScaleSemantic()
+    {
+        BundledDefaultMaterialProfile facadeProfile = BundledDefaultMaterialProfiles.GetProfile(
+            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 0));
+        BundledDefaultMaterialProfile roofProfile = BundledDefaultMaterialProfiles.GetProfile(
+            BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Roof, 0));
+
+        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.FacadeFloorUnits, facadeProfile.ScaleSemantic);
+        Assert.Equal(BundledDefaultMaterialUvScaleSemantic.WorldMeters, roofProfile.ScaleSemantic);
+    }
+
     private static Float2 ExpectedFacadeScale(int variantIndex)
     {
         return variantIndex == 0
-            ? new Float2(1.0 / 52.0, 1.0 / 32.5)
-            : new Float2(1.0 / 19.5, 1.0 / 19.5);
+            ? new Float2(1.0 / 16.0, 1.0 / 10.0)
+            : new Float2(1.0 / 6.0, 1.0 / 6.0);
     }
 }
