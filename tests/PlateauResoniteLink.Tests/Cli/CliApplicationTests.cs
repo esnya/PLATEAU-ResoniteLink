@@ -43,7 +43,8 @@ public sealed class CliApplicationTests
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy())))),
+                            new ArchiveFileLayoutPolicy()))),
+                new PassthroughImportedCityObjectOptimizer()),
             new CommonMaterialCatalog(),
             new ArchiveFileLayoutPolicy());
     }

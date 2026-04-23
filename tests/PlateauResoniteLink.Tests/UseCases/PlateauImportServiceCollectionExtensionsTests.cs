@@ -158,7 +158,8 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
             LocalCityGmlBootstrapSnapshot readResult,
-            Action<string>? progressReporter = null)
+            Action<string>? progressReporter = null,
+            IImportedCityObjectOptimizer? cityObjectOptimizer = null)
         {
             LastRequest = request;
             LastReadResult = readResult;
@@ -210,4 +211,3 @@ public sealed class PlateauImportServiceCollectionExtensionsTests
         }
     }
 }
-

@@ -44,7 +44,8 @@ public sealed class LocalCityGmlObjectProjectionTests
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy())))),
+                            new ArchiveFileLayoutPolicy()))),
+                new PassthroughImportedCityObjectOptimizer()),
             commonMaterialCatalog: new CommonMaterialCatalog(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
@@ -88,7 +89,8 @@ public sealed class LocalCityGmlObjectProjectionTests
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
-                            new ArchiveFileLayoutPolicy()))));
+                            new ArchiveFileLayoutPolicy()))),
+            new PassthroughImportedCityObjectOptimizer());
         IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
@@ -138,7 +140,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObjectCullsDownwardBuildingBottomSurfacesButKeepsRoofAndWall()
+    public void ProjectCityObjectCullsBuildingBottomSurfacesAcrossWindingButKeepsRoofAndWall()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
@@ -155,27 +157,33 @@ public sealed class LocalCityGmlObjectProjectionTests
         BootstrapParsedSurface roofSurface = CreateBootstrapParsedSurface(
             "roof",
             BootstrapParsedSurfaceSemantic.Roof,
-            CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, downwardFacing: false),
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 6.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("roof"));
         BootstrapParsedSurface groundSurface = CreateBootstrapParsedSurface(
             "ground",
             BootstrapParsedSurfaceSemantic.Ground,
-            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, downwardFacing: true),
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("ground"));
+        BootstrapParsedSurface reversedGroundSurface = CreateBootstrapParsedSurface(
+            "ground-reversed",
+            BootstrapParsedSurfaceSemantic.Ground,
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.25, sizeMeters: 8.0, reverseWinding: true),
+            CreateTexturePayload("ground-reversed"));
         BootstrapParsedSurface outerFloorSurface = CreateBootstrapParsedSurface(
             "outer-floor",
             BootstrapParsedSurfaceSemantic.OuterFloor,
-            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 8.0, downwardFacing: true),
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.5, sizeMeters: 8.0, reverseWinding: true),
             CreateTexturePayload("outer-floor"));
 
         Assert.True(ShouldCullSurfaceBeforeProjectionForTest("bldg", groundSurface.ToLegacy(), origin, cartesian));
+        Assert.True(ShouldCullSurfaceBeforeProjectionForTest("bldg", reversedGroundSurface.ToLegacy(), origin, cartesian));
         Assert.True(ShouldCullSurfaceBeforeProjectionForTest("bldg", outerFloorSurface.ToLegacy(), origin, cartesian));
         Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", roofSurface.ToLegacy(), origin, cartesian));
         Assert.False(ShouldCullSurfaceBeforeProjectionForTest("bldg", wallSurface.ToLegacy(), origin, cartesian));
 
         BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
             "bldg",
-            [wallSurface, roofSurface, groundSurface, outerFloorSurface],
+            [wallSurface, roofSurface, groundSurface, reversedGroundSurface, outerFloorSurface],
             referenceSystem);
 
         ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
@@ -187,6 +195,7 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal(2, projected.Materials.Count);
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground");
+        Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "ground-reversed");
         Assert.DoesNotContain(projected.Materials, static material => material.TexturePayload?.Identity == "outer-floor");
     }
 
@@ -203,7 +212,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         BootstrapParsedSurface groundSurface = CreateBootstrapParsedSurface(
             "tran-ground",
             BootstrapParsedSurfaceSemantic.Ground,
-            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, downwardFacing: true),
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: false),
             CreateTexturePayload("tran-ground"));
 
         Assert.False(ShouldCullSurfaceBeforeProjectionForTest("tran", groundSurface.ToLegacy(), origin, cartesian));
@@ -1139,7 +1148,7 @@ public sealed class LocalCityGmlObjectProjectionTests
         LocalCityGmlObjectProjection.GeodeticPoint origin,
         double altitudeMeters,
         double sizeMeters,
-        bool downwardFacing)
+        bool reverseWinding)
     {
         double latitudeDelta = sizeMeters / 111320.0;
         double longitudeDelta = sizeMeters / (111320.0 * Math.Cos(origin.Latitude * (Math.PI / 180.0)));
@@ -1151,15 +1160,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             new(origin.Latitude + latitudeDelta, origin.Longitude, altitudeMeters),
         ];
 
-        if (ShouldCullSurfaceBeforeProjectionForTest(
-                "bldg",
-                CreateParsedSurface(
-                    "orientation-check",
-                    (LocalCityGmlObjectProjection.ParsedSurfaceSemantic)BootstrapParsedSurfaceSemantic.Ground,
-                    [.. vertices, vertices[0]]),
-                origin,
-                new GeographicLib.LocalCartesian(origin.Latitude, origin.Longitude, origin.Altitude, CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697").Geocentric))
-            != downwardFacing)
+        if (reverseWinding)
         {
             vertices.Reverse();
         }

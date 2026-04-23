@@ -17,7 +17,8 @@ internal sealed class LocalCityGmlConstructionComposer(
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
         LocalCityGmlBootstrapSnapshot readResult,
-        Action<string>? progressReporter = null)
+        Action<string>? progressReporter = null,
+        IImportedCityObjectOptimizer? cityObjectOptimizer = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(readResult);
@@ -44,7 +45,8 @@ internal sealed class LocalCityGmlConstructionComposer(
             readResult,
             geometryProjector,
             demTextureSourcePolicy,
-            progressReporter);
+            progressReporter,
+            cityObjectOptimizer ?? new PassthroughImportedCityObjectOptimizer());
     }
 
     private static Attribution CreateAttribution(PlateauImportRequest request)

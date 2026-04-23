@@ -2618,12 +2618,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        Float3[] positions = surface.Vertices
-            .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
-            .ToArray();
-        Float3? normal = ComputePolygonNormal(positions);
-        return normal is not null
-            && normal.Y <= -0.98;
+        return IsNearHorizontalSurface(surface, cityObjectOrigin, cityObjectCartesian);
     }
 
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
