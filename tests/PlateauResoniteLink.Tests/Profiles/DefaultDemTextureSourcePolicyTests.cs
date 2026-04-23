@@ -162,7 +162,7 @@ public sealed class DefaultDemTextureSourcePolicyTests
         : IDemTerrainGeoReferencedRasterCatalog
     {
         public Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
-            string cacheKey,
+            DemTerrainRasterCacheKey cacheKey,
             string meshCode,
             GeographicRectangle overlayBounds,
             CancellationToken cancellationToken)

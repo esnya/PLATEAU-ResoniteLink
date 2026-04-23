@@ -207,14 +207,12 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         Assert.Equal(0, secondHandler.RequestCount);
         Assert.False(string.IsNullOrWhiteSpace(texture.TextureImport.Identity));
-        using (FakeMapTileHandler thirdHandler = new())
-        using (HttpClient thirdClient = new(thirdHandler))
-        {
-            TerrainTextureAssetGenerator thirdGenerator = new(thirdClient, cacheRoot.Path);
-            GeneratedTerrainTexture repeatedTexture = await thirdGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+        using FakeMapTileHandler thirdHandler = new();
+        using HttpClient thirdClient = new(thirdHandler);
+        TerrainTextureAssetGenerator thirdGenerator = new(thirdClient, cacheRoot.Path);
+        GeneratedTerrainTexture repeatedTexture = await thirdGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-            Assert.Equal(texture.TextureImport.Identity, repeatedTexture.TextureImport.Identity);
-        }
+        Assert.Equal(texture.TextureImport.Identity, repeatedTexture.TextureImport.Identity);
     }
 
     [Fact]

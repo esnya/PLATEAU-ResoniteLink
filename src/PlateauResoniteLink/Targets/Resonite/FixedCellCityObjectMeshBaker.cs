@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using PlateauResoniteLink;
 using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Targets.Resonite;
@@ -849,9 +848,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
                 return compare;
             }
 
-            compare = string.CompareOrdinal(
-                CreateTerrainOverlaySortKey(x.TerrainOverlay),
-                CreateTerrainOverlaySortKey(y.TerrainOverlay));
+            compare = CompareTerrainOverlay(x.TerrainOverlay, y.TerrainOverlay);
             if (compare != 0)
             {
                 return compare;
@@ -956,13 +953,191 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
             return compare != 0 ? compare : x.A.CompareTo(y.A);
         }
 
-        private static string? CreateTerrainOverlaySortKey(TerrainTextureOverlay? overlay)
+        private static int CompareTerrainOverlay(TerrainTextureOverlay? x, TerrainTextureOverlay? y)
         {
-            return overlay is null
-                ? null
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{overlay.PackageName}|{overlay.GeographicBounds.MinLatitude:R}|{overlay.GeographicBounds.MinLongitude:R}|{overlay.GeographicBounds.MaxLatitude:R}|{overlay.GeographicBounds.MaxLongitude:R}|{overlay.SourceIdentityKey}|{overlay.MaxTextureSize}");
+            if (ReferenceEquals(x, y))
+            {
+                return 0;
+            }
+
+            if (x is null)
+            {
+                return -1;
+            }
+
+            if (y is null)
+            {
+                return 1;
+            }
+
+            int compare = string.CompareOrdinal(x.PackageName, y.PackageName);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MinLatitude.CompareTo(y.GeographicBounds.MinLatitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MinLongitude.CompareTo(y.GeographicBounds.MinLongitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MaxLatitude.CompareTo(y.GeographicBounds.MaxLatitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MaxLongitude.CompareTo(y.GeographicBounds.MaxLongitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.MaxTextureSize.CompareTo(y.MaxTextureSize);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.LicenseMode.CompareTo(y.LicenseMode);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.Sources.Count.CompareTo(y.Sources.Count);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            for (int index = 0; index < x.Sources.Count; index++)
+            {
+                compare = CompareTerrainTextureSource(x.Sources[index], y.Sources[index]);
+                if (compare != 0)
+                {
+                    return compare;
+                }
+            }
+
+            return 0;
+        }
+
+        private static int CompareTerrainTextureSource(TerrainTextureSource x, TerrainTextureSource y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return 0;
+            }
+
+            int compare = GetTerrainTextureSourceKindOrder(x).CompareTo(GetTerrainTextureSourceKindOrder(y));
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return (x, y) switch
+            {
+                (TerrainTextureTileSource left, TerrainTextureTileSource right) => CompareTileSource(left, right),
+                (TerrainTextureGeoReferencedRasterSource left, TerrainTextureGeoReferencedRasterSource right) => CompareGeoReferencedRasterSource(left, right),
+                _ => throw new InvalidOperationException(
+                    $"Unsupported terrain texture source pair '{x.GetType().FullName}' and '{y.GetType().FullName}' in fixed-cell material ordering."),
+            };
+        }
+
+        private static int GetTerrainTextureSourceKindOrder(TerrainTextureSource source)
+        {
+            return source switch
+            {
+                TerrainTextureTileSource => 0,
+                TerrainTextureGeoReferencedRasterSource => 1,
+                _ => throw new InvalidOperationException(
+                    $"Unsupported terrain texture source '{source.GetType().FullName}' in fixed-cell material ordering."),
+            };
+        }
+
+        private static int CompareTileSource(TerrainTextureTileSource x, TerrainTextureTileSource y)
+        {
+            int compare = x.ZoomLevel.CompareTo(y.ZoomLevel);
+            return compare != 0 ? compare : string.CompareOrdinal(x.UrlTemplate, y.UrlTemplate);
+        }
+
+        private static int CompareGeoReferencedRasterSource(
+            TerrainTextureGeoReferencedRasterSource x,
+            TerrainTextureGeoReferencedRasterSource y)
+        {
+            int compare = string.CompareOrdinal(x.SourcePath, y.SourcePath);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return CompareGeoReferencedRasterMetadata(x.Metadata, y.Metadata);
+        }
+
+        private static int CompareGeoReferencedRasterMetadata(
+            GeoReferencedRasterMetadata? x,
+            GeoReferencedRasterMetadata? y)
+        {
+            if (ReferenceEquals(x, y))
+            {
+                return 0;
+            }
+
+            if (x is null)
+            {
+                return -1;
+            }
+
+            if (y is null)
+            {
+                return 1;
+            }
+
+            int compare = string.CompareOrdinal(x.CoordinateSystemIdentifier, y.CoordinateSystemIdentifier);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.PixelWidthMeters.CompareTo(y.PixelWidthMeters);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.PixelHeightMeters.CompareTo(y.PixelHeightMeters);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MinLatitude.CompareTo(y.GeographicBounds.MinLatitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MinLongitude.CompareTo(y.GeographicBounds.MinLongitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            compare = x.GeographicBounds.MaxLatitude.CompareTo(y.GeographicBounds.MaxLatitude);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return x.GeographicBounds.MaxLongitude.CompareTo(y.GeographicBounds.MaxLongitude);
         }
     }
 
