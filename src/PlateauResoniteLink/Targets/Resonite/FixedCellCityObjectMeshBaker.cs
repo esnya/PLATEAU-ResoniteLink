@@ -15,7 +15,7 @@ internal sealed class FixedCellCityObjectMeshBaker : IResoniteBufferedCityObject
 {
     internal const double DefaultCellSizeMeters = 128.0;
     internal const int DefaultMaxCityObjectsPerBatch = 64;
-    internal const int DefaultMaxVerticesPerBatch = 200_000;
+    internal const int DefaultMaxVerticesPerBatch = ResoniteMeshImportFactory.MaxSupportedVertexCount;
     internal const int DefaultMaxBufferedCells = 8;
 
     private readonly double cellSizeMeters;

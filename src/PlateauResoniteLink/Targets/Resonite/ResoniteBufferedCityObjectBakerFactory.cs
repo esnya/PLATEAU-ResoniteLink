@@ -21,8 +21,7 @@ internal sealed class ResoniteBufferedCityObjectBakerFactory : IResoniteBuffered
 
         int maxVerticesPerBatch = resourceBudget.Name switch
         {
-            ResoniteImportMemoryProfile.Small => 32_768,
-            ResoniteImportMemoryProfile.Large => 65_535,
+            ResoniteImportMemoryProfile.Small or ResoniteImportMemoryProfile.Large => ResoniteMeshImportFactory.MaxSupportedVertexCount,
             _ => throw new ArgumentOutOfRangeException(nameof(resourceBudget), resourceBudget.Name, "Unsupported memory profile."),
         };
         int maxCityObjectsPerBatch = resourceBudget.Name switch

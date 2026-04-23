@@ -8,6 +8,9 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResoniteMeshImportFactory
 {
+    // ResoniteLink raw mesh import uses Int32-backed vertex counts and index spans.
+    internal const int MaxSupportedVertexCount = int.MaxValue;
+
     public static ImportMeshRawData Create(ResoniteImportedMesh mesh)
     {
         ArgumentNullException.ThrowIfNull(mesh);
