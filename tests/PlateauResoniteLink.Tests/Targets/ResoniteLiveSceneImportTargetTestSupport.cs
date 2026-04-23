@@ -116,10 +116,11 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         ImportedSceneMetadata metadata,
         IReadOnlyList<ResoniteConstructionCityObject> firstRunCityObjects,
         IReadOnlyList<ResoniteConstructionCityObject> secondRunCityObjects,
-        SceneBuilderRecordingClient client)
+        SceneBuilderRecordingClient client,
+        bool enableMeshBake = true)
     {
         using TemporaryDirectory firstWorkDirectory = new();
-        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client, enableMeshBake: enableMeshBake))
         {
             _ = await ExecuteSceneAsync(
                 builder,
@@ -130,7 +131,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         }
 
         using TemporaryDirectory secondWorkDirectory = new();
-        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client))
+        await using (ResoniteLiveSceneImportTarget builder = CreateBuilder(client, enableMeshBake: enableMeshBake))
         {
             _ = await ExecuteSceneAsync(
                 builder,

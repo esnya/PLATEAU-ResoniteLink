@@ -19,7 +19,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
         Action<string> progressReporter = _ => { };
 
         PlateauImportRequest request = new(
@@ -67,7 +67,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(resolvedOverlays);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -104,7 +104,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
@@ -160,7 +160,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
@@ -193,7 +193,7 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             [],
             new PlateauImportValidationException(["invalid GeoTIFF source"]));
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy);
+        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -256,7 +256,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
             LocalCityGmlBootstrapSnapshot readResult,
-            Action<string>? progressReporter = null)
+            Action<string>? progressReporter = null,
+            IImportedCityObjectOptimizer? cityObjectOptimizer = null)
         {
             LastRequest = request;
             LastReadResult = readResult;
@@ -405,4 +406,3 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         }
     }
 }
-

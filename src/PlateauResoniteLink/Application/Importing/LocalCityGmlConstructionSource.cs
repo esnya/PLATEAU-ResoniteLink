@@ -23,6 +23,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
     private readonly GeodeticPoint globalOriginPoint;
     private readonly ICityGmlGeometryProjector geometryProjector;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
+    private readonly IImportedCityObjectOptimizer cityObjectOptimizer;
     private readonly Action<string>? progressReporter;
     private readonly object referenceSystemGate = new();
     private readonly ConcurrentDictionary<string, Task<TerrainTextureOverlay[]>> demTerrainTextureOverlayTasks = new(StringComparer.Ordinal);
@@ -36,7 +37,8 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         LocalCityGmlBootstrapSnapshot readResult,
         ICityGmlGeometryProjector geometryProjector,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        Action<string>? progressReporter = null)
+        Action<string>? progressReporter = null,
+        IImportedCityObjectOptimizer? cityObjectOptimizer = null)
     {
         ArgumentNullException.ThrowIfNull(metadata);
         ArgumentNullException.ThrowIfNull(readResult);
@@ -50,6 +52,7 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
         this.geometryProjector = geometryProjector;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
         this.progressReporter = progressReporter;
+        this.cityObjectOptimizer = cityObjectOptimizer ?? new PassthroughImportedCityObjectOptimizer();
         requestedMeshAreas = MeshCodeBounds.CreateManyFromSelectedMeshCodes(
             Metadata.SourceDataset.SelectedMeshCodes ?? [request.MeshCode]);
     }
@@ -124,9 +127,9 @@ internal sealed class LocalCityGmlConstructionSource : IImportedSceneSource
                 + $"{fileIndex}/{totalFiles}: '{sourceFile.SourceFile.RelativePath}'."));
 
         int yieldedCount = 0;
-        await foreach (ImportedCityObject cityObject in StreamProjectedCityObjectsAsync(
-                           sourceFile,
-                           cancellationToken))
+        await foreach (ImportedCityObject cityObject in cityObjectOptimizer.OptimizeAsync(
+                           StreamProjectedCityObjectsAsync(sourceFile, cancellationToken),
+                           cancellationToken).WithCancellation(cancellationToken))
         {
             yieldedCount++;
             await writer.WriteAsync(cityObject, cancellationToken);

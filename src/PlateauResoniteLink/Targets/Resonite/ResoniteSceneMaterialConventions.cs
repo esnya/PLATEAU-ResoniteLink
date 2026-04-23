@@ -178,6 +178,7 @@ internal static class ResoniteSceneMaterialConventions
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && material.DepthOffset is null
             && material.TextureOffset is null
+            && material.AssetScope == ResoniteMaterialAssetScope.Common
             && IsWhiteBaseColor(material.BaseColor))
         {
             ResoniteMaterialBinding commonBaseCandidate = material with

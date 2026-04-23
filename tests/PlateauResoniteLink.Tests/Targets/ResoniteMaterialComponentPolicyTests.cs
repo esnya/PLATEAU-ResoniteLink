@@ -46,12 +46,33 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.Equal(0.2f, albedo.Value.g, 6);
         Assert.Equal(0.3f, albedo.Value.b, 6);
         Assert.Equal(0.4f, albedo.Value.a, 6);
+        Assert.Equal(ResoniteColorSpace.SrgbProfile, albedo.Value.Profile);
         Assert.Equal(0.5f, textureScale.Value.x, 6);
         Assert.Equal(0.25f, textureScale.Value.y, 6);
         Assert.Equal(0.125f, textureOffset.Value.x, 6);
         Assert.Equal(0.75f, textureOffset.Value.y, 6);
         Assert.Equal(2.0f, offsetFactor.Value, 6);
         Assert.Equal(3.0f, offsetUnits.Value, 6);
+    }
+
+    [Fact]
+    public void CreateMembersUsesSrgbProfileForVertexColorMaterialFields()
+    {
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "vertex-color",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.VertexColor,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            AssetScope: ResoniteMaterialAssetScope.Common);
+
+        Dictionary<string, Member> members = ResoniteMaterialComponentPolicy.CreateMembers(material);
+
+        Field_colorX albedo = Assert.IsType<Field_colorX>(members["AlbedoColor"]);
+        Assert.Equal(ResoniteColorSpace.SrgbProfile, albedo.Value.Profile);
     }
 
     [Fact]

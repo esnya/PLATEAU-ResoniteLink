@@ -41,7 +41,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 CreateBundledTriangleCityObject("shared-material-one"),
                 CreateBundledTriangleCityObject("shared-material-two"),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-material-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-material-two");
@@ -69,7 +70,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 CreateBundledTriangleCityObject("shared-material-scale-one"),
                 CreateBundledTriangleCityObject("shared-material-scale-two", textureScale: new ResoniteFloat2(0.5, 0.5)),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         Assert.NotEqual(
             GetRendererMaterialReferenceTarget(client, "CityObject shared-material-scale-one"),
@@ -95,7 +97,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     family: BundledDefaultMaterialFamilies.Roof,
                     projection: ResoniteMaterialProjection.Triplanar),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject shared-roof-two");
@@ -127,7 +130,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     "dataset-texture-two",
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/albedo-two.png")),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-two");
@@ -166,7 +170,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     "dataset-texture-noop-transform-two",
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/albedo-noop-two.png")),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-noop-transform-two");
@@ -196,7 +201,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     textureScale: new ResoniteFloat2(2.0, 1.5),
                     textureOffset: new ResoniteFloat2(0.25, 0.5)),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-two");
@@ -266,7 +272,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 CreateVertexColorTriangleCityObject("vertex-color-one"),
                 CreateVertexColorTriangleCityObject("vertex-color-two"),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject vertex-color-two");
@@ -314,7 +321,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     "empty-current-generic-slot-reuse",
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/empty-current-generic-slot.png")),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string rendererMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject empty-current-generic-slot-reuse");
         string currentGenericPath = Assert.Single(
@@ -354,7 +362,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     textureScale: new ResoniteFloat2(2.0, 1.5),
                     textureOffset: new ResoniteFloat2(0.25, 0.5)),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string firstMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-run-one");
         string secondMaterialId = GetRendererMaterialReferenceTarget(client, "CityObject dataset-texture-scaled-run-two");
@@ -393,7 +402,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/same-key-a.png"),
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(0, 255, 0, "textures/same-key-b.png")),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject same-key-override");
         string?[] propertyBlockIds = GetRendererMaterialPropertyBlockReferenceTargets(client, "CityObject same-key-override");
@@ -419,7 +429,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                     "mixed-material-order",
                     ResoniteLiveSceneImportTargetTestSupport.CreateSolidColorPayload(255, 0, 0, "textures/mixed-albedo.png")),
             ],
-            client);
+            client,
+            enableMeshBake: false);
 
         string[] materialIds = GetRendererMaterialReferenceTargets(client, "CityObject mixed-material-order");
         Assert.Equal(2, materialIds.Length);
