@@ -14,11 +14,11 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace PlateauResoniteLink.Targets.Resonite;
 
-internal sealed class Lod2AtlasCityObjectBaker(
+internal sealed class NonDemCityObjectBaker(
     ResoniteTextureImageLoader textureImageLoader,
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
-    IReadOnlyList<Lod2AtlasCityObjectBakePolicy>? bakePolicies = null,
+    IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
     ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
@@ -27,10 +27,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
     private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
-    private readonly IReadOnlyList<Lod2AtlasCityObjectBakePolicy> bakePolicies = bakePolicies
-        ?? Lod2AtlasCityObjectBakePolicies.DefaultPolicies;
+    private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
+        ?? NonDemCityObjectBakePolicies.DefaultPolicies;
 
-    public string Name => "LOD2AtlasBake";
+    public string Name => "AtlasBake";
 
     public int BakedInputCityObjectCount { get; private set; }
 
@@ -54,7 +54,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         ArgumentNullException.ThrowIfNull(cityObject);
         cancellationToken.ThrowIfCancellationRequested();
 
-        Lod2AtlasCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
+        NonDemCityObjectBakePolicy? policy = ResolvePolicy(cityObject);
         if (policy is null)
         {
             return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: false, []));
@@ -243,9 +243,9 @@ internal sealed class Lod2AtlasCityObjectBaker(
         }
     }
 
-    private Lod2AtlasCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)
+    private NonDemCityObjectBakePolicy? ResolvePolicy(ResoniteConstructionCityObject cityObject)
     {
-        foreach (Lod2AtlasCityObjectBakePolicy policy in bakePolicies)
+        foreach (NonDemCityObjectBakePolicy policy in bakePolicies)
         {
             if (policy.CanBuffer(cityObject) && CanBufferCityObjectMaterials(cityObject, policy))
             {
@@ -261,18 +261,18 @@ internal sealed class Lod2AtlasCityObjectBaker(
         CancellationToken cancellationToken)
     {
         ResoniteConstructionCityObject cityObject = bufferedCityObject.CityObject;
-        Lod2AtlasCityObjectBakePolicy policy = bufferedCityObject.Policy;
+        NonDemCityObjectBakePolicy policy = bufferedCityObject.Policy;
         if (!TryCreateMaterialBySubmeshIndex(cityObject, out _))
         {
             throw new InvalidOperationException(
-                $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
+                $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
         ResoniteConstructionCityObject normalizedCityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
         if (!TryCreateMaterialBySubmeshIndex(normalizedCityObject, out Dictionary<int, ResoniteMaterialBinding>? materialBySubmeshIndex))
         {
             throw new InvalidOperationException(
-                $"LOD2 atlas bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
+                $"Non-DEM bake city object '{cityObject.DisplayName}' contained duplicate material assignments for a submesh.");
         }
 
         List<AtlasBatchEntry> atlasEntries = [];
@@ -284,13 +284,13 @@ internal sealed class Lod2AtlasCityObjectBaker(
             if (!materialBySubmeshIndex.TryGetValue(submesh.Index, out ResoniteMaterialBinding? material))
             {
                 throw new InvalidOperationException(
-                    $"LOD2 atlas bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
+                    $"Non-DEM bake city object '{cityObject.DisplayName}' left submesh index {submesh.Index} without a material assignment.");
             }
 
-            Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
+            NonDemMaterialBakeCategory category = ClassifyMaterial(material);
             switch (category)
             {
-                case Lod2AtlasMaterialBakeCategory.AtlasCandidate:
+                case NonDemMaterialBakeCategory.AtlasCandidate:
                     hadAtlasCandidateMaterial = true;
                     AtlasOrPreservedEntry bakeEntry = await CreateAtlasOrPreservedEntryAsync(
                         normalizedCityObject,
@@ -308,10 +308,10 @@ internal sealed class Lod2AtlasCityObjectBaker(
                     }
 
                     break;
-                case Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
-                case Lod2AtlasMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
-                case Lod2AtlasMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
-                case Lod2AtlasMaterialBakeCategory.PreservedOther:
+                case NonDemMaterialBakeCategory.PreservedCommonMaterial when policy.PreserveCommonMaterials:
+                case NonDemMaterialBakeCategory.PreservedTextureless when policy.PreserveTexturelessMaterials:
+                case NonDemMaterialBakeCategory.PreservedVertexColor when policy.PreserveVertexColorMaterials:
+                case NonDemMaterialBakeCategory.PreservedOther:
                     ResoniteMeshSubmesh normalizedSubmesh = normalizedCityObject.Mesh.Submeshes.Single(candidate => candidate.Index == submesh.Index);
                     ResoniteMaterialBinding normalizedMaterial = normalizedCityObject.Materials.Single(candidate => candidate.SubmeshIndices.Contains(submesh.Index));
                     preservedEntries.Add(new PreservedSubmeshEntry(normalizedCityObject, normalizedSubmesh, normalizedMaterial));
@@ -328,7 +328,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         if (atlasEntries.Count == 0 && preservedEntries.Count == 0)
         {
             throw new InvalidOperationException(
-                $"LOD2 atlas bake city object '{cityObject.DisplayName}' produced no atlas or preserved submesh candidate.");
+                $"Non-DEM bake city object '{cityObject.DisplayName}' produced no atlas or preserved submesh candidate.");
         }
 
         return new CityObjectBakeCandidate(normalizedCityObject, atlasEntries, preservedEntries);
@@ -342,7 +342,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
     {
         if (material.TexturePayload is null)
         {
-            throw new InvalidOperationException("LOD2 atlas bake candidate material must have a texture payload.");
+            throw new InvalidOperationException("Non-DEM bake candidate material must have a texture payload.");
         }
 
         TextureUvRect uvBounds = ComputeUvBounds(cityObject.Mesh.Vertices, submesh, material);
@@ -385,7 +385,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static bool CanBufferCityObjectMaterials(
         ResoniteConstructionCityObject cityObject,
-        Lod2AtlasCityObjectBakePolicy policy)
+        NonDemCityObjectBakePolicy policy)
     {
         if (!TryCreateMaterialBySubmeshIndex(cityObject, out Dictionary<int, ResoniteMaterialBinding> materialBySubmeshIndex))
         {
@@ -400,19 +400,19 @@ internal sealed class Lod2AtlasCityObjectBaker(
                 return false;
             }
 
-            Lod2AtlasMaterialBakeCategory category = ClassifyMaterial(material);
-            hasAtlasCandidateSubmesh |= category == Lod2AtlasMaterialBakeCategory.AtlasCandidate;
-            if (category == Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial && !policy.PreserveCommonMaterials)
+            NonDemMaterialBakeCategory category = ClassifyMaterial(material);
+            hasAtlasCandidateSubmesh |= category == NonDemMaterialBakeCategory.AtlasCandidate;
+            if (category == NonDemMaterialBakeCategory.PreservedCommonMaterial && !policy.PreserveCommonMaterials)
             {
                 return false;
             }
 
-            if (category == Lod2AtlasMaterialBakeCategory.PreservedVertexColor && !policy.PreserveVertexColorMaterials)
+            if (category == NonDemMaterialBakeCategory.PreservedVertexColor && !policy.PreserveVertexColorMaterials)
             {
                 return false;
             }
 
-            if (category == Lod2AtlasMaterialBakeCategory.PreservedTextureless && !policy.PreserveTexturelessMaterials)
+            if (category == NonDemMaterialBakeCategory.PreservedTextureless && !policy.PreserveTexturelessMaterials)
             {
                 return false;
             }
@@ -465,32 +465,32 @@ internal sealed class Lod2AtlasCityObjectBaker(
             && ResoniteMaterialSharing.CanUseSharedAlbedoOnlyMaterial(material);
     }
 
-    private static Lod2AtlasMaterialBakeCategory ClassifyMaterial(ResoniteMaterialBinding material)
+    private static NonDemMaterialBakeCategory ClassifyMaterial(ResoniteMaterialBinding material)
     {
         if (IsAtlasBakeCandidate(material))
         {
-            return Lod2AtlasMaterialBakeCategory.AtlasCandidate;
+            return NonDemMaterialBakeCategory.AtlasCandidate;
         }
 
         if (material.MaterialType == ResoniteMaterialType.VertexColor)
         {
-            return Lod2AtlasMaterialBakeCategory.PreservedVertexColor;
+            return NonDemMaterialBakeCategory.PreservedVertexColor;
         }
 
         if (material.AssetScope == ResoniteMaterialAssetScope.Common
             || !string.IsNullOrWhiteSpace(material.Family))
         {
             return CanPreserveAsCommonMaterial(material)
-                ? Lod2AtlasMaterialBakeCategory.PreservedCommonMaterial
-                : Lod2AtlasMaterialBakeCategory.PreservedOther;
+                ? NonDemMaterialBakeCategory.PreservedCommonMaterial
+                : NonDemMaterialBakeCategory.PreservedOther;
         }
 
         if (material.TexturePayload is null)
         {
-            return Lod2AtlasMaterialBakeCategory.PreservedTextureless;
+            return NonDemMaterialBakeCategory.PreservedTextureless;
         }
 
-        return Lod2AtlasMaterialBakeCategory.PreservedOther;
+        return NonDemMaterialBakeCategory.PreservedOther;
     }
 
     private static bool CanPreserveAsCommonMaterial(ResoniteMaterialBinding material)
@@ -552,7 +552,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         if (entries.Count > 0
             && (!TryCreateAtlasLayout(entries, out layout) || layout is null))
         {
-            throw new InvalidOperationException("Failed to create LOD2 atlas layout.");
+            throw new InvalidOperationException("Failed to create non-DEM atlas layout.");
         }
 
         using Image<Rgba32>? atlasImage = layout is null
@@ -648,7 +648,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
         if (submeshes.Count == 0 || materials.Count == 0)
         {
             throw new InvalidOperationException(
-                $"LOD2 atlas bake batch '{sourceUnitKey.PackageName}:{sourceUnitKey.ActualMeshCode}:LOD{sourceUnitKey.LodLevel}' produced no materialized submesh.");
+                $"Non-DEM bake batch '{sourceUnitKey.PackageName}:{sourceUnitKey.ActualMeshCode}:LOD{sourceUnitKey.LodLevel}' produced no materialized submesh.");
         }
 
         return new ResoniteConstructionCityObject(
@@ -1124,25 +1124,28 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private static ResoniteMaterialBinding CreateVertexColorMaterial(ResoniteMaterialBinding material, int submeshIndex)
     {
-        return material with
-        {
-            MaterialType = ResoniteMaterialType.VertexColor,
-            MaterialKey = $"vertex-color:{material.MaterialKey}",
-            BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
-            TexturePayload = null,
-            TextureSourceKind = ResoniteTextureSourceKind.Bundled,
-            TextureScale = null,
-            TextureOffset = null,
-            Family = null,
-            TerrainOverlay = null,
-            AssetScope = ResoniteMaterialAssetScope.PresentationSlotScoped,
-            SubmeshIndices = [submeshIndex],
-        };
+        return ResoniteSceneMaterialConventions.NormalizeCommonMaterialBinding(
+            material with
+            {
+                MaterialType = ResoniteMaterialType.VertexColor,
+                MaterialKey = ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                    material.Projection,
+                    material.DepthOffset),
+                BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                TexturePayload = null,
+                TextureSourceKind = ResoniteTextureSourceKind.Bundled,
+                TextureScale = null,
+                TextureOffset = null,
+                Family = null,
+                TerrainOverlay = null,
+                AssetScope = ResoniteMaterialAssetScope.Common,
+                SubmeshIndices = [submeshIndex],
+            });
     }
 
     private static SourceUnitBatchKey CreateSourceUnitKey(
         ResoniteConstructionCityObject cityObject,
-        Lod2AtlasCityObjectBakePolicy policy)
+        NonDemCityObjectBakePolicy policy)
     {
         string context = policy.Name;
         string sourceUnitKey = cityObject.SourceUnitKey ?? string.Empty;
@@ -1670,7 +1673,7 @@ internal sealed class Lod2AtlasCityObjectBaker(
 
     private readonly record struct BufferedCityObject(
         ResoniteConstructionCityObject CityObject,
-        Lod2AtlasCityObjectBakePolicy Policy);
+        NonDemCityObjectBakePolicy Policy);
 
     private sealed record AtlasBatchEntry(
         ResoniteConstructionCityObject CityObject,
