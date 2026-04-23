@@ -36,6 +36,10 @@ public sealed class DefaultMaterialResolverTests
             preferUvProjection: true,
             familyOverride: null,
             variantSelectionKey: "bldg:uv");
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(
+            BundledDefaultMaterialFamilies.Facade,
+            material.BundledVariantIndex!.Value);
+        BundledDefaultMaterialProfile profile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
 
         Assert.Equal(MaterialType.Standard, material.MaterialType);
         Assert.Null(material.TexturePayload);
@@ -44,9 +48,14 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
         Assert.Equal(
             new Float2(
-                FacadeMaterialUvScaling.CommonMaterialScaleValue.X,
-                FacadeMaterialUvScaling.CommonMaterialScaleValue.Y),
+                profile.TextureScale.X,
+                profile.TextureScale.Y),
             material.TextureScale);
+        Assert.Equal(
+            profile.TextureOffset is null
+                ? null
+                : new Float2(profile.TextureOffset.X, profile.TextureOffset.Y),
+            material.TextureOffset);
         Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
     }
 
@@ -124,11 +133,21 @@ public sealed class DefaultMaterialResolverTests
         Assert.Equal(BundledDefaultMaterialFamilies.Facade, first.Family);
         Assert.Equal(first.BundledVariantIndex, second.BundledVariantIndex);
         Assert.Equal(first.TextureScale, second.TextureScale);
+        Assert.Equal(first.TextureOffset, second.TextureOffset);
         Assert.Equal(
-            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(
-                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value))),
+            ToContractFloat2(BundledDefaultMaterialProfiles.GetProfile(
+                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value)).TextureScale),
             first.TextureScale);
+        Assert.Equal(
+            ToContractFloat2Nullable(BundledDefaultMaterialProfiles.GetProfile(
+                BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, first.BundledVariantIndex!.Value)).TextureOffset),
+            first.TextureOffset);
     }
 
     private static Float2 ToContractFloat2(ScalarPair value) => new(value.X, value.Y);
+
+    private static Float2? ToContractFloat2Nullable(ScalarPair? value)
+    {
+        return value is null ? null : new Float2(value.X, value.Y);
+    }
 }

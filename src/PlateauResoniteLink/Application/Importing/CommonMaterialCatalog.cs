@@ -75,6 +75,7 @@ public sealed class CommonMaterialCatalog
         MaterialProjection projection)
     {
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
+        BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
         return new MaterialBinding(
             MaterialKey: CreateMaterialKey(family, variantIndex, projection),
             BaseColor: CanonicalBaseColor,
@@ -84,9 +85,9 @@ public sealed class CommonMaterialCatalog
             Projection: projection,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: ToContract(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath)),
+            TextureScale: ToContract(uvProfile.TextureScale),
             Family: family,
-            TextureOffset: null,
+            TextureOffset: uvProfile.TextureOffset is null ? null : ToContract(uvProfile.TextureOffset),
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: variantIndex);
     }

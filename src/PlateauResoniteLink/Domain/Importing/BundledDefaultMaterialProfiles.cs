@@ -2,10 +2,10 @@ namespace PlateauResoniteLink.Domain.Importing;
 
 public static class BundledDefaultMaterialProfiles
 {
-    public static readonly ScalarPair FacadeDefaultTilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
-    public static readonly ScalarPair Facade018ATilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
-    public static readonly ScalarPair Facade019ATilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
-    public static readonly ScalarPair Facade020ATilesPerMeterValue = FacadeMaterialUvScaling.CommonMaterialScaleValue;
+    public static readonly ScalarPair FacadeDefaultTilesPerMeterValue = FacadeMaterialUvScaling.Facade001Profile.TextureScale;
+    public static readonly ScalarPair Facade018ATilesPerMeterValue = FacadeMaterialUvScaling.Facade018AProfile.TextureScale;
+    public static readonly ScalarPair Facade019ATilesPerMeterValue = FacadeMaterialUvScaling.Facade019AProfile.TextureScale;
+    public static readonly ScalarPair Facade020ATilesPerMeterValue = FacadeMaterialUvScaling.Facade020AProfile.TextureScale;
     public static readonly ScalarPair ConcreteDefaultTilesPerMeterValue = BundledDefaultMaterialTiling.DefaultTilesPerMeterValue;
     public static readonly ScalarPair RoofingTiles012ATilesPerMeterValue = CreateTilesPerMeterValue(2.9, 2.9);
     public static readonly ScalarPair RoofingTiles014BTilesPerMeterValue = CreateTilesPerMeterValue(2.9, 2.9);
@@ -13,6 +13,18 @@ public static class BundledDefaultMaterialProfiles
     public static readonly ScalarPair Asphalt023LTilesPerMeterValue = CreateTilesPerMeterValue(2.5, 2.5);
     public static readonly ScalarPair Plaster002TilesPerMeterValue = CreateTilesPerMeterValue(2.5, 2.5);
     public static readonly ScalarPair Ground054TilesPerMeterValue = CreateTilesPerMeterValue(3.5, 3.5);
+
+    public static BundledDefaultMaterialProfile GetProfile(string texturePath)
+    {
+        return texturePath.ToLowerInvariant() switch
+        {
+            "default-materials/facade/facade001_2k-jpg_color.jpg" => FacadeMaterialUvScaling.Facade001Profile,
+            "default-materials/facade/facade018a_2k-jpg_color.jpg" => FacadeMaterialUvScaling.Facade018AProfile,
+            "default-materials/facade/facade019a_2k-jpg_color.jpg" => FacadeMaterialUvScaling.Facade019AProfile,
+            "default-materials/facade/facade020a_2k-jpg_color.jpg" => FacadeMaterialUvScaling.Facade020AProfile,
+            _ => new BundledDefaultMaterialProfile(GetTilesPerMeterValue(texturePath)),
+        };
+    }
 
     public static ScalarPair GetTilesPerMeterValue(string texturePath)
     {
@@ -33,6 +45,11 @@ public static class BundledDefaultMaterialProfiles
             "default-materials/other/ground054_2k-jpg_color.jpg" => Ground054TilesPerMeterValue,
             _ => BundledDefaultMaterialTiling.DefaultTilesPerMeterValue,
         };
+    }
+
+    public static ScalarPair? GetTextureOffsetValue(string texturePath)
+    {
+        return GetProfile(texturePath).TextureOffset;
     }
 
     private static ScalarPair CreateTilesPerMeterValue(double widthMeters, double heightMeters)

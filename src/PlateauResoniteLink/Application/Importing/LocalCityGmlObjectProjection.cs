@@ -3672,7 +3672,9 @@ internal static partial class LocalCityGmlObjectProjection
                 ? null
                 : representativeSurface.Material.TextureScale,
             Family: representativeSurface.Material.Family,
-            TextureOffset: null,
+            TextureOffset: representativeSurface.Material.TextureOffset is null
+                ? null
+                : representativeSurface.Material.TextureOffset,
             ReuseScope: representativeSurface.Material.ReuseScope,
             TerrainOverlay: representativeSurface.Material.TerrainOverlay,
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);

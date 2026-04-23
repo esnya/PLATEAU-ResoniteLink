@@ -105,23 +105,28 @@ internal static class ResoniteSceneMaterialConventions
                 ? BundledDefaultMaterialFamilies.Other
                 : material.Family!;
             int canonicalVariantIndex = material.BundledVariantIndex ?? 0;
-            ScalarPair defaultTextureScaleValue = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(
+            BundledDefaultMaterialProfile defaultProfile = BundledDefaultMaterialProfiles.GetProfile(
                 BundledDefaultMaterialFamilies.GetVariant(canonicalFamily, canonicalVariantIndex));
-            ResoniteFloat2 defaultTextureScale = new(defaultTextureScaleValue.X, defaultTextureScaleValue.Y);
+            ResoniteFloat2 defaultTextureScale = new(defaultProfile.TextureScale.X, defaultProfile.TextureScale.Y);
+            ResoniteFloat2? defaultTextureOffset = defaultProfile.TextureOffset is null
+                ? null
+                : new ResoniteFloat2(defaultProfile.TextureOffset.X, defaultProfile.TextureOffset.Y);
             ResoniteFloat2 canonicalTextureScale = material.TextureScale ?? defaultTextureScale;
+            ResoniteFloat2? canonicalTextureOffset = material.TextureOffset ?? defaultTextureOffset;
             return material with
             {
                 MaterialKey = CreateCanonicalCommonMaterialKey(
                     canonicalFamily,
                     canonicalVariantIndex,
                     material.Projection,
-                    canonicalTextureScale),
+                    canonicalTextureScale,
+                    canonicalTextureOffset),
                 BaseColor = new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                 MaterialType = ResoniteMaterialType.Standard,
                 TextureSourceKind = ResoniteTextureSourceKind.Bundled,
                 TextureScale = canonicalTextureScale,
                 Family = canonicalFamily,
-                TextureOffset = null,
+                TextureOffset = canonicalTextureOffset,
                 DepthOffset = null,
                 BundledVariantIndex = canonicalVariantIndex,
             };
@@ -177,7 +182,7 @@ internal static class ResoniteSceneMaterialConventions
             && !string.IsNullOrWhiteSpace(material.Family)
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && material.DepthOffset is null
-            && material.TextureOffset is null
+            && !HasNonDefaultBundledTextureTransform(material)
             && IsWhiteBaseColor(material.BaseColor))
         {
             ResoniteMaterialBinding commonBaseCandidate = material with
@@ -236,7 +241,7 @@ internal static class ResoniteSceneMaterialConventions
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
             && (!IsWhiteBaseColor(material.BaseColor)
-                || material.TextureOffset is not null
+                || HasNonDefaultBundledTextureTransform(material)
                 || material.DepthOffset is not null))
         {
             return material with
@@ -273,16 +278,22 @@ internal static class ResoniteSceneMaterialConventions
         string family,
         int bundledVariantIndex,
         ResoniteMaterialProjection projection,
-        ResoniteFloat2? textureScale)
+        ResoniteFloat2? textureScale,
+        ResoniteFloat2? textureOffset)
     {
         string scaleToken = textureScale is null
             ? "none"
             : string.Create(
                 CultureInfo.InvariantCulture,
                 $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
+        string offsetToken = IsZeroTextureOffset(textureOffset)
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{textureOffset!.X:0.######}x{textureOffset.Y:0.######}");
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"common|{family}|variant:{bundledVariantIndex}|{projection}|scale:{scaleToken}");
+            $"common|{family}|variant:{bundledVariantIndex}|{projection}|scale:{scaleToken}|offset:{offsetToken}");
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -344,8 +355,8 @@ internal static class ResoniteSceneMaterialConventions
             && material.TexturePayload is null
             && material.TextureSourceKind == ResoniteTextureSourceKind.Bundled
             && !string.IsNullOrWhiteSpace(material.Family)
-            && material.TextureOffset is null
             && material.DepthOffset is null
+            && !HasNonDefaultBundledTextureTransform(material)
             && IsWhiteBaseColor(material.BaseColor);
     }
 
@@ -418,10 +429,18 @@ internal static class ResoniteSceneMaterialConventions
             && (defaultTextureScale is null
                 || Math.Abs(materialTextureScale.X - defaultTextureScale.X) > 1e-9
                 || Math.Abs(materialTextureScale.Y - defaultTextureScale.Y) > 1e-9);
+        ResoniteFloat2? defaultTextureOffset = TryGetBundledDefaultOffset(material);
+        ResoniteFloat2? materialTextureOffset = material.TextureOffset;
+        bool hasNonDefaultOffset = !AreEquivalentTextureOffsets(materialTextureOffset, defaultTextureOffset);
         string scaleToken = hasNonDefaultScale
             ? string.Create(
                 CultureInfo.InvariantCulture,
                 $"_scale_{materialTextureScale!.X:0.######}x{materialTextureScale.Y:0.######}")
+            : string.Empty;
+        string bundledOffsetToken = hasNonDefaultOffset
+            ? string.Create(
+                CultureInfo.InvariantCulture,
+                $"_offset_{materialTextureOffset!.X:0.######}x{materialTextureOffset.Y:0.######}")
             : string.Empty;
         string variantNameToken = TryCreateBundledVariantNameToken(material);
         string variantNameSuffix = string.IsNullOrWhiteSpace(variantNameToken)
@@ -430,7 +449,7 @@ internal static class ResoniteSceneMaterialConventions
 
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"shared_{projectionName}_variant_{variantIndex}{scaleToken}{variantNameSuffix}");
+            $"shared_{projectionName}_variant_{variantIndex}{scaleToken}{bundledOffsetToken}{variantNameSuffix}");
     }
 
     private static string CreateTerrainOverlayToken(TerrainTextureOverlay terrainTextureOverlay)
@@ -464,9 +483,51 @@ internal static class ResoniteSceneMaterialConventions
             return null;
         }
 
+        BundledDefaultMaterialProfile defaultProfile = GetBundledDefaultProfile(material);
+        return new ResoniteFloat2(defaultProfile.TextureScale.X, defaultProfile.TextureScale.Y);
+    }
+
+    private static ResoniteFloat2? TryGetBundledDefaultOffset(ResoniteMaterialBinding material)
+    {
+        if (string.IsNullOrWhiteSpace(material.Family))
+        {
+            return null;
+        }
+
+        ScalarPair? defaultOffset = GetBundledDefaultProfile(material).TextureOffset;
+        return defaultOffset is null ? null : new ResoniteFloat2(defaultOffset.X, defaultOffset.Y);
+    }
+
+    private static BundledDefaultMaterialProfile GetBundledDefaultProfile(ResoniteMaterialBinding material)
+    {
         string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        ScalarPair defaultScaleValue = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(bundledVariantPath);
-        return new ResoniteFloat2(defaultScaleValue.X, defaultScaleValue.Y);
+        return BundledDefaultMaterialProfiles.GetProfile(bundledVariantPath);
+    }
+
+    private static bool HasNonDefaultBundledTextureTransform(ResoniteMaterialBinding material)
+    {
+        ResoniteFloat2? defaultTextureScale = TryGetBundledDefaultScale(material);
+        bool hasNonDefaultScale = material.TextureScale is not null
+            && (defaultTextureScale is null
+                || Math.Abs(material.TextureScale.X - defaultTextureScale.X) > 1e-9
+                || Math.Abs(material.TextureScale.Y - defaultTextureScale.Y) > 1e-9);
+        return hasNonDefaultScale || !AreEquivalentTextureOffsets(material.TextureOffset, TryGetBundledDefaultOffset(material));
+    }
+
+    private static bool AreEquivalentTextureOffsets(ResoniteFloat2? left, ResoniteFloat2? right)
+    {
+        if (IsZeroTextureOffset(left) && IsZeroTextureOffset(right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        return Math.Abs(left.X - right.X) < 1e-9
+            && Math.Abs(left.Y - right.Y) < 1e-9;
     }
 
     private static string TryCreateBundledVariantNameToken(ResoniteMaterialBinding material)

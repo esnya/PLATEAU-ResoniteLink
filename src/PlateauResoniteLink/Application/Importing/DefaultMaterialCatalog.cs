@@ -59,15 +59,18 @@ internal sealed class DefaultMaterialResolver : IDefaultMaterialResolver
         bool useFacadeUvProjection = ShouldUseFacadeUvProjection(packageName, preferUvProjection);
         string family = familyOverride ?? ResolveBundledTextureFamily(packageName, useFacadeUvProjection);
         int bundledVariantIndex = SelectBundledVariantIndex(family, variantSelectionKey);
+        string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex);
+        BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
         return new ResolvedMaterial(
             MaterialType.Standard,
             TexturePayload: null,
             TextureSourceKind.Bundled,
             preferUvProjection ? MaterialProjection.Uv : MaterialProjection.Triplanar,
             family,
-            ToContractFloat2(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(BundledDefaultMaterialFamilies.GetVariant(family, bundledVariantIndex))),
+            ToContractFloat2(uvProfile.TextureScale),
             MaterialReuseScope.Shared,
-            BundledVariantIndex: bundledVariantIndex);
+            BundledVariantIndex: bundledVariantIndex,
+            TextureOffset: uvProfile.TextureOffset is null ? null : ToContractFloat2(uvProfile.TextureOffset));
     }
 
     private static bool ShouldUseWireframeMaterial(string packageName)

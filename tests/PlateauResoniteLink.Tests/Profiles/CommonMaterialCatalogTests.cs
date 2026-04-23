@@ -29,7 +29,7 @@ public sealed class CommonMaterialCatalogTests
     }
 
     [Fact]
-    public void CreateForPackages_UsesFacadeFloorSquareScaleForBundledFacadeCommonMaterials()
+    public void CreateForPackages_UsesFacadeVariantProfileForBundledFacadeCommonMaterials()
     {
         IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
 
@@ -43,12 +43,19 @@ public sealed class CommonMaterialCatalogTests
             material => material.Family == BundledDefaultMaterialFamilies.Roof
                 && material.Projection == MaterialProjection.Triplanar
                 && material.BundledVariantIndex == 0);
+        string facadeTexturePath = BundledDefaultMaterialFamilies.GetVariant(BundledDefaultMaterialFamilies.Facade, 0);
+        BundledDefaultMaterialProfile facadeProfile = BundledDefaultMaterialProfiles.GetProfile(facadeTexturePath);
 
         Assert.Equal(
             new Float2(
-                FacadeMaterialUvScaling.CommonMaterialScaleValue.X,
-                FacadeMaterialUvScaling.CommonMaterialScaleValue.Y),
+                facadeProfile.TextureScale.X,
+                facadeProfile.TextureScale.Y),
             facadeMaterial.TextureScale);
+        Assert.Equal(
+            facadeProfile.TextureOffset is null
+                ? null
+                : new Float2(facadeProfile.TextureOffset.X, facadeProfile.TextureOffset.Y),
+            facadeMaterial.TextureOffset);
         Assert.Equal(
             new Float2(
                 BundledDefaultMaterialProfiles.ConcreteDefaultTilesPerMeterValue.X,

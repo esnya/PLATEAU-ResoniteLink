@@ -408,7 +408,7 @@ public sealed class FixedCellCityObjectMeshBakerTests
 
         Assert.Single(baked.Mesh.Submeshes);
         ResoniteMaterialBinding material = Assert.Single(baked.Materials);
-        Assert.Equal("common|roof|variant:2|Triplanar|scale:0.344828x0.344828", material.MaterialKey);
+        Assert.Equal("common|roof|variant:2|Triplanar|scale:0.344828x0.344828|offset:none", material.MaterialKey);
         Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
         Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
         Assert.Equal(2, material.BundledVariantIndex);

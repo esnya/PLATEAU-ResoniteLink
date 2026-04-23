@@ -118,8 +118,16 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Null(bundledMaterial.TextureScale);
         Assert.Null(bundledMaterial.TextureOffset);
         Assert.Equal(new ResoniteFloat2(0.0, 0.0), normalized.Mesh.Vertices[3].UV0);
-        Assert.Equal(new ResoniteFloat2(3.25, 0.0), normalized.Mesh.Vertices[4].UV0);
-        Assert.Equal(new ResoniteFloat2(0.0, 3.25), normalized.Mesh.Vertices[5].UV0);
+        Assert.Equal(
+            new ResoniteFloat2(
+                (float)(1.0 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X),
+                0.0f),
+            normalized.Mesh.Vertices[4].UV0);
+        Assert.Equal(
+            new ResoniteFloat2(
+                0.0f,
+                (float)(1.0 / BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y)),
+            normalized.Mesh.Vertices[5].UV0);
     }
 
     [Fact]
