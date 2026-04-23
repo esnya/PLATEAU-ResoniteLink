@@ -614,8 +614,12 @@ internal sealed class Lod2AtlasCityObjectBaker(
         string? sourceObjectKey = preservePrimaryIdentity
             ? firstCityObject.SourceObjectKey
             : CreateBatchSourceObjectKey(sourceUnitKey, batchIndex);
-        string? sourceUnitKeyValue = sourceUnitKey.SourceUnitKey ?? firstCityObject.SourceUnitKey;
-        string? sourceFileRelativePath = sourceUnitKey.SourceFileRelativePath ?? firstCityObject.SourceFileRelativePath;
+        string? sourceUnitKeyValue = preservePrimaryIdentity
+            ? firstCityObject.SourceUnitKey
+            : GetMergedSourceUnitKey(candidates);
+        string? sourceFileRelativePath = preservePrimaryIdentity
+            ? firstCityObject.SourceFileRelativePath
+            : GetMergedSourceFileRelativePath(candidates);
 
         ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
         List<ResoniteMeshVertex> vertices = [];
@@ -693,6 +697,28 @@ internal sealed class Lod2AtlasCityObjectBaker(
             SourceObjectKey: sourceObjectKey,
             SourceUnitKey: sourceUnitKeyValue,
             SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static string? GetMergedSourceUnitKey(IEnumerable<CityObjectBakeCandidate> candidates)
+    {
+        HashSet<string?> sourceUnitKeys = [];
+        foreach (CityObjectBakeCandidate candidate in candidates)
+        {
+            sourceUnitKeys.Add(candidate.CityObject.SourceUnitKey);
+        }
+
+        return sourceUnitKeys.Count == 1 ? sourceUnitKeys.Single() : null;
+    }
+
+    private static string? GetMergedSourceFileRelativePath(IEnumerable<CityObjectBakeCandidate> candidates)
+    {
+        HashSet<string?> sourceFileRelativePaths = [];
+        foreach (CityObjectBakeCandidate candidate in candidates)
+        {
+            sourceFileRelativePaths.Add(candidate.CityObject.SourceFileRelativePath);
+        }
+
+        return sourceFileRelativePaths.Count == 1 ? sourceFileRelativePaths.Single() : null;
     }
 
     private static void AppendPlacementGeometry(
@@ -1152,20 +1178,41 @@ internal sealed class Lod2AtlasCityObjectBaker(
         Lod2AtlasCityObjectBakePolicy policy)
     {
         string context = policy.Name;
-        string sourceUnitKey = cityObject.SourceUnitKey ?? string.Empty;
-        string sourceFileRelativePath = cityObject.SourceFileRelativePath ?? string.Empty;
-        string sourceUnitIdentity = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceUnitKey}|{sourceFileRelativePath}");
+        string batchScopeIdentity = CreateBatchScopeIdentity(cityObject, policy);
+        string? sourceUnitKey = policy.EnableGridPassThrough ? null : cityObject.SourceUnitKey;
+        string? sourceFileRelativePath = policy.EnableGridPassThrough ? null : cityObject.SourceFileRelativePath;
 
         return new SourceUnitBatchKey(
             cityObject.ActualMeshCode,
             cityObject.PackageName,
             cityObject.LodLevel,
-            sourceUnitIdentity,
+            batchScopeIdentity,
             context,
-            SourceUnitKey: cityObject.SourceUnitKey,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
+            SourceUnitKey: sourceUnitKey,
+            SourceFileRelativePath: sourceFileRelativePath);
+    }
+
+    private static string CreateBatchScopeIdentity(
+        ResoniteConstructionCityObject cityObject,
+        Lod2AtlasCityObjectBakePolicy policy)
+    {
+        if (!policy.EnableGridPassThrough)
+        {
+            string sourceUnitKey = cityObject.SourceUnitKey ?? string.Empty;
+            string sourceFileRelativePath = cityObject.SourceFileRelativePath ?? string.Empty;
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceUnitKey}|{sourceFileRelativePath}");
+        }
+
+        int cellX = GetGridCellCoordinate(cityObject.Transform.Position.X, policy.PassThroughGridCellSizeMeters);
+        int cellZ = GetGridCellCoordinate(cityObject.Transform.Position.Z, policy.PassThroughGridCellSizeMeters);
+        return string.Create(CultureInfo.InvariantCulture, $"grid|{cellX}|{cellZ}");
+    }
+
+    private static int GetGridCellCoordinate(double coordinate, int cellSizeMeters)
+    {
+        return (int)Math.Floor(coordinate / cellSizeMeters);
     }
 
     private static string CreateBatchSlotKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)

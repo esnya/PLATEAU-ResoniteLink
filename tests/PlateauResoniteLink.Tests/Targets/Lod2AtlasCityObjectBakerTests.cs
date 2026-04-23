@@ -509,6 +509,50 @@ public sealed class Lod2AtlasCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncMergesTranSourceUnitsWithinSameGridCell()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(baker, CreateLod2Building("tran-a", CreatePayload("textures/tran-a.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+        {
+            PackageName = "tran",
+        });
+        await AssertBufferedAsync(baker, CreateLod2Building("tran-b", CreatePayload("textures/tran-b.png", new Rgba32(0, 255, 0, 255), 4, 4), 8, "unit-b") with
+        {
+            PackageName = "tran",
+        });
+
+        ResoniteConstructionCityObject baked = Assert.Single(await baker.FlushAllAsync());
+
+        Assert.Equal("tran", baked.PackageName);
+        Assert.Null(baked.SourceUnitKey);
+        Assert.Null(baked.SourceFileRelativePath);
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(Assert.Single(baked.Materials).TexturePayload);
+        Assert.StartsWith("atlas-batch-", atlasPayload.Identity, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsTranSourceUnitsInSeparateGridCells()
+    {
+        Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(baker, CreateLod2Building("tran-a", CreatePayload("textures/tran-a.png", new Rgba32(255, 0, 0, 255), 4, 4), 0, "unit-a") with
+        {
+            PackageName = "tran",
+        });
+        await AssertBufferedAsync(baker, CreateLod2Building("tran-b", CreatePayload("textures/tran-b.png", new Rgba32(0, 255, 0, 255), 4, 4), 256, "unit-b") with
+        {
+            PackageName = "tran",
+        });
+
+        IReadOnlyList<ResoniteConstructionCityObject> baked = await baker.FlushAllAsync();
+
+        Assert.Equal(2, baked.Count);
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-a" && cityObject.SourceFileRelativePath == "unit-a.gml");
+        Assert.Contains(baked, static cityObject => cityObject.SourceUnitKey == "unit-b" && cityObject.SourceFileRelativePath == "unit-b.gml");
+    }
+
+    [Fact]
     public async Task TryBufferAsyncSkipsOtherNonBuildingLod2CityObjects()
     {
         Lod2AtlasCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 1);
