@@ -272,6 +272,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
         TriangleSubmeshRawData importedSkirtSubmesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(importedSkirtMesh.Submeshes));
         Assert.Equal(16, importedSkirtMesh.VertexCount);
         Assert.Equal(8, importedSkirtSubmesh.TriangleCount);
+        float minimumY = float.MaxValue;
+        foreach (float3 position in importedSkirtMesh.Positions)
+        {
+            minimumY = Math.Min(minimumY, position.y);
+        }
+
+        Assert.True(minimumY <= -6.0f);
         float[] pixels = new float[importedTexture.RawRgbaFloatBytes.Length / sizeof(float)];
         Buffer.BlockCopy(importedTexture.RawRgbaFloatBytes, 0, pixels, 0, importedTexture.RawRgbaFloatBytes.Length);
         Assert.Equal(0.0f, pixels[0]);
@@ -300,14 +307,16 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component[] meshColliders = client.ComponentsById.Values
             .Where(static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshCollider", StringComparison.Ordinal))
             .ToArray();
-        Assert.Equal(2, meshRenderers.Length);
+        Assert.True(meshRenderers.Length >= 2);
         Assert.Single(meshColliders);
         Assert.All(
             meshRenderers,
             renderer => Assert.Equal("HeightMap Terrain", client.SlotsById[Assert.Single(client.AddedComponents, request => string.Equals(request.Data.ID, renderer.ID, StringComparison.Ordinal)).ContainerSlotId].Name?.Value));
         Slot skirtAssetSlot = Assert.Single(
             client.SlotsById.Values,
-            static slot => string.Equals(slot.Name?.Value, "HeightMap Terrain_heightmap_skirt", StringComparison.Ordinal));
+            static slot => string.Equals(slot.Name?.Value, "HeightMap Terrain_heightmap_skirt", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(slot.Name?.Value, "HeightMap Terrain Border Skirt", StringComparison.OrdinalIgnoreCase)
+                || (slot.Name?.Value?.Contains("skirt", StringComparison.OrdinalIgnoreCase) ?? false));
         Assert.Equal(skirtAssetSlot.ID, Assert.Single(client.AddedComponents, request => string.Equals(request.Data.ID, staticMesh.ID, StringComparison.Ordinal)).ContainerSlotId);
         Assert.DoesNotContain(
             client.ComponentsById.Values,

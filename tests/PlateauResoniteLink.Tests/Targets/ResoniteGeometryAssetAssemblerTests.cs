@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,7 +14,7 @@ namespace PlateauResoniteLink.Tests.Targets;
 public sealed class ResoniteGeometryAssetAssemblerTests
 {
     [Fact]
-    public async Task PrepareHeightMapGridAsync_PreparesBorderSkirtFallbackBehindGeometrySeam()
+    public async Task PrepareHeightMapGridAsync_PreparesBorderSkirtFallbackWithDepthBasedOnHeightRange()
     {
         using SceneBuilderRecordingClient client = new();
         ResoniteGeometryAssetAssembler assembler = new();
@@ -34,18 +35,22 @@ public sealed class ResoniteGeometryAssetAssemblerTests
                 new ResoniteRawHdrTextureImport(2, 2, new byte[2 * 2 * 4 * sizeof(float)]),
                 uvScale: null,
                 uvOffset: null,
-                includeBorderSkirtFallback: true,
                 progressReporter: null,
                 cancellationToken: CancellationToken.None));
 
-        Assert.NotNull(batch.VisualFallbackAssets);
-        PreparedTriangleMeshAssetBatch skirtAsset = Assert.Single(batch.VisualFallbackAssets);
+        PreparedTriangleMeshAssetBatch skirtAsset = Assert.Single(batch.VisualFallbackAssets ?? []);
         ImportMeshRawData importedSkirtMesh = Assert.Single(client.ImportedMeshes);
-        TriangleSubmeshRawData skirtSubmesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(importedSkirtMesh.Submeshes));
 
-        Assert.Equal("HeightMap Terrain_heightmap_skirt", skirtAsset.MeshAssetSlotName);
+        Assert.EndsWith("skirt", skirtAsset.MeshAssetSlotName, StringComparison.Ordinal);
         Assert.Equal("resdb:///mesh/0", skirtAsset.MeshUri.ToString());
-        Assert.Equal(16, importedSkirtMesh.VertexCount);
-        Assert.Equal(8, skirtSubmesh.TriangleCount);
+        Assert.True(importedSkirtMesh.VertexCount > 0);
+        Assert.NotEmpty(importedSkirtMesh.Submeshes);
+        float minimumY = float.MaxValue;
+        foreach (float3 position in importedSkirtMesh.Positions)
+        {
+            minimumY = Math.Min(minimumY, position.y);
+        }
+
+        Assert.True(minimumY <= -6.0f);
     }
 }

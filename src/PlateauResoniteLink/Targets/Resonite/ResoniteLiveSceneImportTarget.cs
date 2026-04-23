@@ -1911,7 +1911,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     heightMap.HeightTextureImport,
                     ResolveHeightMapGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
                     ResolveHeightMapGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
-                    includeBorderSkirtFallback: ShouldIncludeHeightMapBorderSkirtFallback(cityObject),
                     progressReporter,
                     cancellationToken),
             _ => throw new InvalidOperationException(

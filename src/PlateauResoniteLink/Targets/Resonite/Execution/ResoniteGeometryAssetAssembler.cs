@@ -28,7 +28,6 @@ internal interface IResoniteGeometryAssetAssembler
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
-        bool includeBorderSkirtFallback,
         Action<string>? progressReporter,
         CancellationToken cancellationToken);
 }
@@ -36,7 +35,6 @@ internal interface IResoniteGeometryAssetAssembler
 internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAssembler
 {
     private const string HeightMapSkirtAssetSlotSuffix = "_skirt";
-    private const double HeightMapSkirtDepthMeters = 1.0;
 
     public async Task<PreparedGeometryAssetBatch> PrepareTriangleMeshAsync(
         IResoniteLinkClient importClient,
@@ -64,7 +62,6 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
-        bool includeBorderSkirtFallback,
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
@@ -80,17 +77,15 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
         progressReporter?.Invoke($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
 
-        PreparedTriangleMeshAssetBatch[] visualFallbackAssets = includeBorderSkirtFallback
-            ? await PrepareBorderSkirtFallbackAssetsAsync(
-                importClient,
-                heightMapAssetSlotName,
-                displayName,
-                geometry,
-                uvScale,
-                uvOffset,
-                progressReporter,
-                cancellationToken)
-            : [];
+        PreparedTriangleMeshAssetBatch[] visualFallbackAssets = await PrepareBorderSkirtFallbackAssetsAsync(
+            importClient,
+            heightMapAssetSlotName,
+            displayName,
+            geometry,
+            uvScale,
+            uvOffset,
+            progressReporter,
+            cancellationToken);
 
         return new PreparedHeightMapGridAssetBatch(
             meshAssetSlotName,
@@ -155,12 +150,13 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             return null;
         }
 
+        double skirtDepthMeters = ResolveHeightMapBorderSkirtDepthMeters(geometry);
         List<ResoniteMeshVertex> vertices = [];
         List<int> indices = [];
-        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: 0, outwardZ: -1.0, uvScale, uvOffset, vertices, indices);
-        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: geometry.Height - 1, outwardZ: 1.0, uvScale, uvOffset, vertices, indices);
-        AppendHeightMapBorderSkirtVerticalEdge(geometry, column: 0, outwardX: -1.0, uvScale, uvOffset, vertices, indices);
-        AppendHeightMapBorderSkirtVerticalEdge(geometry, column: geometry.Width - 1, outwardX: 1.0, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: 0, outwardZ: -1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtHorizontalEdge(geometry, row: geometry.Height - 1, outwardZ: 1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtVerticalEdge(geometry, column: 0, outwardX: -1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
+        AppendHeightMapBorderSkirtVerticalEdge(geometry, column: geometry.Width - 1, outwardX: 1.0, skirtDepthMeters, uvScale, uvOffset, vertices, indices);
 
         return vertices.Count == 0
             ? null
@@ -173,6 +169,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         ResoniteHeightMapGridGeometry geometry,
         int row,
         double outwardZ,
+        double skirtDepthMeters,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
         List<ResoniteMeshVertex> vertices,
@@ -184,12 +181,12 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             ResoniteMeshVertex topRight = CreateHeightMapBorderSkirtVertex(geometry, column + 1, row, uvScale, uvOffset);
             ResoniteMeshVertex bottomLeft = topLeft with
             {
-                Position = new ResoniteFloat3(topLeft.Position.X, topLeft.Position.Y - HeightMapSkirtDepthMeters, topLeft.Position.Z),
+                Position = new ResoniteFloat3(topLeft.Position.X, topLeft.Position.Y - skirtDepthMeters, topLeft.Position.Z),
                 Normal = new ResoniteFloat3(0.0, 0.0, outwardZ),
             };
             ResoniteMeshVertex bottomRight = topRight with
             {
-                Position = new ResoniteFloat3(topRight.Position.X, topRight.Position.Y - HeightMapSkirtDepthMeters, topRight.Position.Z),
+                Position = new ResoniteFloat3(topRight.Position.X, topRight.Position.Y - skirtDepthMeters, topRight.Position.Z),
                 Normal = new ResoniteFloat3(0.0, 0.0, outwardZ),
             };
 
@@ -203,6 +200,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         ResoniteHeightMapGridGeometry geometry,
         int column,
         double outwardX,
+        double skirtDepthMeters,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
         List<ResoniteMeshVertex> vertices,
@@ -214,12 +212,12 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             ResoniteMeshVertex topFar = CreateHeightMapBorderSkirtVertex(geometry, column, row + 1, uvScale, uvOffset);
             ResoniteMeshVertex bottomNear = topNear with
             {
-                Position = new ResoniteFloat3(topNear.Position.X, topNear.Position.Y - HeightMapSkirtDepthMeters, topNear.Position.Z),
+                Position = new ResoniteFloat3(topNear.Position.X, topNear.Position.Y - skirtDepthMeters, topNear.Position.Z),
                 Normal = new ResoniteFloat3(outwardX, 0.0, 0.0),
             };
             ResoniteMeshVertex bottomFar = topFar with
             {
-                Position = new ResoniteFloat3(topFar.Position.X, topFar.Position.Y - HeightMapSkirtDepthMeters, topFar.Position.Z),
+                Position = new ResoniteFloat3(topFar.Position.X, topFar.Position.Y - skirtDepthMeters, topFar.Position.Z),
                 Normal = new ResoniteFloat3(outwardX, 0.0, 0.0),
             };
 
@@ -252,6 +250,11 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             new ResoniteFloat2(
                 (baseU * (uvScale?.X ?? 1.0)) + (uvOffset?.X ?? 0.0),
                 (baseV * (uvScale?.Y ?? 1.0)) + (uvOffset?.Y ?? 0.0)));
+    }
+
+    private static double ResolveHeightMapBorderSkirtDepthMeters(ResoniteHeightMapGridGeometry geometry)
+    {
+        return Math.Max(1.0, geometry.MaxHeight - geometry.MinHeight);
     }
 
     private static void AppendQuad(
