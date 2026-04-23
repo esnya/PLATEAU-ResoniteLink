@@ -152,7 +152,18 @@ internal static class ResonitePlacementPolicy
         string rootMeshCode,
         double? observedRootHeight = null)
     {
-        return EvaluateRootPlacementCorrection(requestOrigin, rootMeshCode, observedRootHeight).CorrectedRootPosition;
+        if (!PlateauMeshCode.TryGetGeodeticCenter(rootMeshCode, out GeodeticCoordinate rootMeshCenter))
+        {
+            return new ResoniteFloat3(0.0, observedRootHeight ?? 0.0, 0.0);
+        }
+
+        ResoniteFloat3 rootOffsetFromRequest = ComputeOriginOffset(
+            new GeodeticCoordinate(requestOrigin.Latitude, requestOrigin.Longitude, requestOrigin.Altitude),
+            rootMeshCenter);
+        return new ResoniteFloat3(
+            rootOffsetFromRequest.X,
+            observedRootHeight ?? rootOffsetFromRequest.Y,
+            rootOffsetFromRequest.Z);
     }
 
     public static ResonitePlacementCorrectionResult EvaluateRootPlacementCorrection(
