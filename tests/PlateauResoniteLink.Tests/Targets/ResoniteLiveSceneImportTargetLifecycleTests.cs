@@ -964,6 +964,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         string family = BundledDefaultMaterialFamilies.Facade;
         int variantIndex = 0;
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
+        ResoniteFloat2 textureScale = CreateTilesPerMeter(texturePath);
+        ResoniteFloat2 textureOffset = new(0.0, 0.5 / 6.0);
+        string materialKey = $"common|facade|variant:0|Uv|scale:{textureScale.X:0.######}x{textureScale.Y:0.######}|offset:{textureOffset.X:0.######}x{textureOffset.Y:0.######}";
         return new ResoniteConstructionCityObject(
             objectKey,
             $"CityObject {objectKey}",
@@ -971,10 +974,10 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             "53394525",
             0,
             new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh("common|facade|variant:0|Uv"),
+            ResoniteLiveSceneImportTargetTestSupport.CreateTriangleMesh(materialKey),
             [
                 new ResoniteMaterialBinding(
-                    "common|facade|variant:0|Uv",
+                    materialKey,
                     new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     ResoniteMaterialType.Standard,
                     null,
@@ -982,9 +985,9 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     ResoniteMaterialProjection.Uv,
                     null,
                     [0],
-                    TextureScale: CreateTilesPerMeter(texturePath),
+                    TextureScale: textureScale,
                     Family: family,
-                    TextureOffset: null,
+                    TextureOffset: textureOffset,
                     AssetScope: ResoniteMaterialAssetScope.Common,
                     BundledVariantIndex: variantIndex),
             ],

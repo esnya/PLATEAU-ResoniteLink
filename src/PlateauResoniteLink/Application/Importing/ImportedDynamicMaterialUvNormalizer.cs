@@ -124,17 +124,21 @@ public static class ImportedDynamicMaterialUvNormalizer
         }
 
         string bundledVariantPath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex ?? 0);
-        ScalarPair implicitScaleValue = BundledDefaultMaterialProfiles.GetTilesPerMeterValue(bundledVariantPath);
+        ScalarPair implicitScaleValue = BundledDefaultMaterialProfiles.GetImplicitTilesPerMeterValue(bundledVariantPath);
         Float2 implicitScale = new(implicitScaleValue.X, implicitScaleValue.Y);
         Float2 explicitScale = material.TextureScale ?? implicitScale;
-        Float2 explicitOffset = material.TextureOffset ?? new Float2(0.0, 0.0);
+        ScalarPair? implicitOffsetValue = BundledDefaultMaterialProfiles.GetImplicitTextureOffsetValue(bundledVariantPath);
+        Float2 implicitOffset = implicitOffsetValue is null
+            ? new Float2(0.0, 0.0)
+            : new Float2(implicitOffsetValue.X, implicitOffsetValue.Y);
+        Float2 explicitOffset = material.TextureOffset ?? implicitOffset;
         return (
             new Float2(
                 explicitScale.X / implicitScale.X,
                 explicitScale.Y / implicitScale.Y),
             new Float2(
-                explicitOffset.X / implicitScale.X,
-                explicitOffset.Y / implicitScale.Y));
+                (explicitOffset.X - implicitOffset.X) / implicitScale.X,
+                (explicitOffset.Y - implicitOffset.Y) / implicitScale.Y));
     }
 
     private static bool IsBundledFamilyMaterial(MaterialBinding material)

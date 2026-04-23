@@ -61,8 +61,15 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.Null(normalized.TextureOffset);
     }
 
-    [Fact]
-    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform()
+    [Theory]
+    [InlineData(0, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
+    [InlineData(1, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
+    [InlineData(2, 1.0 / 6.0, 1.0 / 6.0, 0.5)]
+    public void Normalize_BakesBundledFamilyUvTransformIntoMeshAndClearsMaterialTransform(
+        int bundledVariantIndex,
+        double expectedScaleX,
+        double expectedScaleY,
+        double expectedOffsetRows)
     {
         ResoniteConstructionCityObject cityObject = new(
             SlotKey: "mixed-material-city-object",
@@ -102,7 +109,7 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
                     TextureScale: new ResoniteFloat2(1.0, 1.0),
                     TextureOffset: new ResoniteFloat2(0.0, 0.0),
                     Family: BundledDefaultMaterialFamilies.Facade,
-                    BundledVariantIndex: 0,
+                    BundledVariantIndex: bundledVariantIndex,
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             SourceObjectKey: "unit-a:mixed-material-city-object",
@@ -117,9 +124,11 @@ public sealed class ResoniteDynamicMaterialUvNormalizerTests
         Assert.NotSame(cityObject, normalized);
         Assert.Null(bundledMaterial.TextureScale);
         Assert.Null(bundledMaterial.TextureOffset);
-        Assert.Equal(new ResoniteFloat2(0.0, 0.0), normalized.Mesh.Vertices[3].UV0);
-        Assert.Equal(new ResoniteFloat2(3.25, 0.0), normalized.Mesh.Vertices[4].UV0);
-        Assert.Equal(new ResoniteFloat2(0.0, 3.25), normalized.Mesh.Vertices[5].UV0);
+        Assert.Equal(new ResoniteFloat2(0.0, (float)-expectedOffsetRows), normalized.Mesh.Vertices[3].UV0);
+        Assert.Equal((float)(1.0 / expectedScaleX), normalized.Mesh.Vertices[4].UV0.X, 6);
+        Assert.Equal((float)-expectedOffsetRows, normalized.Mesh.Vertices[4].UV0.Y, 6);
+        Assert.Equal(0.0f, normalized.Mesh.Vertices[5].UV0.X, 6);
+        Assert.Equal((float)((1.0 / expectedScaleY) - expectedOffsetRows), normalized.Mesh.Vertices[5].UV0.Y, 6);
     }
 
     [Fact]

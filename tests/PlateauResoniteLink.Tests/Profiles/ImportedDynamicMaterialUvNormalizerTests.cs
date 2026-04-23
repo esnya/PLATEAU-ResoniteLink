@@ -144,9 +144,9 @@ public sealed class ImportedDynamicMaterialUvNormalizerTests
         Assert.NotSame(cityObject, normalized);
         Assert.Null(bundledMaterial.TextureScale);
         Assert.Null(bundledMaterial.TextureOffset);
-        Assert.Equal(new Float2(0.0, 0.0), normalized.Mesh.Vertices[3].UV0);
-        Assert.Equal(new Float2(3.25, 0.0), normalized.Mesh.Vertices[4].UV0);
-        Assert.Equal(new Float2(0.0, 3.25), normalized.Mesh.Vertices[5].UV0);
+        Assert.Equal(new Float2(0.0, -0.5), normalized.Mesh.Vertices[3].UV0);
+        Assert.Equal(new Float2(6.0, -0.5), normalized.Mesh.Vertices[4].UV0);
+        Assert.Equal(new Float2(0.0, 5.5), normalized.Mesh.Vertices[5].UV0);
     }
 
     [Fact]

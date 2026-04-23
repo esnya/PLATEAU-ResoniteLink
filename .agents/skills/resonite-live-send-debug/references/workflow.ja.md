@@ -266,3 +266,126 @@ direct `dotnet` 実行では、session tool script や CLI が on demand で reb
   `Root` 直下の exact direct child を 1 つ解決して remove します。これは operator workflow の convenience であり、semantic cleanup API ではありません。
 - `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset <dataset> --mesh-code <mesh> --citygml-source <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --resonitelink-connections <n>`
   `runtime/windows/resonite` 配下へ explicit log を出しながら、direct live send を 1 回実行します。
+
+## Visual Review Procedure
+
+この section は、slot metadata だけではなく rendered image そのものが必要な評価で使います。
+観点ごとの画角手順を固定するためのもので、
+`C:\Users\esnya\.codex\skills\resonite-visual-eval\SKILL.md` の zero-base capture path と
+併用する前提です。
+
+capture target は狭く保ちます。退行が object-local なときに、dataset root 全体を
+visual judgment の default target にしてはいけません。
+
+### Preconditions
+
+- まず 1 回 live send を完了し、結果の dataset root を world に残しておきます。
+- 最初に representative target slot を解決します。
+  dataset root ではなく、疑いのある issue が明瞭に見える `AtlasBake` または
+  `MeshBake` slot を優先します。
+- chosen slot で trivial な bounds しか得られない場合は、意図した object cluster を
+  囲う explicit な `BoundsMin` / `BoundsMax` に切り替えます。
+
+### View 1: Oblique Overview
+
+subject visibility と gross proportion を最初に確認する view です。
+
+- Recommended target:
+  representative な `AtlasBake` building slot を 1 つ、または小さな建物 1 棟と
+  隣接する高い建物 1 棟を含む tight な explicit bounds。
+- Recommended starting direction:
+  `ViewDirection = 0,-0.8,-0.6`
+- Recommended framing:
+  建物全高を frame に入れ、sky と ground の reference も含めます。
+- この view で見ること:
+  - object が visible で、occlusion していないか
+  - facade repetition が見た目の階数に対して明らかに過密でないか
+  - 建物上端と texture 上端、建物下端と texture 下端が coarse に揃っているか
+  - 小さな建物が不自然な階数で描画されていないか
+
+### View 2: Facade Front Close-Up
+
+単一 facade の階数、縦位相、灰色壁 collapse を確認する view です。
+
+- Recommended target:
+  現在の world orientation から正面に近く見える facade を持つ `AtlasBake` または
+  `MeshBake` slot を 1 つ。
+- Recommended framing:
+  1 枚の wall plane が frame の大半を占めるようにします。可能なら建物上端と下端の
+  両方を入れます。
+- facade pattern を目視で数えられるよう、急角度ではなく front または slight-oblique を優先します。
+- この view で見ること:
+  - window や facade band が 1 floor あたり 1 回程度で繰り返しているか
+  - facade 上端が texture 上端と揃っているか
+  - facade 下端が texture 下端と揃っているか
+  - flat gray または near-uniform wall に collapse した領域がないか
+  - bundled facade variant ごとの intended aspect ratio が維持されているか
+
+top と bottom の両方を readability を保って同時に入れられない場合は、
+同じ wall に対して 2 枚の close-up を撮ります。
+
+- roofline 寄りの 1 枚
+- ground line 寄りの 1 枚
+
+これらは同じ object に対する 1 組の review pair として扱います。
+
+### View 3: Side or Corner Mid Shot
+
+texture-phase 問題と silhouette / proportion 問題を切り分けるための view です。
+
+- Recommended framing:
+  建物の corner を 1 つ入れ、2 面の facade plane を同時に見せます。
+- この view で見ること:
+  - repetition density が隣接 facade plane でも一貫しているか
+  - 縦位相が visible な corner をまたいでも揃っているか
+  - horizontal scaling が boundary fit を強制せず material の aspect ratio を保っているか
+
+### View 4: Underside / Bottom-Face Check
+
+底面除去の検証時だけ使う view です。
+
+- Recommended target:
+  上と同じ representative building slot、または underside を見やすい isolated な
+  小さめの building。
+- Recommended framing:
+  object footprint より下へ回り込み、silhouette を失わない程度に upward へ tilt
+  して underside を見ます。
+- この view で見ること:
+  - 大きな水平 bottom cap が残っていないか
+  - expected な side wall だけが下から見えているか
+  - 見えている underside が actual な bottom face なのか、それとも facade recess や
+    roof overhang 由来なのか
+
+render が mostly sky になったり subject を失った場合は、距離を離すのではなく
+bounds を tighten してください。
+
+### Review Order
+
+facade regression では、次の固定順で見ます。
+
+1. Oblique Overview
+2. Facade Front Close-Up
+3. Side or Corner Mid Shot
+
+底面除去を確認するときだけ Underside / Bottom-Face Check を追加します。
+
+### Reporting Template
+
+各 capture では次を記録します。
+
+- target slot id または explicit bounds
+- view label
+- camera pose
+- rendered image path
+- observed facts
+- likely interpretation
+- still-unconfirmed items
+
+image facts と interpretation は分けて書きます。例えば:
+
+- fact:
+  手前の小さい建物に facade row が約 5 段見える
+- interpretation:
+  これは意図した 1-2 階より多い可能性が高い
+- unconfirmed:
+  その object の正確な CityGML `storeysAboveGround` はまだ照合していない

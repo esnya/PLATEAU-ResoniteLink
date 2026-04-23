@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -75,8 +76,11 @@ public sealed class CommonMaterialCatalog
         MaterialProjection projection)
     {
         string texturePath = BundledDefaultMaterialFamilies.GetVariant(family, variantIndex);
+        BundledDefaultMaterialProfile uvProfile = BundledDefaultMaterialProfiles.GetProfile(texturePath);
+        Float2 textureScale = ToContract(uvProfile.TextureScale);
+        Float2? textureOffset = uvProfile.TextureOffset is null ? null : ToContract(uvProfile.TextureOffset);
         return new MaterialBinding(
-            MaterialKey: CreateMaterialKey(family, variantIndex, projection),
+            MaterialKey: CreateMaterialKey(family, variantIndex, projection, textureScale, textureOffset),
             BaseColor: CanonicalBaseColor,
             MaterialType: MaterialType.Standard,
             TexturePayload: null,
@@ -84,9 +88,9 @@ public sealed class CommonMaterialCatalog
             Projection: projection,
             DepthOffset: null,
             SubmeshIndices: [0],
-            TextureScale: ToContract(BundledDefaultMaterialProfiles.GetTilesPerMeterValue(texturePath)),
+            TextureScale: textureScale,
             Family: family,
-            TextureOffset: null,
+            TextureOffset: textureOffset,
             ReuseScope: MaterialReuseScope.Shared,
             BundledVariantIndex: variantIndex);
     }
@@ -94,11 +98,13 @@ public sealed class CommonMaterialCatalog
     private static string CreateMaterialKey(
         string family,
         int variantIndex,
-        MaterialProjection projection)
+        MaterialProjection projection,
+        Float2 textureScale,
+        Float2? textureOffset)
     {
         return string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-            $"common|{family}|variant:{variantIndex}|{projection}");
+            CultureInfo.InvariantCulture,
+            $"common|{family}|variant:{variantIndex}|{projection}|scale:{CreateFloat2Token(textureScale)}|offset:{CreateOffsetToken(textureOffset)}");
     }
 
     private static MaterialBinding CreateSharedAlbedoCommonMaterialBinding()
@@ -173,7 +179,14 @@ public sealed class CommonMaterialCatalog
         return value is null
             ? "none"
             : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
+                CultureInfo.InvariantCulture,
                 $"{value.X:0.######}x{value.Y:0.######}");
+    }
+
+    private static string CreateOffsetToken(Float2? value)
+    {
+        return value is null || (Math.Abs(value.X) < 1e-9 && Math.Abs(value.Y) < 1e-9)
+            ? "none"
+            : CreateFloat2Token(value);
     }
 }

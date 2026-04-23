@@ -347,7 +347,8 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value) && value >= 0
+        return int.TryParse(element.Value.Trim(), CultureInfo.InvariantCulture, out int value)
+            && (value == 0 || FacadeFloorMetrics.IsUsableFloorCount(value))
             ? value
             : null;
     }
@@ -1250,7 +1251,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
-                    resolvedSurface.Surface.BaseColor),
+                    resolvedSurface.Surface.BaseColor,
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .ToArray();
@@ -1259,6 +1261,13 @@ internal static partial class LocalCityGmlObjectProjection
         {
             IGrouping<string, ResolvedSurfaceMaterial> materialGroup = materialGroups[materialIndex];
             List<int> indices = [];
+            FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
+                cityObject.PackageName,
+                cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
+                cityObject.FloorsAboveGround,
+                cityObject.MeasuredHeightMeters,
+                cityObjectOrigin.ToLegacy(),
+                cityObjectCartesian);
 
             foreach (ResolvedSurfaceMaterial resolvedSurface in materialGroup
                          .OrderBy(static surface => CreateStableSurfaceSortKey(surface.Surface), StringComparer.Ordinal))
@@ -1271,6 +1280,7 @@ internal static partial class LocalCityGmlObjectProjection
                     cityObjectCartesian,
                     globalOriginPoint.ToLegacy(),
                     globalCartesian,
+                    facadeUvProjectionContext,
                     demTerrainTextureOverlay,
                     demUvProjection,
                     vertices,
@@ -1777,6 +1787,7 @@ internal static partial class LocalCityGmlObjectProjection
         LocalCartesian? cityObjectCartesian,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
+        FacadeUvProjectionContext? facadeUvProjectionContext,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         DemUvProjection? demUvProjection,
         List<MeshVertex> vertices,
@@ -1793,7 +1804,8 @@ internal static partial class LocalCityGmlObjectProjection
                     surface,
                     packageName,
                     cityObjectOrigin,
-                    cityObjectCartesian)
+                    cityObjectCartesian,
+                    facadeUvProjectionContext)
                 : null;
         List<TessellatedRing> tessellatedRings = CreateSurfaceTessellatedRings(
             surface,
@@ -2092,7 +2104,8 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface surface,
         string packageName,
         GeodeticPoint cityObjectOrigin,
-        LocalCartesian? cityObjectCartesian)
+        LocalCartesian? cityObjectCartesian,
+        FacadeUvProjectionContext? facadeUvProjectionContext)
     {
         Float3[] positions = surface.ExteriorRing.Vertices
             .Select(point => CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian))
@@ -2115,9 +2128,16 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
+        double uvScale = PlateauPackageCatalog.IsBuildingPackage(packageName)
+            ? 1.0 / Math.Max(facadeUvProjectionContext?.FloorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters, 1e-6)
+            : 1.0;
+        double vOffset = PlateauPackageCatalog.IsBuildingPackage(packageName)
+            ? -((facadeUvProjectionContext?.MinimumY ?? positions.Min(static position => position.Y)) * uvScale)
+            : 0.0;
         return new SurfaceUvProjection(
-            surfaceAxes.AxisU,
-            surfaceAxes.AxisV);
+            Scale(surfaceAxes.AxisU, uvScale),
+            Scale(surfaceAxes.AxisV, uvScale),
+            vOffset);
     }
 
     private static Float2 CreateGeneratedSurfaceUv(
@@ -2128,8 +2148,16 @@ internal static partial class LocalCityGmlObjectProjection
     {
         Float3 position = CreateScenePosition(point, cityObjectOrigin, cityObjectCartesian);
         double u = Dot(position, projection.AxisU);
-        double v = Dot(position, projection.AxisV);
+        double v = Dot(position, projection.AxisV) + projection.OffsetV;
         return new Float2(u, v);
+    }
+
+    private static Float3 Scale(Float3 value, double scalar)
+    {
+        return new Float3(
+            value.X * scalar,
+            value.Y * scalar,
+            value.Z * scalar);
     }
 
     private static SurfaceUvAxes? TryCreateSurfaceUvAxes(Float3 normal)
@@ -2493,7 +2521,19 @@ internal static partial class LocalCityGmlObjectProjection
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
-            return string.Create(CultureInfo.InvariantCulture, $"common|{family}|variant:{variantIndex}|{material.Projection}");
+            string scaleToken = textureScale is null
+                ? "none"
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
+            string offsetToken = textureOffset is null || (Math.Abs(textureOffset.X) < 1e-9 && Math.Abs(textureOffset.Y) < 1e-9)
+                ? "none"
+                : string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"{textureOffset.X:0.######}x{textureOffset.Y:0.######}");
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"common|{family}|variant:{variantIndex}|{material.Projection}|scale:{scaleToken}|offset:{offsetToken}");
         }
 
         return CreateMaterialKey(
@@ -2650,11 +2690,16 @@ internal static partial class LocalCityGmlObjectProjection
         double objectMaximumY = candidates.Max(static info => info.MaximumY!.Value);
 
         return candidates
-            .Where(static info => info.IsDownwardNearHorizontal)
+            .Where(static info => IsBottomBandCullCandidate(info))
             .Where(info => info.MaximumY!.Value <= objectMinimumY + BuildingBottomCullBandMeters)
             .Where(info => objectMaximumY > info.MaximumY!.Value + BuildingBottomCullBandMeters)
             .Select(static info => info.Surface.PolygonId)
             .ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static bool IsBottomBandCullCandidate(SurfaceProjectionInfo info)
+    {
+        return info.IsNearHorizontal;
     }
 
     private static bool IsDownwardNearHorizontalSurface(
@@ -2692,25 +2737,66 @@ internal static partial class LocalCityGmlObjectProjection
             .ToArray();
         if (positions.Length == 0)
         {
-            return new SurfaceProjectionInfo(surface, null, null, false);
+            return new SurfaceProjectionInfo(surface, null, null, false, false);
         }
 
         Float3? normal = ComputePolygonNormal(positions);
-        bool isDownwardNearHorizontal = normal is not null
-            && Math.Abs(normal.Y) >= 0.98
-            && normal.Y <= -0.98;
+        bool isNearHorizontal = normal is not null && Math.Abs(normal.Y) >= 0.98;
+        bool isDownwardNearHorizontal = isNearHorizontal && normal is not null && normal.Y <= -0.98;
 
         return new SurfaceProjectionInfo(
             surface,
             positions.Min(static position => position.Y),
             positions.Max(static position => position.Y),
+            isNearHorizontal,
             isDownwardNearHorizontal);
+    }
+
+    private static FacadeUvProjectionContext? TryCreateFacadeUvProjectionContext(
+        string packageName,
+        IEnumerable<ParsedSurface> surfaces,
+        int? floorsAboveGround,
+        double? measuredHeightMeters,
+        GeodeticPoint cityObjectOrigin,
+        LocalCartesian? cityObjectCartesian)
+    {
+        if (!IsBuildingPackage(packageName))
+        {
+            return null;
+        }
+
+        SurfaceProjectionInfo[] surfaceInfos = surfaces
+            .Select(surface => CreateSurfaceProjectionInfo(surface, cityObjectOrigin, cityObjectCartesian))
+            .Where(static info => info.MinimumY.HasValue && info.MaximumY.HasValue)
+            .ToArray();
+        if (surfaceInfos.Length == 0)
+        {
+            return null;
+        }
+
+        double minimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
+        double maximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
+        double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
+        int floorCount = FacadeFloorMetrics.ResolveFloorCount(
+            floorsAboveGround,
+            measuredHeightMeters,
+            geometryHeightMeters);
+        double floorHeightMeters = FacadeFloorMetrics.EstimateFloorHeightMeters(
+            floorsAboveGround,
+            measuredHeightMeters,
+            geometryHeightMeters);
+
+        return new FacadeUvProjectionContext(
+            minimumY,
+            floorHeightMeters,
+            floorCount);
     }
 
     private readonly record struct SurfaceProjectionInfo(
         ParsedSurface Surface,
         double? MinimumY,
         double? MaximumY,
+        bool IsNearHorizontal,
         bool IsDownwardNearHorizontal);
 
     private static bool IsGeneratedRoadMarkingSurface(ParsedSurface surface)
@@ -3128,7 +3214,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
-                    resolvedSurface.Surface.BaseColor),
+                    resolvedSurface.Surface.BaseColor,
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3140,7 +3227,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor),
+                        representativeSurface.Surface.BaseColor,
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -3172,7 +3260,8 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.Material,
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
-                    resolvedSurface.Surface.BaseColor),
+                    resolvedSurface.Surface.BaseColor,
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3184,7 +3273,8 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.Material,
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
-                        representativeSurface.Surface.BaseColor),
+                        representativeSurface.Surface.BaseColor,
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .Where(static material => material.ReuseScope == MaterialReuseScope.Shared)
@@ -3723,7 +3813,7 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    null),
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3736,7 +3826,7 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
-                        null),
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .ToArray();
@@ -3749,9 +3839,16 @@ internal static partial class LocalCityGmlObjectProjection
         TerrainTextureOverlay? demTerrainTextureOverlay,
         IDefaultMaterialResolver materialResolver)
     {
+        HashSet<string> culledSurfaceIds = GetCulledSurfaceIdsBeforeProjection(
+            cityObject.PackageName,
+            cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
+            cityObjectOrigin.ToLegacy(),
+            cityObjectCartesian);
         List<ResolvedSurfaceMaterial> resolvedSurfaces =
         [
-            .. cityObject.Surfaces.Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
+            .. cityObject.Surfaces
+                .Where(surface => !culledSurfaceIds.Contains(surface.PolygonId))
+                .Select(surface => ResolveSurfaceMaterial(cityObject, cityObjectOrigin, cityObjectCartesian, surface, demTerrainTextureOverlay, materialResolver)),
         ];
 
         return resolvedSurfaces
@@ -3761,7 +3858,7 @@ internal static partial class LocalCityGmlObjectProjection
                     resolvedSurface.DepthOffset,
                     resolvedSurface.Material.TextureScale,
                     resolvedSurface.Surface.BaseColor,
-                    null),
+                    resolvedSurface.Material.TextureOffset),
                 StringComparer.Ordinal)
             .OrderBy(static group => group.Key, StringComparer.Ordinal)
             .Select((group, materialIndex) =>
@@ -3774,7 +3871,7 @@ internal static partial class LocalCityGmlObjectProjection
                         representativeSurface.DepthOffset,
                         representativeSurface.Material.TextureScale,
                         representativeSurface.Surface.BaseColor,
-                        null),
+                        representativeSurface.Material.TextureOffset),
                     materialIndex);
             })
             .ToArray();
@@ -3802,7 +3899,9 @@ internal static partial class LocalCityGmlObjectProjection
                 ? null
                 : representativeSurface.Material.TextureScale,
             Family: representativeSurface.Material.Family,
-            TextureOffset: null,
+            TextureOffset: representativeSurface.Material.TextureOffset is null
+                ? null
+                : representativeSurface.Material.TextureOffset,
             ReuseScope: representativeSurface.Material.ReuseScope,
             TerrainOverlay: representativeSurface.Material.TerrainOverlay,
             BundledVariantIndex: representativeSurface.Material.BundledVariantIndex);
@@ -4613,7 +4712,13 @@ internal static partial class LocalCityGmlObjectProjection
 
     private sealed record SurfaceUvProjection(
         Float3 AxisU,
-        Float3 AxisV);
+        Float3 AxisV,
+        double OffsetV);
+
+    private readonly record struct FacadeUvProjectionContext(
+        double MinimumY,
+        double FloorHeightMeters,
+        int FloorCount);
 
     private readonly record struct DemUvProjection(
         double West,
