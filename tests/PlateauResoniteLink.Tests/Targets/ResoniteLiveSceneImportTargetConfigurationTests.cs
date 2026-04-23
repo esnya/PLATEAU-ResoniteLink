@@ -237,20 +237,34 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                 }));
     }
 
-    [Theory]
-    [InlineData(ResoniteImportMemoryProfile.Small)]
-    [InlineData(ResoniteImportMemoryProfile.Large)]
-    public async Task BufferedCityObjectBakerFactoryKeepsMeshesAboveUInt16VertexRangeBufferedUntilExplicitFlush(
-        ResoniteImportMemoryProfile memoryProfile)
+    [InlineData(ResoniteImportMemoryProfile.Small, 32, 33, 1024)]
+    [InlineData(ResoniteImportMemoryProfile.Large, 63, 64, 1024)]
+    public async Task BufferedCityObjectBakerFactoryKeepsVertexBudgetedNonDemObjectsBufferedUntilExplicitFlush(
+        ResoniteImportMemoryProfile memoryProfile,
+        int noFlushCount,
+        int flushCount,
+        int vertexCount)
     {
         Assert.Equal(
             0,
             await CountReadyBeforeFlushAsync(
                 memoryProfile,
-                1,
+                noFlushCount,
                 index => CreateDenseTriangleBuilding(
                     $"dense-{index}",
-                    65_536,
+                    vertexCount,
+                    x: 10.0 + (index * 0.01),
+                    z: 10.0,
+                    sourceUnitKey: "shared-unit",
+                    sourceFileRelativePath: null)));
+        Assert.Equal(
+            0,
+            await CountReadyBeforeFlushAsync(
+                memoryProfile,
+                flushCount,
+                index => CreateDenseTriangleBuilding(
+                    $"dense-{index}",
+                    vertexCount,
                     x: 10.0 + (index * 0.01),
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
