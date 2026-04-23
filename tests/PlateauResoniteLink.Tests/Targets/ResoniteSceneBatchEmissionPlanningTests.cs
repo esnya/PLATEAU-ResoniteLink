@@ -432,7 +432,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
             "HeightMap Object",
-            new PlateauResoniteLink.Domain.Importing.ResoniteFloat3(1.0, 2.0, 3.0),
+            new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedReusableMaterialAsset reusableMaterial = new(
             new MaterialIdentity("reusable"),
@@ -445,7 +445,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 new ResoniteHeightMapGridGeometry(
                     Width: 2,
                     Height: 2,
-                    Size: new PlateauResoniteLink.Domain.Importing.ResoniteFloat2(10.0, 20.0),
+                    Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
                     MinHeight: 0.0,
                     MaxHeight: 6.0,
                     HeightSamples: [0.0, 1.0, 2.0, 3.0]),
