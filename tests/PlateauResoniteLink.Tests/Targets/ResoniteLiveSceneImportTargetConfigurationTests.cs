@@ -255,37 +255,23 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
-    [InlineData(ResoniteImportMemoryProfile.Small, 32, 33, 1024)]
-    [InlineData(ResoniteImportMemoryProfile.Large, 63, 64, 1024)]
-    public async Task BufferedCityObjectBakerFactoryAppliesVertexBudgetByMemoryProfile(
-        ResoniteImportMemoryProfile memoryProfile,
-        int noFlushCount,
-        int flushCount,
-        int vertexCount)
+    [InlineData(ResoniteImportMemoryProfile.Small)]
+    [InlineData(ResoniteImportMemoryProfile.Large)]
+    public async Task BufferedCityObjectBakerFactoryKeepsMeshesAboveUInt16VertexRangeBufferedUntilExplicitFlush(
+        ResoniteImportMemoryProfile memoryProfile)
     {
         Assert.Equal(
             0,
             await CountReadyBeforeFlushAsync(
                 memoryProfile,
-                noFlushCount,
+                1,
                 index => CreateDenseTriangleBuilding(
                     $"dense-{index}",
-                    vertexCount,
+                    65_536,
                     x: 10.0 + (index * 0.01),
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
                     sourceFileRelativePath: null)));
-        Assert.True(
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                flushCount,
-                index => CreateDenseTriangleBuilding(
-                    $"dense-{index}",
-                    vertexCount,
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)) > 0);
     }
 
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 
 using PlateauResoniteLink.Targets.Resonite;
 
@@ -60,6 +61,42 @@ public sealed class ResoniteMeshImportFactoryTests
         Assert.Equal(1.0f, result.Colors[1].g, 6);
         Assert.Equal(1.0f, result.Colors[1].b, 6);
         Assert.Equal(1.0f, result.Colors[1].a, 6);
+    }
+
+    [Fact]
+    public void CreateAcceptsTriangleIndicesBeyondUInt16Range()
+    {
+        ResoniteMeshVertex[] vertices = Enumerable.Range(0, 65_537)
+            .Select(static index => new ResoniteMeshVertex(
+                new ResoniteFloat3(index, 0.0, 0.0),
+                new ResoniteFloat3(0.0, 1.0, 0.0),
+                new ResoniteFloat2(0.0, 0.0)))
+            .ToArray();
+        vertices[0] = new ResoniteMeshVertex(
+            new ResoniteFloat3(0.0, 0.0, 0.0),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(0.0, 0.0));
+        vertices[65_535] = new ResoniteMeshVertex(
+            new ResoniteFloat3(1.0, 0.0, 0.0),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(1.0, 0.0));
+        vertices[65_536] = new ResoniteMeshVertex(
+            new ResoniteFloat3(0.0, 0.0, 1.0),
+            new ResoniteFloat3(0.0, 1.0, 0.0),
+            new ResoniteFloat2(0.0, 1.0));
+
+        ResoniteImportedMesh mesh = new(
+            Vertices: vertices,
+            Submeshes:
+            [
+                new ResoniteMeshSubmesh(0, "wide-index", [0, 65_535, 65_536]),
+            ]);
+
+        ImportMeshRawData result = ResoniteMeshImportFactory.Create(mesh);
+
+        TriangleSubmeshRawData submesh = Assert.IsType<TriangleSubmeshRawData>(Assert.Single(result.Submeshes));
+        Assert.Equal(65_537, result.VertexCount);
+        Assert.Equal([0, 65_535, 65_536], submesh.Indices);
     }
 
     [Fact]
