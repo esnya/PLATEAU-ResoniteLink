@@ -123,7 +123,7 @@ public sealed class CommonMaterialCatalogTests
                 0,
                 ResoniteMaterialProjection.Uv,
                 new ResoniteFloat2(facadeMaterial.TextureScale!.X, facadeMaterial.TextureScale.Y),
-                textureOffset: null),
+                new ResoniteFloat2(facadeMaterial.TextureOffset!.X, facadeMaterial.TextureOffset.Y)),
             facadeMaterial.MaterialKey);
         Assert.Equal(
             ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(

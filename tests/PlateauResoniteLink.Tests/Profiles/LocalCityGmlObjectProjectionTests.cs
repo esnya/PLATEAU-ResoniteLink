@@ -318,7 +318,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             textureOffset: null);
 
-        Assert.Equal("common|facade|variant:0|Uv|scale:0.166667x0.166667|offset:none", materialKey);
+        Assert.Equal("common-facade-0-uv-scale-0.166667-0.166667-offset-none", materialKey);
         Assert.Equal(defaultOffsetMaterialKey, materialKey);
     }
 
