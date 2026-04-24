@@ -277,16 +277,85 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+        AddComponent gridMeshRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, gridMesh.ID, StringComparison.Ordinal));
+        Component pointsDriver = Assert.Single(
+            client.ComponentsById.Values,
+            static component => component.ComponentType.Contains("DynamicValueVariableDriver", StringComparison.Ordinal));
+        AddComponent pointsDriverRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, pointsDriver.ID, StringComparison.Ordinal));
         Reference displacementTextureReference = Assert.IsType<Reference>(gridMesh.Members["DisplacementTexture"]);
         Component displacementTexture = client.ComponentsById[displacementTextureReference.TargetID];
+        AddComponent displacementTextureRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, displacementTexture.ID, StringComparison.Ordinal));
         Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", displacementTexture.ComponentType);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeU"]).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeV"]).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(displacementTexture.Members["FilterMode"]).Value);
         Assert.False(Assert.IsType<Field_bool>(displacementTexture.Members["MipMaps"]).Value);
+        Assert.DoesNotContain("/Assets/", client.SlotPaths[gridMeshRequest.ContainerSlotId], StringComparison.Ordinal);
+        Assert.DoesNotContain("/Assets/", client.SlotPaths[pointsDriverRequest.ContainerSlotId], StringComparison.Ordinal);
+        Assert.Contains("/Assets/", client.SlotPaths[displacementTextureRequest.ContainerSlotId], StringComparison.Ordinal);
+        Field_int2 gridPoints = Assert.IsType<Field_int2>(gridMesh.Members["Points"]);
+        Assert.Equal("PLATEAU.Terrain.Grid.Points", Assert.IsType<Field_string>(pointsDriver.Members["VariableName"]).Value);
+        Assert.Equal(gridPoints.ID, Assert.IsType<Reference>(pointsDriver.Members["Target"]).TargetID);
+        Field_int2 defaultPoints = Assert.IsType<Field_int2>(pointsDriver.Members["DefaultValue"]);
+        Assert.Equal(2, defaultPoints.Value.x);
+        Assert.Equal(2, defaultPoints.Value.y);
         Assert.DoesNotContain(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task BuildAsyncCreatesDistinctTerrainGridPointsFieldIdsForMultipleDemGrids()
+    {
+        using TemporaryDirectory datasetDirectory = new();
+        using SceneBuilderRecordingClient client = new();
+        ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
+            DatasetName,
+            MeshCode,
+            datasetDirectory.Path,
+            LocalOrigin,
+            packageNames: ["dem"],
+            sourceFiles:
+            [
+                $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
+            ]);
+        ResoniteConstructionCityObject first = CreateTerrainGridCityObject("terrain-grid-a", "Terrain Grid A");
+        ResoniteConstructionCityObject second = CreateTerrainGridCityObject("terrain-grid-b", "Terrain Grid B");
+
+        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [first, second], client);
+
+        List<AddComponent> gridMeshRequests = client.AddedComponents
+            .Where(static request => string.Equals(request.Data.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal))
+            .ToList();
+        List<AddComponent> pointsDriverRequests = client.AddedComponents
+            .Where(static request => request.Data.ComponentType.Contains("DynamicValueVariableDriver", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.Equal(2, gridMeshRequests.Count);
+        Assert.Equal(2, pointsDriverRequests.Count);
+        Assert.Equal(2, client.ImportedRawHdrTextures.Count);
+
+        string[] pointsIds = gridMeshRequests
+            .Select(static request => Assert.IsType<Field_int2>(request.Data.Members["Points"]).ID)
+            .ToArray();
+        Assert.All(pointsIds, static id => Assert.False(string.IsNullOrWhiteSpace(id)));
+        Assert.Equal(2, pointsIds.Distinct(StringComparer.Ordinal).Count());
+
+        foreach (AddComponent gridMeshRequest in gridMeshRequests)
+        {
+            AddComponent pointsDriverRequest = Assert.Single(
+                pointsDriverRequests,
+                request => string.Equals(request.ContainerSlotId, gridMeshRequest.ContainerSlotId, StringComparison.Ordinal));
+            Field_int2 gridPoints = Assert.IsType<Field_int2>(gridMeshRequest.Data.Members["Points"]);
+            Assert.Equal("PLATEAU.Terrain.Grid.Points", Assert.IsType<Field_string>(pointsDriverRequest.Data.Members["VariableName"]).Value);
+            Assert.Equal(gridPoints.ID, Assert.IsType<Reference>(pointsDriverRequest.Data.Members["Target"]).TargetID);
+        }
     }
 
     [Fact]
@@ -1198,6 +1267,37 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 new ResoniteMeshSubmesh(0, "first-material", [0, 1, 2]),
                 new ResoniteMeshSubmesh(1, "second-material", [3, 4, 5]),
             ]);
+    }
+
+    private static ResoniteConstructionCityObject CreateTerrainGridCityObject(string slotKey, string displayName)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: displayName,
+            PackageName: "dem",
+            ActualMeshCode: MeshCode,
+            LodLevel: 0,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Geometry: new ResoniteTerrainGridGeometry(
+                Width: 2,
+                Height: 2,
+                Size: new ResoniteFloat2(10.0, 10.0),
+                MinHeight: 0.0,
+                MaxHeight: 3.0,
+                HeightSamples: [0.0, 1.0, 2.0, 3.0]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: string.Concat("wireframe-", slotKey),
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Wireframe,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0]),
+            ],
+            SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
     }
 
     private static void AssertNoPlannedIds(Slot slot)

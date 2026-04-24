@@ -80,6 +80,8 @@ internal readonly record struct BatchPlanSlotLocator(int Value);
 
 internal readonly record struct BatchPlanComponentLocator(int Value);
 
+internal readonly record struct BatchPlanFieldLocator(int Value);
+
 internal readonly record struct PlannedSlotTargetReference
 {
     private PlannedSlotTargetReference(ResoniteSlotLocator? canonical, BatchPlanSlotLocator? planned)
@@ -114,12 +116,14 @@ internal readonly record struct PlannedWorldElementReference
         ResoniteSlotLocator? canonicalSlot,
         ResoniteComponentLocator? canonicalComponent,
         BatchPlanSlotLocator? plannedSlot,
-        BatchPlanComponentLocator? plannedComponent)
+        BatchPlanComponentLocator? plannedComponent,
+        BatchPlanFieldLocator? plannedField)
     {
         CanonicalSlot = canonicalSlot;
         CanonicalComponent = canonicalComponent;
         PlannedSlot = plannedSlot;
         PlannedComponent = plannedComponent;
+        PlannedField = plannedField;
     }
 
     public ResoniteSlotLocator? CanonicalSlot { get; }
@@ -130,26 +134,33 @@ internal readonly record struct PlannedWorldElementReference
 
     public BatchPlanComponentLocator? PlannedComponent { get; }
 
+    public BatchPlanFieldLocator? PlannedField { get; }
+
     public static PlannedWorldElementReference Canonical(ResoniteSlotLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedWorldElementReference(locator, null, null, null);
+        return new PlannedWorldElementReference(locator, null, null, null, null);
     }
 
     public static PlannedWorldElementReference Canonical(ResoniteComponentLocator locator)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(locator.Value);
-        return new PlannedWorldElementReference(null, locator, null, null);
+        return new PlannedWorldElementReference(null, locator, null, null, null);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanSlotLocator locator)
     {
-        return new PlannedWorldElementReference(null, null, locator, null);
+        return new PlannedWorldElementReference(null, null, locator, null, null);
     }
 
     public static PlannedWorldElementReference Planned(BatchPlanComponentLocator locator)
     {
-        return new PlannedWorldElementReference(null, null, null, locator);
+        return new PlannedWorldElementReference(null, null, null, locator, null);
+    }
+
+    public static PlannedWorldElementReference Planned(BatchPlanFieldLocator locator)
+    {
+        return new PlannedWorldElementReference(null, null, null, null, locator);
     }
 }
 
@@ -158,6 +169,8 @@ internal abstract record PlannedMember;
 internal sealed record PlannedLiteralMember(Member Value) : PlannedMember;
 
 internal sealed record PlannedElementReferenceMember(PlannedWorldElementReference Target) : PlannedMember;
+
+internal sealed record PlannedAddressableFieldMember(BatchPlanFieldLocator Identity, Member Value) : PlannedMember;
 
 internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember;
 
@@ -172,6 +185,12 @@ internal static class PlannedMembers
     public static PlannedMember Reference(PlannedWorldElementReference target)
     {
         return new PlannedElementReferenceMember(target);
+    }
+
+    public static PlannedMember AddressableField(BatchPlanFieldLocator identity, Member value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return new PlannedAddressableFieldMember(identity, value);
     }
 
     public static PlannedMember List(params PlannedMember[] elements)

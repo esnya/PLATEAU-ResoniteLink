@@ -13,6 +13,7 @@ internal static class ResoniteBatchOperations
 {
     internal readonly record struct BatchTemporarySlotId(string Value);
     internal readonly record struct BatchTemporaryComponentId(string Value);
+    internal readonly record struct BatchTemporaryFieldId(string Value);
     internal readonly record struct BatchTemporaryMessageId(string Value);
 
     internal readonly record struct PendingBatchSlot(
@@ -126,6 +127,11 @@ internal static class ResoniteBatchOperations
             return new PendingBatchComponent(localId, messageId, componentType);
         }
 
+        public BatchTemporaryFieldId AllocateFieldId()
+        {
+            return CreateTemporaryFieldId("local_field", batchScopeToken, ++nextEntityId);
+        }
+
         private BatchTemporarySlotId AllocateSlotId(string prefix)
         {
             return CreateTemporarySlotId(prefix, batchScopeToken, ++nextEntityId);
@@ -157,6 +163,15 @@ internal static class ResoniteBatchOperations
         int? sequence = null)
     {
         return new BatchTemporaryComponentId(
+            FormatRequestLocalId(prefix, batchScopeToken, sequence));
+    }
+
+    private static BatchTemporaryFieldId CreateTemporaryFieldId(
+        string prefix,
+        string batchScopeToken,
+        int? sequence = null)
+    {
+        return new BatchTemporaryFieldId(
             FormatRequestLocalId(prefix, batchScopeToken, sequence));
     }
 
