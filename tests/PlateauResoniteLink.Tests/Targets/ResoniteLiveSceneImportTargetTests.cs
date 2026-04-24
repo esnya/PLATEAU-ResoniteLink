@@ -277,13 +277,34 @@ public sealed class ResoniteLiveSceneImportTargetTests
         Component gridMesh = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.GridMesh", StringComparison.Ordinal));
+        AddComponent gridMeshRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, gridMesh.ID, StringComparison.Ordinal));
+        Component pointsDriver = Assert.Single(
+            client.ComponentsById.Values,
+            static component => component.ComponentType.Contains("DynamicValueVariableDriver", StringComparison.Ordinal));
+        AddComponent pointsDriverRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, pointsDriver.ID, StringComparison.Ordinal));
         Reference displacementTextureReference = Assert.IsType<Reference>(gridMesh.Members["DisplacementTexture"]);
         Component displacementTexture = client.ComponentsById[displacementTextureReference.TargetID];
+        AddComponent displacementTextureRequest = Assert.Single(
+            client.AddedComponents,
+            request => string.Equals(request.Data.ID, displacementTexture.ID, StringComparison.Ordinal));
         Assert.Equal("[FrooxEngine]FrooxEngine.StaticTexture2D", displacementTexture.ComponentType);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeU"]).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(displacementTexture.Members["WrapModeV"]).Value);
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(displacementTexture.Members["FilterMode"]).Value);
         Assert.False(Assert.IsType<Field_bool>(displacementTexture.Members["MipMaps"]).Value);
+        Assert.DoesNotContain("/Assets/", client.SlotPaths[gridMeshRequest.ContainerSlotId], StringComparison.Ordinal);
+        Assert.DoesNotContain("/Assets/", client.SlotPaths[pointsDriverRequest.ContainerSlotId], StringComparison.Ordinal);
+        Assert.Contains("/Assets/", client.SlotPaths[displacementTextureRequest.ContainerSlotId], StringComparison.Ordinal);
+        Field_int2 gridPoints = Assert.IsType<Field_int2>(gridMesh.Members["Points"]);
+        Assert.Equal("PLATEAU.Terrain.Grid.Points", Assert.IsType<Field_string>(pointsDriver.Members["VariableName"]).Value);
+        Assert.Equal(gridPoints.ID, Assert.IsType<Reference>(pointsDriver.Members["Target"]).TargetID);
+        Field_int2 defaultPoints = Assert.IsType<Field_int2>(pointsDriver.Members["DefaultValue"]);
+        Assert.Equal(2, defaultPoints.Value.x);
+        Assert.Equal(2, defaultPoints.Value.y);
         Assert.DoesNotContain(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MainTexturePropertyBlock", StringComparison.Ordinal));
