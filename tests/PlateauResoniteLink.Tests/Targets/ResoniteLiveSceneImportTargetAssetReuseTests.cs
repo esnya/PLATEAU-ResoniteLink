@@ -690,7 +690,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncAssignsSourceFileRootPositionForHeightMapDemAndPreservesWorldPosition()
+    public async Task BuildAsyncAssignsSourceFileRootPositionForTerrainGridDemAndPreservesWorldPosition()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
@@ -700,8 +700,8 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(
             metadata,
             [
-                CreateHeightMapDemCityObject(
-                    "dem-heightmap-run-one",
+                CreateTerrainGridDemCityObject(
+                    "dem-terrain-grid-run-one",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondaryDemSourceFile,
                     worldPosition: worldPosition),
@@ -716,7 +716,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         Assert.Equal(expectedRootOffset.X, GetSlotPosition(sourceFileRoot).X, 3);
         Assert.Equal(expectedRootOffset.Z, GetSlotPosition(sourceFileRoot).Z, 3);
 
-        Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM HeightMap dem-heightmap-run-one");
+        Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM Terrain Grid dem-terrain-grid-run-one");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
         Assert.Equal(worldPosition.X, accumulatedPosition.X, 3);
         Assert.Equal(worldPosition.Y, accumulatedPosition.Y, 3);
@@ -724,7 +724,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     }
 
     [Fact]
-    public async Task BuildAsyncCreatesIndependentSourceFileRootAcrossRunsForHeightMapDem()
+    public async Task BuildAsyncCreatesIndependentSourceFileRootAcrossRunsForTerrainGridDem()
     {
         using TemporaryDirectory datasetDirectory = new();
         ImportedSceneMetadata metadata = CreateDemMetadata(datasetDirectory.Path, [PrimaryDemSourceFile, SecondaryDemSourceFile]);
@@ -734,15 +734,15 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
         await ResoniteLiveSceneImportTargetTestSupport.BuildSceneTwiceAsync(
             metadata,
             [
-                CreateHeightMapDemCityObject(
-                    "dem-heightmap-run-one",
+                CreateTerrainGridDemCityObject(
+                    "dem-terrain-grid-run-one",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondaryDemSourceFile,
                     worldPosition: new ResoniteFloat3(123.0, 15.5, 456.0)),
             ],
             [
-                CreateHeightMapDemCityObject(
-                    "dem-heightmap-run-two",
+                CreateTerrainGridDemCityObject(
+                    "dem-terrain-grid-run-two",
                     actualMeshCode: SecondaryMeshCode,
                     sourceFileRelativePath: SecondaryDemSourceFile,
                     worldPosition: secondRunWorldPosition),
@@ -765,7 +765,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
                 Assert.Equal(expectedRootOffset.Z, position.Z, 3);
             });
 
-        Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM HeightMap dem-heightmap-run-two");
+        Slot objectSlot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client, "DEM Terrain Grid dem-terrain-grid-run-two");
         ResoniteFloat3 accumulatedPosition = GetAccumulatedPosition(client, objectSlot);
         AssertNear(secondRunWorldPosition, accumulatedPosition, 0.2);
     }
@@ -1099,7 +1099,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
-    private static ResoniteConstructionCityObject CreateHeightMapDemCityObject(
+    private static ResoniteConstructionCityObject CreateTerrainGridDemCityObject(
         string objectIdentity,
         string actualMeshCode = MeshCode,
         string sourceFileRelativePath = PrimaryDemSourceFile,
@@ -1107,12 +1107,12 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
     {
         return new ResoniteConstructionCityObject(
             SlotKey: $"slot-{objectIdentity}",
-            DisplayName: $"DEM HeightMap {objectIdentity}",
+            DisplayName: $"DEM Terrain Grid {objectIdentity}",
             PackageName: "dem",
             ActualMeshCode: actualMeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(worldPosition ?? new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Geometry: new ResoniteHeightMapGridGeometry(
+            Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
                 Height: 2,
                 Size: new ResoniteFloat2(10.0, 10.0),
@@ -1122,7 +1122,7 @@ public sealed class ResoniteLiveSceneImportTargetAssetReuseTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "dem-heightmap-material",
+                    MaterialKey: "dem-terrain-grid-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,

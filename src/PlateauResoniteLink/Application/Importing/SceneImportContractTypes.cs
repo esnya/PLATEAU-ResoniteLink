@@ -64,7 +64,7 @@ public sealed record TriangleMeshGeometry(
     ImportedMesh Mesh)
     : ConstructionGeometry;
 
-public sealed record HeightMapGridGeometry(
+public sealed record TerrainGridGeometry(
     int Width,
     int Height,
     Float2 Size,

@@ -18,9 +18,9 @@ public sealed record ValidatedPlateauImportRequest(
     IReadOnlyDictionary<string, IReadOnlySet<int>>? ExcludeLodLevelsByPackage = null,
     IReadOnlyDictionary<string, string>? PackagePatterns = null,
     bool IncludeMarkingAlways = true,
-    DemTerrainMode DemTerrainMode = DemTerrainMode.Mesh,
-    double DemHeightmapMetersPerVertex = 2.0,
-    int DemHeightmapMaxResolution = 1024)
+    TerrainMeshMode TerrainMeshMode = TerrainMeshMode.Static,
+    double TerrainGridMetersPerVertex = 2.0,
+    int TerrainGridMaxResolution = 1024)
 {
     public DatasetSourceKind SourceKind => Source.SourceKind;
 
@@ -60,8 +60,8 @@ public sealed record ValidatedPlateauImportRequest(
             ExcludeLodLevelsByPackage,
             PackagePatterns,
             IncludeMarkingAlways,
-            DemTerrainMode,
-            DemHeightmapMetersPerVertex,
-            DemHeightmapMaxResolution);
+            TerrainMeshMode,
+            TerrainGridMetersPerVertex,
+            TerrainGridMaxResolution);
     }
 }

@@ -311,13 +311,13 @@ internal static class DemTerrainOverlayAssignment
             requestedMeshBounds).ToArray();
     }
 
-    public static (Float2? TextureScale, Float2? TextureOffset) TryCreateHeightMapTextureTransform(
+    public static (Float2? TextureScale, Float2? TextureOffset) TryCreateTerrainGridTextureTransform(
         BootstrapParsedCityObject cityObject,
         LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,
         GeographicRectangle? cityObjectGeographicBounds = null)
     {
-        TextureUvRect? occupiedUvRect = TryCreateHeightMapOccupiedUvRect(
+        TextureUvRect? occupiedUvRect = TryCreateTerrainGridOccupiedUvRect(
             cityObject,
             materializedSurface,
             demTerrainTextureOverlay,
@@ -329,7 +329,7 @@ internal static class DemTerrainOverlayAssignment
                 new Float2(occupiedUvRect.Value.OffsetValue.X, occupiedUvRect.Value.OffsetValue.Y));
     }
 
-    public static TextureUvRect? TryCreateHeightMapOccupiedUvRect(
+    public static TextureUvRect? TryCreateTerrainGridOccupiedUvRect(
         BootstrapParsedCityObject cityObject,
         LocalCityGmlObjectProjection.ResolvedSurfaceMaterial materializedSurface,
         TerrainTextureOverlay? demTerrainTextureOverlay,

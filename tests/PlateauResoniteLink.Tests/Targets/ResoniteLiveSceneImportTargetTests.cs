@@ -220,7 +220,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
     }
 
     [Fact]
-    public async Task BuildAsyncSendsHeightMapAsHdrRawTextureAndCreatesGridMesh()
+    public async Task BuildAsyncSendsTerrainGridDisplacementAsHdrRawTextureAndCreatesGridMesh()
     {
         using TemporaryDirectory datasetDirectory = new();
         using SceneBuilderRecordingClient client = new();
@@ -235,13 +235,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
             ]);
         ResoniteConstructionCityObject cityObject = new(
-            SlotKey: "heightmap-terrain",
-            DisplayName: "HeightMap Terrain",
+            SlotKey: "terrain-grid-terrain",
+            DisplayName: "Terrain Grid Terrain",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Geometry: new ResoniteHeightMapGridGeometry(
+            Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
                 Height: 2,
                 Size: new ResoniteFloat2(10.0, 10.0),
@@ -251,7 +251,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "wireframe-heightmap",
+                    MaterialKey: "wireframe-terrain-grid",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Wireframe,
                     TexturePayload: null,
@@ -320,13 +320,13 @@ public sealed class ResoniteLiveSceneImportTargetTests
                 $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml",
             ]);
         ResoniteConstructionCityObject cityObject = new(
-            SlotKey: "heightmap-overlay-terrain",
-            DisplayName: "HeightMap Overlay Terrain",
+            SlotKey: "terrain-grid-overlay-terrain",
+            DisplayName: "Terrain Grid Overlay Terrain",
             PackageName: "dem",
             ActualMeshCode: MeshCode,
             LodLevel: 0,
             Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
-            Geometry: new ResoniteHeightMapGridGeometry(
+            Geometry: new ResoniteTerrainGridGeometry(
                 Width: 2,
                 Height: 2,
                 Size: new ResoniteFloat2(10.0, 10.0),
@@ -338,7 +338,7 @@ public sealed class ResoniteLiveSceneImportTargetTests
             Materials:
             [
                 new ResoniteMaterialBinding(
-                    MaterialKey: "heightmap-overlay-material",
+                    MaterialKey: "terrain-grid-overlay-material",
                     BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
                     MaterialType: ResoniteMaterialType.Standard,
                     TexturePayload: null,

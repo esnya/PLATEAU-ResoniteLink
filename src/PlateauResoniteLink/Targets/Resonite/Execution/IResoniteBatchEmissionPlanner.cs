@@ -57,13 +57,13 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                         }),
                     }));
                 break;
-            case PlannedHeightMapGridGeometryAsset heightMap:
+            case PlannedTerrainGridGeometryAsset heightMap:
                 BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
                 BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
                 slotEmissions.Add(new PlannedBatchSlotEmission(
                     heightMapAssetSlotId,
                     PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
-                    heightMap.HeightMapAssetSlotName,
+                    heightMap.TerrainGridAssetSlotName,
                     null,
                     null));
                 slotResolutionTargets.Add(heightMapAssetSlotId);
@@ -71,7 +71,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     heightTextureComponentId,
                     PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlotId),
                     "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    ResoniteGeometryAssetAssembler.CreateHeightMapTextureMembers(heightMap.HeightTextureUri)
+                    ResoniteGeometryAssetAssembler.CreateTerrainGridTextureMembers(heightMap.HeightTextureUri)
                         .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
                 double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
                 Dictionary<string, PlannedMember> gridMeshMembers = new(StringComparer.Ordinal)

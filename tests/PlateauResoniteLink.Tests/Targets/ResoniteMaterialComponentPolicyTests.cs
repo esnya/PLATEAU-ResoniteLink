@@ -148,10 +148,10 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersCreatesUvMaterialWithoutTransformAfterNormalization()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "direct-heightmap-style-material",
+            MaterialKey: "direct-terrain-grid-style-material",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
-            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-heightmap-style.png"),
+            TexturePayload: new ResoniteTexturePayload(1, 1, "srgb", [255, 255, 255, 255], "textures/direct-terrain-grid-style.png"),
             TextureSourceKind: ResoniteTextureSourceKind.Dataset,
             Projection: ResoniteMaterialProjection.Uv,
             DepthOffset: null,
@@ -199,7 +199,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
     public void CreateMembersPreservesUvTransformForSharedTerrainOverlayMaterial()
     {
         ResoniteMaterialBinding material = new(
-            MaterialKey: "shared-heightmap-overlay",
+            MaterialKey: "shared-terrain-grid-overlay",
             BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
             MaterialType: ResoniteMaterialType.Standard,
             TexturePayload: null,

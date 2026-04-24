@@ -37,12 +37,12 @@ public static class CliArgumentsParser
                                 Required. Local dataset/archive path or absolute direct .zip/.7z CityGML archive URL.
           --geotiff-source <path-or-url>
                                 Optional. Local GeoTIFF file/archive path or absolute .tif/.tiff/.zip/.7z GeoTIFF URL.
-          --dem-terrain-mode <mesh|heightmap>
-                                Optional. DEM import mode. Default: mesh.
-          --dem-heightmap-meters-per-vertex <value>
-                                Optional. Heightmap sampling spacing in meters. Default: 2.0.
-          --dem-heightmap-max-resolution <value>
-                                Optional. Maximum heightmap resolution per DEM chunk. Default: 1024.
+          --terrain-mesh <static|grid>
+                                Optional. Terrain mesh style. Default: static.
+          --terrain-grid-meters-per-vertex <value>
+                                Optional. Terrain grid sampling spacing in meters. Default: 2.0.
+          --terrain-grid-max-resolution <value>
+                                Optional. Maximum terrain grid resolution per DEM chunk. Default: 1024.
           --work-root <path>     Optional. Parent directory for dataset-local archive storage and live temporary files. Default: local.
           --terrain-tile-cache-root <path>
                                 Optional. Override the persistent terrain tile cache root.
@@ -107,9 +107,9 @@ public static class CliArgumentsParser
         bool hasPackageExcludeLodsOption = false;
         bool includeMarkingAlways = true;
         Dictionary<string, string>? packagePatterns = null;
-        DemTerrainMode demTerrainMode = DemTerrainMode.Mesh;
-        double demHeightmapMetersPerVertex = 2.0;
-        int demHeightmapMaxResolution = 1024;
+        TerrainMeshMode terrainMesh = TerrainMeshMode.Static;
+        double terrainGridMetersPerVertex = 2.0;
+        int terrainGridMaxResolution = 1024;
 
         try
         {
@@ -242,49 +242,49 @@ public static class CliArgumentsParser
                         return CliParseResult.Failure("The --source option has been replaced. Use --citygml-source.");
                     case "--ortho-source":
                         return CliParseResult.Failure("The --ortho-source option has been replaced. Use --geotiff-source.");
-                    case "--dem-terrain-mode":
+                    case "--terrain-mesh":
                         {
-                            string demTerrainModeValue = ReadValue(args, ref index, token);
-                            if (string.Equals(demTerrainModeValue, nameof(DemTerrainMode.Mesh), StringComparison.OrdinalIgnoreCase))
+                            string terrainMeshValue = ReadValue(args, ref index, token);
+                            if (string.Equals(terrainMeshValue, "static", StringComparison.OrdinalIgnoreCase))
                             {
-                                demTerrainMode = DemTerrainMode.Mesh;
+                                terrainMesh = TerrainMeshMode.Static;
                             }
-                            else if (string.Equals(demTerrainModeValue, "heightmap", StringComparison.OrdinalIgnoreCase))
+                            else if (string.Equals(terrainMeshValue, "grid", StringComparison.OrdinalIgnoreCase))
                             {
-                                demTerrainMode = DemTerrainMode.HeightMap;
+                                terrainMesh = TerrainMeshMode.Grid;
                             }
                             else
                             {
                                 return CliParseResult.Failure(
-                                    $"Unsupported DEM terrain mode '{demTerrainModeValue}'. Use 'mesh' or 'heightmap'.");
+                                    $"Unsupported terrain mesh '{terrainMeshValue}'. Use 'static' or 'grid'.");
                             }
 
                             break;
                         }
-                    case "--dem-heightmap-meters-per-vertex":
+                    case "--terrain-grid-meters-per-vertex":
                         {
                             string metersPerVertexValue = ReadValue(args, ref index, token, IsSignedDecimalValue);
                             if (!double.TryParse(
                                     metersPerVertexValue,
                                     System.Globalization.NumberStyles.Float | System.Globalization.NumberStyles.AllowThousands,
                                     System.Globalization.CultureInfo.InvariantCulture,
-                                    out demHeightmapMetersPerVertex)
-                                || demHeightmapMetersPerVertex <= 0.0)
+                                    out terrainGridMetersPerVertex)
+                                || terrainGridMetersPerVertex <= 0.0)
                             {
                                 return CliParseResult.Failure(
-                                    $"The value '{metersPerVertexValue}' is not a valid positive DEM heightmap meters-per-vertex value.");
+                                    $"The value '{metersPerVertexValue}' is not a valid positive terrain grid meters-per-vertex value.");
                             }
 
                             break;
                         }
-                    case "--dem-heightmap-max-resolution":
+                    case "--terrain-grid-max-resolution":
                         {
                             string maxResolutionValue = ReadValue(args, ref index, token, IsSignedIntegerValue);
-                            if (!int.TryParse(maxResolutionValue, out demHeightmapMaxResolution)
-                                || demHeightmapMaxResolution < 2)
+                            if (!int.TryParse(maxResolutionValue, out terrainGridMaxResolution)
+                                || terrainGridMaxResolution < 2)
                             {
                                 return CliParseResult.Failure(
-                                    $"The value '{maxResolutionValue}' is not a valid DEM heightmap max resolution.");
+                                    $"The value '{maxResolutionValue}' is not a valid terrain grid max resolution.");
                             }
 
                             break;
@@ -379,9 +379,9 @@ public static class CliArgumentsParser
             ExcludeLodLevelsByPackage: packageExcludeLods,
             PackagePatterns: packagePatterns,
             IncludeMarkingAlways: includeMarkingAlways,
-            DemTerrainMode: demTerrainMode,
-            DemHeightmapMetersPerVertex: demHeightmapMetersPerVertex,
-            DemHeightmapMaxResolution: demHeightmapMaxResolution);
+            TerrainMeshMode: terrainMesh,
+            TerrainGridMetersPerVertex: terrainGridMetersPerVertex,
+            TerrainGridMaxResolution: terrainGridMaxResolution);
 
         if (resoniteLinkUri is null)
         {

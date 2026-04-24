@@ -85,9 +85,9 @@ public sealed record SceneImportExecutionPlan
             || !SourcesEqual(resolvedRequest.Source, buildRequest.Source)
             || !SourcesEqual(resolvedRequest.DemTextureSource, buildRequest.DemTextureSource)
             || normalizedRequest.IncludeMarkingAlways != buildRequest.IncludeMarkingAlways
-            || normalizedRequest.DemTerrainMode != buildRequest.DemTerrainMode
-            || normalizedRequest.DemHeightmapMetersPerVertex != buildRequest.DemHeightmapMetersPerVertex
-            || normalizedRequest.DemHeightmapMaxResolution != buildRequest.DemHeightmapMaxResolution
+            || normalizedRequest.TerrainMeshMode != buildRequest.TerrainMeshMode
+            || normalizedRequest.TerrainGridMetersPerVertex != buildRequest.TerrainGridMetersPerVertex
+            || normalizedRequest.TerrainGridMaxResolution != buildRequest.TerrainGridMaxResolution
             || !SequenceEqual(normalizedRequest.PackageNames, buildRequest.PackageNames)
             || !SetEqual(normalizedRequest.GlobalExcludeLodLevels, buildRequest.GlobalExcludeLodLevels)
             || !DictionaryOfSetsEqual(normalizedRequest.ExcludeLodLevelsByPackage, buildRequest.ExcludeLodLevelsByPackage)

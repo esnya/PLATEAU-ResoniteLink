@@ -2979,9 +2979,9 @@ internal static partial class LocalCityGmlObjectProjection
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
-            ImportedCityObject cityObject = request.DemTerrainMode == DemTerrainMode.HeightMap
+            ImportedCityObject cityObject = request.TerrainMeshMode == TerrainMeshMode.Grid
                 && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                && TryProjectDemHeightMapCityObject(
+                && TryProjectDemTerrainGridCityObject(
                     splitCityObject.CityObject,
                     globalOriginPoint,
                     globalCartesian,
@@ -3035,9 +3035,9 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         ImportedCityObject[] alignedCityObjects =
-            request.DemTerrainMode == DemTerrainMode.HeightMap
+            request.TerrainMeshMode == TerrainMeshMode.Grid
             && string.Equals(terrainAlignedBootstrapCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                ? AlignAdjacentDemHeightMapChunkBoundaries(projectedCityObjects)
+                ? AlignAdjacentDemTerrainGridChunkBoundaries(projectedCityObjects)
                 : [.. projectedCityObjects];
 
         foreach (ImportedCityObject cityObject in alignedCityObjects)
@@ -3084,9 +3084,9 @@ internal static partial class LocalCityGmlObjectProjection
                     splitCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
 
-            foreach (MaterialBinding material in request.DemTerrainMode == DemTerrainMode.HeightMap
+            foreach (MaterialBinding material in request.TerrainMeshMode == TerrainMeshMode.Grid
                          && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                            ? CreateDemHeightMapMaterials(
+                            ? CreateDemTerrainGridMaterials(
                                 splitCityObject.CityObject,
                                 cityObjectOrigin,
                                 cityObjectCartesian,
@@ -3296,23 +3296,23 @@ internal static partial class LocalCityGmlObjectProjection
             .ToArray();
     }
 
-    private static ImportedCityObject[] AlignAdjacentDemHeightMapChunkBoundaries(
+    private static ImportedCityObject[] AlignAdjacentDemTerrainGridChunkBoundaries(
         IReadOnlyList<ImportedCityObject> cityObjects)
     {
-        HeightMapChunkAlignmentState?[] states = cityObjects
-            .Select(static cityObject => HeightMapChunkAlignmentState.TryCreate(cityObject))
+        TerrainGridChunkAlignmentState?[] states = cityObjects
+            .Select(static cityObject => TerrainGridChunkAlignmentState.TryCreate(cityObject))
             .ToArray();
         if (states.Any(static state => state is null))
         {
             return cityObjects.ToArray();
         }
 
-        HeightMapChunkAlignmentState[] chunkStates = states
+        TerrainGridChunkAlignmentState[] chunkStates = states
             .Select(static state => state!)
             .ToArray();
         const double seaLevelWorldHeightTolerance = 1e-6;
         Dictionary<DemBoundarySampleKey, List<BoundaryHeightSampleReference>> sampleReferencesByKey = [];
-        foreach (HeightMapChunkAlignmentState state in chunkStates)
+        foreach (TerrainGridChunkAlignmentState state in chunkStates)
         {
             foreach (BoundaryHeightSampleReference sampleReference in EnumerateBoundaryHeightSampleReferences(state))
             {
@@ -3373,7 +3373,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static IEnumerable<BoundaryHeightSampleReference> EnumerateBoundaryHeightSampleReferences(
-        HeightMapChunkAlignmentState state)
+        TerrainGridChunkAlignmentState state)
     {
         int width = state.Geometry.Width;
         int height = state.Geometry.Height;
@@ -3396,7 +3396,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static BoundaryHeightSampleReference CreateBoundaryHeightSampleReference(
-        HeightMapChunkAlignmentState state,
+        TerrainGridChunkAlignmentState state,
         int row,
         int column)
     {
@@ -3419,11 +3419,11 @@ internal static partial class LocalCityGmlObjectProjection
         return (long)Math.Round(coordinate / boundaryTolerance, MidpointRounding.AwayFromZero);
     }
 
-    private sealed class HeightMapChunkAlignmentState
+    private sealed class TerrainGridChunkAlignmentState
     {
-        public HeightMapChunkAlignmentState(
+        public TerrainGridChunkAlignmentState(
             ImportedCityObject cityObject,
-            HeightMapGridGeometry geometry,
+            TerrainGridGeometry geometry,
             double[] heightSamples)
         {
             CityObject = cityObject;
@@ -3434,16 +3434,16 @@ internal static partial class LocalCityGmlObjectProjection
 
         public ImportedCityObject CityObject { get; }
 
-        public HeightMapGridGeometry Geometry { get; }
+        public TerrainGridGeometry Geometry { get; }
 
         public double[] HeightSamples { get; }
 
         public double BaseHeight { get; }
 
-        public static HeightMapChunkAlignmentState? TryCreate(ImportedCityObject cityObject)
+        public static TerrainGridChunkAlignmentState? TryCreate(ImportedCityObject cityObject)
         {
-            return cityObject.Geometry is HeightMapGridGeometry geometry
-                ? new HeightMapChunkAlignmentState(cityObject, geometry, geometry.HeightSamples.ToArray())
+            return cityObject.Geometry is TerrainGridGeometry geometry
+                ? new TerrainGridChunkAlignmentState(cityObject, geometry, geometry.HeightSamples.ToArray())
                 : null;
         }
 
@@ -3476,11 +3476,11 @@ internal static partial class LocalCityGmlObjectProjection
         long QuantizedZ);
 
     private sealed record BoundaryHeightSampleReference(
-        HeightMapChunkAlignmentState State,
+        TerrainGridChunkAlignmentState State,
         int SampleIndex,
         DemBoundarySampleKey Key);
 
-    private static bool TryProjectDemHeightMapCityObject(
+    private static bool TryProjectDemTerrainGridCityObject(
         ParsedCityObject cityObject,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -3507,10 +3507,10 @@ internal static partial class LocalCityGmlObjectProjection
         Float3 slotPosition = CreateScenePosition(cityObjectOrigin, globalOriginPoint, globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
+            .Select(point => CreateGlobalTerrainGridLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
             .ToArray();
-        HeightMapTriangle[] triangles = CreateDemHeightMapTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
-        double seaLevelLocalHeight = CreateGlobalHeightMapLocalPosition(
+        TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        double seaLevelLocalHeight = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
             slotPosition,
             globalOriginPoint,
@@ -3520,7 +3520,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        DemHeightMapBounds heightMapBounds = CreateDemHeightMapBounds(
+        DemTerrainGridBounds heightMapBounds = CreateDemTerrainGridBounds(
             cityObject,
             cityObjectOrigin,
             slotPosition,
@@ -3541,7 +3541,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        HeightMapSpatialIndex spatialIndex = HeightMapSpatialIndex.Create(
+        TerrainGridSpatialIndex spatialIndex = TerrainGridSpatialIndex.Create(
             triangles,
             minX,
             maxX,
@@ -3549,13 +3549,13 @@ internal static partial class LocalCityGmlObjectProjection
             maxZ);
 
         int width = Math.Clamp(
-            (int)Math.Ceiling(extentX / request.DemHeightmapMetersPerVertex) + 1,
+            (int)Math.Ceiling(extentX / request.TerrainGridMetersPerVertex) + 1,
             2,
-            request.DemHeightmapMaxResolution);
+            request.TerrainGridMaxResolution);
         int height = Math.Clamp(
-            (int)Math.Ceiling(extentZ / request.DemHeightmapMetersPerVertex) + 1,
+            (int)Math.Ceiling(extentZ / request.TerrainGridMetersPerVertex) + 1,
             2,
-            request.DemHeightmapMaxResolution);
+            request.TerrainGridMaxResolution);
         double[] localHeights = new double[width * height];
         bool[] sampledInsideTriangles = new bool[width * height];
 
@@ -3584,7 +3584,7 @@ internal static partial class LocalCityGmlObjectProjection
         double minHeight = localHeights.Min();
         double maxHeight = localHeights.Max();
 
-        MaterialBinding[] materials = CreateDemHeightMapMaterials(
+        MaterialBinding[] materials = CreateDemTerrainGridMaterials(
             cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
@@ -3595,7 +3595,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        TextureUvRect? heightMapOccupiedUvRect = TryCreateDemHeightMapOccupiedUvRect(
+        TextureUvRect? heightMapOccupiedUvRect = TryCreateDemTerrainGridOccupiedUvRect(
             cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
@@ -3612,7 +3612,7 @@ internal static partial class LocalCityGmlObjectProjection
         {
             // Elements.Assets.Grid centers vertices in-plane, so split DEM chunks need their own bbox-center offset here.
             X = slotPosition.X + centerX,
-            // GridMesh displaces the inverted heightmap downward in world Y, so the slot must start at the patch-local maximum height.
+            // GridMesh displaces the inverted terrain grid downward in world Y, so the slot must start at the patch-local maximum height.
             Y = slotPosition.Y + maxHeight,
             Z = slotPosition.Z + centerZ,
         };
@@ -3626,7 +3626,7 @@ internal static partial class LocalCityGmlObjectProjection
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
-            Geometry: new HeightMapGridGeometry(
+            Geometry: new TerrainGridGeometry(
                 Width: width,
                 Height: height,
                 Size: new Float2(extentX, extentZ),
@@ -3640,7 +3640,7 @@ internal static partial class LocalCityGmlObjectProjection
         return true;
     }
 
-    private static bool TryProjectDemHeightMapCityObject(
+    private static bool TryProjectDemTerrainGridCityObject(
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian,
@@ -3667,10 +3667,10 @@ internal static partial class LocalCityGmlObjectProjection
         Float3 slotPosition = CreateScenePosition(cityObjectOrigin.ToLegacy(), globalOriginPoint.ToLegacy(), globalCartesian);
         Float3[] positions = cityObject.Surfaces
             .SelectMany(static surface => surface.Vertices)
-            .Select(point => CreateGlobalHeightMapLocalPosition(point.ToLegacy(), slotPosition, globalOriginPoint.ToLegacy(), globalCartesian))
+            .Select(point => CreateGlobalTerrainGridLocalPosition(point.ToLegacy(), slotPosition, globalOriginPoint.ToLegacy(), globalCartesian))
             .ToArray();
-        HeightMapTriangle[] triangles = CreateDemHeightMapTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
-        double seaLevelLocalHeight = CreateGlobalHeightMapLocalPosition(
+        TerrainGridTriangle[] triangles = CreateDemTerrainGridTriangles(cityObject, slotPosition, globalOriginPoint, globalCartesian);
+        double seaLevelLocalHeight = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(cityObjectOrigin.Latitude, cityObjectOrigin.Longitude, 0.0),
             slotPosition,
             globalOriginPoint.ToLegacy(),
@@ -3680,7 +3680,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        DemHeightMapBounds heightMapBounds = CreateDemHeightMapBounds(
+        DemTerrainGridBounds heightMapBounds = CreateDemTerrainGridBounds(
             cityObject,
             cityObjectOrigin,
             slotPosition,
@@ -3701,7 +3701,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        HeightMapSpatialIndex spatialIndex = HeightMapSpatialIndex.Create(
+        TerrainGridSpatialIndex spatialIndex = TerrainGridSpatialIndex.Create(
             triangles,
             minX,
             maxX,
@@ -3709,13 +3709,13 @@ internal static partial class LocalCityGmlObjectProjection
             maxZ);
 
         int width = Math.Clamp(
-            (int)Math.Ceiling(extentX / request.DemHeightmapMetersPerVertex) + 1,
+            (int)Math.Ceiling(extentX / request.TerrainGridMetersPerVertex) + 1,
             2,
-            request.DemHeightmapMaxResolution);
+            request.TerrainGridMaxResolution);
         int height = Math.Clamp(
-            (int)Math.Ceiling(extentZ / request.DemHeightmapMetersPerVertex) + 1,
+            (int)Math.Ceiling(extentZ / request.TerrainGridMetersPerVertex) + 1,
             2,
-            request.DemHeightmapMaxResolution);
+            request.TerrainGridMaxResolution);
         double[] localHeights = new double[width * height];
         bool[] sampledInsideTriangles = new bool[width * height];
 
@@ -3744,7 +3744,7 @@ internal static partial class LocalCityGmlObjectProjection
         double minHeight = localHeights.Min();
         double maxHeight = localHeights.Max();
 
-        MaterialBinding[] materials = CreateDemHeightMapMaterials(
+        MaterialBinding[] materials = CreateDemTerrainGridMaterials(
             cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
@@ -3755,7 +3755,7 @@ internal static partial class LocalCityGmlObjectProjection
             return false;
         }
 
-        TextureUvRect? heightMapOccupiedUvRect = TryCreateDemHeightMapOccupiedUvRect(
+        TextureUvRect? heightMapOccupiedUvRect = TryCreateDemTerrainGridOccupiedUvRect(
             cityObject,
             cityObjectOrigin,
             cityObjectCartesian,
@@ -3784,7 +3784,7 @@ internal static partial class LocalCityGmlObjectProjection
             Transform: new Transform3D(
                 ToContractFloat3(adjustedSlotPosition),
                 ToContractQuaternion(GridMeshTerrainRotation)),
-            Geometry: new HeightMapGridGeometry(
+            Geometry: new TerrainGridGeometry(
                 Width: width,
                 Height: height,
                 Size: new Float2(extentX, extentZ),
@@ -3798,7 +3798,7 @@ internal static partial class LocalCityGmlObjectProjection
         return true;
     }
 
-    private static MaterialBinding[] CreateDemHeightMapMaterials(
+    private static MaterialBinding[] CreateDemTerrainGridMaterials(
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -3843,7 +3843,7 @@ internal static partial class LocalCityGmlObjectProjection
             .ToArray();
     }
 
-    private static MaterialBinding[] CreateDemHeightMapMaterials(
+    private static MaterialBinding[] CreateDemTerrainGridMaterials(
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -3932,7 +3932,7 @@ internal static partial class LocalCityGmlObjectProjection
 
     private static ColorRgba ToContractColor(ColorRgba value) => new(value.R, value.G, value.B, value.A);
 
-    private static TextureUvRect? TryCreateDemHeightMapOccupiedUvRect(
+    private static TextureUvRect? TryCreateDemTerrainGridOccupiedUvRect(
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -3953,7 +3953,7 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateHeightMapOccupiedUvRect(
+        TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateTerrainGridOccupiedUvRect(
             global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject.FromLegacy(cityObject),
             representativeSurface,
             demTerrainTextureOverlay,
@@ -3961,7 +3961,7 @@ internal static partial class LocalCityGmlObjectProjection
         return occupiedUvRect is { IsIdentity: true } ? null : occupiedUvRect;
     }
 
-    private static TextureUvRect? TryCreateDemHeightMapOccupiedUvRect(
+    private static TextureUvRect? TryCreateDemTerrainGridOccupiedUvRect(
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian,
@@ -3982,7 +3982,7 @@ internal static partial class LocalCityGmlObjectProjection
             return null;
         }
 
-        TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateHeightMapOccupiedUvRect(
+        TextureUvRect? occupiedUvRect = DemTerrainOverlayAssignment.TryCreateTerrainGridOccupiedUvRect(
             cityObject,
             representativeSurface,
             demTerrainTextureOverlay,
@@ -4016,7 +4016,7 @@ internal static partial class LocalCityGmlObjectProjection
         return GetCityObjectGeographicBounds(cityObject);
     }
 
-    private static DemHeightMapBounds CreateDemHeightMapBounds(
+    private static DemTerrainGridBounds CreateDemTerrainGridBounds(
         ParsedCityObject cityObject,
         GeodeticPoint cityObjectOrigin,
         Float3 slotPosition,
@@ -4032,7 +4032,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         if (demTerrainTextureOverlay is null)
         {
-            return new DemHeightMapBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
@@ -4040,22 +4040,22 @@ internal static partial class LocalCityGmlObjectProjection
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
-        Float3 westPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 westPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);
-        Float3 eastPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 eastPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);
-        Float3 southPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 southPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
             globalCartesian);
-        Float3 northPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 northPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint,
@@ -4068,13 +4068,13 @@ internal static partial class LocalCityGmlObjectProjection
 
         if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
         {
-            return new DemHeightMapBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
         }
 
-        return new DemHeightMapBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
+        return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
     }
 
-    private static DemHeightMapBounds CreateDemHeightMapBounds(
+    private static DemTerrainGridBounds CreateDemTerrainGridBounds(
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin,
         Float3 slotPosition,
@@ -4090,7 +4090,7 @@ internal static partial class LocalCityGmlObjectProjection
 
         if (demTerrainTextureOverlay is null)
         {
-            return new DemHeightMapBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
         }
 
         GeographicRectangle clippedBounds = IntersectGeographicBounds(
@@ -4098,22 +4098,22 @@ internal static partial class LocalCityGmlObjectProjection
             demTerrainTextureOverlay.GeographicBounds);
         double referenceLatitude = cityObjectOrigin.Latitude;
         double referenceLongitude = cityObjectOrigin.Longitude;
-        Float3 westPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 westPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(referenceLatitude, clippedBounds.MinLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint.ToLegacy(),
             globalCartesian);
-        Float3 eastPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 eastPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(referenceLatitude, clippedBounds.MaxLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint.ToLegacy(),
             globalCartesian);
-        Float3 southPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 southPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(clippedBounds.MinLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint.ToLegacy(),
             globalCartesian);
-        Float3 northPosition = CreateGlobalHeightMapLocalPosition(
+        Float3 northPosition = CreateGlobalTerrainGridLocalPosition(
             new GeodeticPoint(clippedBounds.MaxLatitude, referenceLongitude, cityObjectOrigin.Altitude),
             slotPosition,
             globalOriginPoint.ToLegacy(),
@@ -4126,10 +4126,10 @@ internal static partial class LocalCityGmlObjectProjection
 
         if ((clippedMaxX - clippedMinX) <= 1e-6 || (clippedMaxZ - clippedMinZ) <= 1e-6)
         {
-            return new DemHeightMapBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
+            return new DemTerrainGridBounds(rawMinX, rawMaxX, rawMinZ, rawMaxZ);
         }
 
-        return new DemHeightMapBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
+        return new DemTerrainGridBounds(clippedMinX, clippedMaxX, clippedMinZ, clippedMaxZ);
     }
 
     private static GeographicRectangle GetCityObjectGeographicBounds(ParsedCityObject cityObject)
@@ -4203,22 +4203,22 @@ internal static partial class LocalCityGmlObjectProjection
         return cityObject.Geometry switch
         {
             TriangleMeshGeometry triangleMesh => triangleMesh.Mesh.Submeshes.Count > 0,
-            HeightMapGridGeometry heightMap => heightMap.Width > 1 && heightMap.Height > 1,
+            TerrainGridGeometry heightMap => heightMap.Width > 1 && heightMap.Height > 1,
             _ => false,
         };
     }
 
-    private static HeightMapTriangle[] CreateDemHeightMapTriangles(
+    private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
         ParsedCityObject cityObject,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian)
     {
-        List<HeightMapTriangle> triangles = [];
+        List<TerrainGridTriangle> triangles = [];
         foreach (ParsedSurface surface in cityObject.Surfaces)
         {
             Float3[] positions = surface.ExteriorRing.Vertices
-                .Select(point => CreateGlobalHeightMapLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
+                .Select(point => CreateGlobalTerrainGridLocalPosition(point, slotPosition, globalOriginPoint, globalCartesian))
                 .ToArray();
             if (positions.Length < 3)
             {
@@ -4228,24 +4228,24 @@ internal static partial class LocalCityGmlObjectProjection
             Float3 origin = positions[0];
             for (int index = 1; index + 1 < positions.Length; index++)
             {
-                triangles.Add(new HeightMapTriangle(origin, positions[index], positions[index + 1]));
+                triangles.Add(new TerrainGridTriangle(origin, positions[index], positions[index + 1]));
             }
         }
 
         return triangles.ToArray();
     }
 
-    private static HeightMapTriangle[] CreateDemHeightMapTriangles(
+    private static TerrainGridTriangle[] CreateDemTerrainGridTriangles(
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
         Float3 slotPosition,
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
         LocalCartesian? globalCartesian)
     {
-        List<HeightMapTriangle> triangles = [];
+        List<TerrainGridTriangle> triangles = [];
         foreach (global::PlateauResoniteLink.Application.Importing.BootstrapParsedSurface surface in cityObject.Surfaces)
         {
             Float3[] positions = surface.ExteriorRing.Vertices
-                .Select(point => CreateGlobalHeightMapLocalPosition(point.ToLegacy(), slotPosition, globalOriginPoint.ToLegacy(), globalCartesian))
+                .Select(point => CreateGlobalTerrainGridLocalPosition(point.ToLegacy(), slotPosition, globalOriginPoint.ToLegacy(), globalCartesian))
                 .ToArray();
             if (positions.Length < 3)
             {
@@ -4255,14 +4255,14 @@ internal static partial class LocalCityGmlObjectProjection
             Float3 origin = positions[0];
             for (int index = 1; index + 1 < positions.Length; index++)
             {
-                triangles.Add(new HeightMapTriangle(origin, positions[index], positions[index + 1]));
+                triangles.Add(new TerrainGridTriangle(origin, positions[index], positions[index + 1]));
             }
         }
 
         return triangles.ToArray();
     }
 
-    private static Float3 CreateGlobalHeightMapLocalPosition(
+    private static Float3 CreateGlobalTerrainGridLocalPosition(
         GeodeticPoint point,
         Float3 slotPosition,
         GeodeticPoint globalOriginPoint,
@@ -4278,13 +4278,13 @@ internal static partial class LocalCityGmlObjectProjection
     private static bool TrySampleLocalDemHeight(
         double x,
         double z,
-        IReadOnlyList<HeightMapTriangle> triangles,
-        HeightMapSpatialIndex spatialIndex,
+        IReadOnlyList<TerrainGridTriangle> triangles,
+        TerrainGridSpatialIndex spatialIndex,
         out double height)
     {
         foreach (int triangleIndex in spatialIndex.GetCandidateTriangleIndices(x, z))
         {
-            HeightMapTriangle triangle = triangles[triangleIndex];
+            TerrainGridTriangle triangle = triangles[triangleIndex];
             if (TryInterpolateLocalTriangleHeight(triangle, x, z, out height))
             {
                 return true;
@@ -4296,7 +4296,7 @@ internal static partial class LocalCityGmlObjectProjection
     }
 
     private static bool TryInterpolateLocalTriangleHeight(
-        HeightMapTriangle triangle,
+        TerrainGridTriangle triangle,
         double x,
         double z,
         out double height)
@@ -4549,18 +4549,18 @@ internal static partial class LocalCityGmlObjectProjection
         GeodeticPoint[] Vertices,
         IReadOnlyList<Float2>? UVs);
 
-    private sealed record HeightMapTriangle(
+    private sealed record TerrainGridTriangle(
         Float3 A,
         Float3 B,
         Float3 C);
 
-    private sealed record DemHeightMapBounds(
+    private sealed record DemTerrainGridBounds(
         double MinX,
         double MaxX,
         double MinZ,
         double MaxZ);
 
-    private sealed class HeightMapSpatialIndex
+    private sealed class TerrainGridSpatialIndex
     {
         private readonly int[] allTriangleIndices;
         private readonly List<int>[] triangleBuckets;
@@ -4571,7 +4571,7 @@ internal static partial class LocalCityGmlObjectProjection
         private readonly int cellsX;
         private readonly int cellsZ;
 
-        private HeightMapSpatialIndex(
+        private TerrainGridSpatialIndex(
             int[] allTriangleIndices,
             List<int>[] triangleBuckets,
             double minX,
@@ -4591,8 +4591,8 @@ internal static partial class LocalCityGmlObjectProjection
             this.cellsZ = cellsZ;
         }
 
-        public static HeightMapSpatialIndex Create(
-            IReadOnlyList<HeightMapTriangle> triangles,
+        public static TerrainGridSpatialIndex Create(
+            IReadOnlyList<TerrainGridTriangle> triangles,
             double minX,
             double maxX,
             double minZ,
@@ -4601,7 +4601,7 @@ internal static partial class LocalCityGmlObjectProjection
             int[] allTriangleIndices = Enumerable.Range(0, triangles.Count).ToArray();
             if (triangles.Count == 0)
             {
-                return new HeightMapSpatialIndex(allTriangleIndices, [], minX, minZ, 1.0, 1.0, 1, 1);
+                return new TerrainGridSpatialIndex(allTriangleIndices, [], minX, minZ, 1.0, 1.0, 1, 1);
             }
 
             double extentX = Math.Max(maxX - minX, 1e-6);
@@ -4616,7 +4616,7 @@ internal static partial class LocalCityGmlObjectProjection
 
             for (int triangleIndex = 0; triangleIndex < triangles.Count; triangleIndex++)
             {
-                HeightMapTriangle triangle = triangles[triangleIndex];
+                TerrainGridTriangle triangle = triangles[triangleIndex];
                 double triangleMinX = Math.Min(triangle.A.X, Math.Min(triangle.B.X, triangle.C.X));
                 double triangleMaxX = Math.Max(triangle.A.X, Math.Max(triangle.B.X, triangle.C.X));
                 double triangleMinZ = Math.Min(triangle.A.Z, Math.Min(triangle.B.Z, triangle.C.Z));
@@ -4636,7 +4636,7 @@ internal static partial class LocalCityGmlObjectProjection
                 }
             }
 
-            return new HeightMapSpatialIndex(
+            return new TerrainGridSpatialIndex(
                 allTriangleIndices,
                 triangleBuckets,
                 minX,

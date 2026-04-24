@@ -26,7 +26,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     private const long MaxInFlightCityObjectWorkingSetBytesPerLane = 256L * 1024L * 1024L;
     private const long MaxInFlightCityObjectWorkingSetBytesFloor = 512L * 1024L * 1024L;
     private const string DemPackageName = "dem";
-    private const string HeightMapAssetSlotSuffix = "_heightmap";
+    private const string TerrainGridAssetSlotSuffix = "_terrain-grid";
     private readonly Uri endpoint;
     private readonly int connectionCount;
     private readonly ITerrainTextureAssetGenerator terrainTextureAssetGenerator;
@@ -787,7 +787,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             ResoniteTriangleMeshGeometry triangleMesh => checked(
                 EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor),
-            ResoniteHeightMapGridGeometry heightMap => checked(
+            ResoniteTerrainGridGeometry heightMap => checked(
                 (heightMap.HeightSamples.Count * heightSampleWeightBytes)
                 + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)
                 * heightMapExpansionFactor),
@@ -979,8 +979,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             ResoniteTriangleMeshGeometry triangleMesh => Task.Run<PreparedConstructionGeometry>(
                 () => PrepareTriangleMeshGeometry(cityObject, triangleMesh.Mesh),
                 cancellationToken),
-            ResoniteHeightMapGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
-                () => new PreparedHeightMapGridGeometry(heightMap, PrepareHeightMapTexture(heightMap)),
+            ResoniteTerrainGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
+                () => new PreparedTerrainGridGeometry(heightMap, PrepareTerrainGridDisplacementTexture(heightMap)),
                 cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
@@ -1379,7 +1379,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
         _ = preparedTerrainTextureDataByOverlay;
-        return cityObject.Geometry is ResoniteHeightMapGridGeometry
+        return cityObject.Geometry is ResoniteTerrainGridGeometry
             && material.TerrainOverlay is not null
             ? material with
             {
@@ -1458,12 +1458,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     private static ResoniteFloat2 CreateResoniteFloat2(ScalarPair value) => new(value.X, value.Y);
 
-    private static ResoniteFloat2? ResolveHeightMapGridUvScale(
+    private static ResoniteFloat2? ResolveTerrainGridUvScale(
         ResoniteConstructionCityObject cityObject,
-        ResoniteHeightMapGridGeometry geometry,
+        ResoniteTerrainGridGeometry geometry,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
-        TextureUvRect? terrainTextureRect = ResolveHeightMapTerrainTextureRect(
+        TextureUvRect? terrainTextureRect = ResolveTerrainGridTerrainTextureRect(
             cityObject,
             geometry,
             preparedTerrainTextureDataByOverlay);
@@ -1472,12 +1472,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             : new ResoniteFloat2(terrainTextureRect.Value.ScaleValue.X, terrainTextureRect.Value.ScaleValue.Y);
     }
 
-    private static ResoniteFloat2? ResolveHeightMapGridUvOffset(
+    private static ResoniteFloat2? ResolveTerrainGridUvOffset(
         ResoniteConstructionCityObject cityObject,
-        ResoniteHeightMapGridGeometry geometry,
+        ResoniteTerrainGridGeometry geometry,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
-        TextureUvRect? terrainTextureRect = ResolveHeightMapTerrainTextureRect(
+        TextureUvRect? terrainTextureRect = ResolveTerrainGridTerrainTextureRect(
             cityObject,
             geometry,
             preparedTerrainTextureDataByOverlay);
@@ -1486,9 +1486,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             : new ResoniteFloat2(terrainTextureRect.Value.OffsetValue.X, terrainTextureRect.Value.OffsetValue.Y);
     }
 
-    private static TextureUvRect? ResolveHeightMapTerrainTextureRect(
+    private static TextureUvRect? ResolveTerrainGridTerrainTextureRect(
         ResoniteConstructionCityObject cityObject,
-        ResoniteHeightMapGridGeometry geometry,
+        ResoniteTerrainGridGeometry geometry,
         IReadOnlyDictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
         TextureUvRect objectRect = geometry.UvScale is not null || geometry.UvOffset is not null
@@ -1909,17 +1909,17 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     triangleMesh.MeshImport,
                     progressReporter,
                     cancellationToken)),
-            PreparedHeightMapGridGeometry heightMap => CreatePlannedGeometryAsset(
+            PreparedTerrainGridGeometry heightMap => CreatePlannedGeometryAsset(
                 cityObject,
-                await geometryAssetAssembler.PrepareHeightMapGridAsync(
+                await geometryAssetAssembler.PrepareTerrainGridAsync(
                     importClient,
                     CreateMeshAssetSlotName(cityObject),
-                    CreateHeightMapAssetSlotName(cityObject),
+                    CreateTerrainGridAssetSlotName(cityObject),
                     cityObject.DisplayName,
                     heightMap.Geometry,
                     heightMap.HeightTextureImport,
-                    ResolveHeightMapGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
-                    ResolveHeightMapGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResolveTerrainGridUvScale(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResolveTerrainGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
                     progressReporter,
                     cancellationToken)),
             _ => throw new InvalidOperationException(
@@ -1927,7 +1927,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         };
     }
 
-    private static ResoniteRawHdrTextureImport PrepareHeightMapTexture(ResoniteHeightMapGridGeometry geometry)
+    private static ResoniteRawHdrTextureImport PrepareTerrainGridDisplacementTexture(ResoniteTerrainGridGeometry geometry)
     {
         float[] rawPixels = new float[geometry.Width * geometry.Height * 4];
         double heightRange = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
@@ -1971,10 +1971,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 identity,
                 triangleMesh.MeshAssetSlotName,
                 triangleMesh.MeshUri),
-            PreparedHeightMapGridAssetBatch heightMap => new PlannedHeightMapGridGeometryAsset(
+            PreparedTerrainGridAssetBatch heightMap => new PlannedTerrainGridGeometryAsset(
                 identity,
                 heightMap.MeshAssetSlotName,
-                heightMap.HeightMapAssetSlotName,
+                heightMap.TerrainGridAssetSlotName,
                 heightMap.Geometry,
                 heightMap.HeightTextureUri,
                 heightMap.UvScale,
@@ -2001,8 +2001,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             PreparedTriangleMeshGeometry triangleMesh =>
                 $"triangle-mesh(vertices={triangleMesh.MeshImport.VertexCount}, submeshes={triangleMesh.MeshImport.Submeshes.Count})",
-            PreparedHeightMapGridGeometry heightMap =>
-                $"heightmap-grid({heightMap.Geometry.Width}x{heightMap.Geometry.Height})",
+            PreparedTerrainGridGeometry heightMap =>
+                $"terrain-grid({heightMap.Geometry.Width}x{heightMap.Geometry.Height})",
             _ => geometry.GetType().Name,
         };
     }
@@ -2028,9 +2028,9 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         return cityObject.DisplayName;
     }
 
-    private static string CreateHeightMapAssetSlotName(ResoniteConstructionCityObject cityObject)
+    private static string CreateTerrainGridAssetSlotName(ResoniteConstructionCityObject cityObject)
     {
-        return string.Concat(CreateMeshAssetSlotName(cityObject), HeightMapAssetSlotSuffix);
+        return string.Concat(CreateMeshAssetSlotName(cityObject), TerrainGridAssetSlotSuffix);
     }
 
     private static ResoniteSceneBootstrapInfo CreateSceneBootstrapInfo(SceneBuildRequest request)
@@ -2067,8 +2067,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ImportMeshRawData MeshImport)
         : PreparedConstructionGeometry;
 
-    internal sealed record PreparedHeightMapGridGeometry(
-        ResoniteHeightMapGridGeometry Geometry,
+    internal sealed record PreparedTerrainGridGeometry(
+        ResoniteTerrainGridGeometry Geometry,
         ResoniteRawHdrTextureImport HeightTextureImport)
         : PreparedConstructionGeometry;
 

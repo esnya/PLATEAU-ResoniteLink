@@ -29,14 +29,14 @@ internal static class SceneImportContractMapper
                 cityObject.Materials.Select(ToInternal).ToArray(),
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath),
-            HeightMapGridGeometry heightMap => new ResoniteConstructionCityObject(
+            TerrainGridGeometry heightMap => new ResoniteConstructionCityObject(
                 cityObject.ObjectKey,
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
                 cityObject.LodLevel,
                 ToInternal(cityObject.Transform),
-                new ResoniteHeightMapGridGeometry(
+                new ResoniteTerrainGridGeometry(
                     heightMap.Width,
                     heightMap.Height,
                     ToInternal(heightMap.Size),

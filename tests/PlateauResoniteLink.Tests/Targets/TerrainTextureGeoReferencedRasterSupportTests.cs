@@ -356,7 +356,7 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             tileOverlay.ZoomLevel);
 
         using TemporaryDirectory workDirectory = new();
-        string rasterPath = Path.Combine(workDirectory.Path, "default-third-mesh-dem.png");
+        string rasterPath = Path.Combine(workDirectory.Path, "default-third-static-dem.png");
         using (Image<Rgba32> rasterImage = new(layout.CropWidth, layout.CropHeight, new Rgba32(12, 34, 56, 255)))
         {
             await rasterImage.SaveAsPngAsync(rasterPath);

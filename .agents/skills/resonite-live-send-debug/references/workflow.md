@@ -100,7 +100,7 @@ For disposable headless validation, prefer this operator sequence:
 2. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot --runtime-root <headless-runtime> --output <repo>/runtime/windows/resonite/root-dumps/baseline.json`
 3. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
 4. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/post-removal-pre-send.json`
-5. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --terrain-mesh grid --resonitelink-port 19001 --resonitelink-connections 1`
 6. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/after-send.json`
 7. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- stop-headless --runtime-root <headless-runtime> --state-path <headless-runtime>/active-session.json`
 
@@ -111,30 +111,30 @@ Use the next two worksheets as the default full live verification set before rea
 ### Matsumoto Mixed-Mode Whole Test
 
 Use Matsumoto for the lightweight mixed-mode baseline.
-The canonical direction is `base=mesh`, `append=heightmap`.
+The canonical direction is `base=static`, `append=grid`.
 The inverse direction is valid when explicitly needed, but it is not the default worksheet.
 
 1. If and only if the world already contains `PLATEAU plateau-20202-matsumoto-shi-2020` and this run must start from a clean Matsumoto base:
    `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
 2. If step 1 ran:
    `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-post-removal-pre-send.json`
-3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode mesh --resonitelink-port 19001 --resonitelink-connections 1`
-4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372788 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
-5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-heightmap-after-send.json`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372778 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --terrain-mesh static --resonitelink-port 19001 --resonitelink-connections 1`
+4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-20202-matsumoto-shi-2020 --mesh-code 54372788 --citygml-source <archive> --work-root <repo>/runtime/windows/resonite --terrain-mesh grid --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/matsumoto-append-grid-after-send.json`
 
 ### Higashimurayama Mixed-Mode Whole Test
 
 Use Higashimurayama for the standard GeoTIFF-backed mixed-mode whole test.
-The canonical direction is `base=heightmap`, `append=mesh`.
+The canonical direction is `base=grid`, `append=static`.
 The inverse direction is valid when explicitly needed, but it is not the default worksheet.
 
 1. If and only if the world already contains `PLATEAU plateau-13213-higashimurayama-shi-2020` and this run must start from a clean Higashimurayama base:
    `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:19001/ --root-child-name "PLATEAU plateau-13213-higashimurayama-shi-2020"`
 2. If step 1 ran:
    `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-post-removal-pre-send.json`
-3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395325 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --dem-terrain-mode heightmap --resonitelink-port 19001 --resonitelink-connections 1`
-4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395326 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --dem-terrain-mode mesh --resonitelink-port 19001 --resonitelink-connections 1`
-5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-append-mesh-after-send.json`
+3. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395325 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --terrain-mesh grid --resonitelink-port 19001 --resonitelink-connections 1`
+4. `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset plateau-13213-higashimurayama-shi-2020 --mesh-code 53395326 --packages dem,bldg --citygml-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-archive-5039b16c4b1c.zip --geotiff-source <repo>/runtime/windows/resonite/plateau-13213-higashimurayama-shi-2020/source-ortho-cc68652cc45c.7z --work-root <repo>/runtime/windows/resonite --terrain-mesh static --resonitelink-port 19001 --resonitelink-connections 1`
+5. `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- dump-slot ws://localhost:19001/ --slot-id Root --output <repo>/runtime/windows/resonite/root-dumps/higashimurayama-append-static-after-send.json`
 
 ## Cleanup Escalation
 
@@ -263,7 +263,7 @@ Direct `dotnet` execution rebuilds the session tool script or CLI on demand. Fre
   Remove one explicitly addressed slot.
 - `dotnet .agents/skills/resonite-live-send-debug/tools/session-tool.cs -- remove-slot ws://localhost:<port>/ --root-child-name "PLATEAU plateau-20202-matsumoto-shi-2020"`
   Resolve one exact direct child under `Root`, then remove that slot. This is convenience for operator workflow, not a semantic cleanup API.
-- `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset <dataset> --mesh-code <mesh> --citygml-source <archive-or-udx> --work-root <repo>/runtime/windows/resonite --dem-terrain-mode <heightmap|mesh> --resonitelink-port <port> --resonitelink-connections <n>`
+- `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- import --dataset <dataset> --mesh-code <mesh> --citygml-source <archive-or-udx> --work-root <repo>/runtime/windows/resonite --terrain-mesh <static|grid> --resonitelink-port <port> --resonitelink-connections <n>`
   Launch one direct live send with explicit logs under `runtime/windows/resonite`.
 
 ## Visual Review Procedure

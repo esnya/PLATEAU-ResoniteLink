@@ -419,14 +419,14 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath),
-            ResoniteHeightMapGridGeometry heightMap => new ImportedCityObject(
+            ResoniteTerrainGridGeometry heightMap => new ImportedCityObject(
                 cityObject.SlotKey,
                 cityObject.DisplayName,
                 cityObject.PackageName,
                 cityObject.ActualMeshCode,
                 cityObject.LodLevel,
                 ToContractTransform(cityObject.Transform),
-                new HeightMapGridGeometry(
+                new TerrainGridGeometry(
                     heightMap.Width,
                     heightMap.Height,
                     ToContractFloat2(heightMap.Size),

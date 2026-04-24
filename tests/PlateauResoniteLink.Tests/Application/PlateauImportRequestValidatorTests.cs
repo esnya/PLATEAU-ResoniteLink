@@ -142,33 +142,33 @@ public sealed class PlateauImportRequestValidatorTests
     [Theory]
     [InlineData(0)]
     [InlineData(-0.01)]
-    public void ValidateRejectsNonPositiveDemHeightmapMetersPerVertex(double metersPerVertex)
+    public void ValidateRejectsNonPositiveTerrainGridMetersPerVertex(double metersPerVertex)
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             Source: DatasetLocation.Local("C:/dataset"),
-            DemHeightmapMetersPerVertex: metersPerVertex);
+            TerrainGridMetersPerVertex: metersPerVertex);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
-        Assert.Contains("The DEM heightmap meters-per-vertex value must be greater than zero.", errors);
+        Assert.Contains("The terrain grid meters-per-vertex value must be greater than zero.", errors);
     }
 
     [Theory]
     [InlineData(1)]
     [InlineData(0)]
     [InlineData(-4)]
-    public void ValidateRejectsDemHeightmapMaxResolutionBelowTwo(int maxResolution)
+    public void ValidateRejectsTerrainGridMaxResolutionBelowTwo(int maxResolution)
     {
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
             Source: DatasetLocation.Local("C:/dataset"),
-            DemHeightmapMaxResolution: maxResolution);
+            TerrainGridMaxResolution: maxResolution);
 
         IReadOnlyList<string> errors = PlateauImportRequestValidator.Validate(request);
 
-        Assert.Contains("The DEM heightmap max resolution value must be at least 2.", errors);
+        Assert.Contains("The terrain grid max resolution value must be at least 2.", errors);
     }
 }
