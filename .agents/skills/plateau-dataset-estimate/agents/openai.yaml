@@ -1,0 +1,4 @@
+interface:
+  display_name: "PLATEAU Dataset Estimate"
+  short_description: "Estimate PLATEAU dataset quality, import cost, and rendering risk"
+  default_prompt: "Use $plateau-dataset-estimate to estimate PLATEAU dataset quality, import cost, rendering risk, texture VRAM, geometry VRAM, DEM surface imagery, terrain mesh mode tradeoffs, and Grid resolution choices from official metadata and bounded archive sampling."
