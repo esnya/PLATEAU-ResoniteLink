@@ -6,14 +6,9 @@ namespace PlateauResoniteLink.Tests.Domain;
 public sealed class FacadeMaterialUvScalingTests
 {
     [Fact]
-    public void ResolveFloorCount_IgnoresPlateauUnknownFloorCountSentinel()
+    public void IsUsableFloorCount_RejectsPlateauUnknownFloorCountSentinel()
     {
-        int floorCount = FacadeFloorMetrics.ResolveFloorCount(
-            floorsAboveGround: FacadeFloorMetrics.UnknownFloorCountSentinel,
-            measuredHeightMeters: null,
-            geometryHeightMeters: 3.2);
-
-        Assert.Equal(1, floorCount);
+        Assert.False(FacadeFloorMetrics.IsUsableFloorCount(FacadeFloorMetrics.UnknownFloorCountSentinel));
     }
 
     [Theory]

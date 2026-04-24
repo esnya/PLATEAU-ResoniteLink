@@ -1260,8 +1260,6 @@ internal static partial class LocalCityGmlObjectProjection
             FacadeUvProjectionContext? facadeUvProjectionContext = TryCreateFacadeUvProjectionContext(
                 cityObject.PackageName,
                 cityObject.Surfaces.Select(static surface => surface.ToLegacy()),
-                cityObject.FloorsAboveGround,
-                cityObject.MeasuredHeightMeters,
                 cityObjectOrigin.ToLegacy(),
                 cityObjectCartesian);
 
@@ -2125,7 +2123,9 @@ internal static partial class LocalCityGmlObjectProjection
             ? 1.0 / Math.Max(facadeUvProjectionContext?.FloorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters, 1e-6)
             : 1.0;
         double vOffset = PlateauPackageCatalog.IsBuildingPackage(packageName)
-            ? -((facadeUvProjectionContext?.MinimumY ?? positions.Min(static position => position.Y)) * uvScale)
+            ? facadeUvProjectionContext is { } context
+                ? -(context.MinimumY * uvScale)
+                : -(positions.Min(static position => position.Y) * uvScale)
             : 0.0;
         return new SurfaceUvProjection(
             Scale(surfaceAxes.AxisU, uvScale),
@@ -2770,8 +2770,6 @@ internal static partial class LocalCityGmlObjectProjection
     private static FacadeUvProjectionContext? TryCreateFacadeUvProjectionContext(
         string packageName,
         IEnumerable<ParsedSurface> surfaces,
-        int? floorsAboveGround,
-        double? measuredHeightMeters,
         GeodeticPoint cityObjectOrigin,
         LocalCartesian? cityObjectCartesian)
     {
@@ -2792,17 +2790,16 @@ internal static partial class LocalCityGmlObjectProjection
         double minimumY = surfaceInfos.Min(static info => info.MinimumY!.Value);
         double maximumY = surfaceInfos.Max(static info => info.MaximumY!.Value);
         double geometryHeightMeters = Math.Max(maximumY - minimumY, 0.0);
-        int floorCount = FacadeFloorMetrics.ResolveFloorCount(
-            floorsAboveGround,
-            measuredHeightMeters,
-            geometryHeightMeters);
-        double floorHeightMeters = FacadeFloorMetrics.EstimateFloorHeightMeters(
-            floorsAboveGround,
-            measuredHeightMeters,
-            geometryHeightMeters);
+        int floorCount = Math.Max(
+            1,
+            (int)Math.Ceiling(Math.Max(geometryHeightMeters, FacadeFloorMetrics.DefaultFloorUnitMeters) / FacadeFloorMetrics.DefaultFloorUnitMeters));
+        double floorHeightMeters = Math.Max(
+            geometryHeightMeters / floorCount,
+            1e-6);
 
         return new FacadeUvProjectionContext(
             minimumY,
+            maximumY,
             floorHeightMeters,
             floorCount);
     }
@@ -4726,6 +4723,7 @@ internal static partial class LocalCityGmlObjectProjection
 
     private readonly record struct FacadeUvProjectionContext(
         double MinimumY,
+        double MaximumY,
         double FloorHeightMeters,
         int FloorCount);
 

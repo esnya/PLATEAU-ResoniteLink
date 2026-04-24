@@ -165,6 +165,39 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncNormalizesRepeatedSourceUvIntoAtlasSpace()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
+            "building-offset-repeat",
+            CreateStripedPayload("textures/offset-repeat.png", [new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255)]),
+            "unit-a",
+            new ResoniteFloat2(2.0, 1.0),
+            new ResoniteFloat2(0.5, 0.0)));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(material.TexturePayload);
+
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(4, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 1, 0));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 2, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 3, 0));
+        Assert.All(
+            cityObject.Mesh.Vertices,
+            static vertex =>
+            {
+                Assert.InRange(vertex.UV0.X, 0.0, 1.0);
+                Assert.InRange(vertex.UV0.Y, 0.0, 1.0);
+            });
+    }
+
+    [Fact]
     public async Task FlushAllAsyncPreservesDetectedBackgroundColorInTransparentTilePixels()
     {
         NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 0);
@@ -208,6 +241,25 @@ public sealed class NonDemCityObjectBakerTests
             static material => string.Equals(material.Family, BundledDefaultMaterialFamilies.Facade, StringComparison.Ordinal)
                 && material.AssetScope == ResoniteMaterialAssetScope.PresentationSlotScoped);
         Assert.Contains(cityObject.Materials, static material => material.TexturePayload is not null);
+    }
+
+    [Fact]
+    public async Task FlushAllAsyncKeepsBundledFacadeCommonTransformOnMaterial()
+    {
+        NonDemCityObjectBaker baker = CreateBaker(maxAtlasSize: 32, tilePaddingPixels: 1);
+
+        await AssertBufferedAsync(baker, CreateFacadeCommonLod2Building("facade-common", "unit-a"));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, material.AssetScope);
+        Assert.Equal(new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0), material.TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.5 / 6.0), material.TextureOffset);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.0), cityObject.Mesh.Vertices[0].UV0);
+        Assert.Equal(new ResoniteFloat2(1.0, 0.0), cityObject.Mesh.Vertices[1].UV0);
+        Assert.Equal(new ResoniteFloat2(0.0, 1.0), cityObject.Mesh.Vertices[2].UV0);
     }
 
     [Fact]
@@ -997,6 +1049,48 @@ public sealed class NonDemCityObjectBakerTests
                     TextureOffset: textureOffset),
             ],
         };
+    }
+
+    private static ResoniteConstructionCityObject CreateFacadeCommonLod2Building(
+        string slotKey,
+        string sourceUnitKey)
+    {
+        return new ResoniteConstructionCityObject(
+            SlotKey: slotKey,
+            DisplayName: slotKey,
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new ResoniteTransform(new ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new ResoniteImportedMesh(
+                [
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(1.0, 0.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(1.0, 0.0)),
+                    new ResoniteMeshVertex(new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat3(0.0, 1.0, 0.0), new ResoniteFloat2(0.0, 1.0)),
+                ],
+                [
+                    new ResoniteMeshSubmesh(0, $"{slotKey}-material", [0, 1, 2]),
+                ]),
+            Materials:
+            [
+                new ResoniteMaterialBinding(
+                    MaterialKey: $"{slotKey}-material",
+                    BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+                    MaterialType: ResoniteMaterialType.Standard,
+                    TexturePayload: null,
+                    TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+                    Projection: ResoniteMaterialProjection.Uv,
+                    DepthOffset: null,
+                    SubmeshIndices: [0],
+                    TextureScale: new ResoniteFloat2(
+                        BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
+                        BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+                    TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
+                    Family: BundledDefaultMaterialFamilies.Facade,
+                    AssetScope: ResoniteMaterialAssetScope.Common,
+                    BundledVariantIndex: 0),
+            ],
+            SourceFileRelativePath: $"{sourceUnitKey}.gml");
     }
 
     private static ResoniteConstructionCityObject CreateAlbedoFamilyLod2Building(
