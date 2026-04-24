@@ -8,7 +8,7 @@ internal interface IImportedSceneSourceComposer
 {
     IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlBootstrapSnapshot readResult,
-        Action<string>? progressReporter = null,
-        IImportedCityObjectOptimizer? cityObjectOptimizer = null);
+        ImportedSceneSourceSnapshot readResult,
+        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        Action<string>? progressReporter = null);
 }

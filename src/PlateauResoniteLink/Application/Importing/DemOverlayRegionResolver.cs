@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class LocalCityGmlDemOverlayRegionResolver
+internal static class DemOverlayRegionResolver
 {
     internal static async Task<IReadOnlyList<DemTerrainOverlayRegion>> ResolveAsync(
-        LocalCityGmlBootstrapContext bootstrapContext,
+        ImportedSceneSourceContext bootstrapContext,
         IReadOnlyList<string> requestedDemMeshCodes,
         CancellationToken cancellationToken)
     {
@@ -24,16 +24,16 @@ internal static class LocalCityGmlDemOverlayRegionResolver
             .ToArray();
         if (demPipelines.Length == 0)
         {
-            return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes);
+            return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes);
         }
 
         ParsedSourceFileResult[] parsedDemSourceFiles = await Task.WhenAll(
             demPipelines.Select(pipeline => pipeline.GetParseTask().WaitAsync(cancellationToken)));
-        DemTerrainBounds? demBounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+        DemTerrainBounds? demBounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
             parsedDemSourceFiles,
             fallbackBounds: null);
         return demBounds is null
-            ? LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
-            : LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(demBounds, requestedDemMeshCodes);
+            ? DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(requestedDemMeshCodes)
+            : DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(demBounds, requestedDemMeshCodes);
     }
 }

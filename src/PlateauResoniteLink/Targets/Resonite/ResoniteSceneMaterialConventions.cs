@@ -282,19 +282,10 @@ internal static class ResoniteSceneMaterialConventions
         ResoniteFloat2? textureScale,
         ResoniteFloat2? textureOffset)
     {
-        string scaleToken = textureScale is null
-            ? "none"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
-        string offsetToken = IsZeroTextureOffset(textureOffset)
-            ? "none"
-            : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{textureOffset!.X:0.######}x{textureOffset.Y:0.######}");
+        ResoniteFloat2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"common|{family}|variant:{bundledVariantIndex}|{projection}|scale:{scaleToken}|offset:{offsetToken}");
+            $"common-{family}-{bundledVariantIndex}-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
     }
 
     public static string CreateCanonicalGenericSharedMaterialKey(
@@ -459,19 +450,45 @@ internal static class ResoniteSceneMaterialConventions
     {
         ArgumentNullException.ThrowIfNull(terrainTextureOverlay);
 
-        string source = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{terrainTextureOverlay.PackageName}|{terrainTextureOverlay.GeographicBounds.MinLatitude:0.######}|{terrainTextureOverlay.GeographicBounds.MinLongitude:0.######}");
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(source));
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"terrain-overlay-{Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant()}");
+            $"terrain-overlay-{terrainTextureOverlay.PackageName.ToLowerInvariant()}-{terrainTextureOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainTextureOverlay.GeographicBounds)}");
     }
 
     private static string ComputeShortStableHash(string text)
     {
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
         return Convert.ToHexString(hash.AsSpan(0, 4)).ToLowerInvariant();
+    }
+
+    private static string ProjectionToken(ResoniteMaterialProjection projection)
+    {
+        return projection switch
+        {
+            ResoniteMaterialProjection.Uv => "uv",
+            ResoniteMaterialProjection.Triplanar => "triplanar",
+            _ => projection.ToString().ToLowerInvariant(),
+        };
+    }
+
+    private static string FormatFloat2(ResoniteFloat2? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
+    }
+
+    private static string FormatBounds(GeographicRectangle bounds) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
     }
 
     private static bool IsWhiteBaseColor(ResoniteColor color)

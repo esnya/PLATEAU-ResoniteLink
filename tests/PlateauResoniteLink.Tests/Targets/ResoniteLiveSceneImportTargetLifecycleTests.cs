@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 using PlateauResoniteLink.Targets.Resonite;
 using PlateauResoniteLink.Targets.Resonite.Execution;
 using PlateauResoniteLink.Transport.ResoniteLink;
@@ -67,13 +68,13 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 metadata,
                 firstWorkDirectory.Path,
                 normalizedRequest: normalizedRequest),
-            EmptyImportedCityObjects());
+            EmptyImportedObjectUnits());
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(
                 metadata,
                 secondWorkDirectory.Path,
                 normalizedRequest: normalizedRequest),
-            EmptyImportedCityObjects());
+            EmptyImportedObjectUnits());
 
         Assert.Equal(2, session.EnsureConnectedCallCount);
         Assert.Equal(
@@ -123,7 +124,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => builder.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-                EmptyImportedCityObjects()));
+                EmptyImportedObjectUnits()));
         Assert.Equal(1, session.EnsureConnectedCallCount);
     }
 
@@ -173,14 +174,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         Task<SceneImportExecutionResult> firstRun = builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
-            EmptyImportedCityObjects());
+            EmptyImportedObjectUnits());
 
         await enteredEnsureConnected.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => builder.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
-                EmptyImportedCityObjects()));
+                EmptyImportedObjectUnits()));
 
         Assert.Equal("A live scene import run is already active on this live scene import target instance.", exception.Message);
         Assert.Equal(1, session.EnsureConnectedCallCount);
@@ -205,11 +206,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateCityObject("first-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
@@ -271,12 +272,14 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => builder.ExecuteAsync(
                 plan,
-                CreateImportedCityObjects(CreateBundledFacadeCityObject("bootstrap-common-missing"))));
+                CreateImportedObjectUnits(CreateBundledFacadeCityObject("bootstrap-common-missing"))));
 
         Assert.Contains(
             "Bootstrap did not resolve shared/common material",
             exception.Message,
             StringComparison.Ordinal);
+        Assert.Contains("family=Facade", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("projection=Uv", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -323,7 +326,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         _ = await builder.ExecuteAsync(
             plan,
-            CreateImportedCityObjects(CreateVertexColorTriangleCityObject("runtime-common-material")));
+            CreateImportedObjectUnits(CreateVertexColorTriangleCityObject("runtime-common-material")));
 
         Assert.Contains(
             routedClient.SlotPaths.Values,
@@ -354,8 +357,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/bootstrap-generic"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 overlay.PrimarySource));
@@ -389,7 +391,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                 metadata,
                 workDirectory.Path,
                 commonMaterials: [bootstrapTerrainOverlayMaterial]),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateDemCityObject("dem-bootstrap-generic", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Assert.Equal(1, executionResult.ProcessedCityObjectCount);
@@ -440,7 +442,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         await Assert.ThrowsAsync<HttpRequestException>(
             () => builder.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-                CreateImportedCityObjects(
+                CreateImportedObjectUnits(
                     CreateDemCityObject("dem-overlay-failure", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay))));
     }
 
@@ -460,11 +462,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateCityObject("first-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateCityObject("second-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
@@ -501,8 +503,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/gsi-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 new TerrainTextureTileSource(
@@ -523,7 +524,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateDemCityObject("dem-run", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
@@ -580,8 +581,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/mixed-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 gsiFallbackSource,
@@ -601,7 +601,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         SceneImportExecutionResult executionResult = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateDemCityObject("dem-mixed", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         ImportDataSourceUsage[] usages = executionResult.DataSourceUsages?
@@ -656,8 +656,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/ortho-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 new TerrainTextureTileSource(
@@ -678,7 +677,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateDemCityObject("dem-primary", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
@@ -723,8 +722,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     2,
                     2,
                     ResoniteTextureColorProfiles.Srgb,
-                    new byte[16],
-                    "terrain-overlay/dem/raster-used"),
+                    new byte[16]),
                 new ResoniteFloat2(1.0, 1.0),
                 new ResoniteFloat2(0.0, 0.0),
                 rasterSource));
@@ -743,7 +741,7 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateDemCityObject("dem-raster", "udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml", overlay)));
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
@@ -773,26 +771,29 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             LocalSourcePath: TestData.GetFixturePath("LocalPlateauDatasetParentMeshPackages"),
             PackageNames: ["dem"],
             ServerUri: null);
-        LocalCityGmlBootstrapSnapshot readResult = await new LocalCityGmlDocumentReader(
+        ImportedSceneSourceSnapshot readResult = await new LocalCityGmlDocumentReader(
             new DefaultPlateauDatasetContentSourceFactory(new RemoteArchiveDistributionPolicy(), new ArchiveFileLayoutPolicy()),
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector())
             .ReadAsync(
             request,
             cancellationToken: default);
-        ImportedSceneMetadata metadata = new LocalCityGmlConstructionComposer(
+        ImportedSceneMetadata metadata = new DefaultImportedSceneSourceComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlDemTextureSourcePolicy(
+                new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))))
-            .Compose(request, readResult)
+            .Compose(
+                request,
+                readResult,
+                new PassthroughImportedObjectUnitOptimizer())
             .Metadata;
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, workDirectory.Path),
-            EmptyImportedCityObjects());
+            EmptyImportedObjectUnits());
 
         Slot datasetRoot = ResoniteLiveSceneImportTargetTestSupport.FindUniqueSlotByNameOutsideAssets(client: routedClient, name: "PLATEAU tokyo23ku");
         Component[] licenses = datasetRoot.Components!
@@ -820,11 +821,11 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => builder.ExecuteAsync(
                 ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, firstWorkDirectory.Path),
-                ThrowingImportedCityObjects()));
+                ThrowingImportedObjectUnits()));
 
         _ = await builder.ExecuteAsync(
             ResoniteLiveSceneImportTargetTestSupport.CreateExecutionPlan(metadata, secondWorkDirectory.Path),
-            CreateImportedCityObjects(
+            CreateImportedObjectUnits(
                 CreateCityObject("retry-run", "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml")));
 
         Assert.Equal(2, session.EnsureConnectedCallCount);
@@ -872,21 +873,29 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
             sourceFiles: sourceFiles ?? []);
     }
 
-    private static async IAsyncEnumerable<ImportedCityObject> EmptyImportedCityObjects()
+    private static async IAsyncEnumerable<ImportedObjectUnit> EmptyImportedObjectUnits()
     {
         yield break;
     }
 
-    private static async IAsyncEnumerable<ImportedCityObject> CreateImportedCityObjects(
+    private static async IAsyncEnumerable<ImportedObjectUnit> CreateImportedObjectUnits(
         params ResoniteConstructionCityObject[] cityObjects)
     {
         foreach (ResoniteConstructionCityObject cityObject in cityObjects)
         {
-            yield return ResoniteLiveSceneImportTargetTestSupport.ToImportedCityObject(cityObject);
+            ImportedCityObject importedCityObject = ImportedDynamicMaterialUvNormalizer.Normalize(
+                ResoniteLiveSceneImportTargetTestSupport.ToImportedCityObject(cityObject));
+            string sourceFileRelativePath = importedCityObject.SourceFileRelativePath ?? importedCityObject.ObjectKey;
+            yield return new ImportedObjectUnit(
+                sourceFileRelativePath,
+                importedCityObject.PackageName,
+                importedCityObject.LodLevel,
+                [importedCityObject],
+                importedCityObject.ActualMeshCode);
         }
     }
 
-    private static async IAsyncEnumerable<ImportedCityObject> ThrowingImportedCityObjects()
+    private static async IAsyncEnumerable<ImportedObjectUnit> ThrowingImportedObjectUnits()
     {
         await Task.Yield();
         throw new InvalidOperationException("city object stream failed");
@@ -923,8 +932,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     [0]),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectKey,
-            SourceUnitKey: objectKey,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -954,8 +961,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     TerrainOverlay: overlay),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectKey,
-            SourceUnitKey: objectKey,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -992,8 +997,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     BundledVariantIndex: variantIndex),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectKey,
-            SourceUnitKey: objectKey,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 
@@ -1021,8 +1024,6 @@ public sealed class ResoniteLiveSceneImportTargetLifecycleTests
                     AssetScope: ResoniteMaterialAssetScope.PresentationSlotScoped),
             ],
             CollisionEnabled: true,
-            SourceObjectKey: objectIdentity,
-            SourceUnitKey: objectIdentity,
             SourceFileRelativePath: "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml");
     }
 

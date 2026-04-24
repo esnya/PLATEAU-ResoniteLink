@@ -23,7 +23,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector());
 
-        LocalCityGmlBootstrapSnapshot readResult = await reader.ReadAsync(
+        ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -31,7 +31,7 @@ public sealed class LocalCityGmlDocumentReaderTests
                 LocalSourcePath: fixturePath,
                 PackageNames: ["bldg"],
                 ServerUri: null));
-        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
+        ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
         Assert.Equal(fixturePath, documentSet.DatasetSource.SourcePath);
         Assert.Equal(
@@ -53,7 +53,7 @@ public sealed class LocalCityGmlDocumentReaderTests
             new CityGmlAppearanceStoreFactory(),
             new CityGmlLodSelector());
 
-        LocalCityGmlBootstrapSnapshot readResult = await reader.ReadAsync(
+        ImportedSceneSourceSnapshot readResult = await reader.ReadAsync(
             new PlateauImportRequest(
                 Dataset: "tokyo23ku",
                 MeshCode: "53394525",
@@ -61,7 +61,7 @@ public sealed class LocalCityGmlDocumentReaderTests
                 LocalSourcePath: datasetSource.SourcePath,
                 PackageNames: ["dem"],
                 ServerUri: null));
-        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
+        ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
 
         Assert.Equal(["udx/dem/53394525/plateau_tokyo23ku_dem_53394525.gml"], documentSet.RelativeSourceFiles);
         Assert.Equal(["dem"], documentSet.PackageNames);
@@ -120,4 +120,3 @@ public sealed class LocalCityGmlDocumentReaderTests
         }
     }
 }
-

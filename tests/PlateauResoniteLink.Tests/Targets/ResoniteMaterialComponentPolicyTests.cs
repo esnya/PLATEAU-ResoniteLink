@@ -94,6 +94,8 @@ public sealed class ResoniteMaterialComponentPolicyTests
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => ResoniteMaterialComponentPolicy.CreateMembers(material));
         Assert.Contains("Bake city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
+        Assert.Contains("projection=Uv", error.Message, StringComparison.Ordinal);
+        Assert.Contains("texture=texture-payload", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -190,6 +192,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(
             () => ResoniteMaterialComponentPolicy.CreateMembers(material));
         Assert.Contains("Bake city-object UV transforms into mesh UVs before emission.", error.Message, StringComparison.Ordinal);
+        Assert.Contains("texture=terrain-overlay", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

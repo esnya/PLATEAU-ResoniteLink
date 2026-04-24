@@ -29,8 +29,10 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchComponentEmission> componentEmissions = [];
         List<BatchPlanSlotLocator> slotResolutionTargets = [];
         List<BatchPlanComponentLocator> componentResolutionTargets = [];
+        int nextSlotLocator = 0;
+        int nextComponentLocator = 0;
 
-        BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator("mesh-asset-slot");
+        BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
         slotEmissions.Add(new PlannedBatchSlotEmission(
             meshAssetSlotId,
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
@@ -39,7 +41,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             null));
         slotResolutionTargets.Add(meshAssetSlotId);
 
-        BatchPlanComponentLocator geometryComponentId = CreateBatchPlanComponentLocator("geometry-component");
+        BatchPlanComponentLocator geometryComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         switch (emissionPlan.GeometryAsset)
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
@@ -56,8 +58,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     }));
                 break;
             case PlannedHeightMapGridGeometryAsset heightMap:
-                BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator("heightmap-asset-slot");
-                BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator("height-texture-component");
+                BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
+                BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
                 slotEmissions.Add(new PlannedBatchSlotEmission(
                     heightMapAssetSlotId,
                     PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
@@ -145,7 +147,9 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                         slotEmissions,
                         componentEmissions,
                         PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
-                        dedicatedMaterial);
+                        dedicatedMaterial,
+                        ref nextSlotLocator,
+                        ref nextComponentLocator);
                     emittedMaterialTargets[dedicatedMaterial.Identity] = emittedMaterialTarget;
                     break;
                 default:
@@ -154,7 +158,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             }
         }
 
-        BatchPlanSlotLocator presentationSlotId = CreateBatchPlanSlotLocator("presentation-slot");
+        BatchPlanSlotLocator presentationSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
         slotEmissions.Add(new PlannedBatchSlotEmission(
             presentationSlotId,
             PlannedSlotTargetReference.CanonicalSlot(objectSlots.LodSlot.Locator),
@@ -164,7 +168,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         slotResolutionTargets.Add(presentationSlotId);
 
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanComponentLocator("mesh-renderer-component"),
+            CreateBatchPlanComponentLocator(ref nextComponentLocator),
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshRenderer",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
@@ -175,10 +179,11 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     componentEmissions,
                     meshAssetSlotId,
                     presentationSlotId,
-                    emissionPlan.Renderer.MaterialBindings),
+                    emissionPlan.Renderer.MaterialBindings,
+                    ref nextComponentLocator),
             }));
         componentEmissions.Add(new PlannedBatchComponentEmission(
-            CreateBatchPlanComponentLocator("mesh-collider-component"),
+            CreateBatchPlanComponentLocator(ref nextComponentLocator),
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshCollider",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
@@ -205,13 +210,15 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchSlotEmission> slotEmissions,
         List<PlannedBatchComponentEmission> componentEmissions,
         PlannedSlotTargetReference meshAssetSlotTarget,
-        PlannedDedicatedMaterialAsset plannedMaterial)
+        PlannedDedicatedMaterialAsset plannedMaterial,
+        ref int nextSlotLocator,
+        ref int nextComponentLocator)
     {
         ResoniteMaterialBinding material = plannedMaterial.Material;
         PlannedSlotTargetReference materialContainerTarget = meshAssetSlotTarget;
         if (plannedMaterial.PreserveDedicatedMaterialSlot)
         {
-            BatchPlanSlotLocator materialSlotId = CreateBatchPlanSlotLocator($"material-slot:{plannedMaterial.Identity.Value}");
+            BatchPlanSlotLocator materialSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
             string materialSlotName = ResoniteSceneMaterialConventions.CreateMaterialSlotName(material, useCommonMaterialAssets: false);
             slotEmissions.Add(new PlannedBatchSlotEmission(
                 materialSlotId,
@@ -228,7 +235,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         Uri? albedoTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "albedo");
         if (albedoTextureUri is not null)
         {
-            BatchPlanComponentLocator albedoTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:albedo");
+            BatchPlanComponentLocator albedoTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 albedoTextureId,
                 materialContainerTarget,
@@ -243,7 +250,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         Uri? normalTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "normal");
         if (normalTextureUri is not null)
         {
-            BatchPlanComponentLocator normalTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:normal");
+            BatchPlanComponentLocator normalTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 normalTextureId,
                 materialContainerTarget,
@@ -262,7 +269,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         Uri? heightTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "height");
         if (heightTextureUri is not null)
         {
-            BatchPlanComponentLocator heightTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:height");
+            BatchPlanComponentLocator heightTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 heightTextureId,
                 materialContainerTarget,
@@ -281,7 +288,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         Uri? metallicTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "metallic");
         if (metallicTextureUri is not null)
         {
-            BatchPlanComponentLocator metallicTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:metallic");
+            BatchPlanComponentLocator metallicTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 metallicTextureId,
                 materialContainerTarget,
@@ -297,7 +304,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         Uri? emissionTextureUri = ResoniteMaterialPlanning.TryGetPlannedTextureUri(plannedMaterial.Textures, "emission");
         if (emissionTextureUri is not null)
         {
-            BatchPlanComponentLocator emissionTextureId = CreateBatchPlanComponentLocator($"material-texture:{plannedMaterial.Identity.Value}:emission");
+            BatchPlanComponentLocator emissionTextureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
             componentEmissions.Add(new PlannedBatchComponentEmission(
                 emissionTextureId,
                 materialContainerTarget,
@@ -311,7 +318,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 ResoniteMaterialComponentPolicy.CreateColorMember(new ResoniteColor(1.0, 1.0, 1.0, 1.0)));
         }
 
-        BatchPlanComponentLocator materialComponentId = CreateBatchPlanComponentLocator($"material-component:{plannedMaterial.Identity.Value}");
+        BatchPlanComponentLocator materialComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
             materialComponentId,
             materialContainerTarget,
@@ -334,7 +341,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchComponentEmission> componentEmissions,
         BatchPlanSlotLocator assetSlotId,
         BatchPlanSlotLocator presentationSlotId,
-        IReadOnlyList<PlannedRendererMaterialBinding> materialBindings)
+        IReadOnlyList<PlannedRendererMaterialBinding> materialBindings,
+        ref int nextComponentLocator)
     {
         List<PlannedMember> propertyBlocks = [];
 
@@ -349,7 +357,8 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                         componentEmissions,
                         assetSlotId,
                         presentationSlotId,
-                        mainTextureOverrideBinding));
+                        mainTextureOverrideBinding,
+                        ref nextComponentLocator));
                 continue;
             }
 
@@ -365,10 +374,10 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<PlannedBatchComponentEmission> componentEmissions,
         BatchPlanSlotLocator assetSlotId,
         BatchPlanSlotLocator presentationSlotId,
-        PlannedMainTextureOverrideRendererMaterialBinding binding)
+        PlannedMainTextureOverrideRendererMaterialBinding binding,
+        ref int nextComponentLocator)
     {
-        string overrideIdentity = $"{binding.MaterialIdentity.Value}:{binding.MainTexture.Identity.Value}";
-        BatchPlanComponentLocator textureId = CreateBatchPlanComponentLocator($"renderer-texture:{overrideIdentity}");
+        BatchPlanComponentLocator textureId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         ResoniteSceneMaterialConventions.TextureMemberRole textureRole = binding.ClampWrapMode
             ? ResoniteSceneMaterialConventions.TextureMemberRole.TerrainMainTextureOverride
             : ResoniteSceneMaterialConventions.TextureMemberRole.Albedo;
@@ -381,7 +390,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 textureRole)
                 .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
 
-        BatchPlanComponentLocator propertyBlockId = CreateBatchPlanComponentLocator($"renderer-main-texture-property-block:{overrideIdentity}");
+        BatchPlanComponentLocator propertyBlockId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
             propertyBlockId,
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
@@ -394,15 +403,13 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         return PlannedMembers.Reference(PlannedWorldElementReference.Planned(propertyBlockId));
     }
 
-    private static BatchPlanSlotLocator CreateBatchPlanSlotLocator(string suffix)
+    private static BatchPlanSlotLocator CreateBatchPlanSlotLocator(ref int nextSlotLocator)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
-        return new BatchPlanSlotLocator($"plan:{suffix}");
+        return new BatchPlanSlotLocator(++nextSlotLocator);
     }
 
-    private static BatchPlanComponentLocator CreateBatchPlanComponentLocator(string suffix)
+    private static BatchPlanComponentLocator CreateBatchPlanComponentLocator(ref int nextComponentLocator)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(suffix);
-        return new BatchPlanComponentLocator($"plan:{suffix}");
+        return new BatchPlanComponentLocator(++nextComponentLocator);
     }
 }

@@ -9,10 +9,11 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class LocalCityGmlConstructionSourceTests
+public sealed class StreamingImportedSceneSourceTests
 {
     [Fact]
     public async Task ReadCityObjectsAsyncLimitsProducerConcurrency()
@@ -25,12 +26,13 @@ public sealed class LocalCityGmlConstructionSourceTests
             SourceKind: DatasetSourceKind.Local,
             LocalSourcePath: "/tmp/source.zip",
             ServerUri: null);
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
             CreateReadResult(sourceFileCount),
             new TrackingGeometryProjector(),
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy(),
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -41,11 +43,11 @@ public sealed class LocalCityGmlConstructionSourceTests
         Assert.Equal(sourceFileCount, cityObjects.Count);
         Assert.All(
             cityObjects,
-            static cityObject => Assert.Equal("test-unit", cityObject.SourceUnitKey));
+            static cityObject => Assert.Equal("bldg", cityObject.PackageName));
         Assert.InRange(
             TrackingGeometryProjector.MaxObservedConcurrency,
             1,
-            LocalCityGmlConstructionSource.MaxConcurrentCityObjectProducers);
+            StreamingImportedSceneSource.MaxConcurrentCityObjectProducers);
     }
 
     [Fact]
@@ -66,7 +68,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             MaxTextureSize: 1024,
             LicenseMode: TerrainTextureLicenseMode.PlateauOrthoWithGsiFallback);
         OverlayRecordingGeometryProjector geometryProjector = new();
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             CreateMetadata(request, [overlay]),
             request,
             CreateReadResult(
@@ -76,7 +78,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                 ],
                 [overlay]),
             geometryProjector,
-            new StubDemTextureSourcePolicy());
+            new StubDemTextureSourcePolicy(),
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -109,7 +112,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             ]);
         OverlayRecordingGeometryProjector geometryProjector = new();
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(fallbackOverlay);
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
             CreateReadResult(
@@ -117,7 +120,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
             geometryProjector,
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -154,7 +158,7 @@ public sealed class LocalCityGmlConstructionSourceTests
                 [
                     new TerrainTextureTileSource("https://tiles.example/fallback/{z}/{x}/{y}.png", 17),
                 ]));
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
             CreateReadResult(
@@ -174,7 +178,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                         streamFactory: cancellationToken => StreamParsedCityObjects(sourceFile, referenceSystem, cancellationToken)),
                 ]),
             new TrackingGeometryProjector(),
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         await source.ReadCityObjectsAsync().ToListAsync();
 
@@ -219,7 +224,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             ]);
         OverlayRecordingGeometryProjector geometryProjector = new();
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(explicitRasterOverlay);
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
             CreateReadResult(
@@ -227,7 +232,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                     new SourceFileDescriptor("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false),
                 ]),
             geometryProjector,
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         List<ImportedCityObject> cityObjects = [];
         await foreach (ImportedCityObject cityObject in source.ReadCityObjectsAsync())
@@ -254,7 +260,7 @@ public sealed class LocalCityGmlConstructionSourceTests
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         SourceFileDescriptor sourceFile = new("udx/dem/file-001.gml", "dem", "57402736", RequiresMeshAreaFilter: false);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(delayOverlayResolutionUntilCancellation: true);
-        LocalCityGmlConstructionSource source = new(
+        StreamingImportedSceneSource source = new(
             CreateMetadata(request),
             request,
             CreateReadResult(
@@ -270,7 +276,8 @@ public sealed class LocalCityGmlConstructionSourceTests
                             TimeSpan.Zero))),
                 ]),
             new TrackingGeometryProjector(),
-            demTextureSourcePolicy);
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
 
         using CancellationTokenSource cancellationTokenSource = new();
         Task readTask = source.ReadCityObjectsAsync(cancellationTokenSource.Token).ToListAsync(cancellationTokenSource.Token).AsTask();
@@ -302,7 +309,7 @@ public sealed class LocalCityGmlConstructionSourceTests
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
     }
 
-    private static LocalCityGmlBootstrapSnapshot CreateReadResult(int sourceFileCount)
+    private static ImportedSceneSourceSnapshot CreateReadResult(int sourceFileCount)
     {
         SourceFileDescriptor[] sourceFiles = Enumerable.Range(0, sourceFileCount)
             .Select(index => new SourceFileDescriptor(
@@ -314,7 +321,7 @@ public sealed class LocalCityGmlConstructionSourceTests
         return CreateReadResult(sourceFiles);
     }
 
-    private static LocalCityGmlBootstrapSnapshot CreateReadResult(
+    private static ImportedSceneSourceSnapshot CreateReadResult(
         IReadOnlyList<SourceFileDescriptor> sourceFiles,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
@@ -331,30 +338,30 @@ public sealed class LocalCityGmlConstructionSourceTests
                         TimeSpan.Zero))))
             .ToArray();
 
-        return new LocalCityGmlBootstrapSnapshot(
-            new LocalCityGmlDocumentSet(
+        return new ImportedSceneSourceSnapshot(
+            new ImportedSceneSourceDataset(
                 new EmptyDatasetContentSource(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
                 terrainTextureOverlays ?? [],
                 ["57402736"]),
-            new LocalCityGmlBootstrapContext(
+            new ImportedSceneSourceContext(
                 pipelines,
                 new GeodeticPoint(35.0, 139.0, 0.0)));
     }
 
-    private static LocalCityGmlBootstrapSnapshot CreateReadResult(
+    private static ImportedSceneSourceSnapshot CreateReadResult(
         IReadOnlyList<SourceFilePipeline> pipelines,
         IReadOnlyList<TerrainTextureOverlay>? terrainTextureOverlays = null)
     {
-        return new LocalCityGmlBootstrapSnapshot(
-            new LocalCityGmlDocumentSet(
+        return new ImportedSceneSourceSnapshot(
+            new ImportedSceneSourceDataset(
                 new EmptyDatasetContentSource(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.RelativePath).ToArray(),
                 pipelines.Select(static pipeline => pipeline.SourceFile.PackageName).Distinct(StringComparer.Ordinal).ToArray(),
                 terrainTextureOverlays ?? [],
                 ["57402736"]),
-            new LocalCityGmlBootstrapContext(
+            new ImportedSceneSourceContext(
                 pipelines.ToArray(),
                 new GeodeticPoint(35.0, 139.0, 0.0)));
     }
@@ -395,8 +402,6 @@ public sealed class LocalCityGmlConstructionSourceTests
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SourceUnitIdentity: "test-unit",
-            SourceIdentity: $"{sourceFile.PackageName}:slot-{index:000}",
             SharedAcrossMeshCodes: false);
     }
 
@@ -435,8 +440,6 @@ public sealed class LocalCityGmlConstructionSourceTests
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: sourceFile.RelativePath,
-            SourceUnitIdentity: "test-unit",
-            SourceIdentity: $"{sourceFile.PackageName}:slot-renderable",
             SharedAcrossMeshCodes: false);
     }
 
@@ -502,8 +505,6 @@ public sealed class LocalCityGmlConstructionSourceTests
                     Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                     Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                     Materials: [],
-                    SourceObjectKey: parsedCityObject.SourceIdentity,
-                    SourceUnitKey: parsedCityObject.SourceUnitIdentity,
                     SourceFileRelativePath: parsedCityObject.SourceFileRelativePath);
             }
             finally
@@ -569,8 +570,6 @@ public sealed class LocalCityGmlConstructionSourceTests
                 Transform: new Transform3D(new Float3(0.0, 0.0, 0.0)),
                 Geometry: new TriangleMeshGeometry(new ImportedMesh([], [])),
                 Materials: [],
-                SourceObjectKey: parsedCityObject.SourceIdentity,
-                SourceUnitKey: parsedCityObject.SourceUnitIdentity,
                 SourceFileRelativePath: sourceFile.RelativePath);
         }
     }
@@ -665,4 +664,3 @@ public sealed class LocalCityGmlConstructionSourceTests
         }
     }
 }
-

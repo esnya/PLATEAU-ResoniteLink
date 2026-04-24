@@ -10,9 +10,9 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class LocalCityGmlBootstrapPipeline
+internal static class ImportedSceneSourceBootstrapPipeline
 {
-    internal static async Task<LocalCityGmlBootstrapSnapshot> ReadDocumentSetCoreAsync(
+    internal static async Task<ImportedSceneSourceSnapshot> ReadDocumentSetCoreAsync(
         PlateauImportRequest request,
         IPlateauDatasetContentSourceFactory datasetContentSourceFactory,
         ICityGmlAppearanceStoreFactory appearanceStoreFactory,
@@ -101,7 +101,7 @@ internal static class LocalCityGmlBootstrapPipeline
         progressReporter?.Invoke(
             PlateauLog.Info("import", $"Construction source ready in {totalStopwatch.Elapsed.TotalSeconds:F3}s."));
 
-        LocalCityGmlDocumentSet documentSet = new(
+        ImportedSceneSourceDataset documentSet = new(
             datasetSource,
             relativeSourceFiles.OrderBy(path => path, StringComparer.Ordinal).ToArray(),
             sourceFiles
@@ -111,9 +111,9 @@ internal static class LocalCityGmlBootstrapPipeline
                 .ToArray(),
             [],
             discoveryResult.SelectedMeshCodes);
-        LocalCityGmlBootstrapContext bootstrapContext = new(
+        ImportedSceneSourceContext bootstrapContext = new(
             sourceFilePipelines,
             globalOriginPoint);
-        return new LocalCityGmlBootstrapSnapshot(documentSet, bootstrapContext);
+        return new ImportedSceneSourceSnapshot(documentSet, bootstrapContext);
     }
 }

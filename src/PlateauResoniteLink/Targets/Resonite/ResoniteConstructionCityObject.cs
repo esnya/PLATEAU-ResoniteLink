@@ -12,8 +12,6 @@ public sealed record ResoniteConstructionCityObject(
     ResoniteConstructionGeometry Geometry,
     IReadOnlyList<ResoniteMaterialBinding> Materials,
     bool CollisionEnabled = true,
-    string? SourceObjectKey = null,
-    string? SourceUnitKey = null,
     string? SourceFileRelativePath = null)
 {
     public ResoniteConstructionCityObject(
@@ -26,8 +24,6 @@ public sealed record ResoniteConstructionCityObject(
         ResoniteImportedMesh Mesh,
         IReadOnlyList<ResoniteMaterialBinding> Materials,
         bool CollisionEnabled = true,
-        string? SourceObjectKey = null,
-        string? SourceUnitKey = null,
         string? SourceFileRelativePath = null)
         : this(
             SlotKey,
@@ -39,8 +35,6 @@ public sealed record ResoniteConstructionCityObject(
             new ResoniteTriangleMeshGeometry(Mesh),
             Materials,
             CollisionEnabled,
-            SourceObjectKey,
-            SourceUnitKey,
             SourceFileRelativePath)
     {
     }

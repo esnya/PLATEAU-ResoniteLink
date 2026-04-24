@@ -42,7 +42,7 @@ internal static class CliServiceCollectionExtensions
         services.AddHttpClient(CliHostFactory.PlateauDatasetResolverHttpClientName);
         services.AddHttpClient(CliHostFactory.TerrainTextureAssetsHttpClientName);
 
-        services.AddLocalCityGmlImportServices();
+        services.AddImportedSceneSourceServices();
         services.AddResoniteLiveSendTargetServices();
 
         services.AddSingleton<DatasetInspectionService>();
@@ -161,10 +161,10 @@ internal sealed class ScopedSceneSink(
 {
     public Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         CancellationToken cancellationToken = default)
     {
-        return inner.ExecuteAsync(plan, cityObjects, cancellationToken);
+        return inner.ExecuteAsync(plan, objectUnits, cancellationToken);
     }
 
     public async ValueTask DisposeAsync()

@@ -7,14 +7,14 @@ using PlateauResoniteLink.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Application;
 
-public sealed class LocalCityGmlDocumentSetTests
+public sealed class ImportedSceneSourceDatasetTests
 {
     [Fact]
     public void ConstructorStoresPureResultBoundary()
     {
         IPlateauDatasetContentSource datasetSource = new EmptyDatasetContentSource();
 
-        LocalCityGmlDocumentSet documentSet = new(
+        ImportedSceneSourceDataset documentSet = new(
             datasetSource,
             ["udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml"],
             ["bldg"],
@@ -31,7 +31,7 @@ public sealed class LocalCityGmlDocumentSetTests
     [Fact]
     public void BootstrapSnapshotSeparatesBootstrapContextFromPureDocumentSet()
     {
-        LocalCityGmlDocumentSet documentSet = new(
+        ImportedSceneSourceDataset documentSet = new(
             new EmptyDatasetContentSource(),
             [],
             [],
@@ -39,9 +39,9 @@ public sealed class LocalCityGmlDocumentSetTests
             []);
         SourceFilePipeline[] sourceFilePipelines = [];
         GeodeticPoint globalOriginPoint = new(35.0, 139.0, 0.0);
-        LocalCityGmlBootstrapContext bootstrapContext = new(sourceFilePipelines, globalOriginPoint);
+        ImportedSceneSourceContext bootstrapContext = new(sourceFilePipelines, globalOriginPoint);
 
-        LocalCityGmlBootstrapSnapshot readResult = new(documentSet, bootstrapContext);
+        ImportedSceneSourceSnapshot readResult = new(documentSet, bootstrapContext);
 
         Assert.Same(documentSet, readResult.DocumentSet);
         Assert.Same(bootstrapContext, readResult.BootstrapContext);

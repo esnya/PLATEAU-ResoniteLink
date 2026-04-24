@@ -4,9 +4,9 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlDocumentSet
+internal sealed class ImportedSceneSourceDataset
 {
-    internal LocalCityGmlDocumentSet(
+    internal ImportedSceneSourceDataset(
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<string> relativeSourceFiles,
         IReadOnlyList<string> packageNames,

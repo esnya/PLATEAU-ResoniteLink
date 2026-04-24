@@ -117,14 +117,34 @@ public sealed class ResonitePlacementPolicyTests
     }
 
     [Fact]
-    public void CreateCityGmlSlotNamesByRelativePath_AddsStableHashForDuplicateFileStem()
+    public void CreateSourceFileSlotNamesByRelativePath_AddsStableHashForDuplicateFileStem()
     {
         IReadOnlyDictionary<string, string> slotNames =
-            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateCityGmlSlotNamesByRelativePath(DuplicateStemPaths);
+            PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.CreateSourceFileSlotNamesByRelativePath(DuplicateStemPaths);
 
         Assert.Equal(2, slotNames.Count);
         Assert.All(slotNames.Values, static value => Assert.StartsWith("sample_", value, StringComparison.Ordinal));
         Assert.NotEqual(slotNames["udx/bldg/a/sample.gml"], slotNames["udx/dem/b/sample.gml"]);
+    }
+
+    [Fact]
+    public void ResolveSourceFileRelativePath_ThrowsWhenSourceFileMetadataIsMissing()
+    {
+        PlateauResoniteLink.Targets.Resonite.ResoniteConstructionCityObject cityObject = new(
+            SlotKey: "slot-a",
+            DisplayName: "slot-a",
+            PackageName: "bldg",
+            ActualMeshCode: "53394525",
+            LodLevel: 2,
+            Transform: new PlateauResoniteLink.Targets.Resonite.ResoniteTransform(new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(0.0, 0.0, 0.0)),
+            Mesh: new PlateauResoniteLink.Targets.Resonite.ResoniteImportedMesh([], []),
+            Materials: [],
+            SourceFileRelativePath: null);
+
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(
+            () => PlateauResoniteLink.Targets.Resonite.ResonitePlacementPolicy.ResolveSourceFileRelativePath(cityObject));
+
+        Assert.Contains("SourceFileRelativePath", exception.Message, StringComparison.Ordinal);
     }
 
     private static PlateauResoniteLink.Targets.Resonite.ResoniteLocalOrigin RequireMeshCodeCenter(string meshCode)

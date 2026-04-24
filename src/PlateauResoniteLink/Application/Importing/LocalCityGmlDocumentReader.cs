@@ -22,12 +22,12 @@ internal sealed class LocalCityGmlDocumentReader : ICityGmlDocumentReader
         this.lodSelector = lodSelector;
     }
 
-    public async Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
+    public async Task<ImportedSceneSourceSnapshot> ReadAsync(
         PlateauImportRequest request,
         Action<string>? progressReporter = null,
         CancellationToken cancellationToken = default)
     {
-        return await LocalCityGmlBootstrapPipeline.ReadDocumentSetCoreAsync(
+        return await ImportedSceneSourceBootstrapPipeline.ReadDocumentSetCoreAsync(
             request,
             datasetContentSourceFactory,
             appearanceStoreFactory,

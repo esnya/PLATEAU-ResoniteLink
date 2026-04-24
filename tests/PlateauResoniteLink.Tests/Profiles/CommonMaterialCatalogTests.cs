@@ -1,5 +1,6 @@
+using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Linq;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
@@ -17,16 +18,23 @@ public sealed class CommonMaterialCatalogTests
 
         Assert.Contains(
             materials,
-            material => material.MaterialKey == ResoniteMaterialSharing.CreateCanonicalGenericSharedMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                textureScale: null,
-                textureOffset: null,
-                depthOffset: null));
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.Standard
+                && material.Projection == MaterialProjection.Uv
+                && material.TexturePayload is null
+                && material.TextureScale is null
+                && material.TextureOffset is null
+                && material.DepthOffset is null
+                && material.Family is null);
         Assert.Contains(
             materials,
-            material => material.MaterialKey == ResoniteMaterialSharing.CreateCanonicalVertexColorCommonMaterialKey(
-                ResoniteMaterialProjection.Uv,
-                depthOffset: null));
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.VertexColor
+                && material.Projection == MaterialProjection.Uv
+                && material.TexturePayload is null
+                && material.TextureScale is null
+                && material.TextureOffset is null
+                && material.DepthOffset is null);
     }
 
     [Fact]
@@ -53,9 +61,14 @@ public sealed class CommonMaterialCatalogTests
             Assert.Equal(expectedScale, facadeMaterial.TextureScale);
             Assert.Equal(expectedOffset, facadeMaterial.TextureOffset);
             Assert.Equal(
-                string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"common|facade|variant:{variantIndex}|Uv|scale:{expectedScale.X:0.######}x{expectedScale.Y:0.######}|offset:{CreateOffsetToken(expectedOffset)}"),
+                ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
+                    BundledDefaultMaterialFamilies.Facade,
+                    variantIndex,
+                    ResoniteMaterialProjection.Uv,
+                    new ResoniteFloat2(expectedScale.X, expectedScale.Y),
+                    expectedOffset is null
+                        ? null
+                        : new ResoniteFloat2(expectedOffset.X, expectedOffset.Y)),
                 facadeMaterial.MaterialKey);
         }
 
@@ -88,10 +101,86 @@ public sealed class CommonMaterialCatalogTests
         return new Float2(0.0, 0.5 / 6.0);
     }
 
-    private static string CreateOffsetToken(Float2? offset)
+    [Fact]
+    public void CreateForPackages_UsesTargetCanonicalKeysForBundledCommonMaterials()
     {
-        return offset is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{offset.X:0.######}x{offset.Y:0.######}");
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["bldg"]);
+
+        MaterialBinding facadeMaterial = Assert.Single(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.Facade
+                && material.Projection == MaterialProjection.Uv
+                && material.BundledVariantIndex == 0);
+        MaterialBinding roofMaterial = Assert.Single(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.Roof
+                && material.Projection == MaterialProjection.Triplanar
+                && material.BundledVariantIndex == 0);
+
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
+                BundledDefaultMaterialFamilies.Facade,
+                0,
+                ResoniteMaterialProjection.Uv,
+                new ResoniteFloat2(facadeMaterial.TextureScale!.X, facadeMaterial.TextureScale.Y),
+                new ResoniteFloat2(facadeMaterial.TextureOffset!.X, facadeMaterial.TextureOffset.Y)),
+            facadeMaterial.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalCommonMaterialKey(
+                BundledDefaultMaterialFamilies.Roof,
+                0,
+                ResoniteMaterialProjection.Triplanar,
+                new ResoniteFloat2(roofMaterial.TextureScale!.X, roofMaterial.TextureScale.Y),
+                textureOffset: null),
+            roofMaterial.MaterialKey);
+    }
+
+    [Fact]
+    public void CreateForPackages_AssignsStableAndDistinctKeysToSharedCommonMaterials()
+    {
+        CommonMaterialCatalog catalog = new();
+        IReadOnlyList<MaterialBinding> firstMaterials = catalog.CreateForPackages(["bldg"]);
+        IReadOnlyList<MaterialBinding> secondMaterials = catalog.CreateForPackages(["bldg"]);
+
+        MaterialBinding sharedGeneric = Assert.Single(
+            firstMaterials,
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.Standard
+                && material.Family is null
+                && material.TexturePayload is null
+                && material.Projection == MaterialProjection.Uv);
+        MaterialBinding sharedVertexColor = Assert.Single(
+            firstMaterials,
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.VertexColor
+                && material.Projection == MaterialProjection.Uv);
+        MaterialBinding repeatedSharedGeneric = Assert.Single(
+            secondMaterials,
+            material => material.ReuseScope == MaterialReuseScope.Shared
+                && material.MaterialType == MaterialType.Standard
+                && material.Family is null
+                && material.TexturePayload is null
+                && material.Projection == MaterialProjection.Uv);
+
+        Assert.Equal(sharedGeneric.MaterialKey, repeatedSharedGeneric.MaterialKey);
+        Assert.NotEqual(sharedGeneric.MaterialKey, sharedVertexColor.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalGenericSharedMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                textureScale: null,
+                textureOffset: null,
+                depthOffset: null),
+            sharedGeneric.MaterialKey);
+        Assert.Equal(
+            ResoniteSceneMaterialConventions.CreateCanonicalVertexColorCommonMaterialKey(
+                ResoniteMaterialProjection.Uv,
+                depthOffset: null),
+            sharedVertexColor.MaterialKey);
+        Assert.DoesNotContain(
+            firstMaterials.Where(material => material.Family is not null).Select(static material => material.MaterialKey),
+            key => string.Equals(key, sharedGeneric.MaterialKey, StringComparison.Ordinal));
+        Assert.DoesNotContain(
+            firstMaterials.Where(material => material.Family is not null).Select(static material => material.MaterialKey),
+            key => string.Equals(key, sharedVertexColor.MaterialKey, StringComparison.Ordinal));
     }
 }

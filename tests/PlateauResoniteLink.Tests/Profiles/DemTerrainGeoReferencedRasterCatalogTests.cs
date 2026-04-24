@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -18,19 +19,44 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         using TemporaryDirectory datasetRoot = new();
         RecordingDatasetContentSource datasetSource = CreateDatasetSource(datasetRoot.Path);
         DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        GeographicRectangle firstBounds = new(35.0, 35.1, 139.0, 139.1);
+        GeographicRectangle secondBounds = new(35.1, 35.2, 139.1, 139.2);
 
         _ = await catalog.TryResolveRasterSourceAsync(
-            "dem-fallback|35.000000|35.100000|139.000000|139.100000",
+            new DemTerrainRasterCacheKey("dem-fallback", firstBounds),
             "dem-fallback",
-            new GeographicRectangle(35.0, 35.1, 139.0, 139.1),
+            firstBounds,
             CancellationToken.None);
         _ = await catalog.TryResolveRasterSourceAsync(
-            "dem-fallback|35.100000|35.200000|139.100000|139.200000",
+            new DemTerrainRasterCacheKey("dem-fallback", secondBounds),
             "dem-fallback",
-            new GeographicRectangle(35.1, 35.2, 139.1, 139.2),
+            secondBounds,
             CancellationToken.None);
 
         Assert.Equal(4, datasetSource.EnsureLocalFileCallCount);
+    }
+
+    [Fact]
+    public async Task TryResolveRasterSourceAsyncReusesFallbackMaterializationAcrossCanonicalizedBoundsKeys()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        RecordingDatasetContentSource datasetSource = CreateDatasetSource(datasetRoot.Path);
+        DemTerrainGeoReferencedRasterCatalog catalog = await CreateCatalogAsync(datasetSource);
+        GeographicRectangle firstBounds = new(35.0, 35.1, 139.0, 139.1);
+        GeographicRectangle secondBounds = new(35.0000001, 35.1000001, 139.0000001, 139.1000001);
+
+        _ = await catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("dem-fallback", firstBounds),
+            "dem-fallback",
+            firstBounds,
+            CancellationToken.None);
+        _ = await catalog.TryResolveRasterSourceAsync(
+            new DemTerrainRasterCacheKey("dem-fallback", secondBounds),
+            "dem-fallback",
+            secondBounds,
+            CancellationToken.None);
+
+        Assert.Equal(2, datasetSource.EnsureLocalFileCallCount);
     }
 
     [Fact]
@@ -43,13 +69,13 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         using CancellationTokenSource firstCallerCancellation = new();
 
         Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            "dem-fallback",
+            new DemTerrainRasterCacheKey("dem-fallback", bounds),
             "dem-fallback",
             bounds,
             firstCallerCancellation.Token);
         await datasetSource.EnsureLocalFileStarted.Task.WaitAsync(CancellationToken.None);
         Task<TerrainTextureGeoReferencedRasterSource?> secondCall = catalog.TryResolveRasterSourceAsync(
-            "dem-fallback",
+            new DemTerrainRasterCacheKey("dem-fallback", bounds),
             "dem-fallback",
             bounds,
             CancellationToken.None);
@@ -59,14 +85,15 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await firstCall);
         TerrainTextureGeoReferencedRasterSource? secondResult = await secondCall;
-        Assert.Null(secondResult);
+        TerrainTextureGeoReferencedRasterSource resolvedSecondResult = Assert.IsType<TerrainTextureGeoReferencedRasterSource>(secondResult);
+        Assert.Equal("EPSG:4326", resolvedSecondResult.Metadata?.CoordinateSystemIdentifier);
 
         TerrainTextureGeoReferencedRasterSource? thirdResult = await catalog.TryResolveRasterSourceAsync(
-            "dem-fallback",
+            new DemTerrainRasterCacheKey("dem-fallback", bounds),
             "dem-fallback",
             bounds,
             CancellationToken.None);
-        Assert.Null(thirdResult);
+        Assert.Same(secondResult, thirdResult);
         Assert.Equal(1, datasetSource.EnsureLocalFileCallCount);
     }
 
@@ -80,7 +107,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         using CancellationTokenSource firstCallerCancellation = new();
 
         Task<TerrainTextureGeoReferencedRasterSource?> firstCall = catalog.TryResolveRasterSourceAsync(
-            "dem-fallback",
+            new DemTerrainRasterCacheKey("dem-fallback", bounds),
             "dem-fallback",
             bounds,
             firstCallerCancellation.Token);
@@ -93,7 +120,7 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
         await Task.Delay(10);
 
         await Assert.ThrowsAnyAsync<IOException>(async () => await catalog.TryResolveRasterSourceAsync(
-            "dem-fallback",
+            new DemTerrainRasterCacheKey("dem-fallback", bounds),
             "dem-fallback",
             bounds,
             CancellationToken.None));
@@ -121,8 +148,103 @@ public sealed class DemTerrainGeoReferencedRasterCatalogTests
     private static SucceedingGateableDatasetContentSource CreateSucceedingGateableDatasetSource(string datasetRoot)
     {
         string rasterPath = Path.Combine(datasetRoot, "succeeding.tif");
-        File.WriteAllText(rasterPath, "dummy");
+        File.WriteAllBytes(
+            rasterPath,
+            CreateClassicLittleEndianGeoTiffBytes(
+                modelTiePoint: [0.0, 0.0, 0.0, 139.0, 35.1, 0.0],
+                pixelScale: [0.01, 0.01, 0.0],
+                geoKeyDirectory:
+                [
+                    1, 1, 0, 1,
+                    2048, 0, 1, 4326,
+                ]));
         return new SucceedingGateableDatasetContentSource(datasetRoot, [Path.GetFileName(rasterPath)]);
+    }
+
+    private static byte[] CreateClassicLittleEndianGeoTiffBytes(
+        double[] modelTiePoint,
+        double[] pixelScale,
+        ushort[] geoKeyDirectory)
+    {
+        const ushort imageWidthTag = 256;
+        const ushort imageLengthTag = 257;
+        const ushort bitsPerSampleTag = 258;
+        const ushort compressionTag = 259;
+        const ushort photometricInterpretationTag = 262;
+        const ushort stripOffsetsTag = 273;
+        const ushort samplesPerPixelTag = 277;
+        const ushort rowsPerStripTag = 278;
+        const ushort stripByteCountsTag = 279;
+        const ushort modelTiePointTag = 33922;
+        const ushort pixelScaleTag = 33550;
+        const ushort geoKeyDirectoryTag = 34735;
+        const ushort typeShort = 3;
+        const ushort typeLong = 4;
+        const ushort typeDouble = 12;
+        const int headerSize = 8;
+        const int pixelWidth = 10;
+        const int pixelHeight = 10;
+        const int entryCount = 12;
+        const int entrySize = 12;
+        const uint singlePixelDataLength = pixelWidth * pixelHeight;
+        int ifdSize = 2 + (entryCount * entrySize) + 4;
+        int pixelScaleOffset = headerSize + ifdSize;
+        int tiePointOffset = pixelScaleOffset + (pixelScale.Length * sizeof(double));
+        int geoKeyOffset = tiePointOffset + (modelTiePoint.Length * sizeof(double));
+        int stripDataOffset = geoKeyOffset + (geoKeyDirectory.Length * sizeof(ushort));
+        byte[] bytes = new byte[stripDataOffset + singlePixelDataLength];
+
+        bytes[0] = (byte)'I';
+        bytes[1] = (byte)'I';
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(2, 2), 42);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(4, 4), 8);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8, 2), entryCount);
+
+        WriteClassicEntry(bytes, 10, imageWidthTag, typeLong, 1, pixelWidth);
+        WriteClassicEntry(bytes, 22, imageLengthTag, typeLong, 1, pixelHeight);
+        WriteClassicEntry(bytes, 34, bitsPerSampleTag, typeShort, 1, 8);
+        WriteClassicEntry(bytes, 46, compressionTag, typeShort, 1, 1);
+        WriteClassicEntry(bytes, 58, photometricInterpretationTag, typeShort, 1, 1);
+        WriteClassicEntry(bytes, 70, stripOffsetsTag, typeLong, 1, (uint)stripDataOffset);
+        WriteClassicEntry(bytes, 82, samplesPerPixelTag, typeShort, 1, 1);
+        WriteClassicEntry(bytes, 94, rowsPerStripTag, typeLong, 1, pixelHeight);
+        WriteClassicEntry(bytes, 106, stripByteCountsTag, typeLong, 1, singlePixelDataLength);
+        WriteClassicEntry(bytes, 118, pixelScaleTag, typeDouble, (uint)pixelScale.Length, (uint)pixelScaleOffset);
+        WriteClassicEntry(bytes, 130, modelTiePointTag, typeDouble, (uint)modelTiePoint.Length, (uint)tiePointOffset);
+        WriteClassicEntry(bytes, 142, geoKeyDirectoryTag, typeShort, (uint)geoKeyDirectory.Length, (uint)geoKeyOffset);
+
+        for (int index = 0; index < pixelScale.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(
+                bytes.AsSpan(pixelScaleOffset + (index * sizeof(double)), sizeof(double)),
+                unchecked((ulong)BitConverter.DoubleToInt64Bits(pixelScale[index])));
+        }
+
+        for (int index = 0; index < modelTiePoint.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt64LittleEndian(
+                bytes.AsSpan(tiePointOffset + (index * sizeof(double)), sizeof(double)),
+                unchecked((ulong)BitConverter.DoubleToInt64Bits(modelTiePoint[index])));
+        }
+
+        for (int index = 0; index < geoKeyDirectory.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt16LittleEndian(
+                bytes.AsSpan(geoKeyOffset + (index * sizeof(ushort)), sizeof(ushort)),
+                geoKeyDirectory[index]);
+        }
+
+        Array.Fill(bytes, byte.MaxValue, stripDataOffset, (int)singlePixelDataLength);
+
+        return bytes;
+    }
+
+    private static void WriteClassicEntry(byte[] bytes, int offset, ushort tag, ushort type, uint count, uint valueOrOffset)
+    {
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset, 2), tag);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(offset + 2, 2), type);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset + 4, 4), count);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(offset + 8, 4), valueOrOffset);
     }
 
     private static async Task<DemTerrainGeoReferencedRasterCatalog> CreateCatalogAsync(IPlateauDatasetContentSource datasetSource)

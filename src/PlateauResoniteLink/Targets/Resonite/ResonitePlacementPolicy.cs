@@ -11,7 +11,7 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal static class ResonitePlacementPolicy
 {
-    public static IReadOnlyDictionary<string, string> CreateCityGmlSlotNamesByRelativePath(
+    public static IReadOnlyDictionary<string, string> CreateSourceFileSlotNamesByRelativePath(
         IReadOnlyList<string> relativeSourceFiles)
     {
         Dictionary<string, string> slotNamesByPath = new(StringComparer.Ordinal);
@@ -57,12 +57,12 @@ internal static class ResonitePlacementPolicy
         return slotNamesByPath;
     }
 
-    public static string ResolveCityGmlSlotName(
+    public static string ResolveSourceFileSlotName(
         ResoniteConstructionCityObject cityObject,
-        string cityGmlScopeKey,
-        IReadOnlyDictionary<string, string> cityGmlSlotNamesByRelativePath)
+        string sourceFileRelativePath,
+        IReadOnlyDictionary<string, string> sourceFileSlotNamesByRelativePath)
     {
-        if (cityGmlSlotNamesByRelativePath.TryGetValue(cityGmlScopeKey, out string? slotName)
+        if (sourceFileSlotNamesByRelativePath.TryGetValue(sourceFileRelativePath, out string? slotName)
             && !string.IsNullOrWhiteSpace(slotName))
         {
             return slotName;
@@ -77,32 +77,26 @@ internal static class ResonitePlacementPolicy
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
-        {
-            return cityObject.SourceUnitKey!;
-        }
-
-        return cityObject.SlotKey;
+        throw new InvalidOperationException(
+            $"City object '{cityObject.DisplayName}' did not provide source-file metadata. "
+            + "Source-owned hierarchy requires SourceFileRelativePath.");
     }
 
-    public static string ResolveCityGmlScopeKey(ResoniteConstructionCityObject cityObject)
+    public static string ResolveSourceFileRelativePath(ResoniteConstructionCityObject cityObject)
     {
         if (!string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath))
         {
             return cityObject.SourceFileRelativePath!;
         }
 
-        if (!string.IsNullOrWhiteSpace(cityObject.SourceUnitKey))
-        {
-            return cityObject.SourceUnitKey!;
-        }
-
-        return cityObject.SlotKey;
+        throw new InvalidOperationException(
+            $"City object '{cityObject.DisplayName}' did not provide source-file metadata. "
+            + "Source-owned hierarchy requires SourceFileRelativePath.");
     }
 
-    public static string ResolveRequiredSourceFileRootMeshCode(string cityGmlSlotName, string actualMeshCode)
+    public static string ResolveRequiredSourceFileRootMeshCode(string sourceFileSlotName, string actualMeshCode)
     {
-        if (ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(cityGmlSlotName, out string meshCode))
+        if (ResoniteSourceMeshCodeAnchor.TryGetConcreteMeshCode(sourceFileSlotName, out string meshCode))
         {
             return meshCode;
         }
@@ -113,7 +107,7 @@ internal static class ResonitePlacementPolicy
         }
 
         throw new InvalidOperationException(
-            $"Source-file root '{cityGmlSlotName}' did not contain a concrete meshcode and actual mesh '{actualMeshCode}' was not concrete.");
+            $"Source-file root '{sourceFileSlotName}' did not contain a concrete meshcode and actual mesh '{actualMeshCode}' was not concrete.");
     }
 
     public static string FormatLodSlotName(int? lodLevel)

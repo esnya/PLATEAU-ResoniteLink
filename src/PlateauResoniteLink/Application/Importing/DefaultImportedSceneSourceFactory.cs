@@ -8,23 +8,24 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSourceFactory
+internal sealed class DefaultImportedSceneSourceFactory : IImportedSceneSourceFactory
 {
     private readonly ICityGmlDocumentReader documentReader;
     private readonly IImportedSceneSourceComposer constructionComposer;
     private readonly IDemTextureSourcePolicy demTextureSourcePolicy;
-    private readonly IImportedCityObjectOptimizer cityObjectOptimizer;
+    private readonly IImportedObjectUnitOptimizer objectUnitOptimizer;
 
-    internal LocalCityGmlConstructionSourceFactory(
+    internal DefaultImportedSceneSourceFactory(
         ICityGmlDocumentReader documentReader,
         IImportedSceneSourceComposer constructionComposer,
         IDemTextureSourcePolicy demTextureSourcePolicy,
-        IImportedCityObjectOptimizer cityObjectOptimizer)
+        IImportedObjectUnitOptimizer objectUnitOptimizer)
     {
+        ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
         this.documentReader = documentReader;
         this.constructionComposer = constructionComposer;
         this.demTextureSourcePolicy = demTextureSourcePolicy;
-        this.cityObjectOptimizer = cityObjectOptimizer;
+        this.objectUnitOptimizer = objectUnitOptimizer;
     }
 
     public Task<IImportedSceneSource> CreateAsync(
@@ -41,17 +42,17 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
         Action<string>? progressReporter,
         CancellationToken cancellationToken)
     {
-        LocalCityGmlBootstrapSnapshot readResult = await documentReader.ReadAsync(
+        ImportedSceneSourceSnapshot readResult = await documentReader.ReadAsync(
             request,
             progressReporter,
             cancellationToken);
         await ValidateDemTextureSourceAsync(request, readResult, cancellationToken);
-        return await Task.FromResult(constructionComposer.Compose(request, readResult, progressReporter, cityObjectOptimizer));
+        return await Task.FromResult(constructionComposer.Compose(request, readResult, objectUnitOptimizer, progressReporter));
     }
 
     private async Task ValidateDemTextureSourceAsync(
         PlateauImportRequest request,
-        LocalCityGmlBootstrapSnapshot readResult,
+        ImportedSceneSourceSnapshot readResult,
         CancellationToken cancellationToken)
     {
         if (request.DemTextureSource is null
@@ -60,7 +61,7 @@ internal sealed class LocalCityGmlConstructionSourceFactory : IImportedSceneSour
             return;
         }
 
-        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await LocalCityGmlDemOverlayRegionResolver.ResolveAsync(
+        IReadOnlyList<DemTerrainOverlayRegion> overlayRegions = await DemOverlayRegionResolver.ResolveAsync(
             readResult.BootstrapContext,
             readResult.DocumentSet.SelectedMeshCodes,
             cancellationToken);

@@ -8,7 +8,7 @@ using GeographicLib;
 using PlateauResoniteLink.Domain.Importing;
 namespace PlateauResoniteLink.Application.Importing;
 
-internal static class LocalCityGmlDemBootstrapSupport
+internal static class DemSourceBootstrapSupport
 {
     internal static DemBootstrapAggregation AggregateDemParsedSourceFiles(
         IReadOnlyList<ParsedSourceFileResult> demParsedSourceFiles)

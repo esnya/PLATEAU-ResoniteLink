@@ -34,7 +34,6 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Same(firstTexture, secondTexture);
-        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", firstTexture.TextureImport.Identity, StringComparison.Ordinal);
         Assert.Equal(
             new ScalarPair(
                 (double)layout.CropWidth / RoundUpToPowerOfTwo(layout.CropWidth),
@@ -205,7 +204,74 @@ public sealed class TerrainTextureAssetGeneratorTests
         GeneratedTerrainTexture texture = await secondGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(0, secondHandler.RequestCount);
-        Assert.Contains("terrain-overlay/dem/tile|1|https://tiles.example/{z}/{x}/{y}.png/", texture.TextureImport.Identity, StringComparison.Ordinal);
+        using FakeMapTileHandler thirdHandler = new();
+        using HttpClient thirdClient = new(thirdHandler);
+        TerrainTextureAssetGenerator thirdGenerator = new(thirdClient, cacheRoot.Path);
+        GeneratedTerrainTexture repeatedTexture = await thirdGenerator.EnsureTextureAsync(overlay, CancellationToken.None);
+
+        Assert.Equal(texture.TextureImport.Width, repeatedTexture.TextureImport.Width);
+        Assert.Equal(texture.TextureImport.Height, repeatedTexture.TextureImport.Height);
+        Assert.Equal(texture.TextureImport.RawRgba32Bytes, repeatedTexture.TextureImport.RawRgba32Bytes);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncCreatesSeparateTextureWhenTileSourceChanges()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay firstOverlay = CreateFullCoverageOverlay("https://tiles-a.example/{z}/{x}/{y}.png");
+        TerrainTextureOverlay secondOverlay = CreateFullCoverageOverlay("https://tiles-b.example/{z}/{x}/{y}.png");
+
+        GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(firstOverlay, CancellationToken.None);
+        GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
+
+        Assert.NotSame(firstTexture, secondTexture);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncCreatesSeparateTextureWhenGeographicBoundsChange()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay firstOverlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        TerrainTextureOverlay secondOverlay = firstOverlay with
+        {
+            GeographicBounds = new GeographicRectangle(
+                MinLatitude: firstOverlay.GeographicBounds.MinLatitude,
+                MaxLatitude: firstOverlay.GeographicBounds.MaxLatitude / 2.0,
+                MinLongitude: firstOverlay.GeographicBounds.MinLongitude,
+                MaxLongitude: firstOverlay.GeographicBounds.MaxLongitude),
+        };
+
+        GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(firstOverlay, CancellationToken.None);
+        GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
+
+        Assert.NotSame(firstTexture, secondTexture);
+        Assert.NotEqual(firstTexture.TextureImport.Height, secondTexture.TextureImport.Height);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncDistinguishesSubMicroGeographicBoundsChanges()
+    {
+        using FakeMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+        TerrainTextureOverlay firstOverlay = CreateFullCoverageOverlay("https://tiles.example/{z}/{x}/{y}.png");
+        TerrainTextureOverlay secondOverlay = firstOverlay with
+        {
+            GeographicBounds = new GeographicRectangle(
+                MinLatitude: firstOverlay.GeographicBounds.MinLatitude + 0.0000001,
+                MaxLatitude: firstOverlay.GeographicBounds.MaxLatitude,
+                MinLongitude: firstOverlay.GeographicBounds.MinLongitude,
+                MaxLongitude: firstOverlay.GeographicBounds.MaxLongitude),
+        };
+
+        GeneratedTerrainTexture firstTexture = await generator.EnsureTextureAsync(firstOverlay, CancellationToken.None);
+        GeneratedTerrainTexture secondTexture = await generator.EnsureTextureAsync(secondOverlay, CancellationToken.None);
+
+        Assert.NotSame(firstTexture, secondTexture);
     }
 
     [Fact]
@@ -353,8 +419,8 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Contains("tile|1|https://primary.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
-        Assert.DoesNotContain("fallback.example", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
         Assert.Contains(("primary.example", 2), handler.HostZoomRequests);
         Assert.Contains(("primary.example", 1), handler.HostZoomRequests);
         Assert.DoesNotContain(("fallback.example", 1), handler.HostZoomRequests);
@@ -407,7 +473,11 @@ public sealed class TerrainTextureAssetGeneratorTests
 
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
-        Assert.Contains("tile|1|https://primary.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.Contains(
+            texture.UsedSources ?? [],
+            static source => source is TerrainTextureTileSource tileSource
+                && tileSource.UrlTemplate == "https://primary.example/{z}/{x}/{y}.png");
         Assert.Contains("primary.example", handler.RequestedHosts);
         Assert.Contains("fallback.example", handler.RequestedHosts);
 

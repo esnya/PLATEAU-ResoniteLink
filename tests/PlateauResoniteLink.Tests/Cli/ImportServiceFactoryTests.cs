@@ -111,13 +111,13 @@ public sealed class ImportServiceFactoryTests
 
         public async Task<SceneImportExecutionResult> ExecuteAsync(
             SceneImportExecutionPlan plan,
-            IAsyncEnumerable<ImportedCityObject> cityObjects,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
             CancellationToken cancellationToken = default)
         {
             _ = plan;
-            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                _ = cityObject;
+                _ = objectUnit;
             }
 
             return new SceneImportExecutionResult(["stub://resonite/location"], 1);
@@ -159,35 +159,41 @@ public sealed class ImportServiceFactoryTests
     {
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
-        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            yield return new ImportedCityObject(
-                "object-1",
-                "Object 1",
+            yield return new ImportedObjectUnit(
+                "object-1.gml",
                 "bldg",
-                "53394525",
                 1,
-                new Transform3D(new Float3(0, 0, 0)),
-                new TriangleMeshGeometry(new ImportedMesh(
-                    [
-                        new MeshVertex(new Float3(0, 0, 0), new Float3(0, 1, 0), new Float2(0, 0)),
-                        new MeshVertex(new Float3(1, 0, 0), new Float3(0, 1, 0), new Float2(1, 0)),
-                        new MeshVertex(new Float3(0, 0, 1), new Float3(0, 1, 0), new Float2(0, 1)),
-                    ],
-                    [
-                        new MeshSubmesh(0, "mat", [0, 1, 2]),
-                    ])),
                 [
-                    new MaterialBinding(
-                        "mat",
-                        new ColorRgba(1, 1, 1, 1),
-                        MaterialType.Standard,
-                        null,
-                        TextureSourceKind.Dataset,
-                        MaterialProjection.Uv,
-                        null,
-                        [0]),
+                    new ImportedCityObject(
+                        "object-1",
+                        "Object 1",
+                        "bldg",
+                        "53394525",
+                        1,
+                        new Transform3D(new Float3(0, 0, 0)),
+                        new TriangleMeshGeometry(new ImportedMesh(
+                            [
+                                new MeshVertex(new Float3(0, 0, 0), new Float3(0, 1, 0), new Float2(0, 0)),
+                                new MeshVertex(new Float3(1, 0, 0), new Float3(0, 1, 0), new Float2(1, 0)),
+                                new MeshVertex(new Float3(0, 0, 1), new Float3(0, 1, 0), new Float2(0, 1)),
+                            ],
+                            [
+                                new MeshSubmesh(0, "mat", [0, 1, 2]),
+                            ])),
+                        [
+                            new MaterialBinding(
+                                "mat",
+                                new ColorRgba(1, 1, 1, 1),
+                                MaterialType.Standard,
+                                null,
+                                TextureSourceKind.Dataset,
+                                MaterialProjection.Uv,
+                                null,
+                                [0]),
+                        ]),
                 ]);
 
             await Task.CompletedTask;
