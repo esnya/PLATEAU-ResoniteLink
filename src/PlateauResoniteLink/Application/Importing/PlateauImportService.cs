@@ -82,24 +82,24 @@ internal sealed class PlateauImportService(
                     "import",
                     $"Starting live scene initialization ({metadata.SourceDataset.PackageNames.Count} package-scoped common material families)."));
 
-            ReportProgress(PlateauLog.Info("import", "Starting city object streaming."));
+            ReportProgress(PlateauLog.Info("import", "Starting object unit streaming."));
 
-            await using IAsyncEnumerator<ImportedCityObject> cityObjectEnumerator =
-                source.ReadCityObjectsAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
-            if (!await cityObjectEnumerator.MoveNextAsync())
+            await using IAsyncEnumerator<ImportedObjectUnit> objectUnitEnumerator =
+                source.ReadObjectUnitsAsync(cancellationToken).GetAsyncEnumerator(cancellationToken);
+            if (!await objectUnitEnumerator.MoveNextAsync())
             {
                 throw new PlateauImportValidationException(
                     [$"No triangulated CityGML geometry was produced for mesh code '{resolvedRequest.MeshCode}'."]);
             }
 
-            int sourceCityObjectCount = 1;
+            int sourceCityObjectCount = objectUnitEnumerator.Current.CityObjects.Count;
             Stopwatch cityObjectStopwatch = Stopwatch.StartNew();
             SceneImportExecutionResult executionResult = await sceneSink.ExecuteAsync(
                 executionPlan,
-                ReadImportedCityObjectsAsync(
-                    cityObjectEnumerator.Current,
-                    cityObjectEnumerator,
-                    () => sourceCityObjectCount++,
+                ReadImportedObjectUnitsAsync(
+                    objectUnitEnumerator.Current,
+                    objectUnitEnumerator,
+                    cityObjectCount => sourceCityObjectCount += cityObjectCount,
                     cancellationToken),
                 cancellationToken);
 
@@ -167,20 +167,21 @@ internal sealed class PlateauImportService(
         progressReporter?.Invoke(message);
     }
 
-    private static async IAsyncEnumerable<ImportedCityObject> ReadImportedCityObjectsAsync(
-        ImportedCityObject firstCityObject,
-        IAsyncEnumerator<ImportedCityObject> remainingCityObjects,
-        Action onReadAdditionalCityObject,
+    private static async IAsyncEnumerable<ImportedObjectUnit> ReadImportedObjectUnitsAsync(
+        ImportedObjectUnit firstObjectUnit,
+        IAsyncEnumerator<ImportedObjectUnit> remainingObjectUnits,
+        Action<int> onReadAdditionalCityObjects,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        yield return firstCityObject;
+        yield return firstObjectUnit;
 
-        while (await remainingCityObjects.MoveNextAsync())
+        while (await remainingObjectUnits.MoveNextAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            onReadAdditionalCityObject();
-            yield return remainingCityObjects.Current;
+            ImportedObjectUnit objectUnit = remainingObjectUnits.Current;
+            onReadAdditionalCityObjects(objectUnit.CityObjects.Count);
+            yield return objectUnit;
         }
     }
 }

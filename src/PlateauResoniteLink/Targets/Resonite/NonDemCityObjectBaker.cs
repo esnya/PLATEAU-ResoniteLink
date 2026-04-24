@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,22 +16,19 @@ namespace PlateauResoniteLink.Targets.Resonite;
 
 internal sealed class NonDemCityObjectBaker(
     ResoniteTextureImageLoader textureImageLoader,
+    IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies,
     int maxAtlasSize = 4096,
     int tilePaddingPixels = 2,
-    IReadOnlyList<NonDemCityObjectBakePolicy>? bakePolicies = null,
-    ResoniteImportBudgetProfile? resourceBudget = null,
-    int? maxBufferedCityObjectsPerSourceUnit = null) : IResoniteBufferedCityObjectBaker
+    ResoniteImportBudgetProfile? resourceBudget = null) : IResoniteBufferedCityObjectBaker
 {
     internal const int DefaultMaxAtlasSize = 4096;
     internal const int DefaultTilePaddingPixels = 2;
     private const byte BackgroundDetectionAlphaThreshold = 16;
 
-    private readonly Dictionary<SourceUnitBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceUnit = [];
-    private readonly Dictionary<SourceUnitBatchKey, int> nextBatchIndexBySourceUnit = [];
-    private readonly LinkedList<SourceUnitBatchKey> bufferedSourceUnitOrder = [];
-    private readonly Dictionary<SourceUnitBatchKey, LinkedListNode<SourceUnitBatchKey>> bufferedSourceUnitNodes = [];
+    private readonly Dictionary<SourceFileBatchKey, List<BufferedCityObject>> bufferedCityObjectsBySourceFile = [];
+    private readonly Dictionary<SourceFileBatchKey, int> nextBatchIndexBySourceFile = [];
     private readonly IReadOnlyList<NonDemCityObjectBakePolicy> bakePolicies = bakePolicies
-        ?? NonDemCityObjectBakePolicies.DefaultPolicies;
+        ?? throw new ArgumentNullException(nameof(bakePolicies));
 
     public string Name => "AtlasBake";
 
@@ -64,29 +61,17 @@ internal sealed class NonDemCityObjectBaker(
         }
 
         cityObject = ResoniteDynamicMaterialUvNormalizer.Normalize(cityObject);
-        SourceUnitBatchKey sourceUnitKey = CreateSourceUnitKey(cityObject, policy);
+        SourceFileBatchKey sourceFileKey = CreateSourceFileKey(cityObject, policy);
         List<ResoniteConstructionCityObject> readyCityObjects = [];
         BufferedCityObject bufferedCityObject = new(cityObject, policy);
-        if (!bufferedCityObjectsBySourceUnit.TryGetValue(sourceUnitKey, out List<BufferedCityObject>? bufferedCityObjects))
+        if (!bufferedCityObjectsBySourceFile.TryGetValue(sourceFileKey, out List<BufferedCityObject>? bufferedCityObjects))
         {
             bufferedCityObjects = [];
-            bufferedCityObjectsBySourceUnit.Add(sourceUnitKey, bufferedCityObjects);
-            AttachBufferedSourceUnit(sourceUnitKey);
-        }
-        else
-        {
-            TrackBufferedSourceUnitAccess(sourceUnitKey);
+            bufferedCityObjectsBySourceFile.Add(sourceFileKey, bufferedCityObjects);
         }
 
         bufferedCityObjects.Add(bufferedCityObject);
         BakedInputCityObjectCount++;
-        if (maxBufferedCityObjectsPerSourceUnit.HasValue
-            && cityObject.SourceFileRelativePath is null
-            && bufferedCityObjects.Count > maxBufferedCityObjectsPerSourceUnit.Value)
-        {
-            return FlushReadyBufferedCityObjectsAsync(sourceUnitKey, cancellationToken);
-        }
-
         return ValueTask.FromResult(new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects));
     }
 
@@ -109,61 +94,35 @@ internal sealed class NonDemCityObjectBaker(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(onBakedCityObject);
-        if (bufferedCityObjectsBySourceUnit.Count == 0)
+        if (bufferedCityObjectsBySourceFile.Count == 0)
         {
             return;
         }
 
-        SourceUnitBatchKey[] orderedSourceUnitKeys = bufferedCityObjectsBySourceUnit.Keys
-            .OrderBy(static key => key, SourceUnitKeyComparer.Instance)
+        SourceFileBatchKey[] orderedSourceFileKeys = bufferedCityObjectsBySourceFile.Keys
+            .OrderBy(static key => key, SourceFileBatchKeyComparer.Instance)
             .ToArray();
-        foreach (SourceUnitBatchKey sourceUnitKey in orderedSourceUnitKeys)
+        foreach (SourceFileBatchKey sourceFileKey in orderedSourceFileKeys)
         {
-            await EmitSourceUnitAsync(sourceUnitKey, onBakedCityObject, cancellationToken);
+            await EmitSourceFileAsync(sourceFileKey, onBakedCityObject, cancellationToken);
         }
     }
 
-    private async ValueTask<BufferedCityObjectBufferResult> FlushReadyBufferedCityObjectsAsync(
-        SourceUnitBatchKey sourceUnitKey,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<ResoniteConstructionCityObject> readyCityObjects = await FlushSourceUnitAsync(sourceUnitKey, cancellationToken);
-        return new BufferedCityObjectBufferResult(Buffered: true, readyCityObjects);
-    }
-
-    private async Task<IReadOnlyList<ResoniteConstructionCityObject>> FlushSourceUnitAsync(
-        SourceUnitBatchKey sourceUnitKey,
-        CancellationToken cancellationToken)
-    {
-        List<ResoniteConstructionCityObject> bakedCityObjects = [];
-        await EmitSourceUnitAsync(
-            sourceUnitKey,
-            (bakedCityObject, _) =>
-            {
-                bakedCityObjects.Add(bakedCityObject);
-                return Task.CompletedTask;
-            },
-            cancellationToken);
-        return bakedCityObjects;
-    }
-
-    private async Task EmitSourceUnitAsync(
-        SourceUnitBatchKey sourceUnitKey,
+    private async Task EmitSourceFileAsync(
+        SourceFileBatchKey sourceFileKey,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
         CancellationToken cancellationToken)
     {
-        if (!bufferedCityObjectsBySourceUnit.Remove(sourceUnitKey, out List<BufferedCityObject>? cityObjects))
+        if (!bufferedCityObjectsBySourceFile.Remove(sourceFileKey, out List<BufferedCityObject>? cityObjects))
         {
             return;
         }
 
-        DetachBufferedSourceUnit(sourceUnitKey);
-
         int emittedCount = 0;
-        int batchStartIndex = nextBatchIndexBySourceUnit.GetValueOrDefault(sourceUnitKey);
+        int batchStartIndex = nextBatchIndexBySourceFile.GetValueOrDefault(sourceFileKey);
 
-        await BakeSourceUnitAsync(
-            sourceUnitKey,
+        await BakeSourceFileAsync(
+            sourceFileKey,
             cityObjects,
             batchStartIndex,
             (bakedCityObject, callbackCancellationToken) =>
@@ -173,12 +132,12 @@ internal sealed class NonDemCityObjectBaker(
             },
             cancellationToken);
 
-        nextBatchIndexBySourceUnit[sourceUnitKey] = batchStartIndex + emittedCount;
+        nextBatchIndexBySourceFile[sourceFileKey] = batchStartIndex + emittedCount;
         cityObjects.Clear();
     }
 
-    private async Task BakeSourceUnitAsync(
-        SourceUnitBatchKey sourceUnitKey,
+    private async Task BakeSourceFileAsync(
+        SourceFileBatchKey sourceFileKey,
         IReadOnlyList<BufferedCityObject> cityObjects,
         int batchStartIndex,
         Func<ResoniteConstructionCityObject, CancellationToken, Task> onBakedCityObject,
@@ -227,7 +186,7 @@ internal sealed class NonDemCityObjectBaker(
             }
 
             await EmitAtlasBatchAsync(
-                sourceUnitKey,
+                sourceFileKey,
                 currentAtlasBatch,
                 batchIndex++,
                 preservePrimaryIdentity && passThroughCandidates.Count == 0,
@@ -248,7 +207,7 @@ internal sealed class NonDemCityObjectBaker(
         if (currentAtlasBatch.Count > 0)
         {
             await EmitAtlasBatchAsync(
-                sourceUnitKey,
+                sourceFileKey,
                 currentAtlasBatch,
                 batchIndex++,
                 preservePrimaryIdentity && passThroughCandidates.Count == 0,
@@ -269,7 +228,7 @@ internal sealed class NonDemCityObjectBaker(
             try
             {
                 ResoniteConstructionCityObject mergedPassThroughCityObject = await BakeBatchAsync(
-                    sourceUnitKey,
+                    sourceFileKey,
                     passThroughCandidates,
                     batchIndex,
                     preservePrimaryIdentity: false,
@@ -417,7 +376,6 @@ internal sealed class NonDemCityObjectBaker(
                 submesh,
                 material,
                 new MaterialAtlasTile(
-                    material.TexturePayload.Identity ?? material.MaterialKey,
                     bakedImage.Clone(),
                     MultiplyPixel(detectedBackgroundColor, ToPixel(material.BaseColor))),
                 uvBounds),
@@ -582,7 +540,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task<ResoniteConstructionCityObject> BakeBatchAsync(
-        SourceUnitBatchKey sourceUnitKey,
+        SourceFileBatchKey sourceFileKey,
         IReadOnlyList<CityObjectBakeCandidate> candidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -619,15 +577,13 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteConstructionCityObject firstCityObject = candidates[0].CityObject;
         string slotKey = preservePrimaryIdentity
             ? firstCityObject.SlotKey
-            : CreateBatchSlotKey(sourceUnitKey, batchIndex);
+            : CreateBatchSlotKey(sourceFileKey, batchIndex);
         string displayName = preservePrimaryIdentity
             ? firstCityObject.DisplayName
-            : CreateBatchDisplayName(sourceUnitKey, batchIndex);
-        string? sourceObjectKey = preservePrimaryIdentity
-            ? firstCityObject.SourceObjectKey
-            : CreateBatchSourceObjectKey(sourceUnitKey, batchIndex);
-        string? sourceUnitKeyValue = sourceUnitKey.SourceUnitKey ?? firstCityObject.SourceUnitKey;
-        string? sourceFileRelativePath = sourceUnitKey.SourceFileRelativePath ?? firstCityObject.SourceFileRelativePath;
+            : CreateBatchDisplayName(sourceFileKey, batchIndex, slotKey);
+        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(firstCityObject.SourceFileRelativePath)
+            ? null
+            : sourceFileKey.SourceFileRelativePath;
 
         ResoniteFloat3 bakeOrigin = ComputeBakeOrigin(candidates);
         List<ResoniteMeshVertex> vertices = [];
@@ -636,7 +592,7 @@ internal sealed class NonDemCityObjectBaker(
 
         if (layout is not null)
         {
-            string textureIdentity = CreateAtlasTextureIdentity(sourceUnitKey, batchIndex);
+            string textureIdentity = CreateAtlasTextureIdentity(sourceFileKey, batchIndex);
             List<int> atlasTriangleIndices = [];
             foreach (AtlasPlacement placement in layout.Placements.OrderBy(static candidate => candidate.Entry.CityObject.SlotKey, StringComparer.Ordinal).ThenBy(static candidate => candidate.Entry.Submesh.Index))
             {
@@ -644,7 +600,7 @@ internal sealed class NonDemCityObjectBaker(
                 AppendPlacementGeometry(vertices, atlasTriangleIndices, bakeOrigin, placement, layout.Width, layout.Height);
             }
 
-            string atlasMaterialKey = string.Create(CultureInfo.InvariantCulture, $"{slotKey}_atlas");
+            string atlasMaterialKey = CreateAtlasMaterialKey(sourceFileKey, batchIndex, slotKey);
             submeshes.Add(new ResoniteMeshSubmesh(0, atlasMaterialKey, atlasTriangleIndices));
             materials.Add(
                 new ResoniteMaterialBinding(
@@ -689,7 +645,7 @@ internal sealed class NonDemCityObjectBaker(
         if (submeshes.Count == 0 || materials.Count == 0)
         {
             throw new InvalidOperationException(
-                $"Non-DEM bake batch '{sourceUnitKey.PackageName}:{sourceUnitKey.ActualMeshCode}:LOD{sourceUnitKey.LodLevel}' produced no materialized submesh.");
+                $"Non-DEM bake batch '{sourceFileKey.PackageName}:{sourceFileKey.ActualMeshCode}:LOD{sourceFileKey.LodLevel}' produced no materialized submesh.");
         }
 
         return new ResoniteConstructionCityObject(
@@ -702,8 +658,6 @@ internal sealed class NonDemCityObjectBaker(
             Mesh: new ResoniteImportedMesh(vertices, submeshes),
             Materials: materials,
             CollisionEnabled: candidates.Any(static candidate => candidate.CityObject.CollisionEnabled),
-            SourceObjectKey: sourceObjectKey,
-            SourceUnitKey: sourceUnitKeyValue,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 
@@ -1184,70 +1138,55 @@ internal sealed class NonDemCityObjectBaker(
             });
     }
 
-    private static SourceUnitBatchKey CreateSourceUnitKey(
+    private static SourceFileBatchKey CreateSourceFileKey(
         ResoniteConstructionCityObject cityObject,
         NonDemCityObjectBakePolicy policy)
     {
         string context = policy.Name;
-        string sourceScopeKey = cityObject.SourceFileRelativePath ?? cityObject.SourceUnitKey ?? string.Empty;
-        string sourceUnitIdentity = string.Create(
-            CultureInfo.InvariantCulture,
-            $"{cityObject.ActualMeshCode}|{cityObject.PackageName}|{cityObject.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none"}|{sourceScopeKey}");
+        string? sourceFileRelativePath = string.IsNullOrWhiteSpace(cityObject.SourceFileRelativePath) ? null : cityObject.SourceFileRelativePath;
+        if (sourceFileRelativePath is null)
+        {
+            throw new InvalidOperationException(
+                $"Non-DEM batch candidate '{cityObject.DisplayName}' did not provide source scope. "
+                + "Source-owned batching requires SourceFileRelativePath.");
+        }
 
-        return new SourceUnitBatchKey(
+        return new SourceFileBatchKey(
             cityObject.ActualMeshCode,
-            cityObject.PackageName,
+            cityObject.PackageName.ToLowerInvariant(),
             cityObject.LodLevel,
-            sourceUnitIdentity,
             context,
-            SourceUnitKey: cityObject.SourceFileRelativePath is null ? cityObject.SourceUnitKey : null,
-            SourceFileRelativePath: cityObject.SourceFileRelativePath);
+            SourceFileRelativePath: sourceFileRelativePath);
     }
 
-    private static string CreateBatchSlotKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)
+    private static string CreateBatchSlotKey(SourceFileBatchKey sourceFileKey, int batchIndex)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
-        string policyToken = CreatePolicyContextToken(sourceUnitKey.PolicyContext);
-        string sourceToken = CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity);
+        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake_{sourceUnitKey.PackageName}_{sourceUnitKey.ActualMeshCode}_{policyToken}_{sourceToken}_{lodToken}_{batchIndex:D4}");
+            $"atlasbake-{Path.GetFileNameWithoutExtension(sourceFileKey.SourceFileRelativePath)}-{sourceFileKey.PackageName}-lod{lodToken}-{batchIndex + 1}");
     }
 
-    private static string CreateBatchDisplayName(SourceUnitBatchKey sourceUnitKey, int batchIndex)
+    private static string CreateBatchDisplayName(SourceFileBatchKey sourceFileKey, int batchIndex, string batchSlotKey)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
+        string lodToken = sourceFileKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"AtlasBake {sourceUnitKey.PackageName} LOD{lodToken} {CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)} #{batchIndex + 1}");
+            $"AtlasBake {sourceFileKey.PackageName} LOD{lodToken} #{batchIndex + 1} [{batchSlotKey}]");
     }
 
-    private static string CreateBatchSourceObjectKey(SourceUnitBatchKey sourceUnitKey, int batchIndex)
+    private static string CreateAtlasTextureIdentity(SourceFileBatchKey sourceFileKey, int batchIndex)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlasbake:{sourceUnitKey.ActualMeshCode}:{sourceUnitKey.PackageName}:{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}:{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}:{lodToken}:{batchIndex:D4}");
+            $"atlastex-{sourceFileKey.SourceFileRelativePath}-{batchIndex + 1}");
     }
 
-    private static string CreateAtlasTextureIdentity(SourceUnitBatchKey sourceUnitKey, int batchIndex)
+    private static string CreateAtlasMaterialKey(SourceFileBatchKey sourceFileKey, int batchIndex, string slotKey)
     {
-        string lodToken = sourceUnitKey.LodLevel?.ToString(CultureInfo.InvariantCulture) ?? "none";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"atlas-batch-{sourceUnitKey.ActualMeshCode}-{CreatePolicyContextToken(sourceUnitKey.PolicyContext)}-{sourceUnitKey.PackageName}-{lodToken}-{CreateSourceUnitToken(sourceUnitKey.BatchScopeIdentity)}-{batchIndex:D4}");
-    }
-
-    private static string CreatePolicyContextToken(string policyContext)
-    {
-        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(policyContext));
-        return Convert.ToHexString(bytes.AsSpan(0, 4)).ToLowerInvariant();
-    }
-
-    private static string CreateSourceUnitToken(string sourceUnitKey)
-    {
-        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sourceUnitKey));
-        return Convert.ToHexString(bytes.AsSpan(0, 6)).ToLowerInvariant();
+            $"atlasmat-{slotKey}-{sourceFileKey.PackageName}-{batchIndex + 1}");
     }
 
     private static ResoniteFloat3 Add(ResoniteFloat3 left, ResoniteFloat3 right)
@@ -1594,7 +1533,7 @@ internal sealed class NonDemCityObjectBaker(
             normalizedMaterial.MaterialKey,
             normalizedMaterial.BaseColor,
             normalizedMaterial.MaterialType,
-            normalizedMaterial.TexturePayload?.Identity,
+            normalizedMaterial.TexturePayload,
             normalizedMaterial.TextureSourceKind,
             normalizedMaterial.TerrainOverlay,
             normalizedMaterial.Projection,
@@ -1610,7 +1549,7 @@ internal sealed class NonDemCityObjectBaker(
     }
 
     private async Task EmitAtlasBatchAsync(
-        SourceUnitBatchKey sourceUnitKey,
+        SourceFileBatchKey sourceFileKey,
         IReadOnlyList<CityObjectBakeCandidate> batchCandidates,
         int batchIndex,
         bool preservePrimaryIdentity,
@@ -1620,7 +1559,7 @@ internal sealed class NonDemCityObjectBaker(
         try
         {
             ResoniteConstructionCityObject bakedCityObject = await BakeBatchAsync(
-                sourceUnitKey,
+                sourceFileKey,
                 batchCandidates,
                 batchIndex,
                 preservePrimaryIdentity,
@@ -1679,37 +1618,7 @@ internal sealed class NonDemCityObjectBaker(
         }
     }
 
-    private void AttachBufferedSourceUnit(SourceUnitBatchKey sourceUnitKey)
-    {
-        LinkedListNode<SourceUnitBatchKey> node = bufferedSourceUnitOrder.AddLast(sourceUnitKey);
-        bufferedSourceUnitNodes[sourceUnitKey] = node;
-    }
-
-    private void TrackBufferedSourceUnitAccess(SourceUnitBatchKey sourceUnitKey)
-    {
-        if (!bufferedSourceUnitNodes.TryGetValue(sourceUnitKey, out LinkedListNode<SourceUnitBatchKey>? node))
-        {
-            throw new InvalidOperationException($"Buffered source-unit order tracking is missing '{sourceUnitKey}'.");
-        }
-
-        if (node != bufferedSourceUnitOrder.Last)
-        {
-            bufferedSourceUnitOrder.Remove(node);
-            bufferedSourceUnitOrder.AddLast(node);
-        }
-    }
-
-    private void DetachBufferedSourceUnit(SourceUnitBatchKey sourceUnitKey)
-    {
-        if (!bufferedSourceUnitNodes.Remove(sourceUnitKey, out LinkedListNode<SourceUnitBatchKey>? node))
-        {
-            return;
-        }
-
-        bufferedSourceUnitOrder.Remove(node);
-    }
-
-    private sealed record MaterialAtlasTile(string Identity, Image<Rgba32> Image, Rgba32 BackgroundColor);
+    private sealed record MaterialAtlasTile(Image<Rgba32> Image, Rgba32 BackgroundColor);
 
     private sealed record AtlasOrPreservedEntry(
         AtlasBatchEntry? AtlasEntry,
@@ -1784,20 +1693,18 @@ internal sealed class NonDemCityObjectBaker(
 
     private readonly record struct Rect(int X, int Y, int Width, int Height);
 
-    private readonly record struct SourceUnitBatchKey(
+    private readonly record struct SourceFileBatchKey(
         string ActualMeshCode,
         string PackageName,
         int? LodLevel,
-        string BatchScopeIdentity,
         string PolicyContext,
-        string? SourceUnitKey,
-        string? SourceFileRelativePath);
+        string SourceFileRelativePath);
 
     private readonly record struct PreservedMaterialGroupingKey(
         string MaterialKey,
         ResoniteColor BaseColor,
         ResoniteMaterialType MaterialType,
-        string? TextureIdentity,
+        ResoniteTexturePayload? TexturePayload,
         ResoniteTextureSourceKind TextureSourceKind,
         TerrainTextureOverlay? TerrainOverlay,
         ResoniteMaterialProjection Projection,
@@ -1806,11 +1713,11 @@ internal sealed class NonDemCityObjectBaker(
         ResoniteFloat2? TextureOffset,
         ResoniteMaterialAssetScope AssetScope);
 
-    private sealed class SourceUnitKeyComparer : IComparer<SourceUnitBatchKey>
+    private sealed class SourceFileBatchKeyComparer : IComparer<SourceFileBatchKey>
     {
-        internal static readonly SourceUnitKeyComparer Instance = new();
+        internal static readonly SourceFileBatchKeyComparer Instance = new();
 
-        public int Compare(SourceUnitBatchKey x, SourceUnitBatchKey y)
+        public int Compare(SourceFileBatchKey x, SourceFileBatchKey y)
         {
             int compare = string.CompareOrdinal(x.ActualMeshCode, y.ActualMeshCode);
             if (compare != 0)
@@ -1836,7 +1743,13 @@ internal sealed class NonDemCityObjectBaker(
                 return compare;
             }
 
-            return string.CompareOrdinal(x.BatchScopeIdentity, y.BatchScopeIdentity);
+            compare = string.CompareOrdinal(x.SourceFileRelativePath, y.SourceFileRelativePath);
+            if (compare != 0)
+            {
+                return compare;
+            }
+
+            return 0;
         }
     }
 
@@ -1849,7 +1762,7 @@ internal sealed class NonDemCityObjectBaker(
             return string.Equals(x.MaterialKey, y.MaterialKey, StringComparison.Ordinal)
                 && x.BaseColor == y.BaseColor
                 && x.MaterialType == y.MaterialType
-                && string.Equals(x.TextureIdentity, y.TextureIdentity, StringComparison.Ordinal)
+                && ReferenceEquals(x.TexturePayload, y.TexturePayload)
                 && x.TextureSourceKind == y.TextureSourceKind
                 && EqualityComparer<TerrainTextureOverlay?>.Default.Equals(x.TerrainOverlay, y.TerrainOverlay)
                 && x.Projection == y.Projection
@@ -1865,7 +1778,10 @@ internal sealed class NonDemCityObjectBaker(
             hash.Add(obj.MaterialKey, StringComparer.Ordinal);
             hash.Add(obj.BaseColor);
             hash.Add(obj.MaterialType);
-            hash.Add(obj.TextureIdentity, StringComparer.Ordinal);
+            if (obj.TexturePayload is not null)
+            {
+                hash.Add(RuntimeHelpers.GetHashCode(obj.TexturePayload));
+            }
             hash.Add(obj.TextureSourceKind);
             hash.Add(obj.TerrainOverlay);
             hash.Add(obj.Projection);

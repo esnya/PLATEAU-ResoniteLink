@@ -12,8 +12,7 @@ internal sealed record ResoniteRawTextureImport(
     int Width,
     int Height,
     string ColorProfile,
-    byte[] RawRgba32Bytes,
-    string? Identity = null) : ResoniteTextureImport;
+    byte[] RawRgba32Bytes) : ResoniteTextureImport;
 
 internal sealed record ResoniteRawHdrTextureImport(
     int Width,

@@ -124,6 +124,26 @@ internal static class ResoniteMaterialComponentPolicy
         return materialMembers;
     }
 
+    internal static string DescribeForDiagnostics(ResoniteMaterialBinding material)
+    {
+        ArgumentNullException.ThrowIfNull(material);
+
+        string textureShape = material.TexturePayload is not null
+            ? "texture-payload"
+            : material.TerrainOverlay is not null
+                ? "terrain-overlay"
+                : "no-texture";
+        string textureTransform = material.TextureScale is null && material.TextureOffset is null
+            ? "identity"
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"scale={FormatFloat2(material.TextureScale)} offset={FormatFloat2(material.TextureOffset)}");
+
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"type={material.MaterialType}, projection={material.Projection}, assetScope={material.AssetScope}, family={material.Family ?? "none"}, texture={textureShape}, transform={textureTransform}");
+    }
+
     private static void AddTextureTransformMembers(
         Dictionary<string, Member> materialMembers,
         ResoniteFloat2 textureScale,
@@ -232,8 +252,17 @@ internal static class ResoniteMaterialComponentPolicy
         }
 
         throw new InvalidOperationException(
-            $"Non-common UV material '{material.MaterialKey}' reached Resonite material emission with TextureScale/TextureOffset. "
+            $"Non-common UV material ({DescribeForDiagnostics(material)}) reached Resonite material emission with TextureScale/TextureOffset. "
             + "Bake city-object UV transforms into mesh UVs before emission.");
+    }
+
+    private static string FormatFloat2(ResoniteFloat2? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"({value.X:0.######},{value.Y:0.######})");
     }
 
     public static Field_colorX CreateColorMember(ResoniteColor color)

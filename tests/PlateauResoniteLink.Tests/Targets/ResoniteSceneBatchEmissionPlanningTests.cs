@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 using PlateauResoniteLink.Targets.Resonite;
@@ -71,7 +72,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.Equal("Point", Assert.IsType<Field_Nullable_Enum>(ToMember(heightTexture.Members["FilterMode"])).Value);
         Assert.False(Assert.IsType<Field_bool>(ToMember(heightTexture.Members["MipMaps"])).Value);
         Reference displacementTexture = Assert.IsType<Reference>(ToMember(gridMesh.Members["DisplacementTexture"]));
-        Assert.Equal(heightTexture.Identity.Value, displacementTexture.TargetID);
+        Assert.Equal(ToPlannedTargetId(heightTexture.Identity), displacementTexture.TargetID);
     }
 
     [Fact]
@@ -171,7 +172,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Reference dedicatedMaterialReference = Assert.IsType<Reference>(materials.Elements[1]);
         PlannedBatchSlotEmission dedicatedMaterialSlot = Assert.Single(
             batchPlan.SlotEmissions,
-            slot => slot.ParentTarget.Planned == new BatchPlanSlotLocator("plan:mesh-asset-slot")
+            slot => slot.ParentTarget.Planned == FindAssetSlotIdentity(batchPlan, "Triangle Object")
                 && slot.SlotName.Contains("pbs", StringComparison.Ordinal));
         PlannedBatchComponentEmission dedicatedMaterialComponent = Assert.Single(
             batchPlan.ComponentEmissions,
@@ -182,10 +183,10 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 && string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
 
         Assert.Equal("existing-material-id", reusableMaterialReference.TargetID);
-        Assert.Equal(dedicatedMaterialComponent.Identity.Value, dedicatedMaterialReference.TargetID);
+        Assert.Equal(ToPlannedTargetId(dedicatedMaterialComponent.Identity), dedicatedMaterialReference.TargetID);
         Assert.Equal(dedicatedMaterialSlot.Identity, AssertPlanned(dedicatedMaterialComponent.ContainerTarget));
         Reference albedoReference = Assert.IsType<Reference>(ToMember(dedicatedMaterialComponent.Members["AlbedoTexture"]));
-        Assert.Equal(albedoTexture.Identity.Value, albedoReference.TargetID);
+        Assert.Equal(ToPlannedTargetId(albedoTexture.Identity), albedoReference.TargetID);
     }
 
     [Fact]
@@ -249,7 +250,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.MeshRenderer", StringComparison.Ordinal));
         SyncList rendererMaterials = Assert.IsType<SyncList>(ToMember(meshRenderer.Members["Materials"]));
         Reference materialReference = Assert.IsType<Reference>(Assert.Single(rendererMaterials.Elements));
-        Assert.Equal(materialComponent.Identity.Value, materialReference.TargetID);
+        Assert.Equal(ToPlannedTargetId(materialComponent.Identity), materialReference.TargetID);
 
         PlannedBatchComponentEmission[] materialTextures = batchPlan.ComponentEmissions
             .Where(component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal))
@@ -264,12 +265,12 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             static texture => texture,
             StringComparer.Ordinal);
 
-        Assert.Equal(texturesByUri["resdb:///texture/albedo"].Identity.Value, Assert.IsType<Reference>(ToMember(materialComponent.Members["AlbedoTexture"])).TargetID);
-        Assert.Equal(texturesByUri["resdb:///texture/normal"].Identity.Value, Assert.IsType<Reference>(ToMember(materialComponent.Members["NormalMap"])).TargetID);
-        Assert.Equal(texturesByUri["resdb:///texture/height"].Identity.Value, Assert.IsType<Reference>(ToMember(materialComponent.Members["HeightMap"])).TargetID);
-        Assert.Equal(texturesByUri["resdb:///texture/metallic"].Identity.Value, Assert.IsType<Reference>(ToMember(materialComponent.Members["MetallicMap"])).TargetID);
-        Assert.Equal(texturesByUri["resdb:///texture/metallic"].Identity.Value, Assert.IsType<Reference>(ToMember(materialComponent.Members["OcclusionMap"])).TargetID);
-        Assert.Equal(texturesByUri["resdb:///texture/emission"].Identity.Value, Assert.IsType<Reference>(ToMember(materialComponent.Members["EmissiveMap"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/albedo"].Identity), Assert.IsType<Reference>(ToMember(materialComponent.Members["AlbedoTexture"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/normal"].Identity), Assert.IsType<Reference>(ToMember(materialComponent.Members["NormalMap"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/height"].Identity), Assert.IsType<Reference>(ToMember(materialComponent.Members["HeightMap"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/metallic"].Identity), Assert.IsType<Reference>(ToMember(materialComponent.Members["MetallicMap"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/metallic"].Identity), Assert.IsType<Reference>(ToMember(materialComponent.Members["OcclusionMap"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(texturesByUri["resdb:///texture/emission"].Identity), Assert.IsType<Reference>(ToMember(materialComponent.Members["EmissiveMap"])).TargetID);
         Assert.DoesNotContain("PreferredProfile", texturesByUri["resdb:///texture/albedo"].Members.Keys);
         Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(ToMember(texturesByUri["resdb:///texture/normal"].Members["PreferredProfile"])).Value);
         Assert.Equal("Linear", Assert.IsType<Field_Nullable_Enum>(ToMember(texturesByUri["resdb:///texture/height"].Members["PreferredProfile"])).Value);
@@ -326,9 +327,9 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
                 && component.ContainerTarget.Planned == assetSlot.Identity);
 
         Assert.Equal("shared-material-id", materialReference.TargetID);
-        Assert.Equal(propertyBlockComponent.Identity.Value, propertyBlockReference.TargetID);
+        Assert.Equal(ToPlannedTargetId(propertyBlockComponent.Identity), propertyBlockReference.TargetID);
         Assert.Equal(AssertPlanned(meshRenderer.ContainerTarget), AssertPlanned(propertyBlockComponent.ContainerTarget));
-        Assert.Equal(overrideTexture.Identity.Value, Assert.IsType<Reference>(ToMember(propertyBlockComponent.Members["Texture"])).TargetID);
+        Assert.Equal(ToPlannedTargetId(overrideTexture.Identity), Assert.IsType<Reference>(ToMember(propertyBlockComponent.Members["Texture"])).TargetID);
         Assert.DoesNotContain("WrapModeU", overrideTexture.Members.Keys);
         Assert.DoesNotContain("WrapModeV", overrideTexture.Members.Keys);
         Assert.DoesNotContain("PreferredProfile", overrideTexture.Members.Keys);
@@ -367,7 +368,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         PlannedBatchComponentEmission overrideTexture = Assert.Single(
             batchPlan.ComponentEmissions,
             component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal)
-                && component.ContainerTarget.Planned == new BatchPlanSlotLocator("plan:mesh-asset-slot"));
+                && component.ContainerTarget.Planned == FindAssetSlotIdentity(batchPlan, "Triangle Object"));
 
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(overrideTexture.Members["WrapModeU"])).Value);
         Assert.Equal("Clamp", Assert.IsType<Field_Enum>(ToMember(overrideTexture.Members["WrapModeV"])).Value);
@@ -415,8 +416,8 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
         Assert.Equal(2, propertyBlocks.Length);
         Assert.Equal(2, textures.Length);
-        Assert.Equal(2, propertyBlocks.Select(static component => component.Identity.Value).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(2, textures.Select(static component => component.Identity.Value).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(2, propertyBlocks.Select(static component => component.Identity.Value).Distinct().Count());
+        Assert.Equal(2, textures.Select(static component => component.Identity.Value).Distinct().Count());
         Assert.Equal(
             2,
             propertyBlocks
@@ -446,10 +447,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             PlannedLiteralMember literal => literal.Value,
             PlannedElementReferenceMember reference => new Reference
             {
-                TargetID = reference.Target.CanonicalSlot?.Value
-                    ?? reference.Target.CanonicalComponent?.Value
-                    ?? reference.Target.PlannedSlot?.Value
-                    ?? reference.Target.PlannedComponent?.Value,
+                TargetID = ResolveTargetId(reference.Target),
             },
             PlannedSyncListMember syncList => new SyncList
             {
@@ -457,5 +455,45 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             },
             _ => throw new InvalidOperationException($"Unsupported planned member type '{member.GetType().Name}'."),
         };
+    }
+
+    private static BatchPlanSlotLocator FindAssetSlotIdentity(PlannedBatchEmission batchPlan, string slotName)
+    {
+        return Assert.Single(
+            batchPlan.SlotEmissions,
+            slot => string.Equals(slot.SlotName, slotName, StringComparison.Ordinal)
+                && slot.ParentTarget.Canonical == new ResoniteSlotLocator("asset-lod-slot")).Identity;
+    }
+
+    private static string? ResolveTargetId(PlannedWorldElementReference target)
+    {
+        if (target.CanonicalSlot is ResoniteSlotLocator canonicalSlot)
+        {
+            return canonicalSlot.Value;
+        }
+
+        if (target.CanonicalComponent is ResoniteComponentLocator canonicalComponent)
+        {
+            return canonicalComponent.Value;
+        }
+
+        if (target.PlannedSlot is BatchPlanSlotLocator plannedSlot)
+        {
+            return ToPlannedTargetId(plannedSlot);
+        }
+
+        return target.PlannedComponent is BatchPlanComponentLocator plannedComponent
+            ? ToPlannedTargetId(plannedComponent)
+            : null;
+    }
+
+    private static string ToPlannedTargetId(BatchPlanSlotLocator locator)
+    {
+        return locator.Value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ToPlannedTargetId(BatchPlanComponentLocator locator)
+    {
+        return locator.Value.ToString(CultureInfo.InvariantCulture);
     }
 }

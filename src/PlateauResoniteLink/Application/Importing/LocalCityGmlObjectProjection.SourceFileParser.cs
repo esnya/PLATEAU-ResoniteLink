@@ -88,14 +88,13 @@ internal static partial class LocalCityGmlObjectProjection
 
         global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject[] cityObjectArray = cityObjects
             .OrderBy(static cityObject => cityObject.SlotKey, StringComparer.Ordinal)
-            .ThenBy(static cityObject => cityObject.SourceIdentity, StringComparer.Ordinal)
             .ToArray();
         coordinateReferenceSystem ??= await ReadDocumentReferenceSystemCoreAsync(
             datasetSource,
             sourceFile.RelativePath,
             cancellationToken);
         global::PlateauResoniteLink.Application.Importing.TerrainHeightTriangle[] terrainTriangles = string.Equals(sourceFile.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-            ? LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
+            ? DemSourceBootstrapSupport.CreateTerrainHeightTriangles(cityObjectArray)
             : [];
 
         progressReporter?.Invoke(

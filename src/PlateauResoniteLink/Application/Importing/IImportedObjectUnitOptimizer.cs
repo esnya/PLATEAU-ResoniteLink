@@ -3,9 +3,9 @@ using System.Threading;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal interface IImportedCityObjectOptimizer
+internal interface IImportedObjectUnitOptimizer
 {
-    IAsyncEnumerable<ImportedCityObject> OptimizeAsync(
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
+    IAsyncEnumerable<ImportedObjectUnit> OptimizeAsync(
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         CancellationToken cancellationToken = default);
 }

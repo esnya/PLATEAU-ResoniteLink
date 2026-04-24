@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -31,21 +32,21 @@ public sealed class LocalCityGmlObjectProjectionTests
                 SharedDatasetSourceResolverHttpClient,
                 new RemoteArchiveDistributionPolicy(),
                 new ArchiveFileLayoutPolicy()),
-            constructionSourceFactory: new LocalCityGmlConstructionSourceFactory(
+            constructionSourceFactory: new DefaultImportedSceneSourceFactory(
                 documentReader,
-                new LocalCityGmlConstructionComposer(
+                new DefaultImportedSceneSourceComposer(
                     new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                    new LocalCityGmlDemTextureSourcePolicy(
+                    new DefaultDemTextureSourcePolicy(
                         new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                             new DefaultPlateauDatasetContentSourceFactory(
                                 new RemoteArchiveDistributionPolicy(),
                                 new ArchiveFileLayoutPolicy())))),
-                new LocalCityGmlDemTextureSourcePolicy(
+                new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
-                new PassthroughImportedCityObjectOptimizer()),
+                new PassthroughImportedObjectUnitOptimizer()),
             commonMaterialCatalog: new CommonMaterialCatalog(),
             archiveFileLayoutPolicy: new ArchiveFileLayoutPolicy());
     }
@@ -76,21 +77,21 @@ public sealed class LocalCityGmlObjectProjectionTests
             LocalSourcePath: fixturePath,
             ServerUri: null);
 
-        LocalCityGmlConstructionSourceFactory factory = new(
+        DefaultImportedSceneSourceFactory factory = new(
             documentReader,
-            new LocalCityGmlConstructionComposer(
+            new DefaultImportedSceneSourceComposer(
                 new LocalCityGmlGeometryProjector(new DefaultMaterialResolver()),
-                new LocalCityGmlDemTextureSourcePolicy(
+                new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy())))),
-            new LocalCityGmlDemTextureSourcePolicy(
+            new DefaultDemTextureSourcePolicy(
                     new DefaultDemTerrainGeoReferencedRasterCatalogFactory(
                         new DefaultPlateauDatasetContentSourceFactory(
                             new RemoteArchiveDistributionPolicy(),
                             new ArchiveFileLayoutPolicy()))),
-            new PassthroughImportedCityObjectOptimizer());
+            new PassthroughImportedObjectUnitOptimizer());
         IImportedSceneSource source = await factory.CreateAsync(request);
 
         Assert.Equal("3.0", source.Metadata.SchemaVersion);
@@ -310,8 +311,15 @@ public sealed class LocalCityGmlObjectProjectionTests
             textureScale: material.TextureScale!,
             color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
             textureOffset: new Float2(0.0, 0.0));
+        string defaultOffsetMaterialKey = CreateBindingMaterialKeyForTest(
+            material,
+            depthOffset: null,
+            textureScale: material.TextureScale!,
+            color: new ColorRgba(1.0, 1.0, 1.0, 1.0),
+            textureOffset: null);
 
-        Assert.Equal("common|facade|variant:0|Uv|scale:0.166667x0.166667|offset:none", materialKey);
+        Assert.Equal("common-facade-0-uv-scale-0.166667-0.166667-offset-none", materialKey);
+        Assert.Equal(defaultOffsetMaterialKey, materialKey);
     }
 
     [Fact]
@@ -1565,8 +1573,6 @@ public sealed class LocalCityGmlObjectProjectionTests
             Surfaces: surfaces,
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: $"udx/{packageName}/53394525/{packageName}.gml",
-            SourceUnitIdentity: "unit",
-            SourceIdentity: $"{packageName}:identity",
             SharedAcrossMeshCodes: false,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters);
@@ -1709,8 +1715,6 @@ public sealed class LocalCityGmlObjectProjectionTests
                 MaxHeight: heightSamples.Max(),
                 HeightSamples: heightSamples),
             Materials: [material],
-            SourceObjectKey: slotKey,
-            SourceUnitKey: slotKey,
             SourceFileRelativePath: $"udx/dem/53394525/{slotKey}.gml");
     }
     private sealed class StubSceneBuilder : ISceneSink
@@ -1719,14 +1723,14 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         public async Task<SceneImportExecutionResult> ExecuteAsync(
             SceneImportExecutionPlan plan,
-            IAsyncEnumerable<ImportedCityObject> cityObjects,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             _ = plan;
-            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                CityObjects.Add(cityObject);
+                CityObjects.AddRange(objectUnit.CityObjects);
             }
 
             return new SceneImportExecutionResult(["stub://resonite"], CityObjects.Count);

@@ -2,9 +2,9 @@ using System.Collections.Generic;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlBootstrapContext
+internal sealed class ImportedSceneSourceContext
 {
-    internal LocalCityGmlBootstrapContext(
+    internal ImportedSceneSourceContext(
         IReadOnlyList<SourceFilePipeline> sourceFilePipelines,
         GeodeticPoint globalOriginPoint)
     {

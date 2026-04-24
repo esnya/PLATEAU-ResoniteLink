@@ -9,6 +9,6 @@ public interface ISceneSink : IAsyncDisposable
 {
     Task<SceneImportExecutionResult> ExecuteAsync(
         SceneImportExecutionPlan plan,
-        IAsyncEnumerable<ImportedCityObject> cityObjects,
+        IAsyncEnumerable<ImportedObjectUnit> objectUnits,
         CancellationToken cancellationToken = default);
 }

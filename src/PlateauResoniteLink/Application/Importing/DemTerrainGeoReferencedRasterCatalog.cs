@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using PlateauResoniteLink.Domain.Importing;
+
 namespace PlateauResoniteLink.Application.Importing;
 
 internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoReferencedRasterCatalog
@@ -17,8 +18,8 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     private readonly IReadOnlyList<string> orderedRelativeRasterPaths;
     private readonly IReadOnlyDictionary<string, string> relativeRasterPathsByStem;
     private readonly object cachedRasterSourceTaskGate = new();
-    private readonly Dictionary<string, Task<TerrainTextureGeoReferencedRasterSource?>> cachedRasterSourceTasksByCacheKey =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<DemTerrainRasterCacheKey, Task<TerrainTextureGeoReferencedRasterSource?>> cachedRasterSourceTasksByCacheKey =
+        [];
 
     private DemTerrainGeoReferencedRasterCatalog(
         string? directRasterPath,
@@ -96,12 +97,11 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     }
 
     public async Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
-        string cacheKey,
+        DemTerrainRasterCacheKey cacheKey,
         string meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(cacheKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
 
         Task<TerrainTextureGeoReferencedRasterSource?> resolveTask;
@@ -167,7 +167,7 @@ internal sealed class DemTerrainGeoReferencedRasterCatalog : IDemTerrainGeoRefer
     }
 
     private void RemoveFaultedResolveTask(
-        string cacheKey,
+        DemTerrainRasterCacheKey cacheKey,
         Task<TerrainTextureGeoReferencedRasterSource?> completedTask)
     {
         if (!completedTask.IsFaulted && !completedTask.IsCanceled)

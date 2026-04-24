@@ -250,7 +250,6 @@ internal static class DemTerrainOverlayAssignment
             yield return (
                 parsedCityObject with
                 {
-                    SourceIdentity = $"{parsedCityObject.SourceIdentity}_dem_{index:D2}",
                     SlotKey = $"{parsedCityObject.SlotKey}_dem_{index:D2}",
                     DisplayName = suffixGeneratedObjects
                         ? $"{parsedCityObject.DisplayName} ({index + 1})"

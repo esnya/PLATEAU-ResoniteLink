@@ -7,10 +7,11 @@ using System.Threading.Tasks;
 
 using PlateauResoniteLink.Application.Importing;
 using PlateauResoniteLink.Domain.Importing;
+using PlateauResoniteLink.Tests.Application.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class LocalCityGmlConstructionSourceFactoryTests
+public sealed class DefaultImportedSceneSourceFactoryTests
 {
     [Fact]
     public async Task CreateAsyncUsesDocumentReaderAndComposer()
@@ -19,7 +20,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
         RecordingDocumentReader reader = new();
         RecordingComposer composer = new(expectedSource);
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         Action<string> progressReporter = _ => { };
 
         PlateauImportRequest request = new(
@@ -55,19 +60,23 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 ]),
         ];
         RecordingDocumentReader reader = new(
-            new LocalCityGmlBootstrapSnapshot(
-                new LocalCityGmlDocumentSet(
+            new ImportedSceneSourceSnapshot(
+                new ImportedSceneSourceDataset(
                     new EmptyDatasetContentSource(),
                     ["udx/dem/53394525/terrain.gml"],
                     ["dem"],
                     [],
                     ["53394525"]),
-                new LocalCityGmlBootstrapContext(
+                new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(resolvedOverlays);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -89,8 +98,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     public async Task CreateAsyncValidatesExplicitDemSourceBeforeCompositionWithoutMutatingReadResult()
     {
         RecordingDocumentReader reader = new(
-            new LocalCityGmlBootstrapSnapshot(
-                new LocalCityGmlDocumentSet(
+            new ImportedSceneSourceSnapshot(
+                new ImportedSceneSourceDataset(
                     new EmptyDatasetContentSource(),
                     [
                         "udx/dem/53394525/terrain.gml",
@@ -99,12 +108,16 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     ["dem", "bldg"],
                     [],
                     ["53394525", "53394526"]),
-                new LocalCityGmlBootstrapContext(
+                new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
@@ -145,8 +158,8 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                         TimeSpan.Zero));
             });
         RecordingDocumentReader reader = new(
-            new LocalCityGmlBootstrapSnapshot(
-                new LocalCityGmlDocumentSet(
+            new ImportedSceneSourceSnapshot(
+                new ImportedSceneSourceDataset(
                     new EmptyDatasetContentSource(),
                     [
                         "udx/dem/53394525/terrain.gml",
@@ -155,12 +168,16 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                     ["dem", "bldg"],
                     [],
                     ["53394525", "53394526"]),
-                new LocalCityGmlBootstrapContext(
+                new ImportedSceneSourceContext(
                     [demPipeline],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new([]);
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525|53394526",
@@ -179,21 +196,25 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
     public async Task CreateAsyncFailsBeforeCompositionWhenExplicitDemTextureSourceIsInvalid()
     {
         RecordingDocumentReader reader = new(
-            new LocalCityGmlBootstrapSnapshot(
-                new LocalCityGmlDocumentSet(
+            new ImportedSceneSourceSnapshot(
+                new ImportedSceneSourceDataset(
                     new EmptyDatasetContentSource(),
                     ["udx/dem/53394525/terrain.gml"],
                     ["dem"],
                     [],
                     ["53394525"]),
-                new LocalCityGmlBootstrapContext(
+                new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0))));
         RecordingComposer composer = new(new StubConstructionSource());
         StubDemTextureSourcePolicy demTextureSourcePolicy = new(
             [],
             new PlateauImportValidationException(["invalid GeoTIFF source"]));
-        LocalCityGmlConstructionSourceFactory factory = new(reader, composer, demTextureSourcePolicy, new PassthroughImportedCityObjectOptimizer());
+        DefaultImportedSceneSourceFactory factory = new(
+            reader,
+            composer,
+            demTextureSourcePolicy,
+            new PassthroughImportedObjectUnitOptimizer());
         PlateauImportRequest request = new(
             Dataset: "tokyo23ku",
             MeshCode: "53394525",
@@ -212,16 +233,16 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
     private sealed class RecordingDocumentReader : ICityGmlDocumentReader
     {
-        public RecordingDocumentReader(LocalCityGmlBootstrapSnapshot? readResult = null)
+        public RecordingDocumentReader(ImportedSceneSourceSnapshot? readResult = null)
         {
-            ReadResult = readResult ?? new LocalCityGmlBootstrapSnapshot(
-                new LocalCityGmlDocumentSet(
+            ReadResult = readResult ?? new ImportedSceneSourceSnapshot(
+                new ImportedSceneSourceDataset(
                     new EmptyDatasetContentSource(),
                     [],
                     [],
                     [],
                     []),
-                new LocalCityGmlBootstrapContext(
+                new ImportedSceneSourceContext(
                     [],
                     new GeodeticPoint(35.0, 139.0, 0.0)));
         }
@@ -230,9 +251,9 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public Action<string>? LastProgressReporter { get; private set; }
 
-        public LocalCityGmlBootstrapSnapshot ReadResult { get; }
+        public ImportedSceneSourceSnapshot ReadResult { get; }
 
-        public Task<LocalCityGmlBootstrapSnapshot> ReadAsync(
+        public Task<ImportedSceneSourceSnapshot> ReadAsync(
             PlateauImportRequest request,
             Action<string>? progressReporter = null,
             CancellationToken cancellationToken = default)
@@ -249,19 +270,20 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
 
         public PlateauImportRequest? LastRequest { get; private set; }
 
-        public LocalCityGmlBootstrapSnapshot? LastReadResult { get; private set; }
+        public ImportedSceneSourceSnapshot? LastReadResult { get; private set; }
 
         public Action<string>? LastProgressReporter { get; private set; }
 
         public IImportedSceneSource Compose(
             PlateauImportRequest request,
-            LocalCityGmlBootstrapSnapshot readResult,
-            Action<string>? progressReporter = null,
-            IImportedCityObjectOptimizer? cityObjectOptimizer = null)
+            ImportedSceneSourceSnapshot readResult,
+            IImportedObjectUnitOptimizer objectUnitOptimizer,
+            Action<string>? progressReporter = null)
         {
             LastRequest = request;
             LastReadResult = readResult;
             LastProgressReporter = progressReporter;
+            _ = objectUnitOptimizer;
             return Source;
         }
     }
@@ -287,11 +309,11 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
                 []),
             GeodeticOrigin: new GeodeticOrigin(35.0, 139.0, 0.0));
 
-        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            yield return new ImportedObjectUnit("stub.gml", "bldg", null, []);
             await Task.CompletedTask;
-            yield break;
         }
     }
 
@@ -330,8 +352,6 @@ public sealed class LocalCityGmlConstructionSourceFactoryTests
             ],
             ReferenceSystem: referenceSystem,
             SourceFileRelativePath: "udx/dem/53394525/terrain.gml",
-            SourceUnitIdentity: "test-unit",
-            SourceIdentity: "dem:slot-000",
             SharedAcrossMeshCodes: false);
     }
 

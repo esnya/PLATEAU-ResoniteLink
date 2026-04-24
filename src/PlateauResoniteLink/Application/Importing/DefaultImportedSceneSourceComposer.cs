@@ -5,7 +5,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Application.Importing;
 
-internal sealed class LocalCityGmlConstructionComposer(
+internal sealed class DefaultImportedSceneSourceComposer(
     ICityGmlGeometryProjector geometryProjector,
     IDemTextureSourcePolicy demTextureSourcePolicy) : IImportedSceneSourceComposer
 {
@@ -16,14 +16,15 @@ internal sealed class LocalCityGmlConstructionComposer(
 
     public IImportedSceneSource Compose(
         PlateauImportRequest request,
-        LocalCityGmlBootstrapSnapshot readResult,
-        Action<string>? progressReporter = null,
-        IImportedCityObjectOptimizer? cityObjectOptimizer = null)
+        ImportedSceneSourceSnapshot readResult,
+        IImportedObjectUnitOptimizer objectUnitOptimizer,
+        Action<string>? progressReporter = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(readResult);
-        LocalCityGmlDocumentSet documentSet = readResult.DocumentSet;
-        LocalCityGmlBootstrapContext bootstrapContext = readResult.BootstrapContext;
+        ArgumentNullException.ThrowIfNull(objectUnitOptimizer);
+        ImportedSceneSourceDataset documentSet = readResult.DocumentSet;
+        ImportedSceneSourceContext bootstrapContext = readResult.BootstrapContext;
 
         ImportedSceneMetadata metadata = new(
             SchemaVersion: "3.0",
@@ -39,14 +40,14 @@ internal sealed class LocalCityGmlConstructionComposer(
                 Longitude: bootstrapContext.GlobalOriginPoint.Longitude,
                 Altitude: bootstrapContext.GlobalOriginPoint.Altitude));
 
-        return new LocalCityGmlConstructionSource(
+        return new StreamingImportedSceneSource(
             metadata,
             request,
             readResult,
             geometryProjector,
             demTextureSourcePolicy,
-            progressReporter,
-            cityObjectOptimizer ?? new PassthroughImportedCityObjectOptimizer());
+            objectUnitOptimizer,
+            progressReporter);
     }
 
     private static Attribution CreateAttribution(PlateauImportRequest request)

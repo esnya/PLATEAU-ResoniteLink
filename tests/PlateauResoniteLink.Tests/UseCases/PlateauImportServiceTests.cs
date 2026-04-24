@@ -44,7 +44,7 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedLocalDatasetLocation(resolvedSourcePath),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(resolvedSourcePath);
-        LocalCityGmlBootstrapSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         IReadOnlyList<MaterialBinding> sourceCommonMaterials = [
             new MaterialBinding(
                 MaterialKey: "shared-mat-a",
@@ -156,7 +156,7 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
-        LocalCityGmlBootstrapSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
@@ -275,7 +275,7 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
-        LocalCityGmlBootstrapSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new()
         {
             DisposeException = new InvalidOperationException("dispose-failed"),
@@ -318,7 +318,7 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
-        LocalCityGmlBootstrapSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new();
         RecordingDatasetSourceResolver datasetSourceResolver = new(validatedRequest);
         StubConstructionSource source = new(
@@ -358,7 +358,7 @@ public sealed class PlateauImportServiceTests
             Source: new ValidatedLocalDatasetLocation(rawSourceRoot.Path),
             PackageNames: ["bldg"]);
         RecordingDatasetSource datasetSource = new(rawSourceRoot.Path);
-        LocalCityGmlBootstrapSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
+        ImportedSceneSourceSnapshot readResult = CreateReadResult(datasetSource, ["bldg"], ["udx/bldg/53394525/building.gml"]);
         RecordingSceneBuilder sceneBuilder = new()
         {
             ExecutionResultFactory = static cityObjectCount => new SceneImportExecutionResult(
@@ -386,19 +386,19 @@ public sealed class PlateauImportServiceTests
         Assert.Equal(1, sceneBuilder.DisposeCount);
     }
 
-    private static LocalCityGmlBootstrapSnapshot CreateReadResult(
+    private static ImportedSceneSourceSnapshot CreateReadResult(
         IPlateauDatasetContentSource datasetSource,
         IReadOnlyList<string> packageNames,
         IReadOnlyList<string> relativeSourceFiles)
     {
-        return new LocalCityGmlBootstrapSnapshot(
-            new LocalCityGmlDocumentSet(
+        return new ImportedSceneSourceSnapshot(
+            new ImportedSceneSourceDataset(
                 datasetSource,
                 relativeSourceFiles,
                 packageNames,
                 [],
                 ["53394525"]),
-            new LocalCityGmlBootstrapContext(
+            new ImportedSceneSourceContext(
                 [],
                 new GeodeticPoint(35.0, 139.0, 0.0)));
     }
@@ -437,15 +437,15 @@ public sealed class PlateauImportServiceTests
 
         public async Task<SceneImportExecutionResult> ExecuteAsync(
             SceneImportExecutionPlan plan,
-            IAsyncEnumerable<ImportedCityObject> cityObjects,
+            IAsyncEnumerable<ImportedObjectUnit> objectUnits,
             CancellationToken cancellationToken = default)
         {
             ExecuteCallCount++;
             ConnectedRequest = plan.NormalizedRequest;
             BeginRequest = plan.SceneBuildRequest;
-            await foreach (ImportedCityObject cityObject in cityObjects.WithCancellation(cancellationToken))
+            await foreach (ImportedObjectUnit objectUnit in objectUnits.WithCancellation(cancellationToken))
             {
-                ProcessedCityObjects.Add(cityObject);
+                ProcessedCityObjects.AddRange(objectUnit.CityObjects);
             }
 
             return ExecutionResultFactory is null
@@ -507,7 +507,7 @@ public sealed class PlateauImportServiceTests
 
     private sealed class RecordingConstructionSourceFactory(
         IImportedSceneSource source,
-        LocalCityGmlBootstrapSnapshot readResult) : IImportedSceneSourceFactory
+        ImportedSceneSourceSnapshot readResult) : IImportedSceneSourceFactory
     {
         public int CreateCallCount { get; private set; }
 
@@ -534,15 +534,20 @@ public sealed class PlateauImportServiceTests
 
         public ImportedSceneMetadata Metadata { get; } = metadata;
 
-        public async IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
+        public async IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            foreach (ImportedCityObject cityObject in cityObjects)
+            if (cityObjects.Count == 0)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return cityObject;
+                await Task.CompletedTask;
+                yield break;
             }
 
+            yield return new ImportedObjectUnit(
+                "test-source.gml",
+                "bldg",
+                1,
+                cityObjects);
             await Task.CompletedTask;
         }
 
@@ -563,8 +568,6 @@ public sealed class PlateauImportServiceTests
                     ],
                     [new MeshSubmesh(0, "material", [0, 1, 2])])),
                 Materials: [],
-                SourceObjectKey: "source-object",
-                SourceUnitKey: "source-unit",
                 SourceFileRelativePath: "udx/bldg/53394525/building.gml");
         }
     }

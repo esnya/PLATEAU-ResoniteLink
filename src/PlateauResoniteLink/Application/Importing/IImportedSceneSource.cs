@@ -7,6 +7,6 @@ public interface IImportedSceneSource
 {
     ImportedSceneMetadata Metadata { get; }
 
-    IAsyncEnumerable<ImportedCityObject> ReadCityObjectsAsync(
+    IAsyncEnumerable<ImportedObjectUnit> ReadObjectUnitsAsync(
         CancellationToken cancellationToken = default);
 }

@@ -278,7 +278,68 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
             texture.TextureImport.Width,
             texture.TextureImport.Height);
         Assert.Equal(new Rgba32(12, 34, 56, 255), outputImage[0, 0]);
-        Assert.Contains("georaster|", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.IsType<TerrainTextureGeoReferencedRasterSource>(texture.UsedSource);
+    }
+
+    [Fact]
+    public async Task EnsureTextureAsyncDistinguishesTextureContentAcrossTileRasterAndMixedSources()
+    {
+        using TemporaryDirectory workDirectory = new();
+        string rasterPath = Path.Combine(workDirectory.Path, "terrain.png");
+        GeographicRectangle bounds = new(0.0, WebMercatorTileMath.MaxLatitude, -180.0, 180.0);
+        using (Image<Rgba32> rasterImage = new(2, 2))
+        {
+            rasterImage[0, 0] = new Rgba32(12, 34, 56, 255);
+            rasterImage[1, 0] = new Rgba32(0, 0, 0, 0);
+            rasterImage[0, 1] = new Rgba32(12, 34, 56, 255);
+            rasterImage[1, 1] = new Rgba32(0, 0, 0, 0);
+            await rasterImage.SaveAsPngAsync(rasterPath);
+        }
+
+        TerrainTextureOverlay tileOnlyOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
+            ]);
+        TerrainTextureOverlay rasterOnlyOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 1.0, 1.0)),
+            ]);
+        TerrainTextureOverlay mixedOverlay = new(
+            PackageName: "dem",
+            GeographicBounds: bounds,
+            MaxTextureSize: 1024,
+            Sources:
+            [
+                new TerrainTextureGeoReferencedRasterSource(
+                    rasterPath,
+                    new GeoReferencedRasterMetadata(bounds, "EPSG:4326", 1.0, 1.0)),
+                new TerrainTextureTileSource("https://tiles.example/{z}/{x}/{y}.png", 1),
+            ]);
+
+        using TerrainTextureAssetGeneratorTestsProxyMapTileHandler handler = new();
+        using HttpClient httpClient = new(handler);
+        TerrainTextureAssetGenerator generator = new(httpClient, disablePersistentCache: true);
+
+        GeneratedTerrainTexture tileOnlyTexture = await generator.EnsureTextureAsync(tileOnlyOverlay, CancellationToken.None);
+        GeneratedTerrainTexture rasterOnlyTexture = await generator.EnsureTextureAsync(rasterOnlyOverlay, CancellationToken.None);
+        GeneratedTerrainTexture mixedTexture = await generator.EnsureTextureAsync(mixedOverlay, CancellationToken.None);
+
+        Assert.NotEqual(tileOnlyTexture.TextureImport.RawRgba32Bytes, rasterOnlyTexture.TextureImport.RawRgba32Bytes);
+        Assert.NotEqual(tileOnlyTexture.TextureImport.RawRgba32Bytes, mixedTexture.TextureImport.RawRgba32Bytes);
+        Assert.NotEqual(rasterOnlyTexture.TextureImport.RawRgba32Bytes, mixedTexture.TextureImport.RawRgba32Bytes);
+        Assert.Single(rasterOnlyTexture.UsedSources ?? []);
+        Assert.Equal(2, (mixedTexture.UsedSources ?? []).Count);
     }
 
     [Fact]
@@ -425,8 +486,12 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         Assert.Equal(
             new Rgba32(12, 34, 56, 255),
             outputImage[(layout.CropWidth * 3) / 4, occupiedTop + (layout.CropHeight / 2)]);
-        Assert.Contains("georaster|", texture.TextureImport.Identity, StringComparison.Ordinal);
-        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.Contains(texture.UsedSources ?? [], static source => source is TerrainTextureGeoReferencedRasterSource);
+        Assert.Contains(
+            texture.UsedSources ?? [],
+            static source => source is TerrainTextureTileSource tileSource
+                && tileSource.UrlTemplate == "https://tiles.example/{z}/{x}/{y}.png");
         Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
     }
 
@@ -451,7 +516,8 @@ public sealed class TerrainTextureGeoReferencedRasterSupportTests
         GeneratedTerrainTexture texture = await generator.EnsureTextureAsync(overlay, CancellationToken.None);
 
         Assert.Equal(4, handler.RequestCount);
-        Assert.Contains("tile|1|https://tiles.example/{z}/{x}/{y}.png", texture.TextureImport.Identity, StringComparison.Ordinal);
+        Assert.NotEmpty(texture.TextureImport.RawRgba32Bytes);
+        Assert.IsType<TerrainTextureTileSource>(texture.UsedSource);
     }
 
     private sealed class NeverCalledMapTileHandler : HttpMessageHandler

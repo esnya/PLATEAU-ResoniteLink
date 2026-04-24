@@ -131,8 +131,6 @@ internal static partial class LocalCityGmlObjectProjection
 
         string fileStem = Path.GetFileNameWithoutExtension(relativeSourceFile);
         string slotKey = SanitizeIdentifier($"{packageName}_{fileStem}_{objectId}");
-        string sourceUnitIdentity = SanitizeIdentifier(relativeSourceFile);
-        string sourceIdentity = SanitizeIdentifier($"{relativeSourceFile}_{objectId}");
         return new ParsedCityObject(
             slotKey,
             displayName!,
@@ -142,8 +140,6 @@ internal static partial class LocalCityGmlObjectProjection
             surfaces,
             coordinateReferenceSystem,
             relativeSourceFile,
-            sourceUnitIdentity,
-            sourceIdentity,
             SharedAcrossMeshCodes: sharedAcrossMeshCodes,
             FloorsAboveGround: floorsAboveGround,
             MeasuredHeightMeters: measuredHeightMeters);
@@ -153,7 +149,7 @@ internal static partial class LocalCityGmlObjectProjection
         MeshCodeBounds demBounds,
         IReadOnlyList<string> requestedMeshCodes)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+        return DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
                 DemTerrainBounds.FromLegacy(demBounds),
                 requestedMeshCodes)
             .Select(static region => DemTerrainTextureDefaults.CreatePlateauOrthoWithGsiFallbackOverlay(region.GeographicBounds))
@@ -447,7 +443,7 @@ internal static partial class LocalCityGmlObjectProjection
         IEnumerable<ParsedSourceFileResult> demParsedSourceFiles,
         MeshCodeBounds? fallbackBounds)
     {
-        DemTerrainBounds? bounds = LocalCityGmlDemBootstrapSupport.ResolveDemTerrainBounds(
+        DemTerrainBounds? bounds = DemSourceBootstrapSupport.ResolveDemTerrainBounds(
             demParsedSourceFiles.Select(global::PlateauResoniteLink.Application.Importing.ParsedSourceFileResult.FromLegacy),
             fallbackBounds is null ? null : DemTerrainBounds.FromLegacy(fallbackBounds));
         return bounds?.ToLegacy();
@@ -456,7 +452,7 @@ internal static partial class LocalCityGmlObjectProjection
     private static TerrainHeightTriangle[] ExtractTerrainHeightTriangles(
         IEnumerable<ParsedCityObject> cityObjects)
     {
-        return LocalCityGmlDemBootstrapSupport.CreateTerrainHeightTriangles(
+        return DemSourceBootstrapSupport.CreateTerrainHeightTriangles(
                 cityObjects.Select(BootstrapParsedCityObject.FromLegacy))
             .Select(static triangle => triangle.ToLegacy())
             .ToArray();
@@ -1306,8 +1302,6 @@ internal static partial class LocalCityGmlObjectProjection
             Transform: new Transform3D(ToContractFloat3(slotPosition)),
             Mesh: new ImportedMesh(vertices.ToArray(), submeshes.ToArray()),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
@@ -1560,7 +1554,6 @@ internal static partial class LocalCityGmlObjectProjection
             ? null
             : cityObject with
             {
-                SourceIdentity = $"{cityObject.SourceIdentity}_road_marking",
                 SlotKey = $"{cityObject.SlotKey}_road_marking",
                 DisplayName = $"{cityObject.DisplayName} Marking",
                 Surfaces = markingSurfaces.ToArray(),
@@ -2483,31 +2476,12 @@ internal static partial class LocalCityGmlObjectProjection
         ColorRgba color,
         Float2? textureOffset = null)
     {
-        string colorKey = string.Create(
+        string terrainToken = terrainOverlay is null ? "none" : CreateTerrainOverlayToken(terrainOverlay);
+        string textureToken = texturePayload?.Identity ?? "none";
+        string familyToken = string.IsNullOrWhiteSpace(family) ? "none" : family.ToLowerInvariant();
+        return string.Create(
             CultureInfo.InvariantCulture,
-            $"{color.R:0.######},{color.G:0.######},{color.B:0.######},{color.A:0.######}");
-        string depthOffsetKey = depthOffset is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{depthOffset.Factor:0.######},{depthOffset.Units:0.######}");
-        string textureScaleKey = textureScale is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{textureScale.X:0.######},{textureScale.Y:0.######}");
-        string textureOffsetKey = textureOffset is null
-            ? "none"
-            : string.Create(CultureInfo.InvariantCulture, $"{textureOffset.X:0.######},{textureOffset.Y:0.######}");
-        string familyKey = string.IsNullOrWhiteSpace(family)
-            ? "none"
-            : family.ToLowerInvariant();
-
-        string materialTypeKey = materialType.ToString().ToLowerInvariant();
-        if (terrainOverlay is not null)
-        {
-            return $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|terrain-overlay:{CreateTerrainOverlayToken(terrainOverlay)}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}";
-        }
-
-        return texturePayload is null
-            ? $"type:{materialTypeKey}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}"
-            : $"{materialTypeKey}|{projection.ToString().ToLowerInvariant()}|{textureSourceKind.ToString().ToLowerInvariant()}-texture:{texturePayload.Identity ?? "payload"}|family:{familyKey}|depth:{depthOffsetKey}|scale:{textureScaleKey}|offset:{textureOffsetKey}|color:{colorKey}";
+            $"material-{MaterialTypeToken(materialType)}-{ProjectionToken(projection)}-terrain-{terrainToken}-texture-{textureToken}-source-{textureSourceKind.ToString().ToLowerInvariant()}-family-{familyToken}-depth-{FormatDepth(depthOffset)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-color-{FormatColor(color)}");
     }
 
     private static string CreateBindingMaterialKey(
@@ -2521,19 +2495,10 @@ internal static partial class LocalCityGmlObjectProjection
         {
             string family = material.Family ?? throw new InvalidOperationException("Common material must provide a family.");
             int variantIndex = material.BundledVariantIndex ?? 0;
-            string scaleToken = textureScale is null
-                ? "none"
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{textureScale.X:0.######}x{textureScale.Y:0.######}");
-            string offsetToken = textureOffset is null || (Math.Abs(textureOffset.X) < 1e-9 && Math.Abs(textureOffset.Y) < 1e-9)
-                ? "none"
-                : string.Create(
-                    CultureInfo.InvariantCulture,
-                    $"{textureOffset.X:0.######}x{textureOffset.Y:0.######}");
+            Float2? effectiveTextureOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"common|{family}|variant:{variantIndex}|{material.Projection}|scale:{scaleToken}|offset:{offsetToken}");
+                $"common-{family}-{variantIndex}-{ProjectionToken(material.Projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(effectiveTextureOffset)}");
         }
 
         return CreateMaterialKey(
@@ -2553,11 +2518,61 @@ internal static partial class LocalCityGmlObjectProjection
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{terrainOverlay.PackageName.ToLowerInvariant()}|{terrainOverlay.SourceIdentityKey}|"
-            + $"{terrainOverlay.GeographicBounds.MinLatitude:0.######},"
-            + $"{terrainOverlay.GeographicBounds.MaxLatitude:0.######},"
-            + $"{terrainOverlay.GeographicBounds.MinLongitude:0.######},"
-            + $"{terrainOverlay.GeographicBounds.MaxLongitude:0.######}");
+            $"terrain-overlay-{terrainOverlay.PackageName.ToLowerInvariant()}-{terrainOverlay.SourceDescriptorKey}-bounds-{FormatBounds(terrainOverlay.GeographicBounds)}");
+    }
+
+    private static string MaterialTypeToken(MaterialType materialType) =>
+        materialType.ToString().ToLowerInvariant();
+
+    private static string ProjectionToken(MaterialProjection projection)
+    {
+        return projection switch
+        {
+            MaterialProjection.Uv => "uv",
+            MaterialProjection.Triplanar => "triplanar",
+            _ => projection.ToString().ToLowerInvariant(),
+        };
+    }
+
+    private static string FormatFloat2(Float2? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
+    }
+
+    private static string FormatDepth(MaterialDepthOffset? value)
+    {
+        return value is null
+            ? "none"
+            : string.Create(
+                CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
+    }
+
+    private static string FormatColor(ColorRgba value) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(value.R)}-{FormatRounded(value.G)}-{FormatRounded(value.B)}-{FormatRounded(value.A)}");
+
+    private static string FormatBounds(GeographicRectangle bounds) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{FormatRounded(bounds.MinLatitude)}-{FormatRounded(bounds.MaxLatitude)}-{FormatRounded(bounds.MinLongitude)}-{FormatRounded(bounds.MaxLongitude)}");
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", CultureInfo.InvariantCulture);
+    }
+
+    private static bool IsZeroTextureOffset(Float2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 
     private static bool ShouldPreferUvProjection(
@@ -3315,7 +3330,7 @@ internal static partial class LocalCityGmlObjectProjection
         foreach (List<BoundaryHeightSampleReference> references in sampleReferencesByKey.Values)
         {
             if (references.Count < 2
-                || references.Select(static reference => reference.State.CityObject.SourceObjectKey ?? reference.State.CityObject.ObjectKey).Distinct(StringComparer.Ordinal).Count() < 2)
+                || references.Select(static reference => reference.State.CityObject).Distinct().Count() < 2)
             {
                 continue;
             }
@@ -3621,8 +3636,6 @@ internal static partial class LocalCityGmlObjectProjection
                 UvScale: heightMapUvScale,
                 UvOffset: heightMapUvOffset),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
         return true;
     }
@@ -3781,8 +3794,6 @@ internal static partial class LocalCityGmlObjectProjection
                 UvScale: heightMapUvScale,
                 UvOffset: heightMapUvOffset),
             Materials: materials,
-            SourceObjectKey: cityObject.SourceIdentity,
-            SourceUnitKey: cityObject.SourceUnitIdentity,
             SourceFileRelativePath: cityObject.SourceFileRelativePath);
         return true;
     }
@@ -4479,8 +4490,6 @@ internal static partial class LocalCityGmlObjectProjection
         ParsedSurface[] Surfaces,
         CoordinateReferenceSystem ReferenceSystem,
         string SourceFileRelativePath,
-        string SourceUnitIdentity,
-        string SourceIdentity,
         bool SharedAcrossMeshCodes,
         bool TerrainAligned = false,
         GeodeticPoint? OriginOverride = null,

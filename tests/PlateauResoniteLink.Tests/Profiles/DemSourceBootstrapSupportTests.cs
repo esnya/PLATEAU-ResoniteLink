@@ -5,7 +5,7 @@ using PlateauResoniteLink.Domain.Importing;
 
 namespace PlateauResoniteLink.Tests.Profiles;
 
-public sealed class LocalCityGmlDemBootstrapSupportTests
+public sealed class DemSourceBootstrapSupportTests
 {
     [Fact]
     public void AggregateDemParsedSourceFilesCombinesCachedFilesAndTriangles()
@@ -30,7 +30,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             [CreateTerrainTriangle(), CreateTerrainTriangle()],
             TimeSpan.FromSeconds(2.0));
 
-        DemBootstrapAggregation result = LocalCityGmlDemBootstrapSupport.AggregateDemParsedSourceFiles(
+        DemBootstrapAggregation result = DemSourceBootstrapSupport.AggregateDemParsedSourceFiles(
             [parsedWithCityObject, parsedWithoutCityObjects]);
 
         CachedSourceFileDescriptor cachedSourceFile = Assert.Single(result.CachedDemSourceFiles);
@@ -46,7 +46,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             PlateauMeshCode.TryGetBounds(
                 "53394525",
                 out (double SouthLatitude, double NorthLatitude, double WestLongitude, double EastLongitude) meshBounds));
-        DemTerrainOverlayRegion[] result = LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+        DemTerrainOverlayRegion[] result = DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
             ["53394525"]);
 
         DemTerrainOverlayRegion region = Assert.Single(result);
@@ -61,7 +61,7 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
     public void CreateDemTerrainOverlayRegionsReturnsFallbackBoundsWhenRequestedMeshesDoNotIntersect()
     {
         DemTerrainOverlayRegion region = Assert.Single(
-            LocalCityGmlDemBootstrapSupport.CreateDemTerrainOverlayRegions(
+            DemSourceBootstrapSupport.CreateDemTerrainOverlayRegions(
                 new DemTerrainBounds(35.0, 35.0001, 139.0, 139.0001),
                 ["99999999"]));
 
@@ -100,8 +100,6 @@ public sealed class LocalCityGmlDemBootstrapSupportTests
             ],
             ReferenceSystem: CoordinateReferenceSystem.Parse("EPSG:4326"),
             SourceFileRelativePath: "udx/dem/53394525/sample.gml",
-            SourceUnitIdentity: "udx/dem/53394525/sample.gml",
-            SourceIdentity: "source",
             SharedAcrossMeshCodes: false,
             TerrainAligned: false,
             OriginOverride: null);

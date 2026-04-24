@@ -21,10 +21,40 @@ internal interface IDemTextureSourcePolicy
 
 internal sealed record ResolvedDemTextureSources(IReadOnlyList<TerrainTextureOverlay> Overlays);
 
+internal readonly record struct DemTerrainRasterCacheKey
+{
+    public DemTerrainRasterCacheKey(string meshCode, GeographicRectangle overlayBounds)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(meshCode);
+
+        MeshCode = meshCode;
+        MinLatitude = CanonicalizeCoordinate(overlayBounds.MinLatitude);
+        MaxLatitude = CanonicalizeCoordinate(overlayBounds.MaxLatitude);
+        MinLongitude = CanonicalizeCoordinate(overlayBounds.MinLongitude);
+        MaxLongitude = CanonicalizeCoordinate(overlayBounds.MaxLongitude);
+    }
+
+    public string MeshCode { get; }
+
+    public double MinLatitude { get; }
+
+    public double MaxLatitude { get; }
+
+    public double MinLongitude { get; }
+
+    public double MaxLongitude { get; }
+
+    private static double CanonicalizeCoordinate(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return rounded == 0.0d ? 0.0d : rounded;
+    }
+}
+
 internal interface IDemTerrainGeoReferencedRasterCatalog
 {
     Task<TerrainTextureGeoReferencedRasterSource?> TryResolveRasterSourceAsync(
-        string cacheKey,
+        DemTerrainRasterCacheKey cacheKey,
         string meshCode,
         GeographicRectangle overlayBounds,
         CancellationToken cancellationToken);
@@ -52,7 +82,7 @@ internal sealed class DefaultDemTerrainGeoReferencedRasterCatalogFactory(
     }
 }
 
-internal sealed class LocalCityGmlDemTextureSourcePolicy(
+internal sealed class DefaultDemTextureSourcePolicy(
     IDemTerrainGeoReferencedRasterCatalogFactory rasterCatalogFactory)
     : IDemTextureSourcePolicy
 {
@@ -133,7 +163,7 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
         if (rasterCatalog is not null)
         {
             TerrainTextureGeoReferencedRasterSource? rasterSource = await rasterCatalog.TryResolveRasterSourceAsync(
-                CreateRasterCacheKey(region),
+                new DemTerrainRasterCacheKey(region.Identity, region.GeographicBounds),
                 region.Identity,
                 region.GeographicBounds,
                 cancellationToken);
@@ -200,15 +230,6 @@ internal sealed class LocalCityGmlDemTextureSourcePolicy(
     {
         return Math.Abs(degrees) * 111_320.0 * Math.Cos(latitude * (Math.PI / 180.0));
     }
-
-    private static string CreateRasterCacheKey(DemTerrainOverlayRegion region)
-    {
-        return string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"{region.Identity}|{region.GeographicBounds.MinLatitude:0.######}|{region.GeographicBounds.MaxLatitude:0.######}|"
-            + $"{region.GeographicBounds.MinLongitude:0.######}|{region.GeographicBounds.MaxLongitude:0.######}");
-    }
-
     private enum DemTextureSourcePreference
     {
         Ortho19 = 0,

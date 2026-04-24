@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 
 using PlateauResoniteLink.Domain.Importing;
@@ -102,9 +101,10 @@ public sealed class CommonMaterialCatalog
         Float2 textureScale,
         Float2? textureOffset)
     {
+        Float2? effectiveOffset = IsZeroTextureOffset(textureOffset) ? null : textureOffset;
         return string.Create(
-            CultureInfo.InvariantCulture,
-            $"common|{family}|variant:{variantIndex}|{projection}|scale:{CreateFloat2Token(textureScale)}|offset:{CreateOffsetToken(textureOffset)}");
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"common-{family}-{variantIndex}-{ProjectionToken(projection)}-scale-{FormatRounded(textureScale.X)}-{FormatRounded(textureScale.Y)}-offset-{FormatFloat2(effectiveOffset)}");
     }
 
     private static MaterialBinding CreateSharedAlbedoCommonMaterialBinding()
@@ -153,40 +153,60 @@ public sealed class CommonMaterialCatalog
         Float2? textureOffset,
         MaterialDepthOffset? depthOffset)
     {
-        string scaleToken = CreateFloat2Token(textureScale);
-        string offsetToken = CreateFloat2Token(textureOffset);
-        string depthToken = depthOffset is null
-            ? "none"
-            : string.Create(
-                System.Globalization.CultureInfo.InvariantCulture,
-                $"{depthOffset.Factor:0.######}x{depthOffset.Units:0.######}");
-        return $"generic|{projection}|scale:{scaleToken}|offset:{offsetToken}|depth:{depthToken}";
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"shared-generic-{ProjectionToken(projection)}-scale-{FormatFloat2(textureScale)}-offset-{FormatFloat2(textureOffset)}-depth-{FormatDepth(depthOffset)}");
     }
 
     private static string CreateCanonicalVertexColorCommonMaterialKey(
         MaterialProjection projection,
         MaterialDepthOffset? depthOffset)
     {
-        return $"vertex-color|{projection}|depth:{(depthOffset is null ? "none" : string.Create(
+        return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"{depthOffset.Factor:0.######}x{depthOffset.Units:0.######}"))}";
+            $"shared-vertex-{ProjectionToken(projection)}-depth-{FormatDepth(depthOffset)}");
+    }
+
+    private static string ProjectionToken(MaterialProjection projection)
+    {
+        return projection switch
+        {
+            MaterialProjection.Uv => "uv",
+            MaterialProjection.Triplanar => "triplanar",
+            _ => projection.ToString().ToLowerInvariant(),
+        };
     }
 
     private static Float2 ToContract(Domain.Importing.ScalarPair value) => new(value.X, value.Y);
 
-    private static string CreateFloat2Token(Float2? value)
+    private static string FormatFloat2(Float2? value)
     {
         return value is null
             ? "none"
             : string.Create(
-                CultureInfo.InvariantCulture,
-                $"{value.X:0.######}x{value.Y:0.######}");
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.X)}-{FormatRounded(value.Y)}");
     }
 
-    private static string CreateOffsetToken(Float2? value)
+    private static string FormatDepth(MaterialDepthOffset? value)
     {
-        return value is null || (Math.Abs(value.X) < 1e-9 && Math.Abs(value.Y) < 1e-9)
+        return value is null
             ? "none"
-            : CreateFloat2Token(value);
+            : string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{FormatRounded(value.Factor)}-{FormatRounded(value.Units)}");
+    }
+
+    private static string FormatRounded(double value)
+    {
+        double rounded = Math.Round(value, 6, MidpointRounding.AwayFromZero);
+        return (rounded == 0.0 ? 0.0 : rounded).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static bool IsZeroTextureOffset(Float2? textureOffset)
+    {
+        return textureOffset is null
+            || (Math.Abs(textureOffset.X) < 1e-9
+                && Math.Abs(textureOffset.Y) < 1e-9);
     }
 }

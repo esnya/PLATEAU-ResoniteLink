@@ -193,65 +193,25 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
     }
 
     [Theory]
-    [InlineData(ResoniteImportMemoryProfile.Small, 512, 513)]
-    [InlineData(ResoniteImportMemoryProfile.Large, 4096, 4097)]
-    public async Task BufferedCityObjectBakerFactoryAppliesPerBatchCityObjectLimitsByMemoryProfile(
-        ResoniteImportMemoryProfile memoryProfile,
-        int noFlushCount,
-        int flushCount)
+    [InlineData(ResoniteImportMemoryProfile.Small)]
+    [InlineData(ResoniteImportMemoryProfile.Large)]
+    public async Task BufferedCityObjectBakerFactoryBuffersLod1NonDemObjectsAcrossMemoryProfiles(
+        ResoniteImportMemoryProfile memoryProfile)
     {
         Assert.Equal(
             0,
             await CountReadyBeforeFlushAsync(
                 memoryProfile,
-                noFlushCount,
-                index => CreateTriangleBuilding(
-                    $"city-{index}",
-                    x: 10.0 + (index * 0.01),
+                1,
+                _ => CreateTriangleBuilding(
+                    "tran-lod1",
+                    x: 10.0,
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)));
-        Assert.True(
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                flushCount,
-                index => CreateTriangleBuilding(
-                    $"city-{index}",
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)) > 0);
-    }
-
-    [Theory]
-    [InlineData(ResoniteImportMemoryProfile.Small, 256, 257)]
-    [InlineData(ResoniteImportMemoryProfile.Large, 1024, 1025)]
-    public async Task BufferedCityObjectBakerFactoryAppliesBufferedSourceUnitLimitsByMemoryProfile(
-        ResoniteImportMemoryProfile memoryProfile,
-        int noFlushCount,
-        int flushCount)
-    {
-        Assert.Equal(
-            0,
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                noFlushCount,
-                index => CreateTriangleBuilding(
-                    $"scope-{index}",
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: $"unit-{index}",
-                    sourceFileRelativePath: null)));
-        Assert.True(
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                flushCount,
-                index => CreateTriangleBuilding(
-                    $"scope-{index}",
-                    x: 10.0 + (index * 0.01),
-                    z: 10.0,
-                    sourceUnitKey: $"unit-{index}",
-                    sourceFileRelativePath: null)) > 0);
+                    sourceFileRelativePath: "shared-unit.gml") with
+                {
+                    PackageName = "tran",
+                }));
     }
 
     [Theory]
@@ -271,29 +231,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     x: 10.0 + (index * 0.01),
                     z: 10.0,
                     sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null)));
-    }
-
-    [Theory]
-    [InlineData(ResoniteImportMemoryProfile.Small)]
-    [InlineData(ResoniteImportMemoryProfile.Large)]
-    public async Task BufferedCityObjectBakerFactoryBuffersLod1NonDemObjectsAcrossMemoryProfiles(
-        ResoniteImportMemoryProfile memoryProfile)
-    {
-        Assert.Equal(
-            0,
-            await CountReadyBeforeFlushAsync(
-                memoryProfile,
-                1,
-                _ => CreateTriangleBuilding(
-                    "tran-lod1",
-                    x: 10.0,
-                    z: 10.0,
-                    sourceUnitKey: "shared-unit",
-                    sourceFileRelativePath: null) with
-                {
-                    PackageName = "tran",
-                }));
+                    sourceFileRelativePath: "shared-unit.gml")));
     }
 
     [Theory]
@@ -318,6 +256,7 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     LodLevel = null,
                 }));
     }
+
 
     private static ResoniteLiveSceneImportTarget CreateBuilder(bool enableMeshBake = true)
     {
@@ -462,8 +401,6 @@ public sealed class ResoniteLiveSceneImportTargetConfigurationTests
                     null,
                     [0]),
             ],
-            SourceObjectKey: $"{sourceUnitKey}:{slotKey}",
-            SourceUnitKey: sourceUnitKey,
             SourceFileRelativePath: sourceFileRelativePath);
     }
 }

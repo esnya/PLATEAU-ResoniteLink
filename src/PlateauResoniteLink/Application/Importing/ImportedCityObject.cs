@@ -13,8 +13,6 @@ public sealed record ImportedCityObject(
     ConstructionGeometry Geometry,
     IReadOnlyList<MaterialBinding> Materials,
     bool CollisionEnabled = true,
-    string? SourceObjectKey = null,
-    string? SourceUnitKey = null,
     string? SourceFileRelativePath = null)
 {
     public ImportedCityObject(
@@ -27,8 +25,6 @@ public sealed record ImportedCityObject(
         ImportedMesh Mesh,
         IReadOnlyList<MaterialBinding> Materials,
         bool CollisionEnabled = true,
-        string? SourceObjectKey = null,
-        string? SourceUnitKey = null,
         string? SourceFileRelativePath = null)
         : this(
             ObjectKey,
@@ -40,8 +36,6 @@ public sealed record ImportedCityObject(
             new TriangleMeshGeometry(Mesh),
             Materials,
             CollisionEnabled,
-            SourceObjectKey,
-            SourceUnitKey,
             SourceFileRelativePath)
     {
     }
