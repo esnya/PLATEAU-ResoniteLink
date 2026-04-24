@@ -15,11 +15,15 @@ description: Estimate PLATEAU dataset quality, import cost, rendering risk, text
    - 最新 data が求められている場合は、memory ではなく現在の online metadata を確認します。
 
 2. full extraction なしで package weight を調べます。
+   - local dataset directory または archive が存在する場合は、最初に repo の stats command を実行し、local-source inventory の一次情報として扱います。
+     - `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- stats --citygml-source <path> [--packages <csv>] --format json`
+   - package counts、mesh-code counts、LOD coverage、archive-derived VRAM fields は、ad hoc な archive scan に戻る前に `stats` output を使います。
    - remote ZIP は可能なら HTTP `HEAD` と ZIP central-directory range read を使います。
    - total compressed size、entry count、package ごとの `.gml` count、texture count、compressed/uncompressed bytes を記録します。
-   - local file では `7z l`、`tar`、または小さな ZIP central-directory reader を使って構いません。
+   - local file では、`stats` が公開していない事実に限って `7z l`、`tar`、または小さな ZIP central-directory reader を使います。
 
 3. renderer texture VRAM は JPEG bytes だけではなく寸法から推定します。
+   - `stats --format json` に `archiveVramEstimate.rendererTextureVram` がある場合は、archive-referenced textures の source-observed estimate としてその値を使います。
    - largest files と evenly distributed files を代表 sample にします。
    - archive が JPEG entry を deflate している場合は、ZIP decompression 後に実 image dimensions を読みます。
    - Archive pixel から effective alpha を確認します。image mode だけでは判断しません。
@@ -50,8 +54,9 @@ description: Estimate PLATEAU dataset quality, import cost, rendering risk, text
    - `TerrainTextureAssetGenerator` の挙動を反映します。tile mosaic を crop し、opaque 化し、必要なら `MaxTextureSize` に resize して、power-of-two canvas に載せます。
 
 5. renderer geometry は別枠で推定します。
-   - 可能なら実 CLI/import metrics または generated mesh stats を優先します。
+   - 可能なら実 CLI/import metrics、`stats --format json` の `archiveVramEstimate.rendererGeometryVram`、または generated mesh stats を優先します。
    - triangle count がない場合、geometry estimate は coarse と明記します。
+   - `stats` geometry は archive-derived な GML `posList` estimate として扱います。pre-import sizing には有用ですが、post-tessellation/live Renderer measurement ではありません。
    - DEM `--terrain-mesh static` では、source TIN を Unity renderer に mesh buffer として届く通常 triangle mesh data として扱います。uncertainty は高く明記します。source detail は保てますが、bounded Grid より import/rendering が重く振れることがあります。
    - DEM `--terrain-mesh grid` では、bounds と提案する grid settings から Grid Points を推定します。
      - raw columns/rows: `ceil(width_m / meters_per_vertex) + 1`, `ceil(height_m / meters_per_vertex) + 1`
@@ -99,6 +104,7 @@ Grid が scope に入る場合は、Grid resolution table も含めます。
 - source provenance と metadata freshness
 - official metadata と package/LOD coverage から得られる quality indicators
 - observed archive facts
+- 使用した stats command、version/command line、または使えなかった理由
 - package/file-size observations
 - texture format assumptions
 - renderer texture VRAM estimate
@@ -113,6 +119,7 @@ Grid が scope に入る場合は、Grid resolution table も含めます。
 ## Guardrails
 
 - hypothesis を conclusion として扱わないでください。
+- local source が利用できる場合、package/LOD/VRAM facts のために `stats` を試す前に手動で local archive を再走査しないでください。
 - 同じ bounded investigation から dataset quality、package/LOD coverage、import cost、rendering risk も見積もれる場合、回答を VRAM だけに狭めないでください。
 - compressed runtime format が論点に入っている場合、raw RGBA だけの計算を主回答にしないでください。
 - live engine-state evidence がない限り、BC7 を PLATEAU renderer texture estimate の default にしないでください。

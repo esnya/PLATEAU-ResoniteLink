@@ -15,11 +15,15 @@ Use this skill to produce a bounded dataset-level estimate, not a benchmark resu
    - If latest data is requested, verify current metadata online instead of relying on memory.
 
 2. Inspect package weight without full extraction.
+   - When a local dataset directory or archive exists, run the repo stats command first and treat it as the primary local-source inventory:
+     - `dotnet run --project src/PlateauResoniteLink.Cli/PlateauResoniteLink.Cli.csproj -- stats --citygml-source <path> [--packages <csv>] --format json`
+   - Use `stats` output for package counts, mesh-code counts, LOD coverage, and archive-derived VRAM fields before falling back to ad hoc archive scans.
    - For remote ZIP files, use HTTP `HEAD` and ZIP central-directory range reads when possible.
    - Record total compressed size, entry count, package-level `.gml` counts, texture counts, compressed and uncompressed bytes.
-   - For local files, `7z l`, `tar`, or a small ZIP central-directory reader is acceptable.
+   - For local files, use `7z l`, `tar`, or a small ZIP central-directory reader only for facts that `stats` does not expose.
 
 3. Estimate renderer texture VRAM from dimensions, not JPEG bytes alone.
+   - If `stats --format json` includes `archiveVramEstimate.rendererTextureVram`, use those values for archive-referenced textures and label them as source-observed estimates.
    - Sample representative images: largest files plus evenly distributed files.
    - Read actual image dimensions after ZIP decompression if the archive deflates JPEG entries.
    - Check effective alpha from archive pixels, not only image mode:
@@ -50,8 +54,9 @@ Use this skill to produce a bounded dataset-level estimate, not a benchmark resu
    - Apply `TerrainTextureAssetGenerator` behavior: crop tile mosaic, make opaque, resize to `MaxTextureSize` if needed, then round up to a power-of-two canvas.
 
 5. Estimate renderer geometry separately.
-   - Prefer actual CLI/import metrics or generated mesh stats when available.
+   - Prefer actual CLI/import metrics, `stats --format json` `archiveVramEstimate.rendererGeometryVram`, or generated mesh stats when available.
    - If triangle counts are unavailable, classify the geometry estimate as coarse.
+   - Treat `stats` geometry as an archive-derived GML `posList` estimate. It is useful for pre-import sizing, but it is not a post-tessellation/live Renderer measurement.
    - For DEM `--terrain-mesh static`, treat the source TIN as ordinary triangle mesh data that reaches the Unity renderer as mesh buffers. Flag higher uncertainty: CityGML DEM geometry can preserve more source detail but may import and render heavier than a bounded Grid.
    - For DEM `--terrain-mesh grid`, estimate Grid Points from bounds and the proposed grid settings:
      - raw columns/rows: `ceil(width_m / meters_per_vertex) + 1`, `ceil(height_m / meters_per_vertex) + 1`
@@ -99,6 +104,7 @@ Then list:
 - source provenance and metadata freshness
 - quality indicators from official metadata and package/LOD coverage
 - observed archive facts
+- stats command used, version/command line, or reason it was unavailable
 - package/file-size observations
 - texture format assumptions
 - renderer texture VRAM estimate
@@ -113,6 +119,7 @@ Then list:
 ## Guardrails
 
 - Do not present hypotheses as conclusions.
+- Do not manually rescan a local archive for package/LOD/VRAM facts before trying `stats` when the local source is available.
 - Do not narrow the answer to VRAM when dataset quality, package/LOD coverage, import cost, or rendering risk can also be estimated from the same bounded investigation.
 - Do not use raw RGBA-only accounting as the primary answer when compressed runtime formats are part of the question.
 - Do not use BC7 as the default PLATEAU renderer texture estimate without live engine-state evidence.

@@ -170,6 +170,19 @@ public sealed class CliApplication
         await standardOutput.WriteLineAsync($"Mesh code counts: {FormatCounts(result.MeshCodeCounts)}");
         await standardOutput.WriteLineAsync($"LOD coverage counts: {FormatCounts(result.LodCoverageCounts)}");
         await standardOutput.WriteLineAsync($"Files without detected LOD: {result.FilesWithoutDetectedLod}");
+        await standardOutput.WriteLineAsync(
+            $"Renderer texture VRAM: {FormatBytes(result.ArchiveVramEstimate.RendererTextureVram.RendererTotalBytes)} "
+            + $"(BC1={FormatBytes(result.ArchiveVramEstimate.RendererTextureVram.Bc1Bytes)}, "
+            + $"BC3={FormatBytes(result.ArchiveVramEstimate.RendererTextureVram.Bc3Bytes)}, "
+            + $"RGBA32 payload upper bound={FormatBytes(result.ArchiveVramEstimate.RendererTextureVram.Rgba32PayloadBytes)})");
+        await standardOutput.WriteLineAsync(
+            $"Renderer geometry VRAM: {FormatBytes(result.ArchiveVramEstimate.RendererGeometryVram.RendererBytesMin)}"
+            + $"..{FormatBytes(result.ArchiveVramEstimate.RendererGeometryVram.RendererBytesMax)} "
+            + $"(positions={result.ArchiveVramEstimate.RendererGeometryVram.PositionCount.ToString(CultureInfo.InvariantCulture)}, "
+            + $"triangles={result.ArchiveVramEstimate.RendererGeometryVram.TriangleCount.ToString(CultureInfo.InvariantCulture)})");
+        await standardOutput.WriteLineAsync(
+            $"Renderer total VRAM: {FormatBytes(result.ArchiveVramEstimate.RendererTotalBytesMin)}"
+            + $"..{FormatBytes(result.ArchiveVramEstimate.RendererTotalBytesMax)}");
     }
 
     private static string FormatCsv(IReadOnlyList<string> values)
@@ -186,6 +199,12 @@ public sealed class CliApplication
                 ", ",
                 counts.Select(
                     static pair => $"{pair.Key}={pair.Value.ToString(CultureInfo.InvariantCulture)}"));
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        const double mib = 1024.0 * 1024.0;
+        return $"{(bytes / mib).ToString("0.##", CultureInfo.InvariantCulture)} MiB";
     }
 
     private async Task WriteDataSourceUsagesAsync(
