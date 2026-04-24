@@ -17,9 +17,16 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
 {
     private const float DefaultNormalScale = 1.0f;
     private const float DefaultBundledHeightScale = 0.002f;
-    private const string TerrainGridPointsDynamicVariableName = "PLATEAU.Terrain.Grid.Points";
-    private const string DynamicValueVariableDriverInt2ComponentType =
-        "[FrooxEngine]FrooxEngine.DynamicValueVariableDriver`1[[Elements.Core.int2, Elements.Core]]";
+    private const string TerrainGridDetailDynamicVariableName = "PLATEAU.Terrain.Grid.Detail";
+    private const string TerrainStaticEnabledVariableName = "PLATEAU.Terrain.Static.Enabled";
+    private const string DynamicValueVariableDriverFloatComponentType =
+        "[FrooxEngine]FrooxEngine.DynamicValueVariableDriver<float>";
+    private const string DynamicValueVariableDriverBoolComponentType =
+        "[FrooxEngine]FrooxEngine.DynamicValueVariableDriver<bool>";
+    private const string ValueGradientDriverInt2ComponentType =
+        "[FrooxEngine]FrooxEngine.ValueGradientDriver<int2>";
+    private const string BooleanAssetDriverMeshComponentType =
+        "[FrooxEngine]FrooxEngine.BooleanAssetDriver<[FrooxEngine]FrooxEngine.Mesh>";
 
     public PlannedBatchEmission Create(
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
@@ -45,13 +52,15 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             null));
         slotResolutionTargets.Add(meshAssetSlotId);
 
-        BatchPlanComponentLocator geometryComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
+        BatchPlanComponentLocator rendererGeometryComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
         Dictionary<string, PlannedMember>? terrainGridMeshMembers = null;
+        PlannedWorldElementReference? dynamicStaticMeshTarget = null;
+        PlannedWorldElementReference? dynamicGridMeshTarget = null;
         switch (emissionPlan.GeometryAsset)
         {
             case PlannedTriangleMeshGeometryAsset triangleMesh:
                 componentEmissions.Add(new PlannedBatchComponentEmission(
-                    geometryComponentId,
+                    rendererGeometryComponentId,
                     PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
                     "[FrooxEngine]FrooxEngine.StaticMesh",
                     new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
@@ -63,76 +72,55 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     }));
                 break;
             case PlannedTerrainGridGeometryAsset heightMap:
-                BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
-                BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
-                slotEmissions.Add(new PlannedBatchSlotEmission(
-                    heightMapAssetSlotId,
-                    PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
+                terrainGridMeshMembers = AddPlannedTerrainGridTextureAndCreateGridMembers(
+                    slotEmissions,
+                    componentEmissions,
+                    slotResolutionTargets,
+                    objectSlots,
                     heightMap.TerrainGridAssetSlotName,
-                    null,
-                    null));
-                slotResolutionTargets.Add(heightMapAssetSlotId);
+                    heightMap.Geometry,
+                    heightMap.HeightTextureUri,
+                    heightMap.UvScale,
+                    heightMap.UvOffset,
+                    ref nextSlotLocator,
+                    ref nextComponentLocator,
+                    ref nextFieldLocator);
+                break;
+            case PlannedDynamicTerrainGeometryAsset dynamicTerrain:
                 componentEmissions.Add(new PlannedBatchComponentEmission(
-                    heightTextureComponentId,
-                    PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlotId),
-                    "[FrooxEngine]FrooxEngine.StaticTexture2D",
-                    ResoniteGeometryAssetAssembler.CreateTerrainGridTextureMembers(heightMap.HeightTextureUri)
-                        .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
-                double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
-                BatchPlanFieldLocator pointsFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
-                terrainGridMeshMembers = new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
-                {
-                    ["Points"] = PlannedMembers.AddressableField(pointsFieldId, new Field_int2
+                    rendererGeometryComponentId,
+                    PlannedSlotTargetReference.PlannedSlot(meshAssetSlotId),
+                    "[FrooxEngine]FrooxEngine.StaticMesh",
+                    new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
                     {
-                        Value = new int2
+                        ["URL"] = PlannedMembers.Literal(new Field_Uri
                         {
-                            x = heightMap.Geometry.Width,
-                            y = heightMap.Geometry.Height,
-                        },
-                    }),
-                    ["Size"] = PlannedMembers.Literal(new Field_float2
-                    {
-                        Value = new float2
-                        {
-                            x = (float)heightMap.Geometry.Size.X,
-                            y = (float)heightMap.Geometry.Size.Y,
-                        },
-                    }),
-                    ["DisplacementMagnitude"] = PlannedMembers.Literal(new Field_float
-                    {
-                        Value = (float)displacementMagnitude,
-                    }),
-                    ["DisplacementTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTextureComponentId)),
-                };
-                if (heightMap.UvScale is not null)
-                {
-                    terrainGridMeshMembers["UVScale"] = PlannedMembers.Literal(new Field_float2
-                    {
-                        Value = new float2
-                        {
-                            x = (float)heightMap.UvScale.X,
-                            y = (float)heightMap.UvScale.Y,
-                        },
-                    });
-                }
-
-                if (heightMap.UvOffset is not null)
-                {
-                    terrainGridMeshMembers["UVOffset"] = PlannedMembers.Literal(new Field_float2
-                    {
-                        Value = new float2
-                        {
-                            x = (float)heightMap.UvOffset.X,
-                            y = (float)heightMap.UvOffset.Y,
-                        },
-                    });
-                }
+                            Value = dynamicTerrain.StaticMeshUri,
+                        }),
+                    }));
+                dynamicStaticMeshTarget = PlannedWorldElementReference.Planned(rendererGeometryComponentId);
+                BatchPlanComponentLocator gridMeshComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
+                terrainGridMeshMembers = AddPlannedTerrainGridTextureAndCreateGridMembers(
+                    slotEmissions,
+                    componentEmissions,
+                    slotResolutionTargets,
+                    objectSlots,
+                    dynamicTerrain.TerrainGridAssetSlotName,
+                    dynamicTerrain.GridGeometry,
+                    dynamicTerrain.HeightTextureUri,
+                    dynamicTerrain.UvScale,
+                    dynamicTerrain.UvOffset,
+                    ref nextSlotLocator,
+                    ref nextComponentLocator,
+                    ref nextFieldLocator);
+                rendererGeometryComponentId = gridMeshComponentId;
+                dynamicGridMeshTarget = PlannedWorldElementReference.Planned(gridMeshComponentId);
                 break;
             default:
                 throw new InvalidOperationException(
                     $"Unsupported planned geometry asset type '{emissionPlan.GeometryAsset.GetType().Name}'.");
         }
-        componentResolutionTargets.Add(geometryComponentId);
+        componentResolutionTargets.Add(rendererGeometryComponentId);
 
         Dictionary<MaterialIdentity, PlannedWorldElementReference> emittedMaterialTargets = new();
         foreach (PlannedMaterialAsset materialAsset in emissionPlan.MaterialAssets)
@@ -170,24 +158,28 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         if (terrainGridMeshMembers is not null)
         {
             componentEmissions.Add(new PlannedBatchComponentEmission(
-                geometryComponentId,
+                rendererGeometryComponentId,
                 PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
                 "[FrooxEngine]FrooxEngine.GridMesh",
                 terrainGridMeshMembers));
-            componentEmissions.Add(new PlannedBatchComponentEmission(
-                CreateBatchPlanComponentLocator(ref nextComponentLocator),
-                PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
-                DynamicValueVariableDriverInt2ComponentType,
-                CreateTerrainGridPointsDriverMembers(terrainGridMeshMembers)));
+            AddTerrainGridPointsDriverComponents(
+                componentEmissions,
+                presentationSlotId,
+                terrainGridMeshMembers,
+                ref nextComponentLocator,
+                ref nextFieldLocator);
         }
 
+        BatchPlanFieldLocator rendererMeshFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
             CreateBatchPlanComponentLocator(ref nextComponentLocator),
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
             "[FrooxEngine]FrooxEngine.MeshRenderer",
             new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
             {
-                ["Mesh"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(geometryComponentId)),
+                ["Mesh"] = PlannedMembers.AddressableReference(
+                    rendererMeshFieldId,
+                    ResolveInitialMeshTarget(dynamicGridMeshTarget, rendererGeometryComponentId)),
                 ["Materials"] = CreateRendererMaterials(emissionPlan.Renderer.MaterialBindings, emittedMaterialTargets),
                 ["MaterialPropertyBlocks"] = CreateRendererMaterialPropertyBlocks(
                     componentEmissions,
@@ -196,6 +188,19 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     emissionPlan.Renderer.MaterialBindings,
                     ref nextComponentLocator),
             }));
+        if (dynamicStaticMeshTarget is not null && dynamicGridMeshTarget is not null)
+        {
+            AddDynamicMeshSwitchComponents(
+                componentEmissions,
+                presentationSlotId,
+                rendererMeshFieldId,
+                dynamicGridMeshTarget.Value,
+                dynamicStaticMeshTarget.Value,
+                ref nextComponentLocator,
+                ref nextFieldLocator);
+        }
+
+        BatchPlanFieldLocator colliderMeshFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
         componentEmissions.Add(new PlannedBatchComponentEmission(
             CreateBatchPlanComponentLocator(ref nextComponentLocator),
             PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
@@ -210,8 +215,21 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                 {
                     Value = emissionPlan.Collider.CollisionEnabled,
                 }),
-                ["Mesh"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(geometryComponentId)),
+                ["Mesh"] = PlannedMembers.AddressableReference(
+                    colliderMeshFieldId,
+                    ResolveInitialMeshTarget(dynamicGridMeshTarget, rendererGeometryComponentId)),
             }));
+        if (dynamicStaticMeshTarget is not null && dynamicGridMeshTarget is not null)
+        {
+            AddDynamicMeshSwitchComponents(
+                componentEmissions,
+                presentationSlotId,
+                colliderMeshFieldId,
+                dynamicGridMeshTarget.Value,
+                dynamicStaticMeshTarget.Value,
+                ref nextComponentLocator,
+                ref nextFieldLocator);
+        }
 
         return new PlannedBatchEmission(
             slotEmissions,
@@ -220,21 +238,204 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             componentResolutionTargets);
     }
 
-    private static Dictionary<string, PlannedMember> CreateTerrainGridPointsDriverMembers(
-        IReadOnlyDictionary<string, PlannedMember> gridMeshMembers)
+    private static PlannedWorldElementReference ResolveInitialMeshTarget(
+        PlannedWorldElementReference? dynamicGridMeshTarget,
+        BatchPlanComponentLocator defaultGeometryComponentId)
+    {
+        return dynamicGridMeshTarget ?? PlannedWorldElementReference.Planned(defaultGeometryComponentId);
+    }
+
+    private static Dictionary<string, PlannedMember> AddPlannedTerrainGridTextureAndCreateGridMembers(
+        List<PlannedBatchSlotEmission> slotEmissions,
+        List<PlannedBatchComponentEmission> componentEmissions,
+        List<BatchPlanSlotLocator> slotResolutionTargets,
+        ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots,
+        string terrainGridAssetSlotName,
+        ResoniteTerrainGridGeometry geometry,
+        Uri heightTextureUri,
+        ResoniteFloat2? uvScale,
+        ResoniteFloat2? uvOffset,
+        ref int nextSlotLocator,
+        ref int nextComponentLocator,
+        ref int nextFieldLocator)
+    {
+        BatchPlanSlotLocator heightMapAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
+        BatchPlanComponentLocator heightTextureComponentId = CreateBatchPlanComponentLocator(ref nextComponentLocator);
+        slotEmissions.Add(new PlannedBatchSlotEmission(
+            heightMapAssetSlotId,
+            PlannedSlotTargetReference.CanonicalSlot(objectSlots.AssetLodSlot.Locator),
+            terrainGridAssetSlotName,
+            null,
+            null));
+        slotResolutionTargets.Add(heightMapAssetSlotId);
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            heightTextureComponentId,
+            PlannedSlotTargetReference.PlannedSlot(heightMapAssetSlotId),
+            "[FrooxEngine]FrooxEngine.StaticTexture2D",
+            ResoniteGeometryAssetAssembler.CreateTerrainGridTextureMembers(heightTextureUri)
+                .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
+
+        double displacementMagnitude = Math.Max(geometry.MaxHeight - geometry.MinHeight, 0.0);
+        BatchPlanFieldLocator pointsFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
+        Dictionary<string, PlannedMember> terrainGridMeshMembers = new(StringComparer.Ordinal)
+        {
+            ["Points"] = PlannedMembers.AddressableField(pointsFieldId, new Field_int2
+            {
+                Value = new int2
+                {
+                    x = geometry.Width,
+                    y = geometry.Height,
+                },
+            }),
+            ["Size"] = PlannedMembers.Literal(new Field_float2
+            {
+                Value = new float2
+                {
+                    x = (float)geometry.Size.X,
+                    y = (float)geometry.Size.Y,
+                },
+            }),
+            ["DisplacementMagnitude"] = PlannedMembers.Literal(new Field_float
+            {
+                Value = (float)displacementMagnitude,
+            }),
+            ["DisplacementTexture"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(heightTextureComponentId)),
+        };
+        if (uvScale is not null)
+        {
+            terrainGridMeshMembers["UVScale"] = PlannedMembers.Literal(new Field_float2
+            {
+                Value = new float2
+                {
+                    x = (float)uvScale.X,
+                    y = (float)uvScale.Y,
+                },
+            });
+        }
+
+        if (uvOffset is not null)
+        {
+            terrainGridMeshMembers["UVOffset"] = PlannedMembers.Literal(new Field_float2
+            {
+                Value = new float2
+                {
+                    x = (float)uvOffset.X,
+                    y = (float)uvOffset.Y,
+                },
+            });
+        }
+
+        return terrainGridMeshMembers;
+    }
+
+    private static void AddDynamicMeshSwitchComponents(
+        List<PlannedBatchComponentEmission> componentEmissions,
+        BatchPlanSlotLocator presentationSlotId,
+        BatchPlanFieldLocator targetMeshFieldId,
+        PlannedWorldElementReference gridMeshTarget,
+        PlannedWorldElementReference staticMeshTarget,
+        ref int nextComponentLocator,
+        ref int nextFieldLocator)
+    {
+        BatchPlanFieldLocator stateFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
+        Dictionary<string, PlannedMember> switchMembers = new(StringComparer.Ordinal)
+        {
+            ["State"] = PlannedMembers.AddressableField(stateFieldId, new Field_bool
+            {
+                Value = false,
+            }),
+            ["Target"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(targetMeshFieldId)),
+            ["FalseTarget"] = PlannedMembers.Reference(gridMeshTarget),
+            ["TrueTarget"] = PlannedMembers.Reference(staticMeshTarget),
+        };
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            CreateBatchPlanComponentLocator(ref nextComponentLocator),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
+            BooleanAssetDriverMeshComponentType,
+            switchMembers));
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            CreateBatchPlanComponentLocator(ref nextComponentLocator),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
+            DynamicValueVariableDriverBoolComponentType,
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            {
+                ["VariableName"] = PlannedMembers.Literal(new Field_string
+                {
+                    Value = TerrainStaticEnabledVariableName,
+                }),
+                ["Target"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(stateFieldId)),
+                ["DefaultValue"] = PlannedMembers.Literal(new Field_bool
+                {
+                    Value = false,
+                }),
+            }));
+    }
+
+    private static void AddTerrainGridPointsDriverComponents(
+        List<PlannedBatchComponentEmission> componentEmissions,
+        BatchPlanSlotLocator presentationSlotId,
+        IReadOnlyDictionary<string, PlannedMember> gridMeshMembers,
+        ref int nextComponentLocator,
+        ref int nextFieldLocator)
     {
         (BatchPlanFieldLocator gridPointsId, Field_int2 gridPoints) = AssertTerrainGridPointsMember(gridMeshMembers);
-        return new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+        BatchPlanFieldLocator progressFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            CreateBatchPlanComponentLocator(ref nextComponentLocator),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
+            ValueGradientDriverInt2ComponentType,
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            {
+                ["Progress"] = PlannedMembers.AddressableField(progressFieldId, new Field_float
+                {
+                    Value = 1.0f,
+                }),
+                ["Target"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(gridPointsId)),
+                ["Interpolate"] = PlannedMembers.Literal(new Field_bool
+                {
+                    Value = true,
+                }),
+                ["Points"] = PlannedMembers.List(
+                    PlannedMembers.Literal(CreateTerrainGridPointsGradientPoint(0.0f, new int2
+                    {
+                        x = 2,
+                        y = 2,
+                    })),
+                    PlannedMembers.Literal(CreateTerrainGridPointsGradientPoint(1.0f, gridPoints.Value))),
+            }));
+        componentEmissions.Add(new PlannedBatchComponentEmission(
+            CreateBatchPlanComponentLocator(ref nextComponentLocator),
+            PlannedSlotTargetReference.PlannedSlot(presentationSlotId),
+            DynamicValueVariableDriverFloatComponentType,
+            new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
+            {
+                ["VariableName"] = PlannedMembers.Literal(new Field_string
+                {
+                    Value = TerrainGridDetailDynamicVariableName,
+                }),
+                ["Target"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(progressFieldId)),
+                ["DefaultValue"] = PlannedMembers.Literal(new Field_float
+                {
+                    Value = 1.0f,
+                }),
+            }));
+    }
+
+    private static SyncObject CreateTerrainGridPointsGradientPoint(float position, int2 value)
+    {
+        return new SyncObject
         {
-            ["VariableName"] = PlannedMembers.Literal(new Field_string
+            Members = new Dictionary<string, Member>(StringComparer.Ordinal)
             {
-                Value = TerrainGridPointsDynamicVariableName,
-            }),
-            ["Target"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(gridPointsId)),
-            ["DefaultValue"] = PlannedMembers.Literal(new Field_int2
-            {
-                Value = gridPoints.Value,
-            }),
+                ["Position"] = new Field_float
+                {
+                    Value = position,
+                },
+                ["Value"] = new Field_int2
+                {
+                    Value = value,
+                },
+            },
         };
     }
 

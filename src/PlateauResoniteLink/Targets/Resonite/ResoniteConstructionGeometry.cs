@@ -18,3 +18,8 @@ public sealed record ResoniteTerrainGridGeometry(
     ResoniteFloat2? UvScale = null,
     ResoniteFloat2? UvOffset = null)
     : ResoniteConstructionGeometry;
+
+public sealed record ResoniteDynamicTerrainGeometry(
+    ResoniteTriangleMeshGeometry StaticMesh,
+    ResoniteTerrainGridGeometry GridMesh)
+    : ResoniteConstructionGeometry;

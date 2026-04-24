@@ -78,6 +78,27 @@ public sealed class SceneImportExecutionPlanTests
     }
 
     [Fact]
+    public void Constructor_RejectsDifferentTerrainMeshMode()
+    {
+        PlateauImportRequest normalizedRequest = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local("raw-source"),
+            TerrainMeshMode: TerrainMeshMode.Static,
+            PackageNames: ["bldg"]);
+        PlateauImportRequest mismatchedRequest = normalizedRequest with
+        {
+            TerrainMeshMode = TerrainMeshMode.Dynamic,
+        };
+
+        Assert.Throws<ArgumentException>(
+            () => new SceneImportExecutionPlan(
+                normalizedRequest,
+                mismatchedRequest,
+                new SceneBuildRequest(CreateMetadata(mismatchedRequest), "resolved-source", "work", [])));
+    }
+
+    [Fact]
     public void Constructor_AllowsResolvedLocalDemTextureSourceForRemoteInput()
     {
         string workRoot = "work";

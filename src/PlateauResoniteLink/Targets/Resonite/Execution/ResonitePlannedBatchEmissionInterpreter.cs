@@ -201,6 +201,12 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
                 addressableField,
                 pendingFieldsByPlanId,
                 batchBuilder),
+            PlannedAddressableReferenceMember addressableReference => TranslateAddressableReference(
+                addressableReference,
+                pendingSlotsByPlanId,
+                pendingComponentsByPlanId,
+                pendingFieldsByPlanId,
+                batchBuilder),
             PlannedSyncListMember syncList => new SyncList
             {
                 Elements = syncList.Elements
@@ -216,7 +222,27 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
         };
     }
 
-    private static Field_int2 TranslateAddressableField(
+    private static Reference TranslateAddressableReference(
+        PlannedAddressableReferenceMember addressableReference,
+        Dictionary<BatchPlanSlotLocator, ResoniteBatchOperations.PendingBatchSlot> pendingSlotsByPlanId,
+        Dictionary<BatchPlanComponentLocator, ResoniteBatchOperations.PendingBatchComponent> pendingComponentsByPlanId,
+        Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
+        ResoniteBatchOperations.BatchActionBuilder batchBuilder)
+    {
+        string fieldId = ResolveFieldId(addressableReference.Identity, pendingFieldsByPlanId, batchBuilder).Value;
+        return new Reference
+        {
+            ID = fieldId,
+            TargetID = ResolveWorldElementId(
+                addressableReference.Target,
+                pendingSlotsByPlanId,
+                pendingComponentsByPlanId,
+                pendingFieldsByPlanId,
+                batchBuilder),
+        };
+    }
+
+    private static Member TranslateAddressableField(
         PlannedAddressableFieldMember addressableField,
         Dictionary<BatchPlanFieldLocator, ResoniteBatchOperations.BatchTemporaryFieldId> pendingFieldsByPlanId,
         ResoniteBatchOperations.BatchActionBuilder batchBuilder)
@@ -228,6 +254,22 @@ internal sealed class PlannedBatchEmissionInterpreter : IResoniteSceneBatchEmitt
             {
                 ID = fieldId,
                 Value = value.Value,
+            },
+            Field_bool value => new Field_bool
+            {
+                ID = fieldId,
+                Value = value.Value,
+            },
+            Field_float value => new Field_float
+            {
+                ID = fieldId,
+                Value = value.Value,
+            },
+            Reference value => new Reference
+            {
+                ID = fieldId,
+                TargetID = value.TargetID,
+                TargetType = value.TargetType,
             },
             _ => throw new InvalidOperationException(
                 $"Unsupported planned addressable field member type '{addressableField.Value.GetType().Name}'."),

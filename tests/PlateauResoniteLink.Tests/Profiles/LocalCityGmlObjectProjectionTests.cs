@@ -955,6 +955,117 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
+    public async Task DemTerrainDynamicModeProjectsStaticAndGridGeometry()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        CreateRuntimeDemChunkFixture(datasetRoot.Path);
+
+        await using StubSceneBuilder sceneBuilder = new();
+        PlateauImportService service = CreateService(sceneBuilder);
+
+        await service.ExecuteAsync(
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: datasetRoot.Path,
+                PackageNames: ["dem"],
+                TerrainMeshMode: TerrainMeshMode.Dynamic,
+                ServerUri: null),
+            workRoot: "runtime/resonite");
+
+        ImportedCityObject demCityObject = Assert.Single(
+            sceneBuilder.CityObjects,
+            static cityObject => cityObject.PackageName == "dem"
+                && cityObject.Geometry is DynamicTerrainGeometry
+                && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
+        DynamicTerrainGeometry geometry = Assert.IsType<DynamicTerrainGeometry>(demCityObject.Geometry);
+        MaterialBinding material = Assert.Single(demCityObject.Materials);
+
+        Assert.NotEmpty(geometry.StaticMesh.Mesh.Vertices);
+        Assert.NotEmpty(geometry.StaticMesh.Mesh.Submeshes);
+        Assert.True(geometry.GridMesh.Width > 1);
+        Assert.True(geometry.GridMesh.Height > 1);
+        Assert.NotNull(geometry.GridMesh.UvScale);
+        Assert.NotNull(geometry.GridMesh.UvOffset);
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+    }
+
+    [Fact]
+    public void DemTerrainDynamicModeKeepsMaterialBindingsCompatibleWithStaticMesh()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 10.0);
+        BootstrapParsedSurface validSurface = CreateBootstrapParsedSurface(
+            "valid-dem",
+            BootstrapParsedSurfaceSemantic.Ground,
+            CreateHorizontalQuadVertices(origin, origin.Altitude, 10.0, reverseWinding: false),
+            texturePayload: null,
+            baseColor: new ColorRgba(1.0, 1.0, 1.0, 1.0));
+        BootstrapParsedSurface degenerateSurface = CreateBootstrapParsedSurface(
+            "degenerate-dem",
+            BootstrapParsedSurfaceSemantic.Ground,
+            [origin, origin, origin, origin],
+            texturePayload: null,
+            baseColor: new ColorRgba(0.5, 0.5, 0.5, 1.0));
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "dem",
+            [validSurface, degenerateSurface],
+            referenceSystem);
+
+        ImportedCityObject projected = ProjectTerrainMeshModeCityObjectForTest(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "dataset",
+                PackageNames: ["dem"],
+                TerrainMeshMode: TerrainMeshMode.Dynamic,
+                ServerUri: null));
+
+        DynamicTerrainGeometry geometry = Assert.IsType<DynamicTerrainGeometry>(projected.Geometry);
+        HashSet<int> staticSubmeshIndices = geometry.StaticMesh.Mesh.Submeshes
+            .Select(static submesh => submesh.Index)
+            .ToHashSet();
+        MaterialBinding material = Assert.Single(projected.Materials);
+
+        Assert.NotEmpty(staticSubmeshIndices);
+        Assert.All(
+            material.SubmeshIndices,
+            submeshIndex => Assert.Contains(submeshIndex, staticSubmeshIndices));
+    }
+
+    [Fact]
+    public void DemTerrainDynamicModeSkipsDemWhenGridCannotBeProjected()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "dem",
+            [],
+            referenceSystem);
+
+        ImportedCityObject projected = ProjectTerrainMeshModeCityObjectForTest(
+            cityObject,
+            new GeodeticPoint(35.0, 139.0, 0.0),
+            new PlateauImportRequest(
+                Dataset: "tokyo23ku",
+                MeshCode: "53394525",
+                SourceKind: DatasetSourceKind.Local,
+                LocalSourcePath: "dataset",
+                PackageNames: ["dem"],
+                TerrainMeshMode: TerrainMeshMode.Dynamic,
+                ServerUri: null));
+
+        TriangleMeshGeometry geometry = Assert.IsType<TriangleMeshGeometry>(projected.Geometry);
+        Assert.Empty(geometry.Mesh.Vertices);
+        Assert.Empty(geometry.Mesh.Submeshes);
+        Assert.Empty(projected.Materials);
+    }
+
+    [Fact]
     public async Task DemExactMeshRequestFiltersSplitParentMeshPiecesAfterOverlaySplit()
     {
         using TemporaryDirectory datasetRoot = new();
@@ -1820,6 +1931,29 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new DefaultMaterialResolver(),
             ])!;
     }
+
+    private static ImportedCityObject ProjectTerrainMeshModeCityObjectForTest(
+        BootstrapParsedCityObject cityObject,
+        GeodeticPoint globalOriginPoint,
+        PlateauImportRequest request)
+    {
+        MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
+                "ProjectTerrainMeshModeCityObject",
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("Failed to resolve ProjectTerrainMeshModeCityObject.");
+
+        return (ImportedCityObject)method.Invoke(
+            null,
+            [
+                cityObject,
+                globalOriginPoint,
+                null,
+                null,
+                request,
+                new DefaultMaterialResolver(),
+            ])!;
+    }
+
     private static ImportedCityObject CreateTerrainGridCityObject(
         string slotKey,
         Float3 position,

@@ -2976,23 +2976,13 @@ internal static partial class LocalCityGmlObjectProjection
                      demTerrainTextureOverlays,
                      requestedMeshAreas))
         {
-            ImportedCityObject cityObject = request.TerrainMeshMode == TerrainMeshMode.Grid
-                && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
-                && TryProjectDemTerrainGridCityObject(
-                    splitCityObject.CityObject,
-                    globalOriginPoint,
-                    globalCartesian,
-                    splitCityObject.Overlay,
-                    request,
-                    materialResolver,
-                    out ImportedCityObject? heightMapCityObject)
-                    ? heightMapCityObject!
-                    : ProjectCityObject(
-                        splitCityObject.CityObject,
-                        globalOriginPoint,
-                        globalCartesian,
-                        splitCityObject.Overlay,
-                        materialResolver);
+            ImportedCityObject cityObject = ProjectTerrainMeshModeCityObject(
+                splitCityObject.CityObject,
+                globalOriginPoint,
+                globalCartesian,
+                splitCityObject.Overlay,
+                request,
+                materialResolver);
 
             if (HasRenderableGeometry(cityObject))
             {
@@ -3032,7 +3022,7 @@ internal static partial class LocalCityGmlObjectProjection
         }
 
         ImportedCityObject[] alignedCityObjects =
-            request.TerrainMeshMode == TerrainMeshMode.Grid
+            request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
             && string.Equals(terrainAlignedBootstrapCityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                 ? AlignAdjacentDemTerrainGridChunkBoundaries(projectedCityObjects)
                 : [.. projectedCityObjects];
@@ -3081,7 +3071,7 @@ internal static partial class LocalCityGmlObjectProjection
                     splitCityObject.CityObject.ReferenceSystem.Geocentric)
                 : null;
 
-            foreach (MaterialBinding material in request.TerrainMeshMode == TerrainMeshMode.Grid
+            foreach (MaterialBinding material in request.TerrainMeshMode is TerrainMeshMode.Grid or TerrainMeshMode.Dynamic
                          && string.Equals(splitCityObject.CityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase)
                             ? CreateDemTerrainGridMaterials(
                                 splitCityObject.CityObject,
@@ -3099,6 +3089,73 @@ internal static partial class LocalCityGmlObjectProjection
                 yield return material;
             }
         }
+    }
+
+    private static ImportedCityObject ProjectTerrainMeshModeCityObject(
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject,
+        global::PlateauResoniteLink.Application.Importing.GeodeticPoint globalOriginPoint,
+        LocalCartesian? globalCartesian,
+        TerrainTextureOverlay? demTerrainTextureOverlay,
+        PlateauImportRequest request,
+        IDefaultMaterialResolver materialResolver)
+    {
+        bool isDem = string.Equals(cityObject.PackageName, "dem", StringComparison.OrdinalIgnoreCase);
+        if (!isDem || request.TerrainMeshMode == TerrainMeshMode.Static)
+        {
+            return ProjectCityObject(cityObject, globalOriginPoint, globalCartesian, demTerrainTextureOverlay, materialResolver);
+        }
+
+        bool hasGrid = TryProjectDemTerrainGridCityObject(
+            cityObject,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlay,
+            request,
+            materialResolver,
+            out ImportedCityObject? heightMapCityObject);
+        if (!hasGrid)
+        {
+            return request.TerrainMeshMode == TerrainMeshMode.Dynamic
+                ? CreateNonRenderableCityObject(cityObject)
+                : ProjectCityObject(cityObject, globalOriginPoint, globalCartesian, demTerrainTextureOverlay, materialResolver);
+        }
+
+        if (request.TerrainMeshMode == TerrainMeshMode.Grid)
+        {
+            return heightMapCityObject!;
+        }
+
+        ImportedCityObject staticCityObject = ProjectCityObject(
+            cityObject,
+            globalOriginPoint,
+            globalCartesian,
+            demTerrainTextureOverlay,
+            materialResolver);
+        TriangleMeshGeometry staticMesh = AssertTriangleMeshGeometry(staticCityObject);
+        TriangleMeshGeometry rebasedStaticMesh = RebaseTriangleMeshToTransform(
+            staticMesh,
+            staticCityObject.Transform,
+            heightMapCityObject!.Transform);
+        return heightMapCityObject with
+        {
+            Geometry = new DynamicTerrainGeometry(rebasedStaticMesh, AssertTerrainGridGeometry(heightMapCityObject)),
+            Materials = staticCityObject.Materials,
+        };
+    }
+
+    private static ImportedCityObject CreateNonRenderableCityObject(
+        global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject cityObject)
+    {
+        return new ImportedCityObject(
+            cityObject.SlotKey,
+            cityObject.DisplayName,
+            cityObject.PackageName,
+            cityObject.ActualMeshCode,
+            cityObject.LodLevel,
+            new Transform3D(new Float3(0.0, 0.0, 0.0)),
+            new TriangleMeshGeometry(new ImportedMesh([], [])),
+            [],
+            SourceFileRelativePath: cityObject.SourceFileRelativePath);
     }
 
     private static global::PlateauResoniteLink.Application.Importing.BootstrapParsedCityObject ConformCityObjectToTerrain(
@@ -3439,7 +3496,13 @@ internal static partial class LocalCityGmlObjectProjection
 
         public static TerrainGridChunkAlignmentState? TryCreate(ImportedCityObject cityObject)
         {
-            return cityObject.Geometry is TerrainGridGeometry geometry
+            TerrainGridGeometry? geometry = cityObject.Geometry switch
+            {
+                TerrainGridGeometry terrainGrid => terrainGrid,
+                DynamicTerrainGeometry dynamicTerrain => dynamicTerrain.GridMesh,
+                _ => null,
+            };
+            return geometry is not null
                 ? new TerrainGridChunkAlignmentState(cityObject, geometry, geometry.HeightSamples.ToArray())
                 : null;
         }
@@ -3448,21 +3511,38 @@ internal static partial class LocalCityGmlObjectProjection
         {
             double minHeight = HeightSamples.Min();
             double maxHeight = HeightSamples.Max();
+            Transform3D alignedTransform = CityObject.Transform with
+            {
+                Position = CityObject.Transform.Position with
+                {
+                    Y = BaseHeight + maxHeight,
+                },
+            };
 
             return CityObject with
             {
-                Transform = CityObject.Transform with
+                Transform = alignedTransform,
+                Geometry = CityObject.Geometry switch
                 {
-                    Position = CityObject.Transform.Position with
+                    DynamicTerrainGeometry dynamicTerrain => dynamicTerrain with
                     {
-                        Y = BaseHeight + maxHeight,
+                        StaticMesh = RebaseTriangleMeshToTransform(
+                            dynamicTerrain.StaticMesh,
+                            CityObject.Transform,
+                            alignedTransform),
+                        GridMesh = dynamicTerrain.GridMesh with
+                        {
+                            MinHeight = minHeight,
+                            MaxHeight = maxHeight,
+                            HeightSamples = HeightSamples,
+                        },
                     },
-                },
-                Geometry = Geometry with
-                {
-                    MinHeight = minHeight,
-                    MaxHeight = maxHeight,
-                    HeightSamples = HeightSamples,
+                    _ => Geometry with
+                    {
+                        MinHeight = minHeight,
+                        MaxHeight = maxHeight,
+                        HeightSamples = HeightSamples,
+                    },
                 },
             };
         }
@@ -3647,6 +3727,11 @@ internal static partial class LocalCityGmlObjectProjection
         out ImportedCityObject? heightMapCityObject)
     {
         heightMapCityObject = null;
+
+        if (cityObject.Surfaces.SelectMany(static surface => surface.Vertices).Take(3).Count() < 3)
+        {
+            return false;
+        }
 
         global::PlateauResoniteLink.Application.Importing.GeodeticPoint cityObjectOrigin = GetCityObjectOrigin(cityObject);
         LocalCartesian? cityObjectCartesian = cityObject.ReferenceSystem.IsGeographic
@@ -4170,6 +4255,48 @@ internal static partial class LocalCityGmlObjectProjection
         return Add(transform.Position, rotated);
     }
 
+    private static TriangleMeshGeometry AssertTriangleMeshGeometry(ImportedCityObject cityObject)
+    {
+        return cityObject.Geometry as TriangleMeshGeometry
+            ?? throw new InvalidOperationException("Dynamic terrain static variant must be projected as a triangle mesh.");
+    }
+
+    private static TerrainGridGeometry AssertTerrainGridGeometry(ImportedCityObject cityObject)
+    {
+        return cityObject.Geometry as TerrainGridGeometry
+            ?? throw new InvalidOperationException("Dynamic terrain grid variant must be projected as a terrain grid.");
+    }
+
+    private static TriangleMeshGeometry RebaseTriangleMeshToTransform(
+        TriangleMeshGeometry source,
+        Transform3D sourceTransform,
+        Transform3D targetTransform)
+    {
+        ImportedMesh mesh = source.Mesh;
+        MeshVertex[] vertices = mesh.Vertices
+            .Select(vertex =>
+            {
+                Float3 worldPosition = TransformPointToWorld(sourceTransform, vertex.Position);
+                Float3 localPosition = TransformVectorFromWorld(targetTransform, Subtract(worldPosition, targetTransform.Position));
+                Float3 worldNormal = sourceTransform.Rotation is null ? vertex.Normal : Rotate(vertex.Normal, sourceTransform.Rotation);
+                Float3 localNormal = TransformVectorFromWorld(targetTransform, worldNormal);
+                return vertex with
+                {
+                    Position = localPosition,
+                    Normal = localNormal,
+                };
+            })
+            .ToArray();
+        return new TriangleMeshGeometry(new ImportedMesh(vertices, mesh.Submeshes));
+    }
+
+    private static Float3 TransformVectorFromWorld(Transform3D transform, Float3 worldVector)
+    {
+        return transform.Rotation is null
+            ? worldVector
+            : Rotate(worldVector, Conjugate(transform.Rotation));
+    }
+
     private static Float3 Rotate(Float3 value, Quaternion rotation)
     {
         Float3 qv = new(rotation.X, rotation.Y, rotation.Z);
@@ -4180,6 +4307,11 @@ internal static partial class LocalCityGmlObjectProjection
             Add(
                 Scale3(uv, 2.0 * rotation.W),
                 Scale3(uuv, 2.0)));
+    }
+
+    private static Quaternion Conjugate(Quaternion value)
+    {
+        return new Quaternion(-value.X, -value.Y, -value.Z, value.W);
     }
 
     private static Float3 Cross3(Float3 left, Float3 right)
@@ -4201,6 +4333,10 @@ internal static partial class LocalCityGmlObjectProjection
         {
             TriangleMeshGeometry triangleMesh => triangleMesh.Mesh.Submeshes.Count > 0,
             TerrainGridGeometry heightMap => heightMap.Width > 1 && heightMap.Height > 1,
+            DynamicTerrainGeometry dynamicTerrain =>
+                dynamicTerrain.StaticMesh.Mesh.Submeshes.Count > 0
+                && dynamicTerrain.GridMesh.Width > 1
+                && dynamicTerrain.GridMesh.Height > 1,
             _ => false,
         };
     }

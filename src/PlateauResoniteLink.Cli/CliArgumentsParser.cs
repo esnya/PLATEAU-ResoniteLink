@@ -37,7 +37,7 @@ public static class CliArgumentsParser
                                 Required. Local dataset/archive path or absolute direct .zip/.7z CityGML archive URL.
           --geotiff-source <path-or-url>
                                 Optional. Local GeoTIFF file/archive path or absolute .tif/.tiff/.zip/.7z GeoTIFF URL.
-          --terrain-mesh <static|grid>
+          --terrain-mesh <static|grid|dynamic>
                                 Optional. Terrain mesh style. Default: static.
           --terrain-grid-meters-per-vertex <value>
                                 Optional. Terrain grid sampling spacing in meters. Default: 2.0.
@@ -253,10 +253,14 @@ public static class CliArgumentsParser
                             {
                                 terrainMesh = TerrainMeshMode.Grid;
                             }
+                            else if (string.Equals(terrainMeshValue, "dynamic", StringComparison.OrdinalIgnoreCase))
+                            {
+                                terrainMesh = TerrainMeshMode.Dynamic;
+                            }
                             else
                             {
                                 return CliParseResult.Failure(
-                                    $"Unsupported terrain mesh '{terrainMeshValue}'. Use 'static' or 'grid'.");
+                                    $"Unsupported terrain mesh '{terrainMeshValue}'. Use 'static', 'grid', or 'dynamic'.");
                             }
 
                             break;

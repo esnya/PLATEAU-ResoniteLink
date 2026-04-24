@@ -787,10 +787,10 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         {
             ResoniteTriangleMeshGeometry triangleMesh => checked(
                 EstimateTriangleMeshWorkingSetBytes(triangleMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor),
-            ResoniteTerrainGridGeometry heightMap => checked(
-                (heightMap.HeightSamples.Count * heightSampleWeightBytes)
-                + ((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes)
-                * heightMapExpansionFactor),
+            ResoniteTerrainGridGeometry heightMap => EstimateTerrainGridWorkingSetBytes(heightMap),
+            ResoniteDynamicTerrainGeometry dynamicTerrain => checked(
+                (EstimateTriangleMeshWorkingSetBytes(dynamicTerrain.StaticMesh.Mesh, cityObject.Materials) * triangleMeshExpansionFactor)
+                + EstimateTerrainGridWorkingSetBytes(dynamicTerrain.GridMesh)),
             _ => minimumWeightBytes,
         };
 
@@ -809,6 +809,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             + (distinctTextureCount * textureReferenceWeightBytes)
             + terrainOverlayWeightBytes);
         return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
+
+        static long EstimateTerrainGridWorkingSetBytes(ResoniteTerrainGridGeometry heightMap)
+        {
+            return checked(
+                (heightMap.HeightSamples.Count * heightSampleWeightBytes)
+                + (((long)heightMap.Width * heightMap.Height * hdrHeightTextureWeightBytes) * heightMapExpansionFactor));
+        }
 
         static long EstimateTriangleMeshWorkingSetBytes(
             ResoniteImportedMesh mesh,
@@ -960,6 +967,21 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             }
 
         }
+        else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry dynamicTerrain)
+        {
+            try
+            {
+                ValidateTriangleMeshBindings(cityObject, dynamicTerrain.StaticMesh.Mesh);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException && exception is not ResoniteMeshValidationException)
+            {
+                throw new ResoniteMeshValidationException(
+                    $"Triangle mesh '{cityObject.DisplayName}' failed sender-side validation. "
+                    + $"{CreateTriangleMeshDiagnosticSummary(cityObject, dynamicTerrain.StaticMesh.Mesh)} "
+                    + $"Reason: {exception.Message}",
+                    exception);
+            }
+        }
         TerrainTextureOverlay[] distinctTerrainOverlays = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)
             .Select(static material => material.TerrainOverlay!)
@@ -981,6 +1003,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 cancellationToken),
             ResoniteTerrainGridGeometry heightMap => Task.Run<PreparedConstructionGeometry>(
                 () => new PreparedTerrainGridGeometry(heightMap, PrepareTerrainGridDisplacementTexture(heightMap)),
+                cancellationToken),
+            ResoniteDynamicTerrainGeometry dynamicTerrain => Task.Run<PreparedConstructionGeometry>(
+                () => new PreparedDynamicTerrainGeometry(
+                    PrepareTriangleMeshGeometry(cityObject, dynamicTerrain.StaticMesh.Mesh),
+                    new PreparedTerrainGridGeometry(
+                        dynamicTerrain.GridMesh,
+                        PrepareTerrainGridDisplacementTexture(dynamicTerrain.GridMesh))),
                 cancellationToken),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
@@ -1006,6 +1035,14 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             && preparedGeometry is PreparedTriangleMeshGeometry)
         {
             preparedGeometry = PrepareTriangleMeshGeometry(cityObject, resolvedTriangleMesh.Mesh);
+        }
+        else if (cityObject.Geometry is ResoniteDynamicTerrainGeometry resolvedDynamicTerrain
+            && preparedGeometry is PreparedDynamicTerrainGeometry preparedDynamicTerrain)
+        {
+            preparedGeometry = preparedDynamicTerrain with
+            {
+                StaticMesh = PrepareTriangleMeshGeometry(cityObject, resolvedDynamicTerrain.StaticMesh.Mesh),
+            };
         }
         stopwatch.Stop();
         Diagnostics.RecordPrepare(cityObject.PackageName, stopwatch.Elapsed.TotalSeconds);
@@ -1379,7 +1416,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         Dictionary<TerrainTextureOverlay, GeneratedTerrainTexture> preparedTerrainTextureDataByOverlay)
     {
         _ = preparedTerrainTextureDataByOverlay;
-        return cityObject.Geometry is ResoniteTerrainGridGeometry
+        return (cityObject.Geometry is ResoniteTerrainGridGeometry
+                || cityObject.Geometry is ResoniteDynamicTerrainGeometry)
             && material.TerrainOverlay is not null
             ? material with
             {
@@ -1396,7 +1434,13 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         ArgumentNullException.ThrowIfNull(cityObject);
         ArgumentNullException.ThrowIfNull(preparedTerrainTextureDataByOverlay);
 
-        if (cityObject.Geometry is not ResoniteTriangleMeshGeometry triangleMesh)
+        ResoniteTriangleMeshGeometry? triangleMesh = cityObject.Geometry switch
+        {
+            ResoniteTriangleMeshGeometry value => value,
+            ResoniteDynamicTerrainGeometry value => value.StaticMesh,
+            _ => null,
+        };
+        if (triangleMesh is null)
         {
             return cityObject;
         }
@@ -1449,9 +1493,15 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     : material)
             .ToArray();
 
+        ResoniteTriangleMeshGeometry adjustedTriangleGeometry = new(
+            new ResoniteImportedMesh(adjustedVertices, adjustedSubmeshes));
+        ResoniteConstructionGeometry adjustedGeometry = cityObject.Geometry is ResoniteDynamicTerrainGeometry dynamicTerrain
+            ? dynamicTerrain with { StaticMesh = adjustedTriangleGeometry }
+            : adjustedTriangleGeometry;
+
         return cityObject with
         {
-            Geometry = new ResoniteTriangleMeshGeometry(new ResoniteImportedMesh(adjustedVertices, adjustedSubmeshes)),
+            Geometry = adjustedGeometry,
             Materials = adjustedMaterials,
         };
     }
@@ -1922,6 +1972,26 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                     ResolveTerrainGridUvOffset(cityObject, heightMap.Geometry, preparedTerrainTextureDataByOverlay),
                     progressReporter,
                     cancellationToken)),
+            PreparedDynamicTerrainGeometry dynamicTerrain => CreatePlannedDynamicTerrainGeometryAsset(
+                cityObject,
+                AssertPreparedTriangleMeshAssetBatch(await geometryAssetAssembler.PrepareTriangleMeshAsync(
+                    importClient,
+                    CreateMeshAssetSlotName(cityObject),
+                    cityObject.DisplayName,
+                    dynamicTerrain.StaticMesh.MeshImport,
+                    progressReporter,
+                    cancellationToken)),
+                AssertPreparedTerrainGridAssetBatch(await geometryAssetAssembler.PrepareTerrainGridAsync(
+                    importClient,
+                    CreateMeshAssetSlotName(cityObject),
+                    CreateTerrainGridAssetSlotName(cityObject),
+                    cityObject.DisplayName,
+                    dynamicTerrain.GridMesh.Geometry,
+                    dynamicTerrain.GridMesh.HeightTextureImport,
+                    ResolveTerrainGridUvScale(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
+                    ResolveTerrainGridUvOffset(cityObject, dynamicTerrain.GridMesh.Geometry, preparedTerrainTextureDataByOverlay),
+                    progressReporter,
+                    cancellationToken))),
             _ => throw new InvalidOperationException(
                 $"Unsupported prepared geometry type '{preparedCityObject.Geometry.GetType().Name}'."),
         };
@@ -1984,6 +2054,43 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         };
     }
 
+    private static PlannedDynamicTerrainGeometryAsset CreatePlannedDynamicTerrainGeometryAsset(
+        ResoniteConstructionCityObject cityObject,
+        PreparedTriangleMeshAssetBatch staticMeshBatch,
+        PreparedTerrainGridAssetBatch gridMeshBatch)
+    {
+        GeometryIdentity identity = new(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"geometry-{cityObject.PackageName}-{cityObject.SlotKey}-{staticMeshBatch.MeshAssetSlotName}"));
+
+        return new PlannedDynamicTerrainGeometryAsset(
+            identity,
+            staticMeshBatch.MeshAssetSlotName,
+            staticMeshBatch.MeshUri,
+            gridMeshBatch.TerrainGridAssetSlotName,
+            gridMeshBatch.Geometry,
+            gridMeshBatch.HeightTextureUri,
+            gridMeshBatch.UvScale,
+            gridMeshBatch.UvOffset);
+    }
+
+    private static PreparedTriangleMeshAssetBatch AssertPreparedTriangleMeshAssetBatch(
+        PreparedGeometryAssetBatch preparedGeometryBatch)
+    {
+        return preparedGeometryBatch as PreparedTriangleMeshAssetBatch
+            ?? throw new InvalidOperationException(
+                $"Unsupported prepared static terrain asset batch type '{preparedGeometryBatch.GetType().Name}'.");
+    }
+
+    private static PreparedTerrainGridAssetBatch AssertPreparedTerrainGridAssetBatch(
+        PreparedGeometryAssetBatch preparedGeometryBatch)
+    {
+        return preparedGeometryBatch as PreparedTerrainGridAssetBatch
+            ?? throw new InvalidOperationException(
+                $"Unsupported prepared terrain grid asset batch type '{preparedGeometryBatch.GetType().Name}'.");
+    }
+
     private static long EstimateBatchPayloadBytes(int operationCount)
     {
         return Math.Max(1L, operationCount) * 1024L;
@@ -2003,6 +2110,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
                 $"triangle-mesh(vertices={triangleMesh.MeshImport.VertexCount}, submeshes={triangleMesh.MeshImport.Submeshes.Count})",
             PreparedTerrainGridGeometry heightMap =>
                 $"terrain-grid({heightMap.Geometry.Width}x{heightMap.Geometry.Height})",
+            PreparedDynamicTerrainGeometry dynamicTerrain =>
+                $"dynamic-terrain(static={dynamicTerrain.StaticMesh.MeshImport.VertexCount} vertices, grid={dynamicTerrain.GridMesh.Geometry.Width}x{dynamicTerrain.GridMesh.Geometry.Height})",
             _ => geometry.GetType().Name,
         };
     }
@@ -2070,6 +2179,11 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
     internal sealed record PreparedTerrainGridGeometry(
         ResoniteTerrainGridGeometry Geometry,
         ResoniteRawHdrTextureImport HeightTextureImport)
+        : PreparedConstructionGeometry;
+
+    internal sealed record PreparedDynamicTerrainGeometry(
+        PreparedTriangleMeshGeometry StaticMesh,
+        PreparedTerrainGridGeometry GridMesh)
         : PreparedConstructionGeometry;
 
     internal sealed record PreparedCityObject(
