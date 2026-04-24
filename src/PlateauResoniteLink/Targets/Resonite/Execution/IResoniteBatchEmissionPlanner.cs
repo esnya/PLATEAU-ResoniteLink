@@ -34,6 +34,7 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         List<BatchPlanComponentLocator> componentResolutionTargets = [];
         int nextSlotLocator = 0;
         int nextComponentLocator = 0;
+        int nextFieldLocator = 0;
 
         BatchPlanSlotLocator meshAssetSlotId = CreateBatchPlanSlotLocator(ref nextSlotLocator);
         slotEmissions.Add(new PlannedBatchSlotEmission(
@@ -78,12 +79,11 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
                     ResoniteGeometryAssetAssembler.CreateTerrainGridTextureMembers(heightMap.HeightTextureUri)
                         .ToDictionary(static pair => pair.Key, static pair => PlannedMembers.Literal(pair.Value), StringComparer.Ordinal)));
                 double displacementMagnitude = Math.Max(heightMap.Geometry.MaxHeight - heightMap.Geometry.MinHeight, 0.0);
-                string pointsFieldId = CreatePlannedTerrainGridPointsFieldId(geometryComponentId);
+                BatchPlanFieldLocator pointsFieldId = CreateBatchPlanFieldLocator(ref nextFieldLocator);
                 terrainGridMeshMembers = new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
                 {
-                    ["Points"] = PlannedMembers.Literal(new Field_int2
+                    ["Points"] = PlannedMembers.AddressableField(pointsFieldId, new Field_int2
                     {
-                        ID = pointsFieldId,
                         Value = new int2
                         {
                             x = heightMap.Geometry.Width,
@@ -220,27 +220,17 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
             componentResolutionTargets);
     }
 
-    private static string CreatePlannedTerrainGridPointsFieldId(BatchPlanComponentLocator gridMeshComponentId)
-    {
-        return string.Create(
-            System.Globalization.CultureInfo.InvariantCulture,
-            $"local_field_terrain_grid_points_{gridMeshComponentId.Value}");
-    }
-
     private static Dictionary<string, PlannedMember> CreateTerrainGridPointsDriverMembers(
         IReadOnlyDictionary<string, PlannedMember> gridMeshMembers)
     {
-        Field_int2 gridPoints = AssertTerrainGridPointsMember(gridMeshMembers);
+        (BatchPlanFieldLocator gridPointsId, Field_int2 gridPoints) = AssertTerrainGridPointsMember(gridMeshMembers);
         return new Dictionary<string, PlannedMember>(StringComparer.Ordinal)
         {
             ["VariableName"] = PlannedMembers.Literal(new Field_string
             {
                 Value = TerrainGridPointsDynamicVariableName,
             }),
-            ["Target"] = PlannedMembers.Literal(new Reference
-            {
-                TargetID = gridPoints.ID,
-            }),
+            ["Target"] = PlannedMembers.Reference(PlannedWorldElementReference.Planned(gridPointsId)),
             ["DefaultValue"] = PlannedMembers.Literal(new Field_int2
             {
                 Value = gridPoints.Value,
@@ -248,14 +238,13 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
         };
     }
 
-    private static Field_int2 AssertTerrainGridPointsMember(
+    private static (BatchPlanFieldLocator Identity, Field_int2 Field) AssertTerrainGridPointsMember(
         IReadOnlyDictionary<string, PlannedMember> gridMeshMembers)
     {
         return gridMeshMembers.TryGetValue("Points", out PlannedMember? pointsMember)
-            && pointsMember is PlannedLiteralMember { Value: Field_int2 points }
-            && !string.IsNullOrWhiteSpace(points.ID)
-            ? points
-            : throw new InvalidOperationException("Terrain GridMesh Points member must be planned with a stable field id.");
+            && pointsMember is PlannedAddressableFieldMember { Identity: var identity, Value: Field_int2 points }
+            ? (identity, points)
+            : throw new InvalidOperationException("Terrain GridMesh Points member must be planned as an addressable field.");
     }
 
     private static PlannedWorldElementReference AddPlannedDedicatedMaterialEmissions(
@@ -463,5 +452,10 @@ internal sealed class ResoniteBatchEmissionPlanner : IResoniteBatchEmissionPlann
     private static BatchPlanComponentLocator CreateBatchPlanComponentLocator(ref int nextComponentLocator)
     {
         return new BatchPlanComponentLocator(++nextComponentLocator);
+    }
+
+    private static BatchPlanFieldLocator CreateBatchPlanFieldLocator(ref int nextFieldLocator)
+    {
+        return new BatchPlanFieldLocator(++nextFieldLocator);
     }
 }

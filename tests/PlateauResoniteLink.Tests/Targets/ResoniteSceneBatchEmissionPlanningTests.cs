@@ -88,13 +88,14 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
         Assert.False(Assert.IsType<Field_bool>(ToMember(heightTexture.Members["MipMaps"])).Value);
         Reference displacementTexture = Assert.IsType<Reference>(ToMember(gridMesh.Members["DisplacementTexture"]));
         Assert.Equal(ToPlannedTargetId(heightTexture.Identity), displacementTexture.TargetID);
-        Field_int2 gridPoints = Assert.IsType<Field_int2>(ToMember(gridMesh.Members["Points"]));
+        PlannedAddressableFieldMember gridPointsMember = Assert.IsType<PlannedAddressableFieldMember>(gridMesh.Members["Points"]);
+        Field_int2 gridPoints = Assert.IsType<Field_int2>(gridPointsMember.Value);
         Assert.Equal(2, gridPoints.Value.x);
         Assert.Equal(3, gridPoints.Value.y);
-        Assert.False(string.IsNullOrWhiteSpace(gridPoints.ID));
+        Assert.True(string.IsNullOrWhiteSpace(gridPoints.ID));
         Assert.Equal("PLATEAU.Terrain.Grid.Points", Assert.IsType<Field_string>(ToMember(pointsDriver.Members["VariableName"])).Value);
-        Reference pointsTarget = Assert.IsType<Reference>(ToMember(pointsDriver.Members["Target"]));
-        Assert.Equal(gridPoints.ID, pointsTarget.TargetID);
+        PlannedElementReferenceMember pointsTarget = Assert.IsType<PlannedElementReferenceMember>(pointsDriver.Members["Target"]);
+        Assert.Equal(gridPointsMember.Identity, pointsTarget.Target.PlannedField);
         Field_int2 defaultPoints = Assert.IsType<Field_int2>(ToMember(pointsDriver.Members["DefaultValue"]));
         Assert.Equal(2, defaultPoints.Value.x);
         Assert.Equal(3, defaultPoints.Value.y);
@@ -476,6 +477,7 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             {
                 TargetID = ResolveTargetId(reference.Target),
             },
+            PlannedAddressableFieldMember field => field.Value,
             PlannedSyncListMember syncList => new SyncList
             {
                 Elements = syncList.Elements.Select(ToMember).ToList(),
@@ -509,8 +511,13 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
             return ToPlannedTargetId(plannedSlot);
         }
 
-        return target.PlannedComponent is BatchPlanComponentLocator plannedComponent
-            ? ToPlannedTargetId(plannedComponent)
+        if (target.PlannedComponent is BatchPlanComponentLocator plannedComponent)
+        {
+            return ToPlannedTargetId(plannedComponent);
+        }
+
+        return target.PlannedField is BatchPlanFieldLocator plannedField
+            ? ToPlannedTargetId(plannedField)
             : null;
     }
 
@@ -520,6 +527,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     private static string ToPlannedTargetId(BatchPlanComponentLocator locator)
+    {
+        return locator.Value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ToPlannedTargetId(BatchPlanFieldLocator locator)
     {
         return locator.Value.ToString(CultureInfo.InvariantCulture);
     }
