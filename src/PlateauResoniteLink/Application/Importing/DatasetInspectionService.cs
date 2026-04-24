@@ -22,6 +22,7 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
     private const int GeometryVertexBytesMin = 32;
     private const int GeometryVertexBytesMax = 64;
     private const int GeometryIndexBytes = 4;
+    internal const int GeometryCoordinateDimension = 3;
 
     [SuppressMessage(
         "Performance",
@@ -238,12 +239,13 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
 
                 if (IsGmlElement(reader, "posList"))
                 {
-                    int dimension = TryParsePositiveInt(reader.GetAttribute("srsDimension"), out int parsedDimension)
-                        ? parsedDimension
-                        : 3;
                     string content = await ReadCurrentElementTextAsync(reader);
-                    linearRingGeometry?.MarkPosListSeen();
-                    AddPosListGeometry(content, dimension, geometry);
+                    if (linearRingGeometry is not null)
+                    {
+                        linearRingGeometry.MarkPosListSeen();
+                        AddPosListGeometry(content, geometry);
+                    }
+
                     if (reader.NodeType == XmlNodeType.EndElement
                         && linearRingGeometry is not null
                         && linearRingGeometry.Depth == reader.Depth
@@ -259,11 +261,8 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
                     && !linearRingGeometry.HasPosList
                     && IsGmlElement(reader, "pos"))
                 {
-                    int dimension = TryParsePositiveInt(reader.GetAttribute("srsDimension"), out int parsedDimension)
-                        ? parsedDimension
-                        : 3;
                     string content = await ReadCurrentElementTextAsync(reader);
-                    linearRingGeometry.AddPosition(content, dimension);
+                    linearRingGeometry.AddPosition(content);
                     if (reader.NodeType == XmlNodeType.EndElement
                         && linearRingGeometry.Depth == reader.Depth
                         && IsGmlElement(reader, "LinearRing"))
@@ -376,15 +375,9 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             || extension.Equals(".png", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool TryParsePositiveInt(string? value, out int result)
+    private static void AddPosListGeometry(string coordinateText, GeometryVramAccumulator geometry)
     {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result)
-            && result > 0;
-    }
-
-    private static void AddPosListGeometry(string coordinateText, int dimension, GeometryVramAccumulator geometry)
-    {
-        PosListGeometry posListGeometry = InspectPosListGeometry(coordinateText, dimension);
+        PosListGeometry posListGeometry = InspectPosListGeometry(coordinateText);
         long positionCount = posListGeometry.PositionCount;
         if (positionCount <= 0)
         {
@@ -404,10 +397,10 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
         }
     }
 
-    private static PosListGeometry InspectPosListGeometry(string coordinateText, int dimension)
+    private static PosListGeometry InspectPosListGeometry(string coordinateText)
     {
-        double[] firstPosition = new double[dimension];
-        double[] lastPosition = new double[dimension];
+        double[] firstPosition = new double[GeometryCoordinateDimension];
+        double[] lastPosition = new double[GeometryCoordinateDimension];
         int coordinateValueCount = 0;
         int tokenStart = -1;
 
@@ -432,8 +425,8 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             ReadOnlySpan<char> token = coordinateText.AsSpan(tokenStart, index - tokenStart);
             if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double coordinate))
             {
-                int ordinateIndex = coordinateValueCount % dimension;
-                if (coordinateValueCount < dimension)
+                int ordinateIndex = coordinateValueCount % GeometryCoordinateDimension;
+                if (coordinateValueCount < GeometryCoordinateDimension)
                 {
                     firstPosition[ordinateIndex] = coordinate;
                 }
@@ -445,8 +438,8 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             tokenStart = -1;
         }
 
-        long positionCount = coordinateValueCount / dimension;
-        bool hasCompletePositions = coordinateValueCount % dimension == 0;
+        long positionCount = coordinateValueCount / GeometryCoordinateDimension;
+        bool hasCompletePositions = coordinateValueCount % GeometryCoordinateDimension == 0;
         bool isClosedRing = hasCompletePositions
             && positionCount > 1
             && AreSamePosition(firstPosition, lastPosition);
@@ -844,9 +837,9 @@ internal sealed class LinearRingGeometryAccumulator(int depth)
         HasPosList = true;
     }
 
-    public void AddPosition(string coordinateText, int dimension)
+    public void AddPosition(string coordinateText)
     {
-        double[] position = new double[dimension];
+        double[] position = new double[DatasetInspectionService.GeometryCoordinateDimension];
         int coordinateValueCount = 0;
         int tokenStart = -1;
 
@@ -868,7 +861,7 @@ internal sealed class LinearRingGeometryAccumulator(int depth)
                 continue;
             }
 
-            if (coordinateValueCount < dimension
+            if (coordinateValueCount < DatasetInspectionService.GeometryCoordinateDimension
                 && double.TryParse(
                     coordinateText.AsSpan(tokenStart, index - tokenStart),
                     NumberStyles.Float,
@@ -882,7 +875,7 @@ internal sealed class LinearRingGeometryAccumulator(int depth)
             tokenStart = -1;
         }
 
-        if (coordinateValueCount != dimension)
+        if (coordinateValueCount != DatasetInspectionService.GeometryCoordinateDimension)
         {
             return;
         }
