@@ -94,7 +94,7 @@ jobs:
           Highlights before this first tagged release:
           - Added the live CLI pipeline for streaming PLATEAU CityGML datasets into Resonite through ResoniteLink.
           - Hardened direct archive imports with explicit remote archive validation, cache reuse, and pre-validation of import requests.
-          - Added DEM heightmap terrain generation, placement fixes, and live asset reuse improvements.
+          - Added DEM terrain grid generation, placement fixes, and live asset reuse improvements.
           - Expanded automated coverage around CLI parsing, import validation, dataset discovery, DEM layout, and live send behavior.
 
           EOF

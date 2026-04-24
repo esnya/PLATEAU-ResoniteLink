@@ -8,7 +8,7 @@ public sealed record ResoniteTriangleMeshGeometry(
     ResoniteImportedMesh Mesh)
     : ResoniteConstructionGeometry;
 
-public sealed record ResoniteHeightMapGridGeometry(
+public sealed record ResoniteTerrainGridGeometry(
     int Width,
     int Height,
     ResoniteFloat2 Size,

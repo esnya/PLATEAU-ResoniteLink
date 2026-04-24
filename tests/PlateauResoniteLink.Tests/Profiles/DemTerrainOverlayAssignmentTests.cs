@@ -176,7 +176,7 @@ public sealed class DemTerrainOverlayAssignmentTests
     }
 
     [Fact]
-    public void TryCreateHeightMapTextureTransformReturnsOccupiedOverlayUvTransform()
+    public void TryCreateTerrainGridTextureTransformReturnsOccupiedOverlayUvTransform()
     {
         BootstrapParsedSurface surface = CreateGeneratedSurface(
             "dem-transform",
@@ -205,7 +205,7 @@ public sealed class DemTerrainOverlayAssignmentTests
                 TerrainOverlay: overlay),
             DepthOffset: null);
 
-        (Float2? textureScale, Float2? textureOffset) = DemTerrainOverlayAssignment.TryCreateHeightMapTextureTransform(
+        (Float2? textureScale, Float2? textureOffset) = DemTerrainOverlayAssignment.TryCreateTerrainGridTextureTransform(
             cityObject,
             material,
             overlay);

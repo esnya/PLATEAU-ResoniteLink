@@ -239,14 +239,14 @@ public static class PlateauImportRequestValidator
             }
         }
 
-        if (normalizedRequest.DemHeightmapMetersPerVertex <= 0)
+        if (normalizedRequest.TerrainGridMetersPerVertex <= 0)
         {
-            validationErrors.Add("The DEM heightmap meters-per-vertex value must be greater than zero.");
+            validationErrors.Add("The terrain grid meters-per-vertex value must be greater than zero.");
         }
 
-        if (normalizedRequest.DemHeightmapMaxResolution < 2)
+        if (normalizedRequest.TerrainGridMaxResolution < 2)
         {
-            validationErrors.Add("The DEM heightmap max resolution value must be at least 2.");
+            validationErrors.Add("The terrain grid max resolution value must be at least 2.");
         }
 
         if (validationErrors.Count > 0)
@@ -267,9 +267,9 @@ public static class PlateauImportRequestValidator
             normalizedPackageExclusions,
             normalizedPackagePatterns,
             normalizedRequest.IncludeMarkingAlways,
-            normalizedRequest.DemTerrainMode,
-            normalizedRequest.DemHeightmapMetersPerVertex,
-            normalizedRequest.DemHeightmapMaxResolution);
+            normalizedRequest.TerrainMeshMode,
+            normalizedRequest.TerrainGridMetersPerVertex,
+            normalizedRequest.TerrainGridMaxResolution);
         errors = Array.Empty<string>();
         return true;
     }

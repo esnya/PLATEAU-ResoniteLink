@@ -19,11 +19,11 @@ internal sealed record PlannedTriangleMeshGeometryAsset(
     Uri MeshUri)
     : PlannedGeometryAsset(Identity, MeshAssetSlotName);
 
-internal sealed record PlannedHeightMapGridGeometryAsset(
+internal sealed record PlannedTerrainGridGeometryAsset(
     GeometryIdentity Identity,
     string MeshAssetSlotName,
-    string HeightMapAssetSlotName,
-    ResoniteHeightMapGridGeometry Geometry,
+    string TerrainGridAssetSlotName,
+    ResoniteTerrainGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale = null,
     ResoniteFloat2? UvOffset = null)

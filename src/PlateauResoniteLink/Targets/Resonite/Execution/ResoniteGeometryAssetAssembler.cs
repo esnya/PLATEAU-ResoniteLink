@@ -19,12 +19,12 @@ internal interface IResoniteGeometryAssetAssembler
         Action<string>? progressReporter,
         CancellationToken cancellationToken);
 
-    Task<PreparedGeometryAssetBatch> PrepareHeightMapGridAsync(
+    Task<PreparedGeometryAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string heightMapAssetSlotName,
         string displayName,
-        ResoniteHeightMapGridGeometry geometry,
+        ResoniteTerrainGridGeometry geometry,
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
@@ -50,12 +50,12 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         return new PreparedTriangleMeshAssetBatch(meshAssetSlotName, assetUri);
     }
 
-    public async Task<PreparedGeometryAssetBatch> PrepareHeightMapGridAsync(
+    public async Task<PreparedGeometryAssetBatch> PrepareTerrainGridAsync(
         IResoniteLinkClient importClient,
         string meshAssetSlotName,
         string heightMapAssetSlotName,
         string displayName,
-        ResoniteHeightMapGridGeometry geometry,
+        ResoniteTerrainGridGeometry geometry,
         ResoniteRawHdrTextureImport heightTextureImport,
         ResoniteFloat2? uvScale,
         ResoniteFloat2? uvOffset,
@@ -63,10 +63,10 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
         CancellationToken cancellationToken)
     {
         progressReporter?.Invoke(
-            $"[live] HeightMap '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
+            $"[live] Terrain grid '{geometry.Width}x{geometry.Height}' importing displacement texture via raw payload.");
         Uri textureUri = await importClient.ImportTextureAsync(heightTextureImport, cancellationToken);
-        progressReporter?.Invoke($"[live] HeightMap '{displayName}' displacement texture import completed -> '{textureUri}'.");
-        return new PreparedHeightMapGridAssetBatch(
+        progressReporter?.Invoke($"[live] Terrain grid '{displayName}' displacement texture import completed -> '{textureUri}'.");
+        return new PreparedTerrainGridAssetBatch(
             meshAssetSlotName,
             heightMapAssetSlotName,
             geometry,
@@ -75,7 +75,7 @@ internal sealed class ResoniteGeometryAssetAssembler : IResoniteGeometryAssetAss
             uvOffset);
     }
 
-    internal static Dictionary<string, Member> CreateHeightMapTextureMembers(Uri assetUri)
+    internal static Dictionary<string, Member> CreateTerrainGridTextureMembers(Uri assetUri)
     {
         return new Dictionary<string, Member>(StringComparer.Ordinal)
         {
@@ -100,10 +100,10 @@ internal sealed record PreparedTriangleMeshAssetBatch(
     string MeshAssetSlotName,
     Uri MeshUri) : PreparedGeometryAssetBatch(MeshAssetSlotName);
 
-internal sealed record PreparedHeightMapGridAssetBatch(
+internal sealed record PreparedTerrainGridAssetBatch(
     string MeshAssetSlotName,
-    string HeightMapAssetSlotName,
-    ResoniteHeightMapGridGeometry Geometry,
+    string TerrainGridAssetSlotName,
+    ResoniteTerrainGridGeometry Geometry,
     Uri HeightTextureUri,
     ResoniteFloat2? UvScale,
     ResoniteFloat2? UvOffset) : PreparedGeometryAssetBatch(MeshAssetSlotName);

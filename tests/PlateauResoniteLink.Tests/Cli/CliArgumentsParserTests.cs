@@ -198,7 +198,7 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
-    public void ParseParsesDemHeightmapOptions()
+    public void ParseParsesTerrainGridOptions()
     {
         CliParseResult result = CliArgumentsParser.Parse(
             [
@@ -207,15 +207,15 @@ public sealed class CliArgumentsParserTests
                 "--mesh-code", "53394525",
                 "--citygml-source", "/data/plateau",
                 "--resonitelink-port", "12345",
-                "--dem-terrain-mode", "heightmap",
-                "--dem-heightmap-meters-per-vertex", "4.5",
-                "--dem-heightmap-max-resolution", "512",
+                "--terrain-mesh", "grid",
+                "--terrain-grid-meters-per-vertex", "4.5",
+                "--terrain-grid-max-resolution", "512",
             ]);
 
         Assert.Null(result.Error);
-        Assert.Equal(DemTerrainMode.HeightMap, result.Options!.Request.DemTerrainMode);
-        Assert.Equal(4.5, result.Options.Request.DemHeightmapMetersPerVertex, 6);
-        Assert.Equal(512, result.Options.Request.DemHeightmapMaxResolution);
+        Assert.Equal(TerrainMeshMode.Grid, result.Options!.Request.TerrainMeshMode);
+        Assert.Equal(4.5, result.Options.Request.TerrainGridMetersPerVertex, 6);
+        Assert.Equal(512, result.Options.Request.TerrainGridMaxResolution);
     }
 
     [Fact]

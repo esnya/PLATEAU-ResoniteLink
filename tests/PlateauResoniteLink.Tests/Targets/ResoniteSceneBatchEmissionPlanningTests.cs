@@ -16,20 +16,20 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     private static readonly IResoniteBatchEmissionPlanner Planner = new ResoniteBatchEmissionPlanner();
 
     [Fact]
-    public void CreatePlannedBatchEmission_CreatesHeightMapGridPlanWithPlannedTextureReference()
+    public void CreatePlannedBatchEmission_CreatesTerrainGridPlanWithPlannedTextureReference()
     {
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
-            "HeightMap Object",
+            "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedSceneObjectEmission emissionPlan = new(
-            new PlannedHeightMapGridGeometryAsset(
+            new PlannedTerrainGridGeometryAsset(
                 new GeometryIdentity("geom"),
-                "HeightMap Object",
-                "HeightMap Object_heightmap",
-                new ResoniteHeightMapGridGeometry(
+                "Terrain Grid Object",
+                "Terrain Grid Object_terrain-grid",
+                new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 3,
                     Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),
@@ -49,11 +49,11 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
 
         PlannedBatchSlotEmission meshAssetSlot = Assert.Single(
             batchPlan.SlotEmissions,
-            static slot => string.Equals(slot.SlotName, "HeightMap Object", StringComparison.Ordinal)
+            static slot => string.Equals(slot.SlotName, "Terrain Grid Object", StringComparison.Ordinal)
                 && slot.ParentTarget.Canonical == new ResoniteSlotLocator("asset-lod-slot"));
         PlannedBatchSlotEmission heightMapSlot = Assert.Single(
             batchPlan.SlotEmissions,
-            static slot => string.Equals(slot.SlotName, "HeightMap Object_heightmap", StringComparison.Ordinal));
+            static slot => string.Equals(slot.SlotName, "Terrain Grid Object_terrain-grid", StringComparison.Ordinal));
         PlannedBatchComponentEmission heightTexture = Assert.Single(
             batchPlan.ComponentEmissions,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticTexture2D", StringComparison.Ordinal));
@@ -76,20 +76,20 @@ public sealed class ResoniteSceneBatchEmissionPlanningTests
     }
 
     [Fact]
-    public void CreatePlannedBatchEmission_CarriesHeightMapGridUvMembers()
+    public void CreatePlannedBatchEmission_CarriesTerrainGridUvMembers()
     {
         ResoniteSharedSlotIndex.ObjectSlotHierarchy objectSlots = new(
             new CreatedSlot(new ResoniteSlotLocator("asset-lod-slot"), "Asset LOD"),
             new CreatedSlot(new ResoniteSlotLocator("lod-slot"), "LOD"),
-            "HeightMap Object",
+            "Terrain Grid Object",
             new PlateauResoniteLink.Targets.Resonite.ResoniteFloat3(1.0, 2.0, 3.0),
             null);
         PlannedSceneObjectEmission emissionPlan = new(
-            new PlannedHeightMapGridGeometryAsset(
+            new PlannedTerrainGridGeometryAsset(
                 new GeometryIdentity("geom"),
-                "HeightMap Object",
-                "HeightMap Object_heightmap",
-                new ResoniteHeightMapGridGeometry(
+                "Terrain Grid Object",
+                "Terrain Grid Object_terrain-grid",
+                new ResoniteTerrainGridGeometry(
                     Width: 2,
                     Height: 3,
                     Size: new PlateauResoniteLink.Targets.Resonite.ResoniteFloat2(10.0, 20.0),

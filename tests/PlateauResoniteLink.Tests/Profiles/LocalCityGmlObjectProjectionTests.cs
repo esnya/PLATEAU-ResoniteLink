@@ -872,7 +872,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemHeightMapModeExtendsBoundaryConnectedMissingSamplesWithoutSeaLevelDrop()
+    public async Task DemTerrainGridModeExtendsBoundaryConnectedMissingSamplesWithoutSeaLevelDrop()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -887,15 +887,15 @@ public sealed class LocalCityGmlObjectProjectionTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: datasetRoot.Path,
                 PackageNames: ["dem"],
-                DemTerrainMode: DemTerrainMode.HeightMap,
+                TerrainMeshMode: TerrainMeshMode.Grid,
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
-                && cityObject.Geometry is HeightMapGridGeometry);
-        HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
+                && cityObject.Geometry is TerrainGridGeometry);
+        TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
 
         double[] topEdge = Enumerable.Range(0, geometry.Width)
             .Select(index => geometry.HeightSamples[index])
@@ -917,7 +917,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public async Task DemHeightMapModeCarriesGeneratedTextureUvTransformOnGeometryInsteadOfMaterial()
+    public async Task DemTerrainGridModeCarriesGeneratedTextureUvTransformOnGeometryInsteadOfMaterial()
     {
         using TemporaryDirectory datasetRoot = new();
         CreateRuntimeDemChunkFixture(datasetRoot.Path);
@@ -932,16 +932,16 @@ public sealed class LocalCityGmlObjectProjectionTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: datasetRoot.Path,
                 PackageNames: ["dem"],
-                DemTerrainMode: DemTerrainMode.HeightMap,
+                TerrainMeshMode: TerrainMeshMode.Grid,
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
         ImportedCityObject demCityObject = Assert.Single(
             sceneBuilder.CityObjects,
             static cityObject => cityObject.PackageName == "dem"
-                && cityObject.Geometry is HeightMapGridGeometry
+                && cityObject.Geometry is TerrainGridGeometry
                 && cityObject.Materials.Any(static material => material.TerrainOverlay is not null));
-        HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(demCityObject.Geometry);
+        TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(demCityObject.Geometry);
         MaterialBinding material = Assert.Single(demCityObject.Materials);
 
         Assert.NotNull(geometry.UvScale);
@@ -970,13 +970,13 @@ public sealed class LocalCityGmlObjectProjectionTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: datasetRoot.Path,
                 PackageNames: ["dem"],
-                DemTerrainMode: DemTerrainMode.HeightMap,
+                TerrainMeshMode: TerrainMeshMode.Grid,
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
         ImportedCityObject[] demCityObjects = sceneBuilder.CityObjects
             .Where(static cityObject => cityObject.PackageName == "dem"
-                && cityObject.Geometry is HeightMapGridGeometry)
+                && cityObject.Geometry is TerrainGridGeometry)
             .ToArray();
 
         Assert.NotEmpty(demCityObjects);
@@ -984,7 +984,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             demCityObjects,
             static cityObject =>
             {
-                HeightMapGridGeometry geometry = Assert.IsType<HeightMapGridGeometry>(cityObject.Geometry);
+                TerrainGridGeometry geometry = Assert.IsType<TerrainGridGeometry>(cityObject.Geometry);
                 Assert.Equal("533945", cityObject.ActualMeshCode);
                 Assert.True(geometry.Width > 0);
                 Assert.True(geometry.Height > 0);
@@ -1007,7 +1007,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 SourceKind: DatasetSourceKind.Local,
                 LocalSourcePath: datasetRoot.Path,
                 PackageNames: ["dem"],
-                DemTerrainMode: DemTerrainMode.HeightMap,
+                TerrainMeshMode: TerrainMeshMode.Grid,
                 ServerUri: null),
             workRoot: "runtime/resonite");
 
@@ -1019,9 +1019,9 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void AlignAdjacentDemHeightMapChunkBoundariesAveragesSharedSamplesForPartialOverlapWithDifferentResolution()
+    public void AlignAdjacentDemTerrainGridChunkBoundariesAveragesSharedSamplesForPartialOverlapWithDifferentResolution()
     {
-        ImportedCityObject left = CreateHeightMapCityObject(
+        ImportedCityObject left = CreateTerrainGridCityObject(
             "left-dem",
             new Float3(0.0, 14.0, 0.0),
             width: 2,
@@ -1035,7 +1035,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 1.0, 13.0,
                 1.0, 14.0,
             ]);
-        ImportedCityObject right = CreateHeightMapCityObject(
+        ImportedCityObject right = CreateTerrainGridCityObject(
             "right-dem",
             new Float3(2.0, 22.0, 0.0),
             width: 2,
@@ -1048,10 +1048,10 @@ public sealed class LocalCityGmlObjectProjectionTests
                 22.0, 2.0,
             ]);
 
-        ImportedCityObject[] aligned = AlignAdjacentDemHeightMapChunkBoundariesForTest([left, right]);
+        ImportedCityObject[] aligned = AlignAdjacentDemTerrainGridChunkBoundariesForTest([left, right]);
 
-        HeightMapGridGeometry alignedLeft = Assert.IsType<HeightMapGridGeometry>(aligned[0].Geometry);
-        HeightMapGridGeometry alignedRight = Assert.IsType<HeightMapGridGeometry>(aligned[1].Geometry);
+        TerrainGridGeometry alignedLeft = Assert.IsType<TerrainGridGeometry>(aligned[0].Geometry);
+        TerrainGridGeometry alignedRight = Assert.IsType<TerrainGridGeometry>(aligned[1].Geometry);
 
         Assert.Equal(10.0, alignedLeft.HeightSamples[1], 6);
         Assert.Equal(15.5, alignedLeft.HeightSamples[3], 6);
@@ -1603,14 +1603,14 @@ public sealed class LocalCityGmlObjectProjectionTests
         return min + ((max - min) * ratio);
     }
 
-    private static ImportedCityObject[] AlignAdjacentDemHeightMapChunkBoundariesForTest(
+    private static ImportedCityObject[] AlignAdjacentDemTerrainGridChunkBoundariesForTest(
         IReadOnlyList<ImportedCityObject> cityObjects)
     {
         MethodInfo method = typeof(LocalCityGmlObjectProjection)
             .GetMethod(
-                "AlignAdjacentDemHeightMapChunkBoundaries",
+                "AlignAdjacentDemTerrainGridChunkBoundaries",
                 BindingFlags.NonPublic | BindingFlags.Static)
-            ?? throw new InvalidOperationException("Failed to resolve AlignAdjacentDemHeightMapChunkBoundaries.");
+            ?? throw new InvalidOperationException("Failed to resolve AlignAdjacentDemTerrainGridChunkBoundaries.");
 
         return (ImportedCityObject[])method.Invoke(null, [cityObjects])!;
     }
@@ -1820,7 +1820,7 @@ public sealed class LocalCityGmlObjectProjectionTests
                 new DefaultMaterialResolver(),
             ])!;
     }
-    private static ImportedCityObject CreateHeightMapCityObject(
+    private static ImportedCityObject CreateTerrainGridCityObject(
         string slotKey,
         Float3 position,
         int width,
@@ -1845,7 +1845,7 @@ public sealed class LocalCityGmlObjectProjectionTests
             ActualMeshCode: "53394525",
             LodLevel: 1,
             Transform: new Transform3D(position),
-            Geometry: new HeightMapGridGeometry(
+            Geometry: new TerrainGridGeometry(
                 Width: width,
                 Height: height,
                 Size: new Float2(sizeX, sizeZ),
