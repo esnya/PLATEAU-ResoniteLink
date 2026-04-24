@@ -438,6 +438,27 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 cityObject.Materials.Select(ToContractMaterial).ToArray(),
                 cityObject.CollisionEnabled,
                 cityObject.SourceFileRelativePath),
+            ResoniteDynamicTerrainGeometry dynamicTerrain => new ImportedCityObject(
+                cityObject.SlotKey,
+                cityObject.DisplayName,
+                cityObject.PackageName,
+                cityObject.ActualMeshCode,
+                cityObject.LodLevel,
+                ToContractTransform(cityObject.Transform),
+                new DynamicTerrainGeometry(
+                    new TriangleMeshGeometry(ToContractMesh(dynamicTerrain.StaticMesh.Mesh)),
+                    new TerrainGridGeometry(
+                        dynamicTerrain.GridMesh.Width,
+                        dynamicTerrain.GridMesh.Height,
+                        ToContractFloat2(dynamicTerrain.GridMesh.Size),
+                        dynamicTerrain.GridMesh.MinHeight,
+                        dynamicTerrain.GridMesh.MaxHeight,
+                        dynamicTerrain.GridMesh.HeightSamples,
+                        dynamicTerrain.GridMesh.UvScale is null ? null : ToContractFloat2(dynamicTerrain.GridMesh.UvScale),
+                        dynamicTerrain.GridMesh.UvOffset is null ? null : ToContractFloat2(dynamicTerrain.GridMesh.UvOffset))),
+                cityObject.Materials.Select(ToContractMaterial).ToArray(),
+                cityObject.CollisionEnabled,
+                cityObject.SourceFileRelativePath),
             _ => throw new InvalidOperationException($"Unsupported geometry type '{cityObject.Geometry.GetType().Name}'."),
         };
     }

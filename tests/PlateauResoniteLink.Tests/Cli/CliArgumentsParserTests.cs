@@ -219,6 +219,23 @@ public sealed class CliArgumentsParserTests
     }
 
     [Fact]
+    public void ParseParsesTerrainDynamicMode()
+    {
+        CliParseResult result = CliArgumentsParser.Parse(
+            [
+                "import",
+                "--dataset", "tokyo23ku",
+                "--mesh-code", "53394525",
+                "--citygml-source", "/data/plateau",
+                "--resonitelink-port", "12345",
+                "--terrain-mesh", "dynamic",
+            ]);
+
+        Assert.Null(result.Error);
+        Assert.Equal(TerrainMeshMode.Dynamic, result.Options!.Request.TerrainMeshMode);
+    }
+
+    [Fact]
     public void HelpTextDocumentsUnifiedSourceOptions()
     {
         Assert.Contains(

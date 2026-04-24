@@ -29,6 +29,17 @@ internal sealed record PlannedTerrainGridGeometryAsset(
     ResoniteFloat2? UvOffset = null)
     : PlannedGeometryAsset(Identity, MeshAssetSlotName);
 
+internal sealed record PlannedDynamicTerrainGeometryAsset(
+    GeometryIdentity Identity,
+    string MeshAssetSlotName,
+    Uri StaticMeshUri,
+    string TerrainGridAssetSlotName,
+    ResoniteTerrainGridGeometry GridGeometry,
+    Uri HeightTextureUri,
+    ResoniteFloat2? UvScale = null,
+    ResoniteFloat2? UvOffset = null)
+    : PlannedGeometryAsset(Identity, MeshAssetSlotName);
+
 internal sealed record PlannedTextureAsset(
     TextureIdentity Identity,
     Uri AssetUri);
@@ -172,6 +183,11 @@ internal sealed record PlannedElementReferenceMember(PlannedWorldElementReferenc
 
 internal sealed record PlannedAddressableFieldMember(BatchPlanFieldLocator Identity, Member Value) : PlannedMember;
 
+internal sealed record PlannedAddressableReferenceMember(
+    BatchPlanFieldLocator Identity,
+    PlannedWorldElementReference Target)
+    : PlannedMember;
+
 internal sealed record PlannedSyncListMember(IReadOnlyList<PlannedMember> Elements) : PlannedMember;
 
 internal static class PlannedMembers
@@ -191,6 +207,11 @@ internal static class PlannedMembers
     {
         ArgumentNullException.ThrowIfNull(value);
         return new PlannedAddressableFieldMember(identity, value);
+    }
+
+    public static PlannedMember AddressableReference(BatchPlanFieldLocator identity, PlannedWorldElementReference target)
+    {
+        return new PlannedAddressableReferenceMember(identity, target);
     }
 
     public static PlannedMember List(params PlannedMember[] elements)

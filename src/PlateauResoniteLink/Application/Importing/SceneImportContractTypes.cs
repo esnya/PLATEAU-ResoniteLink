@@ -75,6 +75,11 @@ public sealed record TerrainGridGeometry(
     Float2? UvOffset = null)
     : ConstructionGeometry;
 
+public sealed record DynamicTerrainGeometry(
+    TriangleMeshGeometry StaticMesh,
+    TerrainGridGeometry GridMesh)
+    : ConstructionGeometry;
+
 public sealed record ImportedMesh(
     IReadOnlyList<MeshVertex> Vertices,
     IReadOnlyList<MeshSubmesh> Submeshes);

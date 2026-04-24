@@ -108,6 +108,27 @@ public sealed class PlateauImportRequestValidatorTests
     }
 
     [Fact]
+    public void TryNormalizeAndValidatePreservesDynamicTerrainMeshMode()
+    {
+        using TemporaryDirectory sourceRoot = new();
+        PlateauImportRequest request = new(
+            Dataset: "tokyo23ku",
+            MeshCode: "53394525",
+            Source: DatasetLocation.Local(sourceRoot.Path),
+            TerrainMeshMode: TerrainMeshMode.Dynamic);
+
+        bool success = PlateauImportRequestValidator.TryNormalizeAndValidate(
+            request,
+            out ValidatedPlateauImportRequest? validatedRequest,
+            out IReadOnlyList<string> errors);
+
+        Assert.True(success);
+        Assert.Empty(errors);
+        Assert.NotNull(validatedRequest);
+        Assert.Equal(TerrainMeshMode.Dynamic, validatedRequest!.TerrainMeshMode);
+    }
+
+    [Fact]
     public void ValidateRejectsGeoTiffSourceDirectory()
     {
         using TemporaryDirectory sourceRoot = new();
