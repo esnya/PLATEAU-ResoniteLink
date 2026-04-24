@@ -117,6 +117,88 @@ public sealed class DefaultMaterialResolverTests
     }
 
     [Fact]
+    public void ResolveMaterialCanReachEveryRoadVariant()
+    {
+        Dictionary<int, ResolvedMaterial> materialsByVariant = [];
+        for (int attempt = 0; attempt < 256 && materialsByVariant.Count < BundledDefaultMaterialFamilies.RoadVariants.Count; attempt++)
+        {
+            string variantSelectionKey = $"tran:tri:{attempt}";
+            ResolvedMaterial material = resolver.ResolveMaterial(
+                packageName: "tran",
+                texturePayload: null,
+                preferUvProjection: false,
+                familyOverride: null,
+                variantSelectionKey: variantSelectionKey);
+            materialsByVariant.TryAdd(material.BundledVariantIndex!.Value, material);
+        }
+
+        Assert.Equal(BundledDefaultMaterialFamilies.RoadVariants.Count, materialsByVariant.Count);
+        Assert.All(
+            materialsByVariant.Values,
+            material =>
+            {
+                Assert.Equal(BundledDefaultMaterialFamilies.Road, material.Family);
+                Assert.StartsWith(
+                    "default-materials/ambientcg/road/Road",
+                    BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value),
+                    System.StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public void ResolveMaterialCanReachEveryCityFurnitureVariant()
+    {
+        Dictionary<int, ResolvedMaterial> materialsByVariant = [];
+        for (int attempt = 0; attempt < 512 && materialsByVariant.Count < BundledDefaultMaterialFamilies.CityFurnitureVariants.Count; attempt++)
+        {
+            string variantSelectionKey = $"frn:tri:{attempt}";
+            ResolvedMaterial material = resolver.ResolveMaterial(
+                packageName: "frn",
+                texturePayload: null,
+                preferUvProjection: false,
+                familyOverride: null,
+                variantSelectionKey: variantSelectionKey);
+            materialsByVariant.TryAdd(material.BundledVariantIndex!.Value, material);
+        }
+
+        Assert.Equal(BundledDefaultMaterialFamilies.CityFurnitureVariants.Count, materialsByVariant.Count);
+        Assert.All(
+            materialsByVariant.Values,
+            material =>
+            {
+                Assert.Equal(BundledDefaultMaterialFamilies.CityFurniture, material.Family);
+                Assert.Contains(
+                    "/Plaster",
+                    BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value),
+                    System.StringComparison.Ordinal);
+            });
+    }
+
+    [Fact]
+    public void ResolveMaterialCanReachTextureCanGenericOtherVariant()
+    {
+        ResolvedMaterial? textureCanMaterial = null;
+        for (int attempt = 0; attempt < 512 && textureCanMaterial is null; attempt++)
+        {
+            ResolvedMaterial material = resolver.ResolveMaterial(
+                packageName: "brid",
+                texturePayload: null,
+                preferUvProjection: false,
+                familyOverride: null,
+                variantSelectionKey: $"brid:tri:{attempt}");
+            string texturePath = BundledDefaultMaterialFamilies.GetVariant(material.Family!, material.BundledVariantIndex!.Value);
+            if (texturePath.StartsWith("default-materials/texturecan/", System.StringComparison.Ordinal))
+            {
+                textureCanMaterial = material;
+            }
+        }
+
+        Assert.NotNull(textureCanMaterial);
+        Assert.Equal(BundledDefaultMaterialFamilies.Other, textureCanMaterial!.Family);
+        Assert.Equal(MaterialReuseScope.Shared, textureCanMaterial.ReuseScope);
+    }
+
+    [Fact]
     public void ResolveMaterialUsesStableBundledVariantSelection()
     {
         ResolvedMaterial first = resolver.ResolveMaterial(

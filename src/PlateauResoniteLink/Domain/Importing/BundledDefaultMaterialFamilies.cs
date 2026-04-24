@@ -14,40 +14,54 @@ public static class BundledDefaultMaterialFamilies
 
     public static readonly IReadOnlyList<string> FacadeVariants =
     [
-        "default-materials/facade/Facade018A_2K-JPG_Color.jpg",
-        "default-materials/facade/Facade019A_2K-JPG_Color.jpg",
-        "default-materials/facade/Facade020A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade018A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade019A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/facade/Facade020A_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> RoofVariants =
     [
-        "default-materials/roof/Concrete012_2K-JPG_Color.jpg",
-        "default-materials/roof/Concrete033_2K-JPG_Color.jpg",
-        "default-materials/roof/RoofingTiles012A_2K-JPG_Color.jpg",
-        "default-materials/roof/RoofingTiles014B_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/roof/Concrete012_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/roof/Concrete033_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/roof/RoofingTiles012A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/roof/RoofingTiles014B_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> RoadVariants =
     [
-        "default-materials/road/Asphalt020L_2K-JPG_Color.jpg",
-        "default-materials/road/Asphalt023L_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/road/Road012A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/road/Road013A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/road/Road014A_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/road/Road015A_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> VegetationVariants =
     [
-        "default-materials/other/Ground054_2K-JPG_Color.jpg",
-        "default-materials/other/Concrete012_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> CityFurnitureVariants =
     [
-        "default-materials/city-furniture/Plaster002_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg",
     ];
 
     public static readonly IReadOnlyList<string> OtherVariants =
     [
-        "default-materials/other/Concrete012_2K-JPG_Color.jpg",
-        "default-materials/other/Ground054_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/other/Concrete012_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/other/Ground054_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster002_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster001_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster003_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster004_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster005_2K-JPG_Color.jpg",
+        "default-materials/ambientcg/wall/Plaster006_2K-JPG_Color.jpg",
+        "default-materials/texturecan/facade/Others0022_2K_Color.jpg",
     ];
 
     public static IReadOnlyList<string> GetVariants(string family)

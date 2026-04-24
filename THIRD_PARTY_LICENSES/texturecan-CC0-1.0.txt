@@ -1,0 +1,27 @@
+TextureCan assets included in this repository are sourced from https://www.texturecan.com/
+and are documented by TextureCan as Creative Commons CC0 1.0 assets.
+
+License information:
+- https://www.texturecan.com/terms/
+- https://creativecommons.org/publicdomain/zero/1.0/
+
+TextureCan's terms also note that if brand names, logos, or copyrighted graphics
+appear in materials, avoiding third-party infringement remains the user's
+responsibility. The bundled assets listed here were selected as generic facade
+materials and are recorded with their source pages for review.
+
+Bundled directory covered by this notice:
+- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/
+
+Ingest procedure:
+- Download the 2K Maps archive from the source asset page.
+- Run `dotnet run --project tools/DefaultMaterialIngest/DefaultMaterialIngest.csproj -- texturecan <asset-id> <zip-path> <destination-directory>`.
+- The ingest tool keeps color, OpenGL normal, height, and emission maps when present.
+- The ingest tool generates `<asset-id>_2K_Metallic.png` as a packed material map. Red is upstream metallic or neutral 0, green is upstream ambient occlusion or neutral 255, blue is upstream roughness or neutral 255, and alpha is 255.
+
+Bundled TextureCan material sources:
+- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0021_2K_* -> TextureCan Others 0021 -> https://www.texturecan.com/details/315/
+- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0022_2K_* -> TextureCan Others 0022 -> https://www.texturecan.com/details/316/
+- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0025_2K_* -> TextureCan Others 0025 -> https://www.texturecan.com/details/357/
+- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0026_2K_* -> TextureCan Others 0026 -> https://www.texturecan.com/details/360/
+- src/PlateauResoniteLink/Assets/DefaultMaterials/texturecan/facade/Others0029_2K_* -> TextureCan Others 0029 -> https://www.texturecan.com/details/563/

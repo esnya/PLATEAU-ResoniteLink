@@ -12,10 +12,10 @@ public sealed class FacadeMaterialUvScalingTests
     }
 
     [Theory]
-    [InlineData("default-materials/facade/facade001_2k-jpg_color.jpg", 16.0, 10.0, 0.0)]
-    [InlineData("default-materials/facade/facade018a_2k-jpg_color.jpg", 6.0, 6.0, 0.5)]
-    [InlineData("default-materials/facade/facade019a_2k-jpg_color.jpg", 6.0, 6.0, 0.5)]
-    [InlineData("default-materials/facade/facade020a_2k-jpg_color.jpg", 6.0, 6.0, 0.5)]
+    [InlineData("default-materials/ambientcg/facade/facade001_2k-jpg_color.jpg", 16.0, 10.0, 0.0)]
+    [InlineData("default-materials/ambientcg/facade/facade018a_2k-jpg_color.jpg", 6.0, 6.0, 0.5)]
+    [InlineData("default-materials/ambientcg/facade/facade019a_2k-jpg_color.jpg", 6.0, 6.0, 0.5)]
+    [InlineData("default-materials/ambientcg/facade/facade020a_2k-jpg_color.jpg", 6.0, 6.0, 0.5)]
     public void BundledFacadeProfiles_NormalizeTextureCellToFloorUnitAtMaterialBoundary(
         string texturePath,
         double columnsPerTexture,

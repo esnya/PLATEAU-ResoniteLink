@@ -326,7 +326,7 @@ public sealed class ResoniteMaterialComponentPolicyTests
         Assert.InRange(averageR, 210.0, 255.0);
         Assert.InRange(averageG, 210.0, 255.0);
         Assert.InRange(averageB, 210.0, 255.0);
-        Assert.True(averageR - averageB <= 3.5, $"Expected city-furniture albedo to stay near neutral white, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
-        Assert.True(averageG - averageB <= 3.5, $"Expected city-furniture albedo to stay near neutral white, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
+        Assert.True(averageR - averageB <= 8.0, $"Expected city-furniture albedo to stay near light neutral plaster, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
+        Assert.True(averageG - averageB <= 8.0, $"Expected city-furniture albedo to stay near light neutral plaster, but sampled RGB was {averageR:F1}/{averageG:F1}/{averageB:F1}.");
     }
 }

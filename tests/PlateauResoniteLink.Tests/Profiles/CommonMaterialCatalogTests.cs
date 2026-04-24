@@ -183,4 +183,25 @@ public sealed class CommonMaterialCatalogTests
             firstMaterials.Where(material => material.Family is not null).Select(static material => material.MaterialKey),
             key => string.Equals(key, sharedVertexColor.MaterialKey, StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void CreateForPackages_IncludesExpandedRoadAndGenericVariants()
+    {
+        IReadOnlyList<MaterialBinding> materials = new CommonMaterialCatalog().CreateForPackages(["tran", "frn", "brid"]);
+
+        Assert.Equal(
+            BundledDefaultMaterialFamilies.RoadVariants.Count * 2,
+            materials.Count(material => material.Family == BundledDefaultMaterialFamilies.Road));
+        Assert.Equal(
+            BundledDefaultMaterialFamilies.CityFurnitureVariants.Count * 2,
+            materials.Count(material => material.Family == BundledDefaultMaterialFamilies.CityFurniture));
+        Assert.Contains(
+            materials,
+            material => material.Family == BundledDefaultMaterialFamilies.Other
+                && material.BundledVariantIndex == BundledDefaultMaterialFamilies.OtherVariants.Count - 1
+                && material.Projection == MaterialProjection.Uv);
+        Assert.Contains(
+            BundledDefaultMaterialFamilies.OtherVariants,
+            path => path.StartsWith("default-materials/texturecan/", StringComparison.Ordinal));
+    }
 }
