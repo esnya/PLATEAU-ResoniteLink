@@ -433,6 +433,40 @@ public sealed class FixedCellCityObjectMeshBakerTests
     }
 
     [Fact]
+    public void FlushAllKeepsBundledFacadeCommonTransformOnMaterial()
+    {
+        FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);
+        ResoniteMaterialBinding material = new(
+            MaterialKey: "facade-common",
+            BaseColor: new ResoniteColor(1.0, 1.0, 1.0, 1.0),
+            MaterialType: ResoniteMaterialType.Standard,
+            TexturePayload: null,
+            TextureSourceKind: ResoniteTextureSourceKind.Bundled,
+            Projection: ResoniteMaterialProjection.Uv,
+            DepthOffset: null,
+            SubmeshIndices: [0],
+            TextureScale: new ResoniteFloat2(
+                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.X,
+                BundledDefaultMaterialProfiles.FacadeDefaultTilesPerMeterValue.Y),
+            TextureOffset: new ResoniteFloat2(0.0, 0.5 / 6.0),
+            Family: BundledDefaultMaterialFamilies.Facade,
+            AssetScope: ResoniteMaterialAssetScope.Common,
+            BundledVariantIndex: 0);
+        Assert.True(baker.TryBuffer(CreateTriangleBuilding("facade", 10.0, 12.0, "unit-a", null, material), out _));
+
+        ResoniteConstructionCityObject baked = Assert.Single(baker.FlushAll());
+
+        ResoniteMaterialBinding bakedMaterial = Assert.Single(baked.Materials);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, bakedMaterial.Family);
+        Assert.Equal(ResoniteMaterialAssetScope.Common, bakedMaterial.AssetScope);
+        Assert.Equal(new ResoniteFloat2(1.0 / 6.0, 1.0 / 6.0), bakedMaterial.TextureScale);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.5 / 6.0), bakedMaterial.TextureOffset);
+        Assert.Equal(new ResoniteFloat2(0.0, 0.0), baked.Mesh.Vertices[0].UV0);
+        Assert.Equal(new ResoniteFloat2(1.0, 0.0), baked.Mesh.Vertices[1].UV0);
+        Assert.Equal(new ResoniteFloat2(0.0, 1.0), baked.Mesh.Vertices[2].UV0);
+    }
+
+    [Fact]
     public void FlushAllMergesEquivalentBundledFamilyMaterialsAcrossObjects()
     {
         FixedCellCityObjectMeshBaker baker = new(cellSizeMeters: 64.0, maxCityObjectsPerBatch: 10, maxVerticesPerBatch: 1000);

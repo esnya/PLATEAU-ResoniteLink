@@ -153,6 +153,39 @@ public sealed class NonDemCityObjectBakerTests
     }
 
     [Fact]
+    public async Task FlushAllAsyncNormalizesRepeatedSourceUvIntoAtlasSpace()
+    {
+        NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);
+
+        await AssertBufferedAsync(baker, CreateUvScaledLod2Building(
+            "building-offset-repeat",
+            CreateStripedPayload("textures/offset-repeat.png", [new Rgba32(255, 0, 0, 255), new Rgba32(0, 255, 0, 255)]),
+            "unit-a",
+            new ResoniteFloat2(2.0, 1.0),
+            new ResoniteFloat2(0.5, 0.0)));
+
+        ResoniteConstructionCityObject cityObject = Assert.Single(await baker.FlushAllAsync());
+        ResoniteMaterialBinding material = Assert.Single(cityObject.Materials);
+        ResoniteTexturePayload atlasPayload = Assert.IsType<ResoniteTexturePayload>(material.TexturePayload);
+
+        Assert.Null(material.TextureScale);
+        Assert.Null(material.TextureOffset);
+        Assert.Equal(4, atlasPayload.Width);
+        Assert.Equal(1, atlasPayload.Height);
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 0, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 1, 0));
+        Assert.Equal(new Rgba32(0, 255, 0, 255), ReadPixel(atlasPayload, 2, 0));
+        Assert.Equal(new Rgba32(255, 0, 0, 255), ReadPixel(atlasPayload, 3, 0));
+        Assert.All(
+            cityObject.Mesh.Vertices,
+            static vertex =>
+            {
+                Assert.InRange(vertex.UV0.X, 0.0, 1.0);
+                Assert.InRange(vertex.UV0.Y, 0.0, 1.0);
+            });
+    }
+
+    [Fact]
     public async Task FlushAllAsyncPreservesDetectedBackgroundColorInTransparentTilePixels()
     {
         NonDemCityObjectBaker baker = new(new ResoniteTextureImageLoader(), maxAtlasSize: 32, tilePaddingPixels: 0);

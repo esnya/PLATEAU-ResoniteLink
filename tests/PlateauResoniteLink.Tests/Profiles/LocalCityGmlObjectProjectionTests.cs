@@ -140,48 +140,6 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void EstimateFloorHeightMeters_UsesMeasuredHeightPerStoreyWhenAvailable()
-    {
-        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
-            floorsAboveGround: 4,
-            measuredHeightMeters: 11.8);
-
-        Assert.Equal(2.95, estimated, 6);
-    }
-
-    [Fact]
-    public void EstimateFloorHeightMeters_UsesNearestStoreyCountWhenStoreyMetadataIsMissing()
-    {
-        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
-            floorsAboveGround: null,
-            measuredHeightMeters: 10.4);
-
-        Assert.InRange(estimated, 3.45, 3.48);
-    }
-
-    [Fact]
-    public void EstimateFloorHeightMeters_UsesGeometryHeightToAlignExactStoreyCount()
-    {
-        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
-            floorsAboveGround: 2,
-            measuredHeightMeters: 11.8,
-            geometryHeightMeters: 7.0);
-
-        Assert.Equal(3.5, estimated, 6);
-    }
-
-    [Fact]
-    public void EstimateFloorHeightMeters_UsesGeometryHeightConsistentlyWhenStoreyMetadataIsMissing()
-    {
-        double estimated = FacadeFloorMetrics.EstimateFloorHeightMeters(
-            floorsAboveGround: null,
-            measuredHeightMeters: 11.8,
-            geometryHeightMeters: 7.0);
-
-        Assert.Equal(3.5, estimated, 6);
-    }
-
-    [Fact]
     public void GeneratedFacadeUvProjection_AlignsVerticalPhaseToBuildingBottomAndTop()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
@@ -210,7 +168,9 @@ public sealed class LocalCityGmlObjectProjectionTests
             origin,
             cartesian,
             minimumY: 0.0,
-            floorHeightMeters: 3.5);
+            maximumY: 7.0,
+            floorHeightMeters: 3.5,
+            floorCount: 2);
         Float2 uvBottom = CreateGeneratedSurfaceUvForTest(origin, origin, cartesian, projection);
         Float2 uvTop = CreateGeneratedSurfaceUvForTest(wallVertices[3], origin, cartesian, projection);
 
@@ -219,7 +179,7 @@ public sealed class LocalCityGmlObjectProjectionTests
     }
 
     [Fact]
-    public void ProjectCityObject_CreatesFacadeUvWithIntegerTopFromProductionFloorContext()
+    public void ProjectCityObject_CreatesFacadeUvFromProjectOwnedDefaultFloorUnit()
     {
         CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
         LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
@@ -252,6 +212,42 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal(0.0, minV, 6);
         Assert.Equal(2.0, maxV, 6);
+    }
+
+    [Fact]
+    public void ProjectCityObject_IgnoresFloorMetadataWhenGeneratingProjectOwnedFacadeUv()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 2.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+            "suspicious-floor-context-wall",
+            BootstrapParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, widthMeters: 7.0, heightMeters: 30.2),
+            texturePayload: null);
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [wallSurface],
+            referenceSystem,
+            floorsAboveGround: 1,
+            measuredHeightMeters: 30.2);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: null,
+            materialResolver: new DefaultMaterialResolver());
+
+        double minV = projected.Mesh.Vertices.Min(static vertex => vertex.UV0.Y);
+        double maxV = projected.Mesh.Vertices.Max(static vertex => vertex.UV0.Y);
+
+        Assert.Equal(0.0, minV, 6);
+        Assert.Equal(9.0, maxV, 6);
     }
 
     [Fact]
@@ -288,6 +284,139 @@ public sealed class LocalCityGmlObjectProjectionTests
 
         Assert.Equal(0.0, minV, 6);
         Assert.Equal(1.0, maxV, 6);
+    }
+
+    [Fact]
+    public void ProjectCityObjectPreservesSourceTextureCoordinatesForTexturedBuildingWall()
+    {
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        Float2[] sourceUvs =
+        [
+            new(0.10, 0.20),
+            new(1.15, -0.20),
+            new(1.15, 0.80),
+            new(0.10, 0.80),
+            new(0.10, 0.20),
+        ];
+        BootstrapParsedSurface wallSurface = CreateBootstrapParsedSurface(
+            "textured-wall",
+            BootstrapParsedSurfaceSemantic.Wall,
+            CreateVerticalQuadVertices(origin, 8.0, 7.0),
+            CreateTexturePayload("wall-texture"),
+            baseColor: null,
+            uvs: sourceUvs);
+
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [wallSurface],
+            referenceSystem,
+            lodLevel: 1,
+            measuredHeightMeters: 7.0);
+
+        ImportedCityObject projected = LocalCityGmlObjectProjection.ProjectCityObject(
+            cityObject,
+            GeodeticPoint.FromLegacy(origin),
+            globalCartesian: cartesian,
+            demTerrainTextureOverlay: null,
+            materialResolver: new DefaultMaterialResolver());
+
+        MaterialBinding material = Assert.Single(projected.Materials);
+        Assert.Equal(TextureSourceKind.Dataset, material.TextureSourceKind);
+        Assert.Null(material.Family);
+        Assert.Equal(MaterialProjection.Uv, material.Projection);
+        Assert.NotNull(material.TexturePayload);
+
+        Float2[] projectedUvs = projected.Mesh.Vertices.Select(static vertex => vertex.UV0).ToArray();
+        foreach (Float2 sourceUv in sourceUvs.SkipLast(1))
+        {
+            Assert.Contains(projectedUvs, actualUv => ApproximatelyEqualFloat2(actualUv, sourceUv, 1e-9));
+        }
+    }
+
+    [Theory]
+    [InlineData((int)BootstrapParsedSurfaceSemantic.Wall)]
+    [InlineData((int)BootstrapParsedSurfaceSemantic.Unknown)]
+    public void CreateCommonMaterialBindingsGeneratesFacadeMappingForTexturelessVerticalBuildingSurfaces(
+        int semanticValue)
+    {
+        BootstrapParsedSurfaceSemantic semantic = (BootstrapParsedSurfaceSemantic)semanticValue;
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+            $"texturedless-{semantic}",
+            semantic,
+            CreateVerticalQuadVertices(origin, 8.0, 7.0),
+            texturePayload: null);
+
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [surface],
+            referenceSystem,
+            floorsAboveGround: 1,
+            measuredHeightMeters: 7.0);
+
+        MaterialBinding[] materialBindings = CreateCommonMaterialBindingsForTest(
+            cityObject,
+            origin,
+            cartesian);
+
+        MaterialBinding material = Assert.Single(materialBindings);
+        Assert.Equal(TextureSourceKind.Bundled, material.TextureSourceKind);
+        Assert.Equal(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.Equal(MaterialProjection.Uv, material.Projection);
+        Assert.Equal(MaterialReuseScope.Shared, material.ReuseScope);
+        Assert.Null(material.TexturePayload);
+    }
+
+    [Theory]
+    [InlineData((int)BootstrapParsedSurfaceSemantic.Roof)]
+    [InlineData((int)BootstrapParsedSurfaceSemantic.Ground)]
+    public void CreateCommonMaterialBindingsDoesNotGenerateFacadeMaterialForRoofOrGround(
+        int semanticValue)
+    {
+        BootstrapParsedSurfaceSemantic semantic = (BootstrapParsedSurfaceSemantic)semanticValue;
+        CoordinateReferenceSystem referenceSystem = CoordinateReferenceSystem.Parse("http://www.opengis.net/def/crs/EPSG/0/6697");
+        LocalCityGmlObjectProjection.GeodeticPoint origin = new(35.0, 139.0, 0.0);
+        GeographicLib.LocalCartesian cartesian = new(
+            origin.Latitude,
+            origin.Longitude,
+            origin.Altitude,
+            referenceSystem.Geocentric);
+        IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> surfaceVertices =
+            CreateHorizontalQuadVertices(origin, altitudeMeters: 0.0, sizeMeters: 8.0, reverseWinding: true);
+        BootstrapParsedSurface surface = CreateBootstrapParsedSurface(
+            $"non-facade-{semantic}",
+            semantic,
+            surfaceVertices,
+            texturePayload: null);
+
+        BootstrapParsedCityObject cityObject = CreateBootstrapParsedCityObject(
+            "bldg",
+            [surface],
+            referenceSystem,
+            floorsAboveGround: 2,
+            measuredHeightMeters: 7.0);
+
+        MaterialBinding[] materialBindings = CreateCommonMaterialBindingsForTest(
+            cityObject,
+            origin,
+            cartesian);
+
+        MaterialBinding material = Assert.Single(materialBindings);
+        Assert.Equal(MaterialProjection.Triplanar, material.Projection);
+        Assert.NotEqual(BundledDefaultMaterialFamilies.Facade, material.Family);
+        Assert.Equal(BundledDefaultMaterialFamilies.Roof, material.Family);
     }
 
     [Fact]
@@ -1484,7 +1613,9 @@ public sealed class LocalCityGmlObjectProjectionTests
         LocalCityGmlObjectProjection.GeodeticPoint cityObjectOrigin,
         GeographicLib.LocalCartesian cartesian,
         double minimumY = 0.0,
-        double? floorHeightMeters = null)
+        double? maximumY = null,
+        double? floorHeightMeters = null,
+        int floorCount = 1)
     {
         MethodInfo method = typeof(LocalCityGmlObjectProjection).GetMethod(
                 "CreateGeneratedSurfaceUvProjection",
@@ -1499,8 +1630,9 @@ public sealed class LocalCityGmlObjectProjectionTests
                 ? Activator.CreateInstance(
                     contextType,
                     minimumY,
+                    maximumY ?? minimumY + (floorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters) * floorCount,
                     floorHeightMeters ?? FacadeFloorMetrics.DefaultFloorUnitMeters,
-                    1)
+                    floorCount)
                 : null;
         return method.Invoke(null, [surface, packageName, cityObjectOrigin, cartesian, context])!
             ?? throw new InvalidOperationException("CreateGeneratedSurfaceUvProjection returned null.");
@@ -1577,15 +1709,21 @@ public sealed class LocalCityGmlObjectProjectionTests
         BootstrapParsedSurfaceSemantic semantic,
         IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> vertices,
         TexturePayload? texturePayload,
-        ColorRgba? baseColor = null)
+        ColorRgba? baseColor = null,
+        IReadOnlyList<Float2>? uvs = null)
     {
         return new BootstrapParsedSurface(
             PolygonId: polygonId,
             Semantic: semantic,
-            ExteriorRing: new BootstrapParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: null),
+            ExteriorRing: new BootstrapParsedRing($"{polygonId}-ring", vertices.Select(GeodeticPoint.FromLegacy).ToArray(), UVs: uvs),
             InteriorRings: [],
             BaseColor: baseColor ?? new ColorRgba(1.0, 1.0, 1.0, 1.0),
             TexturePayload: texturePayload);
+    }
+
+    private static bool ApproximatelyEqualFloat2(Float2 left, Float2 right, double tolerance)
+    {
+        return Math.Abs(left.X - right.X) <= tolerance && Math.Abs(left.Y - right.Y) <= tolerance;
     }
 
     private static IReadOnlyList<LocalCityGmlObjectProjection.GeodeticPoint> CreateHorizontalQuadVertices(
