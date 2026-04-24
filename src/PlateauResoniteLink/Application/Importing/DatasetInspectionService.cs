@@ -4,6 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -21,6 +22,7 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
     private const int GeometryVertexBytesMin = 32;
     private const int GeometryVertexBytesMax = 64;
     private const int GeometryIndexBytes = 4;
+    internal const int GeometryCoordinateDimension = 3;
 
     [SuppressMessage(
         "Performance",
@@ -187,10 +189,21 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             HashSet<string> resolvedTexturePaths = new(StringComparer.OrdinalIgnoreCase);
             GeometryVramAccumulator geometry = new();
             int? parameterizedTextureDepth = null;
+            LinearRingGeometryAccumulator? linearRingGeometry = null;
 
             while (await reader.ReadAsync())
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (reader.NodeType == XmlNodeType.EndElement
+                    && linearRingGeometry is not null
+                    && linearRingGeometry.Depth == reader.Depth
+                    && IsGmlElement(reader, "LinearRing"))
+                {
+                    linearRingGeometry.AddTo(geometry);
+                    linearRingGeometry = null;
+                    continue;
+                }
+
                 if (reader.NodeType == XmlNodeType.EndElement
                     && parameterizedTextureDepth == reader.Depth
                     && IsAppearanceElement(reader, "ParameterizedTexture"))
@@ -216,13 +229,48 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
                     lodLevels.Add(lodLevel);
                 }
 
+                if (IsGmlElement(reader, "LinearRing"))
+                {
+                    linearRingGeometry = reader.IsEmptyElement
+                        ? null
+                        : new LinearRingGeometryAccumulator(reader.Depth);
+                    continue;
+                }
+
                 if (IsGmlElement(reader, "posList"))
                 {
-                    int dimension = TryParsePositiveInt(reader.GetAttribute("srsDimension"), out int parsedDimension)
-                        ? parsedDimension
-                        : 3;
-                    string content = await reader.ReadElementContentAsStringAsync();
-                    AddPosListGeometry(content, dimension, geometry);
+                    string content = await ReadCurrentElementTextAsync(reader);
+                    if (linearRingGeometry is not null)
+                    {
+                        linearRingGeometry.MarkPosListSeen();
+                        AddPosListGeometry(content, geometry);
+                    }
+
+                    if (reader.NodeType == XmlNodeType.EndElement
+                        && linearRingGeometry is not null
+                        && linearRingGeometry.Depth == reader.Depth
+                        && IsGmlElement(reader, "LinearRing"))
+                    {
+                        linearRingGeometry = null;
+                    }
+
+                    continue;
+                }
+
+                if (linearRingGeometry is not null
+                    && !linearRingGeometry.HasPosList
+                    && IsGmlElement(reader, "pos"))
+                {
+                    string content = await ReadCurrentElementTextAsync(reader);
+                    linearRingGeometry.AddPosition(content);
+                    if (reader.NodeType == XmlNodeType.EndElement
+                        && linearRingGeometry.Depth == reader.Depth
+                        && IsGmlElement(reader, "LinearRing"))
+                    {
+                        linearRingGeometry.AddTo(geometry);
+                        linearRingGeometry = null;
+                    }
+
                     continue;
                 }
 
@@ -248,6 +296,33 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
         {
             return new DatasetSourceFileStats([], [], CreatePackageGeometryVramEstimate(packageName, new GeometryVramAccumulator()));
         }
+    }
+
+    private static async Task<string> ReadCurrentElementTextAsync(XmlReader reader)
+    {
+        if (reader.IsEmptyElement)
+        {
+            return string.Empty;
+        }
+
+        StringBuilder builder = new();
+        while (await reader.ReadAsync())
+        {
+            if (reader.NodeType == XmlNodeType.EndElement)
+            {
+                break;
+            }
+
+            if (reader.NodeType is XmlNodeType.Text
+                or XmlNodeType.CDATA
+                or XmlNodeType.Whitespace
+                or XmlNodeType.SignificantWhitespace)
+            {
+                builder.Append(reader.Value);
+            }
+        }
+
+        return builder.ToString();
     }
 
     private static bool IsRecognizedCityGmlNamespace(string namespaceUri)
@@ -300,22 +375,21 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
             || extension.Equals(".png", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool TryParsePositiveInt(string? value, out int result)
+    private static void AddPosListGeometry(string coordinateText, GeometryVramAccumulator geometry)
     {
-        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result)
-            && result > 0;
-    }
-
-    private static void AddPosListGeometry(string coordinateText, int dimension, GeometryVramAccumulator geometry)
-    {
-        int coordinateValueCount = CountCoordinateValues(coordinateText);
-        long positionCount = coordinateValueCount / dimension;
+        PosListGeometry posListGeometry = InspectPosListGeometry(coordinateText);
+        long positionCount = posListGeometry.PositionCount;
         if (positionCount <= 0)
         {
             return;
         }
 
-        long effectiveVertexCount = positionCount > 1 ? positionCount - 1 : positionCount;
+        long effectiveVertexCount = posListGeometry.IsClosedRing ? positionCount - 1 : positionCount;
+        AddPolygonFanGeometry(effectiveVertexCount, geometry);
+    }
+
+    internal static void AddPolygonFanGeometry(long effectiveVertexCount, GeometryVramAccumulator geometry)
+    {
         geometry.PositionCount += effectiveVertexCount;
         if (effectiveVertexCount >= 3)
         {
@@ -323,27 +397,66 @@ internal sealed class DatasetInspectionService(IPlateauDatasetContentSourceFacto
         }
     }
 
-    private static int CountCoordinateValues(string coordinateText)
+    private static PosListGeometry InspectPosListGeometry(string coordinateText)
     {
-        int count = 0;
-        bool inToken = false;
-        foreach (char character in coordinateText)
+        double[] firstPosition = new double[GeometryCoordinateDimension];
+        double[] lastPosition = new double[GeometryCoordinateDimension];
+        int coordinateValueCount = 0;
+        int tokenStart = -1;
+
+        for (int index = 0; index <= coordinateText.Length; index++)
         {
-            if (char.IsWhiteSpace(character))
+            bool isTokenEnd = index == coordinateText.Length || char.IsWhiteSpace(coordinateText[index]);
+            if (!isTokenEnd)
             {
-                if (inToken)
+                if (tokenStart < 0)
                 {
-                    count++;
-                    inToken = false;
+                    tokenStart = index;
                 }
 
                 continue;
             }
 
-            inToken = true;
+            if (tokenStart < 0)
+            {
+                continue;
+            }
+
+            ReadOnlySpan<char> token = coordinateText.AsSpan(tokenStart, index - tokenStart);
+            if (double.TryParse(token, NumberStyles.Float, CultureInfo.InvariantCulture, out double coordinate))
+            {
+                int ordinateIndex = coordinateValueCount % GeometryCoordinateDimension;
+                if (coordinateValueCount < GeometryCoordinateDimension)
+                {
+                    firstPosition[ordinateIndex] = coordinate;
+                }
+
+                lastPosition[ordinateIndex] = coordinate;
+            }
+
+            coordinateValueCount++;
+            tokenStart = -1;
         }
 
-        return inToken ? count + 1 : count;
+        long positionCount = coordinateValueCount / GeometryCoordinateDimension;
+        bool hasCompletePositions = coordinateValueCount % GeometryCoordinateDimension == 0;
+        bool isClosedRing = hasCompletePositions
+            && positionCount > 1
+            && AreSamePosition(firstPosition, lastPosition);
+        return new PosListGeometry(positionCount, isClosedRing);
+    }
+
+    internal static bool AreSamePosition(double[] left, double[] right)
+    {
+        for (int index = 0; index < left.Length; index++)
+        {
+            if (Math.Abs(left[index] - right[index]) >= 1e-8)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static async Task<DatasetTextureVramEstimate> EstimateTextureVramAsync(
@@ -637,6 +750,10 @@ internal sealed record DatasetSourceFileStats(
     IReadOnlyList<string> ResolvedTexturePaths,
     DatasetPackageGeometryVramEstimate Geometry);
 
+internal readonly record struct PosListGeometry(
+    long PositionCount,
+    bool IsClosedRing);
+
 internal sealed record DatasetTextureVramEntry(
     string RelativePath,
     int Width,
@@ -703,4 +820,84 @@ internal sealed class GeometryVramAccumulator
     public long PositionCount { get; set; }
 
     public long TriangleCount { get; set; }
+}
+
+internal sealed class LinearRingGeometryAccumulator(int depth)
+{
+    private double[]? firstPosition;
+    private double[]? lastPosition;
+    private long positionCount;
+
+    public int Depth { get; } = depth;
+
+    public bool HasPosList { get; private set; }
+
+    public void MarkPosListSeen()
+    {
+        HasPosList = true;
+    }
+
+    public void AddPosition(string coordinateText)
+    {
+        double[] position = new double[DatasetInspectionService.GeometryCoordinateDimension];
+        int coordinateValueCount = 0;
+        int tokenStart = -1;
+
+        for (int index = 0; index <= coordinateText.Length; index++)
+        {
+            bool isTokenEnd = index == coordinateText.Length || char.IsWhiteSpace(coordinateText[index]);
+            if (!isTokenEnd)
+            {
+                if (tokenStart < 0)
+                {
+                    tokenStart = index;
+                }
+
+                continue;
+            }
+
+            if (tokenStart < 0)
+            {
+                continue;
+            }
+
+            if (coordinateValueCount < DatasetInspectionService.GeometryCoordinateDimension
+                && double.TryParse(
+                    coordinateText.AsSpan(tokenStart, index - tokenStart),
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out double coordinate))
+            {
+                position[coordinateValueCount] = coordinate;
+            }
+
+            coordinateValueCount++;
+            tokenStart = -1;
+        }
+
+        if (coordinateValueCount != DatasetInspectionService.GeometryCoordinateDimension)
+        {
+            return;
+        }
+
+        firstPosition ??= position;
+        lastPosition = position;
+        positionCount++;
+    }
+
+    public void AddTo(GeometryVramAccumulator geometry)
+    {
+        if (HasPosList || positionCount <= 0)
+        {
+            return;
+        }
+
+        bool isClosedRing = firstPosition is not null
+            && lastPosition is not null
+            && firstPosition.Length == lastPosition.Length
+            && positionCount > 1
+            && DatasetInspectionService.AreSamePosition(firstPosition, lastPosition);
+        long effectiveVertexCount = isClosedRing ? positionCount - 1 : positionCount;
+        DatasetInspectionService.AddPolygonFanGeometry(effectiveVertexCount, geometry);
+    }
 }

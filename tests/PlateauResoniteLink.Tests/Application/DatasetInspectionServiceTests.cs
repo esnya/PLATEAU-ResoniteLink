@@ -176,6 +176,156 @@ public sealed class DatasetInspectionServiceTests
     }
 
     [Fact]
+    public async Task GetStatsAsyncPreservesNonClosedPosListVerticesInGeometryVramEstimate()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetFile(
+            datasetRoot.Path,
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            """
+            <core:CityModel
+              xmlns:bldg="http://www.opengis.net/citygml/building/2.0"
+              xmlns:core="http://www.opengis.net/citygml/2.0"
+              xmlns:gml="http://www.opengis.net/gml">
+              <core:cityObjectMember>
+                <bldg:Building>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon>
+                          <gml:exterior>
+                            <gml:LinearRing>
+                              <gml:posList>0 0 0 1 0 0 0 1 0</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        DatasetStatsResult result = await service.GetStatsAsync(datasetRoot.Path, ["bldg"]);
+
+        Assert.Equal(3, result.ArchiveVramEstimate.RendererGeometryVram.PositionCount);
+        Assert.Equal(1, result.ArchiveVramEstimate.RendererGeometryVram.TriangleCount);
+    }
+
+    [Fact]
+    public async Task GetStatsAsyncEstimatesGeometryVramFromGmlPosFallback()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetFile(
+            datasetRoot.Path,
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            """
+            <core:CityModel
+              xmlns:bldg="http://www.opengis.net/citygml/building/2.0"
+              xmlns:core="http://www.opengis.net/citygml/2.0"
+              xmlns:gml="http://www.opengis.net/gml">
+              <core:cityObjectMember>
+                <bldg:Building>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon>
+                          <gml:exterior>
+                            <gml:LinearRing>
+                              <gml:pos>0 0 0</gml:pos>
+                              <gml:pos>1 0 0</gml:pos>
+                              <gml:pos>0 1 0</gml:pos>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        DatasetStatsResult result = await service.GetStatsAsync(datasetRoot.Path, ["bldg"]);
+
+        Assert.Equal(3, result.ArchiveVramEstimate.RendererGeometryVram.PositionCount);
+        Assert.Equal(1, result.ArchiveVramEstimate.RendererGeometryVram.TriangleCount);
+    }
+
+    [Fact]
+    public async Task GetStatsAsyncIgnoresNonRingPosListForGeometryVramEstimate()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetFile(
+            datasetRoot.Path,
+            "udx/tran/53394525/plateau_tokyo23ku_tran_53394525.gml",
+            """
+            <core:CityModel
+              xmlns:core="http://www.opengis.net/citygml/2.0"
+              xmlns:gml="http://www.opengis.net/gml"
+              xmlns:tran="http://www.opengis.net/citygml/transportation/2.0">
+              <core:cityObjectMember>
+                <tran:Road>
+                  <tran:lod1MultiCurve>
+                    <gml:MultiCurve>
+                      <gml:curveMember>
+                        <gml:LineString>
+                          <gml:posList>0 0 0 1 0 0 2 0 0 3 0 0</gml:posList>
+                        </gml:LineString>
+                      </gml:curveMember>
+                    </gml:MultiCurve>
+                  </tran:lod1MultiCurve>
+                </tran:Road>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        DatasetStatsResult result = await service.GetStatsAsync(datasetRoot.Path, ["tran"]);
+
+        Assert.Equal(0, result.ArchiveVramEstimate.RendererGeometryVram.PositionCount);
+        Assert.Equal(0, result.ArchiveVramEstimate.RendererGeometryVram.TriangleCount);
+    }
+
+    [Fact]
+    public async Task GetStatsAsyncUsesImporterThreeOrdinateGroupingForGeometryVramEstimate()
+    {
+        using TemporaryDirectory datasetRoot = new();
+        WriteDatasetFile(
+            datasetRoot.Path,
+            "udx/bldg/53394525/plateau_tokyo23ku_bldg_53394525.gml",
+            """
+            <core:CityModel
+              xmlns:bldg="http://www.opengis.net/citygml/building/2.0"
+              xmlns:core="http://www.opengis.net/citygml/2.0"
+              xmlns:gml="http://www.opengis.net/gml">
+              <core:cityObjectMember>
+                <bldg:Building>
+                  <bldg:lod2MultiSurface>
+                    <gml:MultiSurface>
+                      <gml:surfaceMember>
+                        <gml:Polygon>
+                          <gml:exterior>
+                            <gml:LinearRing>
+                              <gml:posList srsDimension="2">0 0 1 2 0 1</gml:posList>
+                            </gml:LinearRing>
+                          </gml:exterior>
+                        </gml:Polygon>
+                      </gml:surfaceMember>
+                    </gml:MultiSurface>
+                  </bldg:lod2MultiSurface>
+                </bldg:Building>
+              </core:cityObjectMember>
+            </core:CityModel>
+            """);
+
+        DatasetStatsResult result = await service.GetStatsAsync(datasetRoot.Path, ["bldg"]);
+
+        Assert.Equal(2, result.ArchiveVramEstimate.RendererGeometryVram.PositionCount);
+        Assert.Equal(0, result.ArchiveVramEstimate.RendererGeometryVram.TriangleCount);
+    }
+
+    [Fact]
     public async Task GetStatsAsyncIgnoresNonStructuralLodTokensInTextAttributesAndComments()
     {
         using TemporaryDirectory datasetRoot = new();
