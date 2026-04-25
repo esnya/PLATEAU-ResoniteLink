@@ -351,7 +351,8 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
         IResoniteLinkClient routedClient,
         ITerrainTextureAssetGenerator? terrainTextureAssetGenerator = null,
         bool enableMeshBake = true,
-        DelegatingClientSession? session = null)
+        DelegatingClientSession? session = null,
+        Action<string>? progressReporter = null)
     {
         ResoniteLinkSendDiagnostics diagnostics = ResoniteLinkSendDiagnostics.Disabled;
         return new ResoniteLiveSceneImportTarget(
@@ -363,7 +364,7 @@ internal static class ResoniteLiveSceneImportTargetTestSupport
                 enableMeshBake,
                 TerrainTileCacheRoot: null,
                 DisableTerrainTileCache: false,
-                ProgressReporter: null),
+                ProgressReporter: progressReporter),
             new ResoniteLiveSceneImportDependencies(
                 session ?? new DelegatingClientSession(routedClient),
                 diagnostics,

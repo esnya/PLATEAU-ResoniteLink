@@ -636,7 +636,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         try
         {
             PreparedCityObject preparedCityObject = await AwaitWithSlowCityObjectWarningAsync(
-                queuedCityObject.PreparationTask,
+                CreatePreparationTask(state, queuedCityObject.CityObject, cancellationToken),
                 cancellationToken);
             await BuildPreparedCityObjectAsync(state, queuedCityObject, preparedCityObject, cancellationToken);
 
@@ -710,7 +710,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         AsyncWeightedGate.Lease cityObjectMemoryLease = await runtime.AcquireCityObjectMemoryAsync(
             estimatedWorksetBytes,
             cancellationToken);
-        Task<PreparedCityObject> preparationTask = CreatePreparationTask(state, cityObject, cancellationToken);
         Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> objectHierarchyTask = CreateObjectHierarchyTask(state, cityObject, cancellationToken);
         if (Interlocked.CompareExchange(ref state.Progress.FirstQueuedCityObjectLogged, 1, 0) == 0)
         {
@@ -728,7 +727,7 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         try
         {
             await runtime.WriteAsync(
-                new QueuedCityObject(cityObject, preparationTask, objectHierarchyTask, cityObjectMemoryLease),
+                new QueuedCityObject(cityObject, objectHierarchyTask, cityObjectMemoryLease),
                 enqueueCancellation.Token);
         }
         catch (OperationCanceledException) when (runtime.IsCancellationRequested)
@@ -740,7 +739,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
         catch
         {
             await cityObjectMemoryLease.DisposeAsync();
-            _ = ObserveTaskFailureAsync(preparationTask);
             _ = ObserveTaskFailureAsync(objectHierarchyTask);
             throw;
         }
@@ -794,11 +792,12 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             _ => minimumWeightBytes,
         };
 
-        int distinctTextureCount = cityObject.Materials
+        ResoniteTexturePayload[] distinctTexturePayloads = cityObject.Materials
             .Where(static material => material.TexturePayload is not null)
             .Select(static material => material.TexturePayload!)
             .Distinct(TexturePayloadReferenceComparer.Instance)
-            .Count();
+            .ToArray();
+        long directTexturePayloadWeightBytes = distinctTexturePayloads.Sum(static payload => (long)payload.BinaryPayload.Length);
         long terrainOverlayWeightBytes = cityObject.Materials
             .Where(static material => material.TerrainOverlay is not null)
             .Select(static material => material.TerrainOverlay!)
@@ -806,7 +805,8 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
             .Sum(EstimateTerrainOverlayWorkingSetBytes);
         long materialWeightBytes = checked(
             (cityObject.Materials.Count * materialBindingWeightBytes)
-            + (distinctTextureCount * textureReferenceWeightBytes)
+            + (distinctTexturePayloads.Length * textureReferenceWeightBytes)
+            + directTexturePayloadWeightBytes
             + terrainOverlayWeightBytes);
         return Math.Max(minimumWeightBytes, geometryWeightBytes + materialWeightBytes);
 
@@ -2166,7 +2166,6 @@ public sealed class ResoniteLiveSceneImportTarget : ISceneSink
 
     internal sealed record QueuedCityObject(
         ResoniteConstructionCityObject CityObject,
-        Task<PreparedCityObject> PreparationTask,
         Task<ResoniteSharedSlotIndex.ObjectSlotHierarchy> ObjectHierarchyTask,
         AsyncWeightedGate.Lease MemoryLease);
 

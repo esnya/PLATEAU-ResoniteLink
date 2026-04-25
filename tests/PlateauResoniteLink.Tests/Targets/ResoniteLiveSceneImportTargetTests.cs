@@ -383,7 +383,9 @@ public sealed class ResoniteLiveSceneImportTargetTests
     public async Task BuildAsyncCreatesDynamicTerrainStaticAndGridAssetsWithGridFallback()
     {
         using TemporaryDirectory datasetDirectory = new();
+        using TemporaryDirectory workDirectory = new();
         using SceneBuilderRecordingClient client = new();
+        List<string> progressMessages = [];
         ImportedSceneMetadata metadata = ResoniteLiveSceneImportTargetTestSupport.CreateMetadata(
             DatasetName,
             MeshCode,
@@ -424,10 +426,24 @@ public sealed class ResoniteLiveSceneImportTargetTests
             ],
             SourceFileRelativePath: $"udx/dem/533945/plateau_{DatasetName}_dem_533945.gml");
 
-        await ResoniteLiveSceneImportTargetTestSupport.BuildSceneAsync(metadata, [cityObject], client);
+        await using ResoniteLiveSceneImportTarget builder = ResoniteLiveSceneImportTargetTestSupport.CreateBuilder(
+            client,
+            progressReporter: progressMessages.Add);
+        _ = await ResoniteLiveSceneImportTargetTestSupport.ExecuteSceneAsync(
+            builder,
+            metadata,
+            workDirectory.Path,
+            [cityObject]);
 
         Assert.Single(client.ImportedMeshes);
         Assert.Single(client.ImportedRawHdrTextures);
+        int queuedMessageIndex = progressMessages.FindIndex(static message => message.Contains("First city object queued", StringComparison.Ordinal));
+        int preparationMessageIndex = progressMessages.FindIndex(static message => message.Contains("City object preparation started", StringComparison.Ordinal));
+        Assert.True(queuedMessageIndex >= 0);
+        Assert.True(preparationMessageIndex >= 0);
+        Assert.True(
+            queuedMessageIndex < preparationMessageIndex,
+            "Dynamic terrain preparation should start only after the city object is queued for a send lane.");
         Component staticMesh = Assert.Single(
             client.ComponentsById.Values,
             static component => string.Equals(component.ComponentType, "[FrooxEngine]FrooxEngine.StaticMesh", StringComparison.Ordinal));
